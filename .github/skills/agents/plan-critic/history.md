@@ -4,6 +4,24 @@
 
 ---
 
+## 2026-08-02 — 建議「歸檔補年月前綴」，卻沒查 slug 由誰決定，害計畫採用會靜默改名的做法
+
+**錯誤：** 批評 workstream-status-automation 計畫時，正確抓到「`docs/specs/archived/` 目錄不存在，實際是 `archive/`」，
+但順手依 `docs/specs/README.md` 的 `archive/$(date +%Y-%m)-<slug>` 規約，要求 Architect 補上年月前綴。
+Architect 照做，寫進修訂版 A1.1。下一輪才查出 `build-specs-snapshot.ts` 的 `listSpecsForStatus()` 是以
+`loadSpecFromDir(status, entry.name, full)` 呼叫，**slug 直接取自目錄名稱**，且全檔從不讀 frontmatter 的 `slug:`（`data.slug` 零命中）。
+因此加前綴會讓看板 slug 變成 `2026-08-<slug>`、詳情頁網址失效、frontmatter 與看板顯示值永久不一致。
+更諷刺的是，repo 內唯一的歸檔實例 `archive/feedback-loop/` **根本沒有日期前綴**——README 規約與實況本來就矛盾，而我只採信了 README。
+
+**修正：** 第 2 輪 critique 第 4.1 節自我更正，改建議歸檔不加前綴（與 `archive/feedback-loop` 一致）並同步修 README，
+且要求驗收新增不變量「frontmatter `slug` == 目錄名稱」。
+
+**教訓：**
+1. **建議任何命名／路徑規約前，先追消費該名稱的 parser 實際讀哪個欄位。** 目錄名、frontmatter 欄位、URL 參數可能來自不同來源；
+   假設「改目錄名只是搬檔案」會製造靜默改名。與 2026-05-30 的「prompt 文字 ≠ enforced 邏輯」是同一種錯：**規約文件 ≠ enforced 行為**。
+2. **README 等規約文件本身也可能與 repo 實況矛盾**，引用前先找一個既有實例對照。本次只要看一眼 `archive/` 目錄就能發現沒有前綴。
+3. 抓到「路徑錯誤」是對的，但**順帶追加的規約要求要獨立驗證**——主結論正確不代表附帶建議也正確。
+
 ## 2026-05-31 — 批評誤導 Architect 重造輪子：叫他「抽出 page.tsx 既有 marker 邏輯為新 helper」
 
 **錯誤：** 批評 Unit 2 地區模型缺口時（正確抓到東京/online/overseas 不在 prefecture 陣列），建議 Architect「從首頁 page.tsx 抽出 marker 過濾邏輯，新建共用 helper」。Architect 據此在 v3 計畫的 2-pre 新增 `web/lib/analytics/locationFilter.ts`。下一輪 grep 才發現：(1) 該邏輯**早已不在 page.tsx**，(2) **已存在 `web/lib/locationMarkers.ts`** export `LOCATION_KEYS` + `matchesLocation()`（正是要新建的東西），(3) AdminEventTable.tsx 還另有一份。新建 locationFilter.ts 等於**第三份平行實作**——與我自己「消除平行實作分歧」的訴求矛盾。

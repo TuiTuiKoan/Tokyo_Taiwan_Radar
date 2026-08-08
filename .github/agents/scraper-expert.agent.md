@@ -44,7 +44,16 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 - For bugs: isolate the failing tier (date extraction, selector, dedup key) and fix the smallest unit
 - Validate with `--dry-run` before handing off to Tester
 - After fixing venue or address issues, verify every user-facing surface that renders the same event, including narrative summary, FAQ, calendar export, and address card, so postal codes and other display-only artifacts stay consistent.
-- **Hybrid Venue Verification**: For events with both physical and online components, confirm both are present in `location_name` and the physical address is preserved. Verify the `field_corrections` are applied.
+- Apply the Hybrid Venue Verification checklist below to every physical-plus-online event.
+
+### Hybrid Venue Verification
+
+1. Classify pure online only from affirmative evidence that no physical attendance option exists. Pure online uses `location_name='オンライン'`, `location_name_zh='線上'`, `location_name_en='Online'`, with `location_address`, address translations, and `location_prefectures` null. An online keyword alone is not proof.
+2. Detect hybrid across every category and `event_form`, not only `performing_arts`. Physical signals include `会場観覧`, `現地`, `対面`, a physical venue or address, non-null `venue_id`, localized physical venue or address fields, and explicit simultaneous venue plus stream or online-registration information.
+3. For hybrid events, retain the existing `venue_id`, physical address and known translations, and formal `location_prefectures`. Store localized joined names as `<venue> / オンライン`, `<venue zh> / 線上`, and `<venue en> / Online`; one `オンライン` token must not erase stronger physical evidence.
+4. Keep URL ownership separate: `location_url` is the physical venue's official homepage; `submission_url` is the online registration or stream signup link; `official_url` is a verified first-party page dedicated to the event; `source_url` remains the original scraped page; `organizer_url` is the organizer homepage or, when no dedicated organizer site exists, its SNS profile. Performer SNS remains in `performer_url` or `performer_urls[]`. Never move a signup URL into `location_url` or erase provenance.
+5. Before a manual repair, inspect existing FC rows and rewrite or remove contradictory locks before relying on re-annotation. Lock every manually changed field and verify matching audit rows. For event `70cf7002-06ee-45aa-815f-3422c999b5f5`, the minimum audited set is `location_name`, `location_name_zh`, `location_name_en`, `location_address`, `location_prefectures`, `location_url`, and `submission_url`; lock address translations only when changed.
+6. Validate detail venue and address rows, region filtering, FAQ, narrative, SEO output, and the five independent `location_url`, `submission_url`, `official_url`, `source_url`, and `organizer_url` links. Use `70cf7002-06ee-45aa-815f-3422c999b5f5` as the positive hybrid fixture, expecting `誠品生活日本橋内 イベントスペース「FORUM」 / オンライン`, the physical address, `東京都`, and its `venue_id`. Use an online-only event with no physical evidence as the negative fixture and expect the pure-online canonical values.
 
 ## hanmoto publication-specific
 
@@ -90,8 +99,8 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
     15. **`location_address` must NEVER equal `location_name`**: Annotator's `_ai_or_existing()` keeps any non-null scraper-written `location_address` without checking if it equals `location_name`. A venue name echoed as address permanently blocks the PARENT VENUE ADDRESS RULE. Rules: (a) If a real street address is found in the text, use it only when it differs from the venue name. (b) Otherwise set `location_address = None`. (c) NEVER use `location_address = venue` / `location_address = location_name` as a fallback. After fixing any location bug, scan all scrapers: `grep -rn "location_address.*=.*venue\b\|location_address.*location_name" scraper/sources/`
     16. **二手聚合源（thin-pointer sources）— A1/A2/A2b/A3 パターン**: note.com / SNS 投稿などが「他機構のイベントを代わりに宣伝」する scraper では以下を必ず実装すること（`note_creators.py` が参照実装）。
         - **A1**: RSS/HTML preview の truncation guard は `endswith("続きをみる")` で判定（`== "続きをみる"` では不十分）。`_is_truncated(text)` = `text.endswith("続きをみる") or len(text) < 120`。
-        - **A2**: `base.py.extract_first_party_url(body, exclude_hosts)` で全文から official_url を抽出。🔗/詳細/申込 シグナル近傍 URL を優先、signup platforms（peatix/forms.gle/google/linktr.ee）を除外。
-        - **A2b**: `official_url` が外部機構ドメイン（signup platform 以外）の場合 → `effective_location_name = None` にしてクリア。`_auto_lock_location` が `if not event.location_name: continue` でスキップされ、投稿者の教室住所が外部イベントに FC ロックされるのを防ぐ。
+        - **A2**: `base.py.extract_first_party_url(body, exclude_hosts)` は candidate URL を返す。Destination を確認し、第一方の活動専用頁は `official_url`、signup／stream／ticket は `submission_url`、organizer homepage／SNS は `organizer_url` に分類する。`source_url` は元の投稿／scraped page provenance のまま保持し、helper 名や「詳細／申込」anchor だけで field を決めない。
+        - **A2b**: Verified candidate が外部機構の event destination または organizer destination を示す場合、正しく `official_url` または `organizer_url` に route した上で `effective_location_name = None` にしてよい。これにより `_auto_lock_location` が投稿者 profile の教室住所を FC lock するのを防ぐ。非 signup URL を一律 `official_url` と呼んではならない。
         - **A3**: `base.py.fetch_ref_text(url, verify_ssl=not tw_insecure_domain(url))` で公式ページの本文を取得し `raw_description` に追記。台湾 `.edu.tw`/`.gov.tw` ドメインは `tw_insecure_domain()` で検出し `verify_ssl=False` で取得（OWASP: 白名單ドメインのみ、唯讀 GET）。A3 fail-safe: ref < 200 字 → fallback 回 note 全文、活動建立を阻断しない。
         - 詳細パターンは SKILL.md `## Note Creator Source Guard` 参照。
 

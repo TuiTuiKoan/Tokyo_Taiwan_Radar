@@ -14,6 +14,30 @@ Read this at the start of every session before producing any plan.
 - Never ship a plan with an untested API or signature change. Include an explicit smoke-test step.
 - Confirm that all pending migrations are applied before designing features that build on them.
 - **Domain-policy surface audit（2026-07-11 教訓）**：需求若把某類記錄的欄位定義為「不適用、隱藏、免 QA、不得自動補值」，不可只改公開頁面的摘要列。計畫起草前必須建立 surface matrix，逐層追查：(1) scraper 分類與提取、(2) database writer／entity enrichment、(3) annotator／field corrections、(4) backfill 與 rollback、(5) QA detect／fix／reconcile、(6) admin quality metrics、(7) 公開摘要／敘事／FAQ／Calendar／回報 UI、(8) JSON-LD／SEO。每層都要明列適用 predicate、未來寫入守衛、legacy cleanup 與負向 fixture；缺任一層都可能讓已隱藏資料從衍生輸出重新洩漏。
+- **Policy supersession contradiction audit**：以新政策取代舊政策時，audit scope 是完整 policy surface，不是最先發現矛盾的 owner file。必須對每個 target agent、SKILL、history artifact，以及被連結且仍作 normative guidance 的 history 執行 exact 與 semantic search，涵蓋舊 predicates、code examples、exceptions、producers／consumers及 URL／field ownership。每個命中都必須分類為 active 或 historical；active guidance 要更新或明確限縮，含過時值的 historical fact 必須在相鄰位置標示 non-normative／superseded。Acceptance 的 negative search 必須覆蓋所有 target artifacts 與 linked normative history，證明舊行為已消失。
+- **Multi-phase manifest executability guard（2026-08-03 教訓）**：broad inventory 與
+   delete allowlist 必須分離；先將 identity migration、mixed、conflict 與 exclusion
+   route 到各自處理路徑，再建立 cleanup 候選。`corrected_by IS NULL`、non-empty、目前
+   仍命中 predicate、source 或 UUID prefix 都不得單獨授權刪除。只有 immutable
+   manifest 的 `route_action`、完整 FC ID 與 event ID、field、exact value、timestamp
+   及 digest 齊備時，才能形成 CAS allowlist；empty sentinel 與已證實有效的 lock
+   必須列入 preserve set。Checkpoint evidence 必須能由現行 schema 與 writer 實際
+   產生；核准前逐項對照 evidence 所依賴的 column 與 writer assignment，不得要求無
+   欄位承載、writer 也不會寫出的查詢條件。若沿用既有欄位承載證據，計畫必須明列
+   runtime encoding 與 lookup 契約，例如 audit 復用 `field_correction_id`，digest
+   展開進 `unlock_reason` template，而非假設存在 digest 欄或逕增 migration。Phase
+   boundary 必須依 helper 的真實副作用定義，不得依抽象 table purity：`fc-remove`
+   不動 event；`event-clear` 可用 value-CAS 清六個 extended event values 並建立七個
+   canonical `lock_empty` sentinels，但不得刪 FC；Eslite identity migration 這類同時
+   改 event 與 lock／delete FC 的具名例外，必須有 dedicated before/after checkpoint。
+   新增 execution selector 前先盤點既有 CLI、`field_correction_actions[]` action
+   fields 與 `apply_eligible` 語意；新 selector 使用 `apply_phase`，既有 provenance
+   `phase` 在計畫中改稱 `route_action`，避免名稱碰撞。所有
+   `corrected_by IS NOT NULL` 的人工 FC，包含 translation 與 location locks，必須
+   hard-exclude cleanup 並進入顯式 preserve／review route。FC remove 與 event clear
+   各自取得 approval，且前一 phase read-back 通過後才可繼續；任一 evidence、
+   side-effect、selector 或 human-lock route 無法表示時，計畫不得宣稱
+   execution-ready。
 - **量詞轉 acceptance matrix（2026-07-11 教訓）**：使用者說「所有 A」「A 與 B」「除 C 外」時，計畫必須把每個集合展開成驗收矩陣，逐列列出 UI、DB、QA、SEO 的期望行為，並加入邊界反例。不得把全集合靜默縮成某個 subtype（例如把「所有純出版記錄隱藏料金」縮成「只有雜誌文章隱藏料金」）。source、category、標題前綴不可代替真正的 domain invariant；混合型記錄必須有 negative fixture 防止過度套用。
 - **Predicate projection contract guard（2026-08-06 教訓）**：任何在 Supabase/PostgREST query 後於 Python／TypeScript 套用的 domain predicate，計畫必須先列出 predicate input fields，並逐一放進 candidate/query `.select()`；query projection 是 predicate behavior contract。優先使用 domain invariant，不得以 source／category／title whitelist 代替；fixtures 必須包含 exact-pure positive、mixed negative、null/missing-field boundary。projection-aware fake PostgREST client 必須實際解析 projection，未 select 的欄位不得偷偷存在。測試必須同時 assert 必要 column 已被 select，且 column-removal mutation 會讓行為測試失敗；只測 standalone predicate 不足。若同時有 stale report cleanup，root-cause guard、regression test、cleanup tool 必須屬於同一 release unit；cron protection 只能在 code 已位於 `origin/main` 後宣稱。
 - **Design system first（2026-06-03 教訓）**：任何 `web/` UI 計畫，優先採用本站既有 design system / design token 元件，不得預設用原生 HTML control。若已有 `DesignSelect`、dialog、button、input、badge 等對應元件，計畫中必須明列使用它；只有在設計系統無法表達互動語意時，才考慮新增原生 fallback。
@@ -32,9 +56,35 @@ Read this at the start of every session before producing any plan.
 - **強標識符 (Strong Identifier) 優先去重原則（2026-06-07 教訓）**：凡具有 standard UID (如 ISBN、行銷條碼、官網極致 unique URL 等) 的特定 `category`/`event_form` 類型，在設計其查重合流機制（merger）時，應設置專屬的 Pass (例如 Pass 1.1) 優先於 `start_date` same-day 分組匹配之外執行。在時差 30 日內或年末佔位符階段（如 12-31）強制合併，並提供權威源 metadata 傳遞演算，確保不會受 scraper date extraction 漂移造成重複入庫。
 - **Sub-event source_id drift guard（2026-06-24 教訓）**：任何會新增、移除、或在中間插入 annotator-generated 子活動的計畫，必須先檢查子活動 `source_id` 是否為 `_subN` 位置序號。修法必須先用標題與日期匹配既有子活動並復用原 `source_id`，新子活動只能 append 到目前最大 `_subN` 之後，避免 re-annotation 把既有 `_sub2`〜`_subN` 覆寫成不同活動。若同日既有子活動是 bundle（開幕イベント、表演＋解說等），GPT 拆出的 component（講演、映画、解説）必須命中並跳過 duplicate allocation；sub-event upsert 也必須尊重 field_corrections。
 - **三語 Localization 硬配對守則（2026-06-07 教訓）**：任何 front-end categories, actor_types, 或者是 web schemas 異動，必須將 `web/messages/{en,ja,zh}.json` 三包語系檔做 simultaneous update 同步更新。若有漏配，會阻礙 production next build compiler 通過。
-- **Hybrid Venue 同時標註則（2026-06-07 教訓）**：針對 `performing_arts` 等混合型活動（現場+線上），設計上必須同時保留實體 `location_address` 與在 `location_name` 中並列 `オンライン`。記得兩個都標，不可因線上屬性而抹除地址資料。
+- **Pure-online / Hybrid planning guard（2026-08-05 教訓）**：所有 category 與
+   `event_form` 都必須先依跨欄位證據分流。Pure online 需要正向證據確認沒有實體
+   參與選項，canonical values 為 `location_name='オンライン'`、
+   `location_name_zh='線上'`、`location_name_en='Online'`，address translations 與
+   `location_prefectures` 為 null，且不保留 physical `venue_id`；單一 online token
+   不足以成立。若有 `会場観覧`／
+   `現地`／`対面`、實體場地或地址、非 null `venue_id`、localized physical values，
+   或同時存在會場與 online registration／stream 資訊，必須規劃為 hybrid：保留既有
+   `venue_id`、實體地址及翻譯、正式 `location_prefectures`，並以
+   `<venue> / オンライン`、`<venue zh> / 線上`、`<venue en> / Online` 並列場地。
+   URL 不可互換：`location_url` 是場地官方首頁，`submission_url` 是線上報名／stream
+   signup，`official_url` 是經驗證且專屬該活動的第一方頁面，`source_url` 保留原始
+   scraped page，`organizer_url` 是主辦方首頁，或主辦方沒有專屬網站時的 SNS。
+   Performer SNS 仍屬於 `performer_url`／`performer_urls[]`。
+   手動修復前要檢查並 rewrite／remove 矛盾 FC，鎖定所有實際變更欄位並核對 audit
+   rows。Acceptance 必須以 `70cf7002-06ee-45aa-815f-3422c999b5f5` 為 positive
+   hybrid fixture、無實體證據的 online-only event 為 negative fixture，並驗證
+   detail venue/address、region filter、FAQ／narrative／SEO 與五條獨立連結。
 - **日文都道府縣正規化禁用單一 `rstrip("都道府県")`（2026-06-29 教訓）**：rstrip 是字元集合剝除非後綴剝除，`京都府`→`京`、`東京都`→`東京`、`北海道`→`北海` 皆過度剝離（「都」同時是京都/東京內字）。任何依縣名建查表/分組/排序的計畫，必須要求多段 fallback（精確 label match → rstrip → 原值 direct → 去末字 `[:-1]`），並列子字串陷阱測試（東京都≠京都、神奈川≠奈良、和歌山≠山形/岡山、福岡≠福島/福井）。Reference: 2026-06-29 週報 geo-sort（commit `3c590e4`）。
 - **工作流／治理計畫三查（2026-07-10 教訓）**：規劃涉及 (a) push/merge 行為 → 先讀 `.github/instructions/git.instructions.md` 現行政策**並**比對實務（V-M-D／CI 實際怎麼推），矛盾拆獨立任務對齊，不在子段落暗改全 repo 政策；(b) 新增「供追蹤」的 metadata 欄位（spec frontmatter／DB 欄位）→ 先追其 type/parser/consumer，無 consumer＝dead field 會被靜默丟棄（v1 的 `worktree:` frontmatter 就會被 spec dashboard snapshot parser 丟掉），可推導值優先於新增可過期欄位；(c) 強制／1:1 規則 → 只 prospective 套用並 grandfather 既有資產。詳見 `history.md` 2026-07-10 spec⟺worktree v1 三 P0。
+
+### Workstream Status Governance Guard
+
+規劃任何 workstream status automation、admin live badge、或 dashboard 前，必須先通過以下四項治理檢查：
+
+1. 先做 Admin UI Dashboard Necessity Check。若現有被動通道（例如 `scraper/daily_report.py`、`.github/wip.md`）可先滿足目標，先走低成本試行，不得直接升級成高隱私高複雜度監控系統。
+2. 若資料來源含本機檔案或未提交狀態，必須明列 local-to-hosted 邊界四要素：transport（如何帶到 runner）、publisher（誰在何時發布）、credentials（hosted 端用哪組權限讀取）、freshness（可接受的新鮮度與過期處理）。缺任一項即視為不可運作設計。
+3. status/spec inventory 必須同時掃描 `docs/specs/active/`、`docs/specs/parked/`、`docs/specs/archive/`，做雙向一致性檢查。目錄位置與 frontmatter `status` 任一不一致都要回報，包含 archive 區的反向漂移。
+4. volatile git 計數（dirty、ahead、behind、untracked）只能作 planning snapshot，不得當驗收門檻。驗收應改用 invariants 與 fixtures，例如固定查詢 predicate、可重現樣本集合、與明確 PASS/INCONCLUSIVE 條件。
 
 ### Security Release Acceptance Matrix Guard（資安發布驗收分層）
 
@@ -1474,12 +1524,14 @@ auto_generate で生成された Layer B scraper の `FIELD_SELECTORS["date"]` �
 Reference incident: 2026-05-04 `business_hours=NULL` 因 `reviewed` 狀態保護永遠不修復（commit `54a20d7`）。
 
 ## Online Location Standard
-- **Canonical online event representation**: `location_name = 'オンライン'`, `location_address = 'オンライン'`. **Both columns must be set; neither should be NULL.** DB also requires `location_address_zh = '線上'`, `location_address_en = 'Online'`.
-- All scrapers must normalize online markers **before** building the `Event` object. Use `_ONLINE_RE` pattern: `r'(?:online|オンライン|ライブ配信|配信のみ|[Zz][Oo][Oo][Mm])'`.
-- The web `location=online` filter queries `location_name ILIKE '%オンライン%'` (location_address is redundant for filtering but must still be set).
-- The `location=other_japan` filter must exclude online events via BOTH `location_name NOT ILIKE '%オンライン%'` AND `location_address NOT ILIKE '%オンライン%'`.
-- `AdminEventTable.tsx` `other_japan` filter must also check `!addr.includes('オンライン')` before accepting the event.
-- Variants like `'オンライン（Zoom）'` must be canonicalized to `'オンライン'`.
+
+- An online signal must be present, and cross-field review must affirmatively confirm that no physical attendance option exists, before an event enters the pure-online branch. Online keywords alone are insufficient.
+- Pure online uses `location_name='オンライン'`, `location_name_zh='線上'`, and `location_name_en='Online'`. Set `location_address`, `location_address_zh`, `location_address_en`, `location_prefectures`, and any physical `venue_id` to null.
+- Physical evidence includes `会場観覧`, `現地`, `対面`, a concrete physical venue or address, non-null `venue_id`, localized physical venue or address values, or an explicit physical venue plus online participation. These signals classify the event as hybrid for every category and `event_form`.
+- Hybrid events retain the physical base and localized addresses when known, formal `location_prefectures`, and `venue_id`. Store joined localized names as `<venue> / オンライン`, `<venue zh> / 線上`, and `<venue en> / Online`.
+- Normalize variants such as `オンライン（Zoom）` to the canonical online names only after confirming the pure-online branch. Do not erase stronger physical evidence during normalization.
+- Web and admin `location=online` filters identify canonical pure online through the online-name branch. `other_japan` excludes the same canonical name or branch; neither filter may depend on a fabricated address sentinel.
+- Keep location filter options, server queries, admin predicates and counts, and no-physical-address quality exclusions synchronized whenever this branch logic changes.
 
 ## TV / Non-Physical Location Standard
 - **Canonical TV/broadcast event representation**: `location_name = '電視頻道'`, `location_address = null`. TV programmes have no physical address — do not attempt to fill `location_address`.
@@ -1510,10 +1562,13 @@ Missing any one of these causes: filter mismatch (items appear in wrong section)
 - Overseas filter does **not** require exclusion from `other_japan` — these are physically separate geographic categories.
 
 ## Online Events (Peatix)
-- Peatix renders online-only events as `LOCATION\n\nOnline event` (single line, no address group). The two-part regex `LOCATION\n\n(.+)\n\n(.+)` will NOT match — always add a separate `loc_online_m` check BEFORE the two-part regex.
-- Set an `is_confirmed_online` flag immediately on match and **skip all CSS and regex address fallbacks** — description body text often mentions a venue as a conditional/secondary option and must never be used as `location_address`.
-- For confirmed online events: `location_name = 'オンライン'`, `location_address = 'オンライン'`.
-- The final body-text online fallback must also set `location_address = 'オンライン'`, NOT `None`.
+
+- Peatix may render `LOCATION\n\nOnline event` as a single-line location block that does not match the two-part venue/address regex. Treat this block as an online signal, not proof of online-only attendance.
+- Before setting `is_confirmed_online_only`, inspect all structured location and participation fields plus the title and body for `会場観覧`, `現地`, `対面`, a concrete physical venue or address, non-null `venue_id`, localized physical venue or address values, or explicit physical venue plus online participation.
+- Set `is_confirmed_online_only` only when an online signal exists and the complete cross-field inspection affirmatively confirms that no physical attendance option exists.
+- Only confirmed pure-online events skip CSS and regex physical-address fallbacks. Write the canonical online names and null the three address fields, `location_prefectures`, and physical `venue_id`.
+- When online and physical evidence coexist, continue venue and address extraction. Preserve known physical base and localized addresses, prefecture, and `venue_id`, then write the three joined localized venue names.
+- A final body-text online fallback may contribute the online signal, but it must pass the same cross-field confirmation before selecting the pure-online branch.
 
 ## Address Verification
 - **Never change a hardcoded address based on a DB value alone.** The DB may contain AI-hallucinated addresses from `backfill_locations.py` or the annotator. Always verify against the official source website first.
@@ -1667,15 +1722,12 @@ def sanitize_html(raw: str) -> str:
 - Do not rely on CI discovery or daily cron to catch missing registrations — manual registration is mandatory at commit time.
 
 ## Cinema Official URL Extraction
-- Cinema scrapers must extract `official_url` from the film detail page using one of:
-  - Link with text "チケット" or "購入" (ticket/purchase keywords)
-  - Href pattern containing `/ticket/` or `/purchase/` (domain-agnostic)
-- Always verify extracted URL domain is not a third-party ticket vendor (e.g., Playplay, Peatix reseller, Rakuten Ticket) — maintain a domain whitelist of known official cinema URLs.
-- When adding `official_url` extraction to an existing scraper, immediately backfill validation:
-  1. Run scraper with `--dry-run` and manually inspect first 5 events
-  2. Confirm URLs are valid, resolve without 404, and point to official pages (not redirects to vendor)
-  3. Only then commit and push to production
-- For Google Search fallback in film title lookup: always prioritize `name_ja` (Japanese title) regardless of current request locale. Google Search ranks results by search query locale, not result locale — using a locale-specific name variable will cause wrong film matches and incorrect `official_url` extraction.
+
+- A verified first-party cinema or film detail page dedicated to the specific event may be assigned to `official_url`. Domain ownership alone is insufficient; a cinema homepage, generic film page, or unrelated schedule page is not an event-dedicated page.
+- Links labelled `チケット`, `購入`, ticket, or purchase, and hrefs containing `/ticket/` or `/purchase/`, belong to `submission_url`. This remains true for verified third-party ticket vendors and for ticket endpoints hosted on the cinema's own domain.
+- Keep the cinema page originally scraped as `source_url` provenance. Keep a physical venue homepage in `location_url`, and route organizer or distributor homepages and SNS profiles to `organizer_url`.
+- Validate a new extraction with a dry run and inspect at least five events. Confirm each URL resolves, classify the destination page rather than only its domain, and verify ticket or purchase links never appear in `official_url`.
+- Google Search fallback is discovery-only. Search with `name_ja` plus screening context, then apply the same destination classification before any event-field write.
 
 ## Prompt Efficiency (User-Side Rules)
 
@@ -2127,10 +2179,11 @@ Reference incidents: 2026-05-07 — commits `0b5ba72`、`c38ddd5`、`b9a462c`：
 
 在審核任何擴充 `lookup_movie_titles()` 或 `enrich_movie_titles()` 的計畫前，**必須**確認：
 
-1. **回傳型別包含 official_url**：`lookup_movie_titles()` 回傳 `(name_zh, name_en, official_url)` 3-tuple。official_url 從 eiga.com detail page 的 `オフィシャルサイト` `/jump/?u=<URL-encoded>` 解析（`urllib.parse.parse_qs`）。
-2. **寫入保護**：`enrich_movie_titles()` 寫入 official_url 時，**只在 event 目前 official_url 為 null/falsy 才寫入**，不可覆寫已存在值（否則可能蓋掉已 FC-lock 的人工值）。
-3. **寫入後自動 FC 鎖定**：呼叫 `_lock_fields_via_corrections()` upsert 進 `field_corrections`，與其他 enrich_* 函式一致。
-4. **Backward-compatibility**：擴充回傳型別時，所有呼叫點的解包必須同步更新（目前 `annotator.py` 共 3 處：~line 1892, 1902, 2468）。漏更新會 silent break（`ValueError: too many values to unpack`）。
+1. **現行 API 契約**：`lookup_movie_titles()` 目前回傳 `(name_zh, name_en, official_url)` 3-tuple。第三個 legacy slot 名為 `official_url`，並從 eiga.com detail page 的 `オフィシャルサイト` `/jump/?u=<URL-encoded>` 解析（`urllib.parse.parse_qs`），但它只是 untrusted candidate／lookup reference，不是 event-field ownership 證明。
+2. **先分類再寫入**：任何 event-field write 前先驗證 destination。只有精確且第一方、專屬該活動的頁面可成為 event `official_url`；ticket、signup 或 stream access 寫入 `submission_url`；organizer／distributor homepage 或 SNS 寫入 `organizer_url`。
+3. **一般 lookup reference 不寫 event URL**：generic film page、原作頁、電影資料庫或 re-release lookup reference 保留在 lookup／work metadata，不得覆寫 event `official_url`。
+4. **既有保護順序不變**：完成 destination classification 後，才套用既有 null-only 與 FC protection。只在目的欄位目前允許寫入時更新，並只對實際寫入的目的欄位呼叫 `_lock_fields_via_corrections()`。
+5. **Backward compatibility**：所有 call sites 仍須相容 3-tuple 解包。任何 API 或 tuple shape 變更都要同步檢查全部 call sites，避免 `ValueError: too many values to unpack`。
 
 Reference incident: 2026-05-12 — Phase A 實作；3 個呼叫點全部更新後上線。
 
@@ -2145,31 +2198,29 @@ Reference incident: 2026-05-12 — Phase A 實作；3 個呼叫點全部更新�
 
 **遇到時的補救流程：**
 1. Google 搜尋「`<原片名>` 公式サイト」或「`<原片名>` 4K」。
-2. 確認該域名是新版發行的官方網站（檢查發行公司資訊）。
-3. UPDATE event official_url + FC 鎖定。
-4. 若該重映已建 work_id，可考慮把 official_url 也記到 `works` 表，方便日後其他場次共用。
+2. 確認 destination identity 與頁面粒度，不以發行公司域名本身推定 event ownership。
+3. 只有專屬該活動的第一方頁面可 UPDATE event `official_url` 並加 FC；ticket／signup 與 organizer／distributor destinations 分別路由至 `submission_url` 與 `organizer_url`。
+4. Generic re-release site 留在 lookup／work metadata；若已有 `work_id`，可使用既有 work-level reference mechanism 供其他場次共用。
 
 Reference incident: 2026-05-12 — ヤンヤン 4K 重映實際官網為 `yi-yi.jp`，但 eiga.com 詳情頁無 jump link；初次 enrich 寫入錯誤 `yiyi-movie.jp`，需手動修正並 FC 鎖定。
 
 ## Aggregator official_url Guard（聚合站來源的 `official_url ≠ source_url`）
 
-在審核**任何**新 scraper 或既有 scraper 修改的計畫前，**必須**確認 `official_url` 的設定方式與 source 性質一致：
+在審核**任何**新 scraper 或既有 scraper 修改的計畫前，先把 extractor output 視為 candidate，再依 destination 分類：
 
-1. **Aggregator 來源**（第三者投稿型／集約站）`official_url` 不可 fallback 到 `source_url`：
-   - 對象：`tokyoartbeat`、`peatix`、`doorkeeper`、`connpass`、`eplus`、`livepocket`、`kokuchpro`、`walkerplus`、`arukikata`、`prtimes`、`ftip`、`google_news_rss`、`nhk_rss`、`note_creators`
-   - `source_url` = aggregator 頁面（保留作 audit trail）
-   - `official_url` = 從頁面 body 提取的主辦方一手 URL；提取不到時必須為 `None`
-2. **常見反 pattern**：
-   - `source_url = official_url_extracted` — 破壞 audit trail（已於 ftip 2026-05-10 處理）
-   - `official_url = ... or source_url` — CMS 欄位為空時靜默汚染（已於 tokyoartbeat 2026-05-16 處理）
-3. **First-party 來源例外**（`source_url` 自體即官方頁，可明示設定 `official_url=url`）：
-   - `taiwan_cultural_center`、`taiwan_matsuri`、`koryu`、`taioan_dokyokai`、`taiwan_kyokai`、`asahiculture`、各 cinema scraper
-4. **審核命令**（規劃完成前執行）：
+1. **Aggregator 來源**（第三者投稿型／集約站）必須保留 aggregator page 為 `source_url` provenance。`extract_first_party_url()` 或同類 helper 只產生 candidate，不得直接決定 event field。
+2. **Destination routing**：經驗證且第一方、專屬該活動的頁面寫入 `official_url`；signup、ticket、registration 或 stream access 寫入 `submission_url`；organizer homepage 或 organizer SNS 寫入 `organizer_url`。提取不到合格 destination 時，各目的欄位可保持 `None`。
+3. **First-party source 也要驗證頁面粒度**：只有當 `url` 本身是專屬該活動的頁面時，才能同時設定 `source_url=url` 與 `official_url=url`。第一方 domain 的首頁、分類頁、generic schedule、ticket endpoint 或 organizer profile 不因 domain ownership 自動成為 `official_url`。
+4. **常見反 pattern**：
+   - `source_url = extracted_candidate`，破壞 aggregator provenance
+   - `official_url = extracted_candidate`，未先分類 destination
+   - `official_url = ... or source_url`，在 candidate 缺失時把 provenance 偽裝成活動官網
+   - 以「非 signup platform」作為 `official_url` 的充分條件
+5. **審核命令**（規劃完成前執行並逐筆分類結果）：
    ```bash
-   grep -rn "official_url.*or source_url\|official_url=source_url" scraper/sources/
-   # 期待結果：0 件
+   rg -n "official_url.*or source_url|official_url\s*=\s*source_url|extract_first_party_url" scraper/sources/
    ```
-5. **影響範圍**：`official_url` 汚染後 UI「公式サイト」按鈕指回 aggregator 而非主辦方頁面，使用者無法到達真正的活動資訊源。
+6. **影響範圍**：錯誤 assignment 會讓 UI 把 aggregator、ticket 或 organizer page 誤標成「公式サイト」，隱藏真正的 signup destination，或破壞 provenance。Review 必須驗證 `source_url`、`official_url`、`submission_url` 與 `organizer_url` 各自符合頁面用途。
 
 Reference incidents:
 - 2026-05-10 — `ftip.py` `source_url` 被 official_url 覆寫，破壞 FTIP audit trail（commits `ab771e2` → `7c34788`）。

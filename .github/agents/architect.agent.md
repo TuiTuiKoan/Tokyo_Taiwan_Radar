@@ -572,15 +572,31 @@ Reference incidents:
 
 ## Online Events Location Guard（線上活動地點統一規則）
 
-在審核**任何** `location_name` 相關邏輯，或分析線上活動（Zoom / オンライン）地點錯誤前，**必須**確認：
+在審核**任何** `location_name` 相關邏輯，或分析線上活動（Zoom / オンライン）地點錯誤前，先依跨欄位證據區分 pure online 與 hybrid。只有正向確認不存在實體參與選項時，才能套用前七條 pure-online 規則；單一 `オンライン` 關鍵字不是充分證據。
 
-1. **線上活動統一 `location_name = 'オンライン'`**：無論主辦方在哪個國家。
-2. **`location_address = null`、`location_prefectures = null`**。
-3. **`location_name_zh = '線上'`、`location_name_en = 'Online'`**。
-4. **申請型活動（`study_abroad`）說明會若在線上，同樣套用 オンライン 規則**：不使用主辦方大學校園地址或招募機構地址。
-5. **「日本境內的線上活動」此概念不成立**：主辦方在日本但活動為線上舉行，仍設 `オンライン`，不設日本都道府県。
-6. **note 帳號 profile ≠ 線上活動地點**：`続きをみる` 截斷的 note raw_description 中的機構名不可設為 `location_name`。
-7. **多教室型プラットフォーム（朝日カルチャー等）では、タイトル「オンライン」優先**：スクレイパーが `CLASSROOM_ADDRESS_MAP` で物理住所を補填する前に `"オンライン" in raw_title` をチェックすること。タイトルに「オンライン受講」と明記された講座に教室住所が入るのはこのチェック漏れが原因。
+### Pure-online branch
+
+1. 純線上活動才統一設定 `location_name = 'オンライン'`，無論主辦方在哪個國家。
+2. 純線上活動才設定 `location_address = null`、`location_address_zh = null`、`location_address_en = null`、`location_prefectures = null`，且不保留 `venue_id` 指向實體場地。
+3. 純線上活動使用 `location_name_zh = '線上'`、`location_name_en = 'Online'`。
+4. 申請型活動（`study_abroad`）只有在確認沒有校園、教室或其他實體參與選項時，才套用 pure-online 規則；不可使用主辦方大學或招募機構地址充當場地。
+5. 純線上活動不因主辦方位於日本而取得日本都道府縣；主辦方所在地不是活動地點。
+6. `続きをみる` 截斷的 note `raw_description` 所含帳號 profile 或機構名，不得作為純線上活動的 `location_name`。
+7. 多教室型平台（朝日カルチャー等）只有在跨欄位檢查確認為純線上後，才能讓標題中的 `オンライン` 阻止 `CLASSROOM_ADDRESS_MAP` 補入實體地址；若仍有 `会場観覧`、`現地`、`対面` 或其他實體證據，必須改走 hybrid branch。
+
+### Hybrid branch
+
+1. Hybrid 規則適用所有 category 與 `event_form`，不可限縮為 `performing_arts`。實體訊號包括 `会場観覧`、`現地`、`対面`、實體場地或地址、非 null `venue_id`、任一 localized 實體場地／地址欄位，或同時出現會場與 stream／online registration 資訊。單一 `オンライン` token 不得抹除較強的實體證據。
+2. Hybrid 必須保留既有 `venue_id`、正式 `location_prefectures`、實體地址及已知翻譯，並以 `<venue> / オンライン`、`<venue zh> / 線上`、`<venue en> / Online` 儲存三語 joined venue names。
+3. URL ownership 不可互換：`location_url` 只放實體場地官方首頁；`submission_url` 放線上報名或 stream signup link；`official_url` 只放經驗證且專屬該活動的第一方頁面；`source_url` 保留原始 scraped page；`organizer_url` 放主辦方首頁，或主辦方沒有專屬網站時的 SNS。Performer SNS 仍屬於 `performer_url`／`performer_urls[]`。不得把 signup URL 移進 `location_url`，也不得覆寫 provenance。
+4. 手動修復前先檢查既有 `field_corrections`（FC）。依修復結果 rewrite 或 remove 矛盾 lock，再鎖定每個手動變更欄位並驗證相符的 audit rows。Event `70cf7002-06ee-45aa-815f-3422c999b5f5` 的 minimum audited set 是 `location_name`、`location_name_zh`、`location_name_en`、`location_address`、`location_prefectures`、`location_url`、`submission_url`；只有實際改動 address translations 時才另加 locks。
+5. 驗證 detail venue/address rows、region filtering、FAQ／narrative／SEO output，
+   以及 `location_url`、`submission_url`、`official_url`、`source_url`、
+   `organizer_url` 五條獨立連結。
+   正向 fixture 使用 `70cf7002-06ee-45aa-815f-3422c999b5f5`，其顯示應為
+   `誠品生活日本橋内 イベントスペース「FORUM」 / オンライン` 並保留實體地址、
+   `東京都` 與 `venue_id`；負向 fixture 使用沒有任何實體證據的 online-only event，
+   並期待 pure-online canonical values。
 
 Reference incidents:
 - 2026-05-08 — event `b022b452`（台湾留学説明会 / Zoom）`location_name` 修正為 `'オンライン'` + FC 鎖定三欄（`location_name`、`location_name_zh`、`location_name_en`）。

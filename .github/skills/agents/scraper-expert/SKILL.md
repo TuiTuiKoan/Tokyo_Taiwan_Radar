@@ -18,13 +18,15 @@ Read this at the start of every session before writing any scraper.
   - "Lecture discussing Japan's infrastructure legacy in Taiwan."
 - **Category Enrichment**: Events with direct Taiwan-Japan historical or biographical links (like Wansei artists) MUST include the `taiwan_japan` category in addition to `art`, `history`, etc.
 
-## Hybrid Venue (Physical + Online) Rule (2026-06-07)
+## Hybrid Venue (Physical + Online) Rule (2026-08-05)
 
-- For events with both physical and online components (common in **performing_arts**), set `location_name` to a joined string (e.g., `“D-Bop”Jazz Club Sapporo / オンライン`).
-- **MUST** retain the physical address and prefecture code for regional filters.
-- **Marking Rule**: "Remember to mark both" (記得兩個都標) means capturing both the venue context in name and the physical coordinates in address/prefecture.
-- Apply `field_corrections` manual lock to prevent AI from cleaning the address to null.
-- Example case: `380c0ab2-1713-4bc9-86c5-6101d8ec741a`.
+- The classification has two branches for every category and `event_form`. Pure online requires affirmative evidence that no physical attendance option exists; an online keyword alone is not sufficient. Its canonical values are `location_name='オンライン'`, `location_name_zh='線上'`, and `location_name_en='Online'`, with `location_address`, `location_address_zh`, `location_address_en`, and `location_prefectures` null.
+- Treat `会場観覧`, `現地`, `対面`, a physical venue or address, non-null `venue_id`, localized physical venue or address fields, or simultaneous venue and stream or online-registration information as hybrid signals. One `オンライン` token must not erase stronger physical evidence.
+- Hybrid events keep the existing `venue_id`, physical address and known translations, and formal `location_prefectures`. Store localized joined names as `<venue> / オンライン`, `<venue zh> / 線上`, and `<venue en> / Online`.
+- URL fields are not interchangeable. `location_url` is the physical venue's official homepage; `submission_url` is the online registration or stream signup link; `official_url` is a first-party page dedicated to the event; `source_url` remains the original scraped page; `organizer_url` is the organizer homepage or, when no dedicated organizer site exists, its SNS profile. Never move a signup URL into `location_url` or overwrite provenance.
+- Before a manual repair, inspect existing `field_corrections`. Rewrite or remove contradictory locks before re-annotation, lock every manually changed field, and verify matching audit rows. For `70cf7002-06ee-45aa-815f-3422c999b5f5`, the minimum audited set is `location_name`, `location_name_zh`, `location_name_en`, `location_address`, `location_prefectures`, `location_url`, and `submission_url`; address translations need locks only when changed.
+- Positive fixture: event `70cf7002-06ee-45aa-815f-3422c999b5f5` must display `誠品生活日本橋内 イベントスペース「FORUM」 / オンライン`, preserve its physical address, `東京都`, and `venue_id`, and expose the venue homepage, online registration page, first-party event page when available, and original source as independent links.
+- Negative fixture: an online-only event with no physical evidence must use the pure-online canonical labels and null address and prefecture values. Validate both fixtures across detail venue and address rows, region filtering, FAQ, narrative, SEO output, and all independent source links.
 
 ## Publication Backlog Cleanup Rule
 
@@ -56,15 +58,12 @@ Read this at the start of every session before writing any scraper.
 - **Strip null bytes from all scraped text**: Before writing any string to `raw_description`, `name_ja`, or speaker fields, call `.replace("\x00", "")`. Null bytes (`\u0000`) can appear in web-scraped text and cause Postgres error `22P05: unsupported Unicode escape sequence`. (Incident: taiwan_prism.py `c7e9b73` — `×\u0000栖来ひかり` in speakers field broke all 13 events.)
 - **`parent_event_id` must be a real UUID, never a source_id string**: `parent_event_id` is a `uuid` column. Passing a source_id string (e.g. `f"scraper_{year}"`) causes Postgres `22P02`. Use `database.get_event_id_by_source(SOURCE_NAME, parent_source_id)` to resolve the UUID. On the **first run**, if parent and sub-events are in the same batch, the parent UUID does not yet exist — `get_event_id_by_source()` returns `None`. Plan for a second run or manual patch to backfill `parent_event_id`. (Incident: taiwan_prism `c7e9b73`)
 - **List-page / search-card `location_name` ≠ actual venue (multi-page scrapers):** When a platform shows events on a search/list page AND has a separate detail page, the list card may display the **admin/managing branch** (e.g. `新宿教室`) rather than the **actual venue** (e.g. `立川サテライト教室`). Always fetch the detail page to extract the real `location_name`. Pattern to look for on detail page: table row `備考` → `「会場名」` bracket pattern; fall back to card branch only if the detail page yields nothing. (Incident: `asahiculture` `da3ac31`, 2026-05-15.)
-- **Multi-classroom scrapers: detect online courses BEFORE resolving physical address.** Platforms like 朝日カルチャーセンター serve both in-person (classroom) and online courses. If `"オンライン" in raw_title or "オンライン" in location_name`, set `location_name = "オンライン"`, `location_address = None` and skip `CLASSROOM_ADDRESS_MAP` lookup entirely. Failure to check causes the course's managing classroom address to be written to DB even though the event is online-only. (Incident: asahiculture `d617e8c4`, 2026-05-15.)
-  ```python
-  _is_online = "オンライン" in raw_title or "オンライン" in (detail["location_name"] or "")
-  if _is_online:
-      location_name, location_address = "オンライン", None
-  else:
-      location_name = detail["location_name"] or card_branch
-      location_address = detail["location_address"] or CLASSROOM_ADDRESS_MAP.get(location_name)
-  ```
+- **Multi-classroom scrapers: classify from cross-field evidence before resolving an address.** Platforms such as 朝日カルチャーセンター serve online-only, in-person, and simultaneous hybrid courses.
+  - Build an online signal from title, detail location, participation method, and registration text. An `オンライン` token alone never proves online-only attendance.
+  - Physical evidence includes `会場観覧`, `現地`, `対面`, a concrete attendance venue or street address, an existing non-null `venue_id`, localized physical venue or address values, or explicit simultaneous venue and online participation. A platform's managing classroom or card branch by itself is not attendance evidence.
+  - Apply pure-online behavior only when an online signal exists and all cross-field physical evidence is absent. Only then use the canonical online labels, clear physical address and prefecture data, omit `venue_id`, and skip `CLASSROOM_ADDRESS_MAP`.
+  - When online and physical evidence coexist, classify the event as hybrid. Keep or construct `<venue> / オンライン`, `<venue zh> / 線上`, and `<venue en> / Online`, and retain the physical address, address translations, `location_prefectures`, and existing `venue_id`.
+  - The asahiculture `d617e8c4` incident remains a valid online-only negative example: it had an online signal but no physical attendance evidence. The defect was a managing-classroom fallback that inserted a physical address anyway (2026-05-15).
 - **Use `re.findall()` for start/end date ranges, never `re.search()`:** Strings like `"2026/04/07火～2026/06/16火"` contain two full dates. `re.search()` stops at the first match, silently dropping `end_date`. Use `re.findall(pattern, text)` then take `matches[0]` as `start_date` and `matches[-1]` as `end_date`. Single-day events have `len(matches) == 1` → `end_date = None`. (Incident: `asahiculture_8759178`, 2026-05-15.)
 - **Keyword-filtered description scan silently hides structured fields:** If `_fetch_detail*` only collects paragraphs containing Taiwan keywords (`台湾/Taiwan`), any structured field in a non-keyword section — lecturer `<h3>`, schedule table, venue `備考` row — will never be captured. Always scan the full detail page with separate passes for each structured field type (table rows, headings) **independent of keyword filtering**. (Incident: `asahiculture` performer `村山 秀太郎` extracted as `"記"`, 2026-05-15.)
 - **`location_address ≠ location_name` rule (ALL scrapers):** `location_address` must NEVER equal `location_name`. When a scraper has a single combined "location" field, parse it: venue name → `location_name`, street address (using `_ADDR_RE`: `〒` or prefecture+city+street pattern) → `location_address`. If no real street address can be extracted, set `location_address = None`. This is enforced by `auto_qa_address_is_venue_name` detector. Also note: `_ai_or_existing()` in annotator preserves non-null DB values, so a scraper writing the wrong value cannot be corrected by the annotator.
@@ -920,11 +919,13 @@ d.toLocaleDateString("ja-JP", { month: "short", day: "numeric" })
 
 Reference incident: 2026-05-12 — `EventListClient.tsx` / `MovieWorksList.tsx` の `getDate()` が JST ブラウザで 1 日ずれ → `getUTCDate()` + `{ timeZone: "UTC" }` に修正。
 
-**Rule**: 聚合站 scraper（ftip、prtimes、gnews、walkerplus 等）的 `source_url` 必須**永遠保留**聚合站自身的 URL。從文章中提取的第一方主辦方 URL 存入 `official_url`，不可覆寫 `source_url`。
+**Rule**: 聚合站 scraper（ftip、prtimes、gnews、walkerplus 等）的 `source_url` 必須**永遠保留**聚合站自身的 URL。從文章中提取 URL 後先依 ownership 分類，不可覆寫 `source_url`。
 
 **正確分工**：
 - `source_url` = 聚合站頁面 URL（`https://www.ftip-japan.org/NNN`、`https://prtimes.jp/...`）— 資料溯源憑證
-- `official_url` = 提取的第一方官方 URL（活動官網、Facebook event 頁、主辦方網站）；無法提取時為 `None`
+- `official_url` = 第一方且專屬於該活動的頁面（活動官網、主辦方建立的 Facebook event 頁）；無法提取時為 `None`
+- `submission_url` = 報名、登錄或 stream access 頁
+- `organizer_url` = 主辦方首頁，或主辦方沒有專屬網站時的 SNS profile
 
 **常見提取模式**（ftip content 中的 `公式サイト` 格式）：
 ```python
@@ -946,8 +947,11 @@ def _extract_official_url(self, content: str) -> str | None:
 **✅ 正確模式**：
 ```python
 source_url = rss_link          # 聚合站 URL，永遠保留
-official_url = self._extract_official_url(content)  # None 是合法值
+official_url = self._extract_official_url(content)  # 僅接受第一方活動專頁；None 是合法值
 ```
+
+若 extractor 回傳的是報名／stream access 頁或主辦方首頁／SNS，應分別改存
+`submission_url` 或 `organizer_url`，不得以 `official_url` 接收。
 
 **❌ 反模式**（已廢棄）：
 ```python
@@ -957,7 +961,7 @@ source_url = self._extract_official_url(content) or rss_link
 
 Reference incidents:
 - 2026-05-10 commit `ab771e2` — `ftip.py` 首次修正誤以「官方 URL 較有資訊量」讓 `source_url` 指向 `www.taiwanprism.com`，破壞 FTIP audit trail
-- 2026-05-10 commit `7c34788` — 更正為正確模式：`source_url=ftip-japan.org/699`、`official_url=taiwanprism.com`，DB 事件 `023dcbec` 同步修正
+- 2026-05-10 commit `7c34788` — 當時將 DB 事件 `023dcbec` 修為 `source_url=ftip-japan.org/699`、`official_url=taiwanprism.com`，恢復 FTIP provenance。保留此歷史紀錄；現行 ownership 仍要求重新分類 extracted destination，只有第一方活動專頁可留在 `official_url`，signup／stream access 與 organizer homepage／SNS 分別屬於 `submission_url` 與 `organizer_url`
 
 ## M/D~D 多日範圍 — end_date 提取與跨月防護
 
@@ -1039,7 +1043,7 @@ Reference incident: 2026-05-10 — event `a7a05be6`（台湾薬膳文化体験�
 ## Peatix-specific
 - Blocked organizer patterns live in `BLOCKED_ORGANIZER_PATTERNS` in `peatix.py` — always check before adding new title-based blocks.
 - 台東区 false positive: `台東` in `TAIWAN_KEYWORDS` can match the Tokyo ward 台東区. Use `_TAIWAN_KW_NO_TAITO` guard list.
-- **Detail text blocks are primary for venue/time**: Parse `LOCATION` / `場所` and `DATE AND TIME` / `日時` blocks before CSS fallback. Detect `Online event` / `オンライン` before any physical address fallback, reject generic address candidates (`Japan`, `東京都`, ward-only fragments), and write `business_hours` from the text block or body labels such as `時間：14:00-15:30`.
+- **Detail text blocks are primary for venue/time**: Parse `LOCATION` / `場所` and `DATE AND TIME` / `日時` blocks before CSS fallback. Treat `Online event` / `オンライン` as an online signal, then inspect the title, participation text, concrete venue or street address, existing `venue_id`, and localized location fields before suppressing physical data. Only a canonical pure-online event with no physical evidence skips physical address fallback; a joined-name hybrid retains its venue and address. Reject generic address candidates (`Japan`, `東京都`, ward-only fragments), and write `business_hours` from the text block or body labels such as `時間：14:00-15:30`.
 - **Price selector label-only fallback**: If `.ticket-price` or `[class*='price']` returns only a generic label (`料金`, `参加費`, `チケット`, etc.), treat it as empty and read body lines that start with a known price label plus a price/free signal. Do not extract unlabeled amounts from descriptive body copy.
 - **Locale-prefixed URLs must be normalized before `page.goto()`**: Peatix redirects to `/us/event/{id}` or `/jp/event/{id}` depending on browser locale. Strip the prefix in both the collection stage (`_search_events`/`_scrape_group_events`) AND `_scrape_detail()` so `source_url` is always `https://peatix.com/event/{id}`.
   (Incidents: peatix `e9c6f80b` 2026-05-17, `55d766ae` 2026-05-19.)
@@ -1063,9 +1067,10 @@ Reference incident: 2026-05-10 — event `a7a05be6`（台湾薬膳文化体験�
 - **英語ブランド名 → performer_zh/en は翻訳不要**: Floti Studio 等の英語固定名称は `performer_zh` も `performer_en` も同じ値を設定。GPT は英語名を繁体中文に翻訳しようとして null を返すことがある。手動補完 + FC lock が必要。(Incident: peatix `ee17c509` 2026-05-30)
 - **英語ブランド名 → organizer_zh/en も同様**: `organizer` 値が英語固定商標の場合、`organizer_zh/en` も翻訳不要—同じ値を FC lock。翻訳しようとした GPT が `（AI翻譯）` マーカー付きで格納する場合もある。**判定基準**: `organizer` 値の文字が全て ASCII / アルファベット → `organizer_zh/en = organizer`。(Incident: iwafu `a4442567` QUEEN SHOP 2026-05-31)
 - **専用イベントページ非存在時の URL 設定**: Peatix が `source_url` の場合、SNS リンクの設定先は次のルールに従う:
+  - Peatix event page は original scraped page として `source_url` に保持する。同じ verified URL が申込 endpoint でもある場合は `submission_url` にも設定し、`source_url` を消さない。
   - **演者の Instagram/SNS** → `performer_url`（単一演者）または `performer_urls[]`（複数演者、インデックスは `performers[]` と対応）
   - **主催者の SNS/公式サイト** → `organizer_url`
-  - **`official_url`** = 専用イベントページ URL のみ。SNS を `official_url` に設定するのは非推奨（`performer_url` / `organizer_url` を優先）。専用ページが存在しない場合は `official_url = null`。
+  - **`official_url`** = 第一方の専用イベントページ URL のみ。SNS を `official_url` に設定してはならない。専用ページが存在しない場合は `official_url = null`。
   - ⚠ **旧ルール廃止**: `performer_url` 新設（migration 078、2026-05-30）以前は演者 Instagram を `official_url` に設定していたが、現在は `performer_url` に設定し `official_url` は null のままにする。
   - (Incident: peatix `ee17c509` 旧: `official_url='https://www.instagram.com/flotistudio/'` → 新: `performer_url='https://www.instagram.com/flotistudio/'` + `official_url=null` 2026-05-30)
 
@@ -1260,13 +1265,13 @@ note.com RSS `<description>` 約在 140 字截斷，末尾可能為「続きを�
 
 ### 問題模式
 - note.com RSS preview 以 `...続きをみる` 結尾（endswith，非 equals）→ 舊 truncation guard `plain_desc in ("続きをみる","")` 漏判 → `_fetch_article_content` 永不呼叫
-- 全文中含「🔗詳細・申込み」embedded official URL 未萃取
+- 全文中含「🔗詳細・申込み」embedded destination URL，但未萃取或未依 ownership 分類
 - 投稿者 creator DB metadata location（如教室地址）套到外部活動公告 → `_auto_lock_location` 自動 FC 鎖定錯誤地點
 
 ### 修復設計（note_creators.py + base.py）
 1. `_is_truncated(text)`: `text.endswith("続きをみる") or len(text) < _NOTE_THIN_CHARS(120)`
-2. `extract_first_party_url(body, exclude_hosts)` in `base.py`（共用）: 從全文萃取 official URL，排除報名平台（peatix/forms.gle/google/linktr.ee）；優先「🔗詳細/申込/公式」標記附近 URL
-3. A2b: 當 `official_url` 為外部機構域（非報名平台）→ 設 `effective_location_name=None` 抑制投稿者 metadata location，讓 `_auto_lock_location` 跳過上鎖（`if not event.location_name: continue`）
+2. `extract_first_party_url(body, exclude_hosts)` in `base.py`（共用）只負責取得 candidate URL。第一方活動專頁寫入 `official_url`；申込／stream access 寫入 `submission_url`；organizer homepage／SNS 寫入 `organizer_url`。Helper 名稱或「詳細／申込／公式」anchor text 不得取代 destination classification。
+3. A2b: 只有 verified `official_url` 確為外部機構的第一方活動專頁時，才設 `effective_location_name=None` 抑制投稿者 metadata location，讓 `_auto_lock_location` 跳過上鎖（`if not event.location_name: continue`）
 4. `tw_insecure_domain(url)` in `base.py`（共用）: host endswith `.edu.tw`/`.gov.tw` → True（fetch_ref_text verify=False）
 5. `fetch_ref_text(url, verify_ssl=True)` in `base.py`: 新增 `verify_ssl` 參數；既有 caller 預設 True，行為不變
 6. A3 fail-safe: ref fetch 失敗 / < 200 字 → fallback 回 note 全文，永不阻斷活動建立
@@ -1278,7 +1283,7 @@ annotator 的 LOCATION GATE（SYSTEM_PROMPT）是給 GPT 的指示文字，NOT P
 LOCATION GATE 僅影響 `selection_reason` 品質。正確設定 `study_abroad`/`tourism` 等 category 是資料正確性問題，非「過 gate 求存活」。
 
 ### DB 修復模式（FC-first-then-annotate）
-1. FC 鎖定所有結構欄位（category/event_form/official_url/organizer/location_*）
+1. FC 鎖定所有實際修正的結構欄位（category/event_form/official_url/submission_url/organizer_url/organizer/location_*）
 2. 寫入 enriched raw_description（note 全文 + 原始頁摘要）後設 annotation_status=pending
 3. 跑一次 annotator（不帶 --id，保留 P0 non-null 保護）自動生成三語；FC 欄位被還原不被覆寫
 
@@ -1593,7 +1598,7 @@ print('Missing from VALID_CATEGORIES:', missing or 'ALL CLEAR')
   sb.table('events').update({'location_address': None}).eq('id', EID).execute()
   python enrich_addresses.py --source <source_name>
   ```
-- **Skipped sources**: `gguide_tv` (TV broadcast, no physical address) and events with `location_name ILIKE '%オンライン%'` are excluded by default.
+- **Skipped candidates**: `gguide_tv` is excluded because TV broadcasts have no physical address. Exclude an online event only when cross-field evidence confirms the canonical pure-online branch: an online signal is present and no `会場観覧`／`現地`／`対面` text, concrete physical venue or street address, non-null `venue_id`, localized physical venue or address value, or simultaneous venue participation exists. Never exclude candidates merely because a location field contains an online token. Joined-name hybrids such as `<venue> / オンライン` remain eligible when their physical address is missing or vague, subject to the existing FC lock check.
 - **Output is AI-generated, NOT verified**: gpt-4o-search-preview can hallucinate street numbers for new or renamed venues. Known failure: MoN Takanawa filled with `東京都港区高輪4-10-30` instead of correct `東京都港区高輪2-21-2` (2026-05-01).
 - **Post-run audit**: After running `enrich_addresses.py`, manually spot-check records from high-profile partner venues (SSFF, TAICCA, TCC) against the organizer's official access page (`会場・アクセス` section).
 - **Verification source**: For SSFF, use `shortshorts.org/2026/ja/schedule/` Venue access section. For other venues, search the organizer's official site for the address.
@@ -1734,27 +1739,33 @@ for e in [x for x in events if x['name_ja'] != x['raw_title']]:
 
 ## `location_url` — 官方會場網站 URL（migration 031）
 
+- **Canonical URL ownership**:
+  - `location_url` = physical venue 的官方首頁，且只能是場地自身的官方首頁
+  - `submission_url` = 申込、registration 或 stream access URL
+  - `official_url` = 第一方且專屬於該活動的頁面
+  - `source_url` = 原始 scraped page／provenance；不得只為儲存 signup URL 而覆寫
+  - `organizer_url` = 主辦方首頁，或主辦方沒有專屬網站時的 SNS profile
 - `location_url: Optional[str] = None` in `Event` dataclass（`scraper/sources/base.py`）— 填入官方場館/會場的完整 URL（非活動頁面 URL）。
 - **填寫來源**：scraper 從場館官網連結萃取，或管理員在 Admin UI 手動輸入。
 - **Annotator 不填寫**：GPT 容易 hallucinate URL，`annotator.py` 的 schema 不包含 `location_url`。
 - **Web 渲染**：Event detail page 以條件渲染實作——`location_url` 存在時將 `location_name` 包在 `<a href={location_url} target="_blank" rel="noopener noreferrer">` 內，並顯示 ↗ 指示符。
 - **`sub_row` 繼承規則**：`annotator.py` 的 `sub_row` 不自動繼承父事件欄位。新增 `location_url` 後，若父事件有 venue URL，`sub_row` 需明確設定 `"location_url": event.get("location_url")`。
 - **Seed 順序**：含 `location_url` 的 Python client seed 必須在 Supabase Dashboard 執行 migration `031` 後才能執行；否則報 `PGRST204`。
-- **⚠ 申込表單 URL 禁止填入 `location_url`**：Google Forms（`forms.gle/...`）、Peatix、Connpass 等**申込/登録表單 URL** 絕對不能填入 `location_url`。`location_url` 語義是「會場的官方 URL」（大学キャンパスページ、施設公式サイト等）。申込表單屬於 `source_url` 或 `official_url` 的責任範圍。DB 手動修正時若發現 `location_url` 含申込表單 → 設為 `null`。
+- **Legacy signup repair**：Google Forms（`forms.gle/...`）、Peatix、Connpass 等申込／登録／stream access URL 絕對不能留在 `location_url`。若 legacy row 的 URL 已驗證、且與 physical venue homepage 不同，將它移至 `submission_url`，清除錯誤的 `location_url` 值，並保留既有 `source_url` 與 `official_url` provenance；不得為了搬 signup URL 而覆寫來源頁。
 - **⚠ 主催者 URL 禁止填入 `location_url`**：イベント説明文に主催者・団体のウェブサイト URL が含まれる場合（特に `raw_description` 末尾）、scraper や annotator がそれを `location_url` に誤帰属することがある。主催者 URL は `organizer_url` フィールドへ。DB 手動修正時は `location_url = null`・`organizer_url = <organizer site>` に変更。iwafu 系 scraper で頻発。
 
-Reference incident: `0d97e51c`（2025年台湾史研究会3月例会）`location_url='https://forms.gle/BwseMtpymDKQY4W47'`（申込表單）→ `null` 手動修正（2026-05-07）。
+Reference incident: `0d97e51c`（2025年台湾史研究会3月例会）曾把 Google Forms 申込表單放在 `location_url`，當時只清為 `null`（2026-05-07）。該歷史處置保留供追溯；依現行政策，verified signup destination 應寫入 `submission_url`，同時保留原 `source_url` provenance。
 Reference incident: `c61470db`（赤城で台湾さんぽ）`location_url='https://gunma-taiwan-association.studio.site/'`（主催者サイト）→ `null` + `organizer_url` に移動（2026-05-30）。
 Reference incident: `c52caa6e`（THE SILENCE）`location_url='https://www.diginoa.net/silencepuppet'`（イベントページ）→ `null` + `official_url` に移動（venue URL = `https://theater-green.com/theater/base/` に修正）（2026-05-30）。
 
-**`official_url` vs `source_url` — フロントエンド表示区別：**
+**`official_url` vs `source_url` — ownership 與フロントエンド表示区別：**
 - `official_url` が設定されている → イベント詳細ページに **「公式サイト ↗」** として表示
 - `official_url` が null → `source_url` が **「原始資訊 ↗」** として表示（「公式サイト」表示にはならない）
-- 公式イベントページを「公式サイト」として表示させるには、必ず `official_url` に設定すること（`source_url` だけでは不十分）。
-- 専用イベントページが存在しない場合（Peatix が source_url のみの場合など）、創作者/主催者の公式 Instagram や SNS を `official_url` に設定して「公式サイト ↗」として表示できる。
+- 第一方の専用イベントページを「公式サイト」として表示させる場合だけ `official_url` に設定する（`source_url` だけでは不十分）。
+- 専用イベントページが存在しない場合、`official_url = null` のままにする。主催者 homepage／SNS は `organizer_url`、演者 SNS は `performer_url`／`performer_urls[]` に設定する。
 
 Reference incident: `c61470db`（赤城で台湾さんぽ）`official_url` 未設定のため iwafu URL が「原始資訊」として表示 → `official_url = 'https://gunma-kanko.jp/events/290'` に修正（2026-05-30）。
-Reference incident: `ee17c509`（Floti Studio 似顔絵ワークショップ）専用ページ非存在 → `official_url = 'https://www.instagram.com/flotistudio/'` で「公式サイト ↗」表示（2026-05-30）。
+Legacy incident: `ee17c509`（Floti Studio 似顔絵ワークショップ）は専用ページがなく、Instagram を `official_url` に入れた時期があった。この割当は migration 078 後の ownership policy により superseded され、現在は演者 SNS なら `performer_url`、主催者 SNS なら `organizer_url`、`official_url` は `null` とする（2026-05-30）。
 
 ## event_form — lecture vs conference 區分規則
 
@@ -1802,9 +1813,9 @@ candidates = (
 Reference incident: `0d97e51c`（2025年3月例会）に `['陳志剛', '福田真郷']`（2026年3月例会の報告者）が誤って書き込まれた（2026-05-07 修正）。
 
 
-## cinema scrapers — official_url extraction
-- Cinema detail pages often have an "オフィシャルサイトはこちら" or "公式サイト" anchor linking to the film's external promotional site. Extract this as `official_url`.
-- Selector pattern: iterate `soup.find_all("a", href=True)`; skip hrefs that do not start with `http` and skip hrefs containing the cinema's own domain.
+## Cinema scrapers — external URL ownership
+- Cinema detail pages often label a film's external promotional site as "オフィシャルサイトはこちら" or "公式サイト". Link text does not make it the screening event's `official_url`. Only a first-party page dedicated to the specific screening event belongs there; the cinema detail page remains `source_url` provenance.
+- Selector pattern: iterate `soup.find_all("a", href=True)`; skip hrefs that do not start with `http` and classify each destination before assignment. A film promotional or database page may be retained only through an existing work-level or reference mechanism, not by repurposing an event URL field.
 
 ## Keyword filter — exclude non-article sections (関連記事 etc.)
 - **Wix/SPA pages** (e.g. moonromantic) append a "関連記事" or "おすすめ" block at the bottom of every page. These sections contain links to OTHER events, including past Taiwan events.
@@ -1818,13 +1829,11 @@ Reference incident: `0d97e51c`（2025年3月例会）に `['陳志剛', '福田�
   ```
 - **⚠ DO NOT use `> 200` threshold**: The old pattern `if related_idx > 200` was incorrect — when `"関連記事"` appears before position 200 (e.g., after a short site nav), the condition falls through to `check_text = page_text` (full text), causing Taiwan keywords in the related sidebar to produce false positives. Always truncate on the marker itself using `!= -1`.
 - This pattern applies to any SPA scraper that uses `page.inner_text("body")` or full-page text extraction.
-- Accept link texts: `オフィシャルサイト`, `公式サイト`, `official site`, `Official Site` (case-insensitive variants).
-- When `official_url` is added to an existing scraper, **existing DB records are not automatically updated** — either set `force_rescrape=True` for affected events or run a targeted Supabase UPDATE. The scraper only writes `official_url` on upsert; stale rows keep `null` until they are re-upserted.
+- Accept link texts as discovery signals only: `オフィシャルサイト`, `公式サイト`, `official site`, `Official Site` (case-insensitive variants). Verify that the destination is a first-party page dedicated to the screening event before assigning `official_url`.
+- Audit legacy cinema `official_url` values before any rescrape or UPDATE. Do not populate or preserve the field solely because a film-level external link exists.
 
 ## Event detail page (web) — Google search fallback locale
-- When building a Google search URL as fallback for missing `official_url`, always use `event.name_ja || event.raw_title || name` — **never the locale-specific `name` variable alone**.
-- Reason: `name` resolves to the display locale (e.g. `zh` → Chinese title `大濛`); searching `大濛 公式サイト` misses the Japanese official site. Japanese titles consistently return correct results.
-- Pattern: `` `https://www.google.com/search?q=${encodeURIComponent(((event as Event).name_ja || event.raw_title || name || "") + " 公式サイト")}` ``
+- A Google search fallback is discovery-only and must not be persisted automatically. Search with `event.name_ja || event.raw_title || name`, plus the venue and screening context, to find a first-party page dedicated to the event; never use the locale-specific `name` alone or treat a film homepage as the event page.
 
 ## daimaru_matsuzakaya-specific
 - **SPA with hidden JSON API**: Both daimaru.co.jp and matsuzakaya.co.jp appear as React/Vite SPAs, but all event data is served via `GET /spa_assets/events/{slug}.json`. Use `requests` only — no Playwright needed.
@@ -1862,7 +1871,7 @@ Reference incident: `0d97e51c`（2025年3月例会）に `['陳志剛', '福田�
 - **Two-tier Taiwan filter**: L1 = `_TAIWAN_RE` on title+desc (direct hit). L2 = pan-Asia listings (`_ASIA_RE`: アジア/Asian) with no direct hit → `_fetch_taiwan_detail_evidence(detail_url)` fetches the detail page, checks `<meta name="description">` + 台湾 `<img alt>`, and **appends the evidence to `raw_description`** (meta first, alt deduped, ~2500-char cap) so the annotator sees the 台湾特集 context. This is what catches 博多's 「アジアンフェスティバル 台湾特集」 whose listing title lacks 台湾. Detail-fetch failure returns `(False, "")` → conservatively skip.
 - **Seasonal pattern**: Taiwan events (e.g. 梅田 台湾ライフ autumn; 阪神の台湾展) are intermittent — a store returning 0 events off-season is **correct**, not a bug. All are weekly sources (`hankyu_umeda`/`hankyu_hakata`/`hankyu_kobe` + `hanshin_umeda`/`hanshin_nishinomiya`/`hanshin_mikage`/`hanshin_amagasaki`): present in `main.py WEEKLY_SOURCES`, `health_check.py NON_DAILY_SOURCES` + `ZERO_EVENT_OK_SOURCES`, and `qa_triage.py NON_DAILY_SOURCES`.
 - **source_id**: `{source_name}_{slug}` (slug = last path segment of detail URL). 梅田 keeps `hankyu_umeda_{slug}` unchanged for DB dedup compatibility.
-- **official_url = source_url**: official department-store source, not an aggregator.
+- **`official_url = source_url` only for a dedicated event detail page**: A department-store domain being first-party is not sufficient by itself. Assign both fields only when that exact `source_url` is dedicated to the event.
 - **sources registry**: migration 091 registers `hankyu_hakata`/`hankyu_kobe` as `department_store`/`weekly` and sets `hankyu_umeda` frequency=weekly; migration 092 registers `hanshin_umeda`, migration 093 registers the three Hanshin 兵庫県 branches (`hanshin_nishinomiya`/`hanshin_mikage`/`hanshin_amagasaki`) — all `department_store`/`weekly`.
 
 ## google_news_rss-specific
@@ -1913,6 +1922,8 @@ name_zh, name_en, official_url, works_performer, works_director, title = (
 - 正常 return: `return name_zh, name_en, official_url, works_performer, works_director, works_id, title_used, resolution_kind`
 - `resolution_kind == "embedded_bracket"` の場合、talk show / release wrapper は保持し、括弧内の映画タイトルだけを置換する。
 
+`official_url` は現行 implementation の legacy tuple-slot name であり、ownership の証明ではない。値が映画 DB／映画 promotional page なら lookup reference として扱い、第一方の専用イベントページだと別途検証できない限り `events.official_url` へ書かない。
+
 ### `work_id` フィールドは FC 保護外
 
 `_lock_fields_via_corrections()` の呼び出し時に必ず除外すること:
@@ -1936,12 +1947,12 @@ Reference incident: 2026-05-30 — kyoto_cinema event `edcc3578` (霧のごと�
 
 `scraper/movie_title_lookup.py` provides `lookup_movie_titles(name_ja)` → `tuple[str | None, str | None, str | None]`.
 
-**Return value (3-tuple):** `(name_zh, name_en, official_url)` — all three may be `None` if not found.
+**Return value (3-tuple):** The implementation returns `(name_zh, name_en, official_url)`, where the third legacy slot is a lookup reference URL and may be `None`.
 
 ```python
 # ✅ CORRECT — always unpack as 3-tuple
-name_zh, name_en, official_url = lookup_movie_titles(name_ja)
-# or if official_url not needed:
+name_zh, name_en, lookup_reference_url = lookup_movie_titles(name_ja)
+# or if the lookup reference is not needed:
 name_zh, name_en, _ = lookup_movie_titles(name_ja)
 
 # ❌ WRONG — causes ValueError: too many values to unpack
@@ -1950,13 +1961,13 @@ name_zh, name_en = lookup_movie_titles(name_ja)
 
 **When to call:**
 - Every cinema scraper that sets `category=["movie"]` must call `lookup_movie_titles(name_ja)` before constructing `Event()`.
-- If `lookup_movie_titles` returns a non-None `official_url`, use it as `Event(official_url=official_url)`.
+- Use the third return value for title-resolution evidence only. Do not pass an eiga.com or film promotional URL to `Event(official_url=...)`; populate that field only from a separately verified first-party page dedicated to the screening event.
 
 **Exemptions (skip `lookup_movie_titles` for):**
 - Events whose `source_id` ends in `_sub\d+` (sub-events): they inherit translations from parent
 - Events with `name_ja_locked=True` in DB (already manually verified)
 
-**`official_url` from lookup:** When eiga.com finds the movie, the third tuple value is the eiga.com movie page URL. This is a valid `official_url` for the event — use it instead of constructing a Google search fallback.
+**Legacy lookup URL:** When eiga.com finds the movie, the third tuple value is the eiga.com movie page URL. It is third-party title evidence, not the event's `official_url`. Historical code and tuple names that call it `official_url` are superseded by the canonical ownership policy.
 
 **Release suffix handling:** Lookup must try the original title before stripped candidates. If `4Kレストア`, `4Kレストア版`, or remaster suffixes are stripped to find the base movie, reattach deterministic locale suffixes such as `4K修復版` / `4K Restoration` instead of dropping the edition label.
 
@@ -2306,7 +2317,7 @@ Stranger cinema（東京墨田区）は Eigaland プラットフォームの JSO
 - **`synopsis` は base64 エンコード HTML**: `base64.b64decode(b64).decode("utf-8")` → HTMLParser でタグ除去してプレーンテキスト化する。
 - **1 映画 = 1 Event**: 90 日ループで `movieId` ごとに `min_date`/`max_date` を収集してから detail API を呼ぶ。1 日 1 Event を作ると 90 件になるため注意。
 - **`openDate` は公開日（リリース日）であり上映日ではない**: 上映日は `listByDomainAndDate?date=YYYY-MM-DD` のクエリ日付から得る。
-- **`official_url` は映画の公式サイト**: `detail.officialPageUrl` が映画の公式サイト URL（会場サイトではない）。
+- **`detail.officialPageUrl` is film-level, not event-level**: It points to the film's website rather than the Stranger screening event. Keep it as lookup/reference metadata only; do not assign it to `events.official_url`. The Stranger screening detail page remains `source_url`, and may also be `official_url` only when it is independently verified as a first-party page dedicated to that screening event.
 
 ---
 

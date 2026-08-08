@@ -4,6 +4,46 @@
 
 ---
 
+## 2026-08-05 - Hybrid event cross-field and URL ownership contract
+
+### Observed failure
+
+Event `70cf7002-06ee-45aa-815f-3422c999b5f5` explicitly said `【会場観覧】` and
+retained a physical `venue_id`, localized physical venue names, and localized physical
+addresses. Its base `location_name` and `location_address`, plus their FC locks, still
+said `オンライン`; `location_prefectures` was null, `location_url` pointed to a generic
+Eslite domain, and `submission_url` was absent. The old guidance treated an online token
+as stronger than cross-field physical evidence and described hybrid behavior mainly as a
+`performing_arts` case.
+
+### Verified repair
+
+The repaired event displays `誠品生活日本橋内 イベントスペース「FORUM」 / オンライン`,
+keeps the physical address, `東京都`, and existing `venue_id`, assigns the venue homepage
+to `location_url`, the online registration page to `submission_url`, and keeps the original
+physical event page in `source_url`. The seven changed fields were `location_name`,
+`location_name_zh`, `location_name_en`, `location_address`, `location_prefectures`,
+`location_url`, and `submission_url`; all seven FC values and all seven audit rows were
+read back. Unchanged address translations did not receive unnecessary locks.
+
+### Source-agnostic lesson
+
+Every category and `event_form` must use two branches. Pure online requires affirmative
+evidence that no physical attendance option exists and uses `location_name='オンライン'`,
+`location_name_zh='線上'`, `location_name_en='Online'`, with address translations and
+`location_prefectures` null. Hybrid signals include `会場観覧`, `現地`, `対面`, physical
+venue or address data, non-null `venue_id`, localized physical fields, or simultaneous
+venue and stream or online-registration information. Hybrid keeps those physical values
+and joins localized venue names with `/ オンライン`, `/ 線上`, and `/ Online`.
+
+URL ownership remains distinct: `location_url` is the physical venue homepage,
+`submission_url` is the online registration or stream signup link, `official_url` is the
+first-party event page when available, and `source_url` preserves the scraped page. Before
+manual repair, inspect and rewrite or remove contradictory FC rows, then lock every changed
+field and verify audit matches. Validate `70cf7002` as the positive hybrid fixture and an
+online-only event with no physical evidence as the negative fixture across detail venue and
+address rows, region filtering, FAQ, narrative, SEO, and all independent links.
+
 ## 2026-07-20 - Taiwan Expo Japan annual Wix SSR source
 
 ### Context
@@ -402,6 +442,9 @@ Annual Wix pages need semantic text anchors and a year-consistency guard, not ge
 
 ## 2026-05-31 — note_creators.py: 三層根因修復（truncation guard endswith 漏判 / embedded official_url 未萃取 / 投稿者 location 套到外部活動）
 
+> [!WARNING]
+> Superseded by the current URL ownership policy; historical incident record only, non-normative. `extract_first_party_url()` returns a candidate, not a field assignment. A dedicated first-party event page belongs in `official_url`, signup or stream access in `submission_url`, organizer homepages or SNS in `organizer_url`, and the note.com post remains `source_url` provenance.
+
 **問題：** `147c5dde` 「🌏 2026年夏 台湾華語サマーキャンプのご紹介」（source=note_creators）DB raw_description = 42 字截斷、official_url=None、location=大阪弁天町（投稿者教室，非開催地台北）。
 
 **根本原因（3 層）：**
@@ -546,6 +589,9 @@ Annual Wix pages need semantic text anchors and a year-consistency guard, not ge
 ---
 
 ## 2026-05-30 — peatix `ee17c509`: `performers=['夫婦']`（一般名詞）→ ユニット固有名・performer_zh/en 補完・official_url(Instagram)・organizer_url 設定
+
+> [!WARNING]
+> Superseded by the current URL ownership policy; historical incident record only, non-normative. Creator or performer Instagram belongs in `performer_url` or `performer_urls[]`, organizer SNS or homepage belongs in `organizer_url`, and only a dedicated first-party event page belongs in `official_url`. If no such event page exists, `official_url` remains null.
 
 **問題：** `ee17c509`（Floti Studio 似顔絵ワークショップ）の `performers = ['夫婦']`（一般名詞）が残留し、`performer_zh/en` が null のまま。フロントエンドで多言語表示不可かつ「公式サイト」「主催者」リンクも非表示。
 
@@ -934,6 +980,9 @@ Peatix は訪問者のブラウザロケール設定によって `https://peatix
 
 ## 2026-05-17 — `ftip`: WordPress RSS CDATA の `<a href>` が `.get_text()` で消え Peatix URL が未設定
 
+> [!WARNING]
+> Superseded by the current URL ownership policy; historical incident record only, non-normative. The Peatix purchase destination extracted from the RSS anchor belongs in `submission_url`; the FTIP article remains `source_url` provenance, and `official_url` is reserved for a verified first-party page dedicated to the event.
+
 **問題:** `scraper/sources/ftip.py` で Peatix URL が `official_url` / `source_url` に設定されなかった。ftip 記事ページには「Peatixからご購入」という記載はあったが、Peatix URL はプレインテキストではなく `<a href="https://xxx.peatix.com/...">` アンカーとして WordPress 記事本文（RSS CDATA）に埋め込まれていた。
 
 **根本原因:** `content_html = content_el.get_text()` → `content_text = BeautifulSoup(content_html, "html.parser").get_text()` の二段階テキスト変換で `href` 属性が消える。既存の `_extract_peatix_url(content_text)` は正規表現でプレインテキストを検索するため URL を検出できなかった。
@@ -987,6 +1036,9 @@ Peatix は訪問者のブラウザロケール設定によって `https://peatix
 ---
 
 ## 2026-05-16 — `tokyoartbeat` aggregator が `official_url=source_url` フォールバックでイベント詳細ページの「公式サイト」リンクを汚染
+
+> [!WARNING]
+> The aggregator provenance lesson remains current, but the blanket first-party assignment later in this historical section is superseded and non-normative. Even for a first-party source, only a verified page dedicated to the event may also populate `official_url`; ticket endpoints belong in `submission_url`, and organizer homepages or SNS belong in `organizer_url`.
 
 **問題：** event `74ee6d89`（共時的星叢―時を共にした星たち　越境する芸術のまなざし）の `official_url` が `https://www.tokyoartbeat.com/events/-/Synchronic-Constellation-...`（aggregator 自身）になっており、UI の「公式サイト」ボタンが東京都現代美術館の展覧会ページではなく tokyoartbeat に戻ってしまっていた。
 
@@ -1049,6 +1101,9 @@ official_url = (
 ---
 
 ## 2026-05-15 — `lookup_movie_titles()` の戻り値が 2-tuple から 3-tuple に変更 → 16 call site で `ValueError` 発生（commit `c8bf85d`）
+
+> [!WARNING]
+> Superseded by the current URL ownership policy; historical incident record only, non-normative. The 3-tuple shape remains for compatibility, but its third slot is an untrusted candidate or lookup reference. Classify the destination before any event write; generic eiga.com, film, or re-release references must not automatically populate event `official_url`.
 
 **問題：** `lookup_movie_titles(name_ja)` の返り値が `(name_zh, name_en)` 2-tuple から `(name_zh, name_en, official_url)` 3-tuple に変更された。既存の 13 ファイル・16 call site がすべて `a, b = lookup_movie_titles(...)` のまま残っており、実行時に `ValueError: too many values to unpack (expected 2)` が発生した。
 
@@ -2140,13 +2195,16 @@ python3 -c "import re, glob; registered=set(re.findall(r'(\w+Scraper)\(\)', open
 **Error 4 — location_url 誤填申込表單 URL**：`https://forms.gle/...`（申込 Google Form）填入 `location_url`。`location_url` 應為會場 URL，不應填入申込表單。
 **Fix 4**: `location_url=null`。
 
+> [!WARNING]
+> Fix 4 is preserved as a historical action. Current ownership routes a verified Google Form or other signup destination to `submission_url`; `source_url` remains the scraped provenance, and `official_url` is only a first-party page dedicated to the event.
+
 **Error 5 — sub-events 未啟用**：子事件 a8702ec8（第1報告）和 d85547af（第2報告）`is_active=False`。
 **Fix 5**: `is_active=True`（兩件）。
 
 **Lessons**:
 - **performers[] 批次回填**必須對照 raw_description 確認姓名，不可只靠 source_name + 月份比對——不同年份同月份事件會互相污染。
 - **event_form 區分**：單場演講 = `['lecture']`；多位報告者的學術例会（2 報告以上）= `['conference']`。taiwanshi 等研究会月例会通常是 `['conference']`。
-- **location_url 語義**：只填會場官方 URL（e.g. 大学キャンパスページ）；申込表單（Google Forms 等）屬於 `source_url` / `official_url` 責任範圍，不填 `location_url`。
+- **Superseded URL lesson (non-normative)**：早期「申込表單屬於 `source_url` / `official_url`」的說法已廢止。Verified Google Form／signup 寫入 `submission_url`，`source_url` 保留 scraped provenance，只有第一方活動專頁可寫入 `official_url`；`location_url` 仍只放會場官方首頁。
 
 → Added to SKILL.md §「performers[] 批次回填驗證規則」、§「event_form — lecture vs conference 區分」、§「location_url 語義規則補充」
 

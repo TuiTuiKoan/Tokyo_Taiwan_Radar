@@ -14,6 +14,16 @@
 
 ---
 
+## 2026-08-04 - commit sha inside an immutable record dies at the first rebase
+
+**Error**: `oneoff_campaign_anchor.py` wrote `generator_source_commit` into the frozen campaign close-out record. Two earlier rounds had already moved it from `HEAD` to the generator's own last-touching commit to survive committing the record itself, but the branch still has to be rebased onto `origin/main` before merging. Rebasing rewrites that sha, the frozen record keeps citing the pre-rebase one, and the next rerun renders different bytes and dies on the refuse-to-overwrite guard (`EXIT=1`). The record also carried two contradictory durability standards at once: `outcome_refs` had to pass `git merge-base --is-ancestor <sha> origin/main`, while the generator sha was an unpushed local commit destined to be rewritten.
+
+**Fix**: Removed the field. `generator_blobs` is content addressed, so `git hash-object` returns the same value before and after rebase, squash or amend, and the rewritten commit still points at the identical blob. It already pinned the generator byte for byte, so the commit sha was redundant as well as unstable. The availability gate stayed (some commit must touch the generator, and its committed blob must equal the working one, which still refuses an uncommitted generator), but its sha now stays in memory. A `FORBIDDEN_FIELDS` check keeps any commit sha field out of the schema, and a regression test rewrites the generator's last-touching commit with `git commit --amend` inside the fixture repo and asserts the rerun is still `unchanged` + exit 0.
+
+**Lesson**: Never write a commit sha into a record that claims to be immutable. Any local commit sha is provisional until it is on `origin/main`, and the merge flow rewrites it by design, so the record outlives its own provenance pointer. Use a content-addressed blob sha instead: it is invariant under every history rewrite, and `git log --find-object=<blob>` recovers the commit on demand. If a record already applies a reachability gate to one kind of reference, every other reference in it must meet the same bar or the schema is self-contradictory.
+
+---
+
 ## 2026-07-20 - public Server Action runtime input and correction-first failure semantics
 
 **Error**: G4a Slice 3 的 injected-client core 只依賴 TypeScript 宣告，對 ID 與 category 元素直接呼叫 `.trim()`。`undefined`、`null`、非字串陣列元素或 malformed form 可在 Server Action runtime 拋例外。Correction-first 路徑也缺少 correction 成功後 event update error 或 0-row 的回歸測試，容易把 non-transactional partial write 誤報為成功或 rollback。

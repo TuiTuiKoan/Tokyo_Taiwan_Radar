@@ -2,6 +2,210 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-08-05：cycle-2 contradiction audit scope was too narrow
+
+### Mistake
+
+第二次規劃修正只掃描並 reconcile Scraper Expert SKILL，沒有覆蓋六個 target
+artifacts 與 linked still-normative history。結果 Architect 的 active online／URL
+rules、Scraper Expert agent A2，以及重複的 history lessons 仍教出互相矛盾的
+location 與 URL assignments。這是第二次把 audit scope 縮成最先找到問題的檔案。
+
+### Repair
+
+建立 six-artifact matrix，對每個 agent、SKILL、history 執行 exact 與 semantic search，
+再把所有命中分類為 active guidance 或 historical fact。Active contradiction 逐段
+改寫；含過時欄位值的 incident 保留原始事實，但加上相鄰的 superseded／
+non-normative marker，避免舊 Lesson 繼續被當成現行規則。
+
+### Lesson
+
+Audit scope 是完整 policy surface，不是最先發現矛盾的 owner file。Negative searches
+必須覆蓋每個 target artifact 與 linked normative history，並證明 active rules 已一致、
+historical contradictions 均有相鄰的 non-normative classification。
+
+## 2026-08-05：canonical policy 更新後未做 contradiction audit
+
+### Mistake
+
+第一版計畫更新了 canonical pure-online／hybrid sections，卻沒有搜尋整份 active
+Scraper Expert skill。結果 multi-classroom predicate 仍把任何 `オンライン` token
+判成 pure online，address enrichment 仍 blanket 排除 joined-name hybrids，URL guidance
+仍把 signup 指向 `source_url`／`official_url`，並允許 organizer SNS 進入
+`official_url`。Canonical section 正確，但同一 artifact 仍會教出相反行為。
+
+### Repair
+
+對完整 artifact 執行 exact 與 semantic search，再針對每個 active match 做 targeted
+reconciliation：以 cross-field evidence 改寫 multi-classroom 判定，只排除 canonical
+pure-online address candidates，並統一 `location_url`、`submission_url`、
+`official_url`、`source_url`、`organizer_url` ownership。歷史 incident 保留追溯性，
+但過時 destination 明確標示為 superseded。
+
+### Lesson
+
+政策 supersession 不能止於 canonical edit。所有仍生效的 predicates、code examples、
+exceptions、producers／consumers，以及 historical-but-still-normative guidance 都必須
+逐一 reconcile；每個命中要更新、限縮或標示 superseded，驗收再以 negative search
+證明舊行為不再存在。
+
+## 2026-08-05：把線上關鍵字誤當 pure-online 證據
+
+### Mistake
+
+Event `70cf7002-06ee-45aa-815f-3422c999b5f5` 的 title 明示
+`【会場観覧】`，且仍有實體 `venue_id`、localized physical venue names 與
+localized physical addresses；舊規則卻讓 `location_name`、
+`location_address` 及其 FC locks 寫成 `オンライン`，並清掉
+`location_prefectures`。`location_url` 同時被 generic Eslite domain 佔用，
+`submission_url` 缺失。規則把單一 online token 當成 pure-online 證據，又把
+hybrid 誤限於表演類，沒有處理跨欄位衝突、三語值、URL ownership 或 polluted FC。
+
+### Repair
+
+將契約拆成兩個適用所有 category 與 `event_form` 的分支。Pure online 只有在正向
+確認沒有實體參與選項時，才使用 `location_name='オンライン'`、
+`location_name_zh='線上'`、`location_name_en='Online'`，並讓 address translations
+與 `location_prefectures` 為 null。Hybrid 則保留實體地址、翻譯、正式
+`location_prefectures` 與既有 `venue_id`，三語名稱分別以 `/ オンライン`、
+`/ 線上`、`/ Online` 並列。此事件已驗證顯示
+`誠品生活日本橋内 イベントスペース「FORUM」 / オンライン`，`location_url`
+指向場地官方首頁，`submission_url` 指向線上報名頁，`source_url` 保留原始實體
+活動頁。`location_name`、`location_name_zh`、`location_name_en`、
+`location_address`、`location_prefectures`、`location_url`、`submission_url` 七個
+變更欄位及七筆 audit rows 均已驗證；未變更的 address translations 不另加 locks。
+
+### Lesson
+
+Pure online 必須由「沒有實體參與」的正向證據成立；`会場観覧`、`現地`、`対面`、
+實體地址、`venue_id` 或 localized physical fields 都是較強的 hybrid 證據。計畫必須
+固定 URL ownership：`location_url` 為場地首頁、`submission_url` 為線上報名／stream
+signup、`official_url` 為第一方活動頁、`source_url` 為原始 scraped page。手動修復前
+先 rewrite／remove 矛盾 FC，再鎖所有實際變更欄位並核對 audit。驗收同時使用
+`70cf7002` positive fixture 與沒有實體證據的 online-only negative fixture，並覆蓋
+detail venue/address、region filtering、FAQ／narrative／SEO 與各獨立連結。
+
+## 2026-08-03：publication cleanup checkpoint 與 phase 契約不可表示
+
+**錯誤：** Round 11 發現 Option B 要用 manifest digest 與 removed FC identity
+查 audit row，但 `field_corrections_audit` 沒有 digest 欄，`qa_auto_fix._audit_start()`
+也未填既有 `field_correction_id`。計畫另以抽象 table purity 切 phase，與 Eslite
+identity migration 及 `lock_empty` 的真實副作用衝突；新 phase 名稱也撞上既有
+`field_correction_actions[].phase` provenance 與 `apply_eligible`／CLI 語意。
+cleanup routing 更未 hard-exclude `corrected_by IS NOT NULL` 的人工 FC。
+
+**修正：** 不新增 migration。Audit 復用 `field_correction_id`，digest 由 runtime
+展開進 `unlock_reason` template；Eslite 改走具名例外及 dedicated before/after
+checkpoint。`fc-remove` 不動 event；`event-clear` 固定以 value-CAS 清六個 extended
+欄位、建立七個 canonical `lock_empty` sentinel，但不得刪 FC。執行 selector 使用
+`apply_phase`，舊 provenance 欄改稱 `route_action`，人工 FC 一律 hard exclude 並
+納入 preserve 路徑。
+
+**教訓：** checkpoint evidence 必須能由現行 schema 與 writer 實際產生；phase
+boundary 必須依 helper 真實副作用定義。新增 selector 前先盤點既有 CLI／action
+field semantics，所有 `corrected_by` 人工鎖都必須有顯式 preserve／exclude 路徑。
+
+## 2026-08-03：publication cleanup 跨 phase manifest 不可執行
+
+**錯誤：** Round 10 的 producer inventory 只列 annotator，漏掉
+`scraper/database.py::_apply_pure_publication_policy()` 這個 DB writer boundary。
+計畫又要求 Phase 3a／3b 重用同一 manifest，但 `apply_manifest()` 的四張全表
+fingerprint 會被 Phase 3a 自己刪除 FC 的動作改壞，且 `execute_candidate()` 沒有
+explicit phase selector。`_human_protected` FC 值會先恢復、finalizer 後執行，計畫
+也未定義非空 `location_name*` FC 遇到 pure-publication 清空政策時的行為。
+
+**修正：** producer fix 同時涵蓋 annotator 與 database writer。非空 venue-name FC
+暫時 defer 並發出 structured warning；未受保護欄位清空，且加入 payload 與
+postcondition assertions。Phase 3 採 Option B：同一 immutable manifest 使用 explicit
+phase selector 與各 phase 的 subset-scoped before/after checkpoints；full-table hash
+只保留為 discovery evidence。Phase 1a／1b 可獨立 release。
+
+**教訓：** immutable manifest 不等於可跨 phase 執行。宣稱 execution-ready 前，必須
+證明前一 phase 不會自行破壞後一 phase 的 drift gate，並明定 selector、每 phase 的
+mutation subset checkpoints，以及 protected override／FC conflict semantics。
+
+## 2026-08-03：publication cleanup 漏查 annotator location_name producer
+
+**錯誤：** Round 8／原計畫把 event cleanup target 擴成 10 欄，卻漏掉
+`location_name`、`location_name_zh`、`location_name_en`，並誤以為 producer 已全部止血。
+
+**查證：** `scraper/annotator.py` 的 pure-publication block 仍將
+`publication_label_ja`、`publication_label_zh`、`publication_label_en` 寫入
+`location_name*`。Live exact-pure 共 381 筆；`location_name` 非空 359 筆，其中
+placeholder 106 筆、NDL 期刊號 245 筆；`location_name_zh` 與 `location_name_en`
+各 358 筆；`pending=0`。
+
+**修正：** 先移除三行 writer，再於 `_finalize_publication_update()` 對 exact-pure
+清空 `location_name*`，但不擴張七欄 empty-sentinel 契約。期刊號只保留在
+description，event cleanup target 擴為 13 欄。
+
+**教訓：** UI `hideVenue` 不是 DB cleanliness。Domain-policy surface audit 必須從
+producer 追到 admin/export；已隱藏欄位仍要搜尋 active writer。刪除 producer 後，
+legacy literal detectors 與 fixtures 必須保留。現有 `Domain-policy surface audit`
+規則已足夠泛化，因此不修改 `SKILL.md`。
+
+## 2026-08-03：FC inventory 不是 delete allowlist
+
+**錯誤：** 原計畫把 broad inventory 中 470 筆 target 欄位非空的 FC 全部視為污染，直接推導成 delete allowlist，沒有先區分產生來源、identity migration、衝突與有效人工鎖。
+
+**查證：** broad inventory 470 筆的 writer provenance 仍是：456 筆 current rows originated from commit `2b1c3f13` 初版 `_oneoff_backfill_publication_metadata.py --apply`，12 筆 pure-publication JSON-quoted `location_address` rows 來自 scheduled `enrich_addresses.py`，另 2 筆來自後續 Eslite one-off repairs。但前述 456 筆包含同一 Eslite physical Talk `50c83c11-ed64-481a-bb5a-caa3e9981943` 的 6 筆 original-batch rows，因此 Phase 3a pure-cleanup delete planning baseline 是 462 筆（450 筆 initial-backfill rows + 12 筆 enrich-address rows），不是 468 筆。Eslite 在 broad inventory 共佔 8 筆（6 筆 original-batch + 2 筆 later rows）；identity migration 的 action split 是 preserve 真實的 base `location_address`、`location_prefectures`、`organizer_type` 共 3 筆，將 `business_hours`、`business_hours_zh`、`business_hours_en` 共 3 筆 rewrite 為 `13:00〜`，並 remove stale placeholder `location_address_zh`、`location_address_en` FC 共 2 筆且保持對應 event fields 為 NULL。Eslite base `location_address` FC 的 `created_at` 仍是 2026-06-04 original batch timestamp，但 `corrected_value` 已在 6/29 由 `/tmp` repair upsert 成真實地址；timestamp 只能作 provenance clue，不能視為 immutable writer identity。`qa_auto_fix.lock_clean` 仍因 audit match 為 0，排除於污染來源之外。
+
+**修正：** Eslite identity migration 必須先行，再進 cleanup。Phase 3a 只允許 approved immutable manifest 中 `action = pure_cleanup` 的項目，並以完整 FC ID、event ID、field、exact value 與 current timestamp 做 CAS delete；planning baseline 為 462 筆。939 筆 empty sentinels 與完整且已核准的 Eslite after-image 必須進 preserve/read-back set。Phase 3b 必須另行取得 approval，並只可在 Phase 3a read-back 通過後清除 event fields。
+
+**教訓：** inventory count 不等於 delete count；provenance 只能協助分類，不能單獨成為 deletion predicate；identity 與 conflict routing 必須早於 allowlist 建立。
+
+## 2026-08-03：Organizer Type Authority — entity registry 權威化
+
+**背景：** `organizer_type` 由 GPT 每次重新推斷，同一 entity 跨 events 漂移（`台湾文化センター` 38 events 帶 academic／cultural_institution／government／semi_official 四型；連鎖書店依活動主題被誤判為 cultural_institution／independent_venue）。event-level FC 只能逐筆修，無法阻止同一 entity 在新事件重複出錯。
+
+**架構決策：**
+1. 優先序定為 `FC > authoritative registry > source default > existing valid > LLM > unknown`；沿用既有 `organizers` 表加 `is_authoritative`，不新增第二張主表（避免第二個真相來源）。
+2. 交付拆兩波：Wave 1 用既有機制修高信心案例（零新 code），Wave 2 才建 registry；避免高 ROI 修正被 migration gate 阻塞。
+3. Production apply 拆三個獨立 gate（2A 清資料 → 2B migration → 2C seed/backfill），每步 read-back 才進下一步。
+
+**教訓：**
+1. **event-level FC 不能替代 entity authority**：修 N 筆事件 ≠ 修 1 個 entity；新事件會再犯。
+2. **pre-migration remediation 必須 table-wide**：只掃 active 會漏 inactive（實例：active 17 vs 全表 70 pairs），而 validated CHECK 掃整表，漏掉就 migration abort。
+3. **graceful degradation 讓 code 與 migration 解耦**：registry 在欄位未 migrate 時 no-op，使 6 commit 可安全先 merge，migration 後補 apply，期間每日 CI 零行為改變。
+4. **scalar → array 需防壓平**：registry 是 scalar，events 是多值 `text[]`；未定義覆蓋規則會靜默摧毀 `["academic","media"]` 這類合法多值。
+5. **DB constraint 才是持久防線**：68/70 筆 parallel-array mismatch 的根因是 migration 058 未加 cardinality 約束；只靠應用層 test invariant 擋不住直寫。
+6. **FC 優先於 registry 是正確且會被觀察到的**：backfill 尊重 363 個 FC-locked event；若 FC 本身鎖了錯值（梅田蔦屋鎖成 independent_venue），需人工刪 FC 而非放寬 precedence。
+7. **過時的 Guard 斷言會被 production 事實推翻，用 supersede 而非刪除**：本檔 SKILL 舊規則寫「organizer_type 不在 `TRACKED_FIELDS`、補值後不需寫 `field_corrections`」，實際已納入 `_NON_TEXT_FC_FIELDS` 且 FC 確實生效。修法：在舊條目後附「⚠️ 日期 更正 — supersedes 上方第 N 點」，保留原文以便追溯認知演進，不直接改寫已 commit 的斷言。
+
+**驗證：** Gate 2A mismatch 70→0；Gate 2B migration 095 四個 constraint validated；Gate 2C seed 4 entity + backfill 8 events（conflict=0）。資料面事故細節見 `.github/skills/scraper-expert/history.md` 2026-08-03。
+
+## 2026-08-02：workstream-status-automation 計畫重寫前的治理校正
+
+**背景：** 原 workstream-status-automation 計畫經 Plan Critic 後重寫。回溯發現原案在需求必要性、狀態盤點、驗收設計與證據邊界上同時偏離：在未做 Admin UI Dashboard Necessity Check 前就規劃 Supabase snapshot、RLS、admin live badge 與 launchd；但現況其實已有 `scraper/daily_report.py` 與 `.github/wip.md` 的被動通道可先低成本試行。
+
+**錯誤：**
+1. 未先做必要性檢查與低成本試行，直接引入高複雜度監控子系統。
+2. 把 archive canonical 路徑寫成 `docs/specs/archived/<slug>/`，與既有規約 `docs/specs/archive/YYYY-MM-<slug>/` 不一致。
+3. spec/status 盤點只看 active，漏掉 archive 區反向漂移案例，例如 `docs/specs/archive/feedback-loop/proposal.md` 的 `status: active`。
+4. 替代方案未明確本機與 GitHub-hosted runner 邊界，忽略「只改未提交 `.github/wip.md`」對 hosted workflow 不可見；未定義 transport/publish boundary。
+5. 驗收把 dirty/ahead 計數寫死為瞬時值（如 Publication dirty 7、Event Intake dirty 3、Wave2 ahead 6），在並行工作下把正確實作誤判為 FAIL。
+6. 把不具 branch 欄位且非權威的 transcript session evidence，外推成值得建置高隱私 badge 子系統的依據。
+
+**根本原因：** 把「可量測」誤當「需要即時儀表板」，把「本機可見」誤當「runner 可見」，把「盤點快照」誤當「驗收不變量」，也把低可信 session metadata 誤當可承載治理決策的證據。結果是前置治理未完成就先設計重系統，且 acceptance 易被環境噪音污染。
+
+**修復：**
+1. 先套用 Admin UI Dashboard Necessity Check，先走被動通道與低成本試行，再決定是否升級到主動監控。
+2. 統一路徑規約為 `docs/specs/archive/YYYY-MM-<slug>/`，並把錯誤路徑列為禁用字串。
+3. 狀態盤點改為 active、parked、archive 三區雙向一致性檢查，包含 frontmatter status 與目錄位置互查。
+4. 對任何本機到 hosted 的自動化，明列 transport、publisher、credentials、freshness 四要素；未定義即不得宣告可運作。
+5. 驗收改用不變量與 fixtures：以可重現查詢與固定樣本判定，volatile git 計數只保留為 planning snapshot。
+6. 對高隱私高複雜度提案，要求權威 evidence；不以缺 branch 的 transcript session metadata 作為建置觸發。
+
+**教訓：**
+
+1. 監控與儀表板是治理手段，不是預設答案，先證明現有被動通道不足。
+2. 文檔治理要同時檢查正向遺漏與反向漂移，archive 區的 `status` 反轉同樣屬於 P0。
+3. 本機檔案系統與未提交變更對 GitHub-hosted runner 天生不可見，沒有 transport/publish 設計就沒有自動化。
+4. 可變的 git 計數不應成為驗收門檻，驗收應綁定可重現不變量與 fixture。
+5. 低可信 session 證據不可驅動高隱私功能，證據等級必須與系統成本同級。
+
+---
+
 ## 2026-08-01：把「已推 main」當成部署證據，以及文件 apply-status 腐化
 
 **背景：** Lane A/Lane R 收尾。Migration 096 關閉 `search_path` 契約漂移後，
@@ -714,6 +918,9 @@ SKILL.md の当該セクションも警告付きに書き換えた。
 - **4K 重映 / リバイバル 的 official_url 不可信任**：eiga.com 收的是原作頁，重映新版往往在 detail page **沒有** jump link，需人工 Google 補強。SKILL 加入「Movie Re-release official_url Guard」。
 
 ### B — `movie_title_lookup` Phase A：eiga.com `オフィシャルサイト` 提取（成功）
+
+> [!WARNING]
+> Superseded by the current URL ownership policy; historical incident record only, non-normative. The third tuple slot remains for compatibility but is an untrusted candidate or lookup reference. Classify the destination before any event-field write: only a verified first-party page dedicated to the event may enter `official_url`; ticket, signup, or stream access belongs in `submission_url`; organizer or distributor homepages and SNS belong in `organizer_url`; generic film and re-release references remain lookup metadata.
 
 **目的：** 過去 `lookup_movie_titles()` 只回傳 `(name_zh, name_en)`，丟棄了 detail page 上的 `オフィシャルサイト` jump link，導致已知官方網站每次靠人工補。
 
@@ -3613,6 +3820,10 @@ TypeScript build 失敗 → Vercel 停在舊版本 → 用戶看不到 drama 分
 
 ---
 ## 2026-04-26 — Online canonical form corrected: location_address must be 'オンライン', not NULL
+
+> [!WARNING]
+> Superseded by the 2026-08-05 pure-online/hybrid canonical policy; historical incident record only, non-normative. Current pure-online address fields/prefectures are null, and hybrid retains physical fields.
+
 **Error:** Previous session established `location_address = NULL` as the canonical form for online events. This was wrong: it caused online events to appear in the `tokyo` admin filter (which treats NULL address as "Tokyo"), and `other_japan` filtering relied solely on `location_name` to exclude online events, creating fragile single-point-of-failure logic. The `AdminEventTable.tsx` `other_japan` filter had no online exclusion at all, meaning online events would appear there too.
 
 **Fix:**
@@ -3642,6 +3853,10 @@ TypeScript build 失敗 → Vercel 停在舊版本 → 用戶看不到 drama 分
 
 ---
 ## 2026-04-26 — Peatix online event incorrectly assigned a physical address (×2 errors in same session)
+
+> [!WARNING]
+> Superseded by the current pure-online/hybrid policy; historical incident record only, non-normative. `LOCATION / Online event` is only an online signal. Short-circuit physical extraction only after affirmative cross-field confirmation that no physical attendance option exists; hybrid events retain venue and address extraction.
+
 **Error:** Event `05aefbdf` (周美花講演) is a hybrid/online event. Peatix renders its LOCATION block as a single line `"LOCATION\n\nOnline event"` — no second group. The scraper's primary regex (`LOCATION\n\n(.{3,100})\n\n([^\n]{3,200})`) requires two groups separated by a blank line, so it didn't match. All CSS and regex fallbacks then ran, finding:
 1. A campus name from the description body text → `location_name = '桜美林大学新宿キャンパス'`
 2. `東京都新宿区` from the description → `location_address`
@@ -3717,6 +3932,10 @@ In the same session, the previous turn had wrongly "verified" and patched this s
 
 ---
 ## 2026-04-26 — Online canonical form corrected: location_address must be 'オンライン', not NULL
+
+> [!WARNING]
+> Superseded by the 2026-08-05 pure-online/hybrid canonical policy; historical incident record only, non-normative. Current pure-online address fields/prefectures are null, and hybrid retains physical fields.
+
 **Error:** Previous session established `location_address = NULL` as the canonical form for online events. This was wrong: it caused online events to appear in the `tokyo` admin filter (which treats NULL address as "Tokyo"), and `other_japan` filtering relied solely on `location_name` to exclude online events, creating fragile single-point-of-failure logic. The `AdminEventTable.tsx` `other_japan` filter had no online exclusion at all, meaning online events would appear there too.
 
 **Fix:**
@@ -3746,6 +3965,10 @@ In the same session, the previous turn had wrongly "verified" and patched this s
 
 ---
 ## 2026-04-26 — Peatix online event incorrectly assigned a physical address (×2 errors in same session)
+
+> [!WARNING]
+> Superseded by the current pure-online/hybrid policy; historical incident record only, non-normative. `LOCATION / Online event` is only an online signal. Short-circuit physical extraction only after affirmative cross-field confirmation that no physical attendance option exists; hybrid events retain venue and address extraction.
+
 **Error:** Event `05aefbdf` (周美花講演) is a hybrid/online event. Peatix renders its LOCATION block as a single line `"LOCATION\n\nOnline event"` — no second group. The scraper's primary regex (`LOCATION\n\n(.{3,100})\n\n([^\n]{3,200})`) requires two groups separated by a blank line, so it didn't match. All CSS and regex fallbacks then ran, finding:
 1. A campus name from the description body text → `location_name = '桜美林大学新宿キャンパス'`
 2. `東京都新宿区` from the description → `location_address`
@@ -3822,6 +4045,9 @@ In the same session, the previous turn had wrongly "verified" and patched this s
 
 ---
 ## 2026-04-29 — Cinema scrapers 官網提取：official_url selector 設計與 DB backfill 分離執行
+
+> [!WARNING]
+> Superseded by the current URL ownership policy; historical incident record only, non-normative. Ticket and purchase destinations belong in `submission_url`, including endpoints hosted on a cinema-owned domain. Domain ownership alone does not make a ticket endpoint `official_url`; only a verified first-party page dedicated to the event may use that field.
 
 **工作內容：** CineMarti Shinjuku 和 KS Cinema 的 scraper 中添加 official_url 抽取邏輯；識別出 Google search 結果用了不同 locale 的電影名稱。
 
@@ -3979,6 +4205,10 @@ In the same session, the previous turn had wrongly "verified" and patched this s
 
 ---
 ## 2026-04-26 — Online canonical form corrected: location_address must be 'オンライン', not NULL
+
+> [!WARNING]
+> Superseded by the 2026-08-05 pure-online/hybrid canonical policy; historical incident record only, non-normative. Current pure-online address fields/prefectures are null, and hybrid retains physical fields.
+
 **Error:** Previous session established `location_address = NULL` as the canonical form for online events. This was wrong: it caused online events to appear in the `tokyo` admin filter (which treats NULL address as "Tokyo"), and `other_japan` filtering relied solely on `location_name` to exclude online events, creating fragile single-point-of-failure logic. The `AdminEventTable.tsx` `other_japan` filter had no online exclusion at all, meaning online events would appear there too.
 
 **Fix:**
@@ -4008,6 +4238,10 @@ In the same session, the previous turn had wrongly "verified" and patched this s
 
 ---
 ## 2026-04-26 — Peatix online event incorrectly assigned a physical address (×2 errors in same session)
+
+> [!WARNING]
+> Superseded by the current pure-online/hybrid policy; historical incident record only, non-normative. `LOCATION / Online event` is only an online signal. Short-circuit physical extraction only after affirmative cross-field confirmation that no physical attendance option exists; hybrid events retain venue and address extraction.
+
 **Error:** Event `05aefbdf` (周美花講演) is a hybrid/online event. Peatix renders its LOCATION block as a single line `"LOCATION\n\nOnline event"` — no second group. The scraper's primary regex (`LOCATION\n\n(.{3,100})\n\n([^\n]{3,200})`) requires two groups separated by a blank line, so it didn't match. All CSS and regex fallbacks then ran, finding:
 1. A campus name from the description body text → `location_name = '桜美林大学新宿キャンパス'`
 2. `東京都新宿区` from the description → `location_address`
@@ -4062,23 +4296,3 @@ In the same session, the previous turn had wrongly "verified" and patched this s
 **Error:** Designed and handed off the full monitoring stack (scraper_runs table, /admin/stats page, Sentry) without first confirming that pending migrations 006 and 007 had been applied in the Supabase project. On first load, the stats page showed an error banner and the event_reports admin tab was broken.
 **Fix:** Retrospectively identified missing migrations as Step 1 (manual) in the remediation plan.
 **Lesson:** Check migration state as Phase 1 research whenever a feature assumes or extends DB schema. → Added to SKILL.md under Planning.
-## 2026-08-03：Organizer Type Authority — entity registry 權威化
-
-**背景：** `organizer_type` 由 GPT 每次重新推斷，同一 entity 跨 events 漂移（`台湾文化センター` 38 events 帶 academic／cultural_institution／government／semi_official 四型；連鎖書店依活動主題被誤判為 cultural_institution／independent_venue）。event-level FC 只能逐筆修，無法阻止同一 entity 在新事件重複出錯。
-
-**架構決策：**
-1. 優先序定為 `FC > authoritative registry > source default > existing valid > LLM > unknown`；沿用既有 `organizers` 表加 `is_authoritative`，不新增第二張主表（避免第二個真相來源）。
-2. 交付拆兩波：Wave 1 用既有機制修高信心案例（零新 code），Wave 2 才建 registry；避免高 ROI 修正被 migration gate 阻塞。
-3. Production apply 拆三個獨立 gate（2A 清資料 → 2B migration → 2C seed/backfill），每步 read-back 才進下一步。
-
-**教訓：**
-1. **event-level FC 不能替代 entity authority**：修 N 筆事件 ≠ 修 1 個 entity；新事件會再犯。
-2. **pre-migration remediation 必須 table-wide**：只掃 active 會漏 inactive（實例：active 17 vs 全表 70 pairs），而 validated CHECK 掃整表，漏掉就 migration abort。
-3. **graceful degradation 讓 code 與 migration 解耦**：registry 在欄位未 migrate 時 no-op，使 6 commit 可安全先 merge，migration 後補 apply，期間每日 CI 零行為改變。
-4. **scalar → array 需防壓平**：registry 是 scalar，events 是多值 `text[]`；未定義覆蓋規則會靜默摧毀 `["academic","media"]` 這類合法多值。
-5. **DB constraint 才是持久防線**：68/70 筆 parallel-array mismatch 的根因是 migration 058 未加 cardinality 約束；只靠應用層 test invariant 擋不住直寫。
-6. **FC 優先於 registry 是正確且會被觀察到的**：backfill 尊重 363 個 FC-locked event；若 FC 本身鎖了錯值（梅田蔦屋鎖成 independent_venue），需人工刪 FC 而非放寬 precedence。
-
-**驗證：** Gate 2A mismatch 70→0；Gate 2B migration 095 四個 constraint validated；Gate 2C seed 4 entity + backfill 8 events（conflict=0）。資料面事故細節見 `.github/skills/scraper-expert/history.md` 2026-08-03。
-
-7. **過時的 Guard 斷言會被 production 事實推翻，用 supersede 而非刪除**：本檔 SKILL 舊規則寫「organizer_type 不在 `TRACKED_FIELDS`、補值後不需寫 `field_corrections`」，實際已納入 `_NON_TEXT_FC_FIELDS` 且 FC 確實生效。修法：在舊條目後附「⚠️ 日期 更正 — supersedes 上方第 N 點」，保留原文以便追溯認知演進，不直接改寫已 commit 的斷言。
