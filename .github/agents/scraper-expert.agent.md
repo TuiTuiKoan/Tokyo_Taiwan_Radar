@@ -29,7 +29,16 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 
 ## Session Start Checklist
 1. Read `.github/skills/scraper-expert/SKILL.md` — apply all rules before starting.
-2. If a per-source skill exists (`.github/skills/sources/<source_name>/SKILL.md`), read it too.
+2. Run the Worktree 確認閘門 below before editing any scraper.
+3. If a per-source skill exists (`.github/skills/sources/<source_name>/SKILL.md`), read it too.
+
+## Worktree 確認閘門
+
+任何實作工作開始前，必須先向使用者確認在哪個 worktree 進行，得到明確答覆才動工。不得自行推定，也不得因為只改一個 selector 而跳過。
+
+主工作樹（`Tokyo Taiwan Radar`／`main`）**僅供治理與盤點使用**。不得在此修改 `scraper/`。`main.py` 的 `SCRAPERS` 清單是共用清單，在主工作樹編輯尤其容易被平行 session 的 stash 踩踏。
+
+實行方式一律以 `.github/instructions/git.instructions.md` § Worktree confirmation gate 為準。
 
 ## After Fixing a Scraper Bug
 1. Append an entry to `.github/skills/scraper-expert/history.md` (newest at top): date, error, fix, lesson.

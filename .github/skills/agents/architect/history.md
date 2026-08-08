@@ -2,6 +2,48 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-08-08：「小改動走主工作樹」是規則寫進去的漏洞，不是疏忽
+
+### Mistake
+
+主工作樹被發現懸著一批跨四天（08-02〜08-05）、11 檔、+550/−134 的 agent 教訓文件，
+從未提交。這批 WIP 的存活純屬僥倖——同期至少有 V-M-D、zheng-hours、peatix cron
+三種平行 session 會在主工作樹跑 `git stash` / `git clean`，把未提交變更當成
+「unrelated work before deploy」掃走。
+
+真正的錯在規則本身。`git.instructions.md § Isolated worktree` 寫著
+「Small one-shot changes stay in the main working directory」，`architect.agent.md`
+的 Decision Gate 表格寫著「Small change → No spec, no worktree — main working dir」，
+`architect/SKILL.md` 也寫著「小改動不建 spec、不建 worktree，走主工作目錄」。
+三處都合規、三處都把小改動導向唯一會被 stash 踩踏的地方。
+
+先前的 worktree 隔離設計只覆蓋「大型 feature」，因為 2026-06-29 的事故樣本是
+v8 投稿精靈這種大型 WIP。這使我把問題歸因為「WIP 太大」，但實際成因是
+「WIP 在主工作樹且未提交」——與大小無關。小改動同樣會累積、同樣會被掃走，
+而且因為沒有 spec 追蹤，被掃走時更難察覺。
+
+### Repair
+
+改成閘門而非分級。`git.instructions.md` 新增 § Worktree confirmation gate：
+實作前必須向使用者確認 worktree，主工作樹僅供治理與盤點。
+同步修掉上述三處相反敘述，並把閘門加進六個會動到功能程式的 agent
+（Architect、Engineer、Tester、Scraper Expert、Designer、Researcher）
+以及 V-M-D——V-M-D 的 Step 0.6 從「大型功能專屬」改為常態，
+並明令發現主工作樹有未提交變更時**絕不** stash 或 clean，停下回報。
+
+### Lesson
+
+**分級規則會把例外變成漏洞。** 當防護只覆蓋「大型」案例時，剩下的案例不是低風險，
+只是沒人盯——而且會因為「規則說可以」而持續累積。若一個位置危險到大型工作必須避開，
+它對小型工作同樣危險；正確做法是禁止該位置，不是按大小分流。
+
+**歸因要看機制不看樣本。** 2026-06-29 的樣本恰好是大型 WIP，我就把成因寫成
+「大型 feature 需要隔離」。真正的機制是「主工作樹的未提交變更會被平行 session 掃走」，
+與規模無關。從單一事故樣本推規則前，先問「這個機制對樣本以外的情況成不成立」。
+
+**規則衝突要一次掃乾淨。** 這次的相反敘述散在 instructions、agent、SKILL 三層，
+只改其中一處會留下矛盾指引。改任何跨層規則時，先 grep 出所有既有敘述再動筆。
+
 ## 2026-08-05：cycle-2 contradiction audit scope was too narrow
 
 ### Mistake

@@ -24,6 +24,15 @@ Discovers, evaluates, and profiles new event data sources (websites, APIs, ticke
 ## Session Start Checklist
 1. Read `.github/skills/agents/researcher/SKILL.md` — apply all rules before starting.
 2. Run Step 0 immediately: check for candidate files before doing any manual search.
+3. Run the Worktree 確認閘門 below before writing any file into the repo.
+
+## Worktree 確認閘門
+
+純搜尋與評估（不寫檔）不需走閘門。但只要要寫入 repo —— 新增 source profile、`update_source.py` 寫入、產生 scraper 骨架 —— 必須先向使用者確認在哪個 worktree 進行，得到明確答覆才動工。
+
+主工作樹（`Tokyo Taiwan Radar`／`main`）**僅供治理與盤點使用**。不得在此新增或修改 `scraper/` 下的檔案。
+
+實行方式一律以 `.github/instructions/git.instructions.md` § Worktree confirmation gate 為準。
 
 ## After a Source Evaluation Error
 1. Append an entry to `.github/skills/agents/researcher/history.md` (newest at top): date, error, fix, lesson.

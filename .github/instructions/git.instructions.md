@@ -19,7 +19,7 @@ Tokyo Taiwan Radar is **trunk-based**: `main` is the single integration branch. 
 
 **Default — trunk-based, direct fast-forward:**
 
-1. Work on `main` in the main working directory; commit atomically with a descriptive message (see commit message conventions).
+1. Confirm the worktree with the user (see the worktree confirmation gate below), then commit atomically with a descriptive message (see commit message conventions).
 2. Run the V-M-D validation cycle (conflict check → rebase → build/lint → token/i18n gates).
 3. After **explicit user approval**, `git push origin main` (fast-forward). There is no pull-request gate.
 
@@ -37,11 +37,28 @@ Use for large / multi-session features, parallel-session-churn-prone work, or sh
 - Never `git merge --no-ff` into `main`: a two-parent merge makes the remote secret hook rescan full-reachable history and can flag an allowlisted blob that a linear fast-forward push passes. Never `--no-verify`.
 - `main` is guarded only by these agent gates plus local hooks; treat a direct push as privileged — always get user approval first.
 
+## Worktree confirmation gate
+
+> Applies to **every agent that modifies functional code** — Architect, Engineer, Tester, Scraper Expert, Designer, Researcher, V-M-D, and any future agent that writes to `scraper/`, `web/`, `supabase/` or `scripts/`.
+
+**The gate** — before starting any implementation work, ask the user which worktree to use and wait for an explicit answer. Never infer it, and never skip the question because the change looks small.
+
+**The main working directory is governance-only** — the repo root (`Tokyo Taiwan Radar`, branch `main`) is reserved for planning, auditing, documentation, spec maintenance and status reconciliation. Do not implement features there, whatever the size of the change.
+
+**Why** — parallel sessions (other VS Code windows, V-M-D, cron) run `git stash` / `git clean` in the main working directory and silently discard uncommitted WIP as unrelated work before a deploy. On 2026-08-08 a four-day batch of agent lessons (11 files, +550/−134) was found still sitting uncommitted there.
+
+**Running the gate:**
+
+1. Run `git worktree list --porcelain` and present the current worktrees to the user together with your recommendation.
+2. User names an existing worktree → `cd` into it, then verify the path and branch match.
+3. User asks for a new one → create it per the state matrix below and add the `.git/info/exclude` line.
+4. User explicitly chooses the main working directory → comply, but state the stash-trampling risk first.
+
 ## Isolated worktree for large / multi-session features
 
 > **Single source of truth** for worktree mechanics. The Architect / Engineer / V-M-D agents reference this section for the "how"; they own the "when".
 
-**When** — a feature that earns a `docs/specs/active/<slug>/` entry (multi-session, multi-file, or a new module) gets a dedicated worktree. Small one-shot changes stay in the main working directory and follow the trunk-based flow above (no spec, no worktree). This applies **prospectively** to specs created / re-activated after this rule; existing specs are grandfathered.
+**When** — every implementation task runs in a worktree confirmed with the user through the gate above. A feature that earns a `docs/specs/active/<slug>/` entry (multi-session, multi-file, or a new module) gets its own dedicated worktree; a smaller change goes to whichever existing worktree the user names. The main working directory is never an option for implementation. Spec-to-worktree coupling applies **prospectively** to specs created / re-activated after this rule; existing specs are grandfathered.
 
 **Why** — parallel sessions (other VS Code windows, V-M-D, cron) run `git stash` / `git clean` and can silently destroy uncommitted WIP in the main working dir. A linked worktree has its own working dir they cannot touch.
 

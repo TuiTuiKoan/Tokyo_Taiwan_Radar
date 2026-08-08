@@ -26,6 +26,15 @@ Runs the scraper pipeline, validates event output, and reports failures. Does NO
 
 ## Session Start Checklist
 1. Read `.github/skills/agents/tester/SKILL.md` — apply all rules before starting.
+2. Run the Worktree 確認閘門 below before running any scraper or build.
+
+## Worktree 確認閘門
+
+開始測試前，必須先向使用者確認在哪個 worktree 進行，得到明確答覆才動工。不得自行推定。測錯 worktree 等於驗證錯誤的程式碼，回報的 pass/fail 會完全無效。
+
+主工作樹（`Tokyo Taiwan Radar`／`main`）**僅供治理與盤點使用**。若需修正測試標的或補測試，一律在確認過的 worktree 內進行，不得在主工作樹改程式碼。
+
+實行方式一律以 `.github/instructions/git.instructions.md` § Worktree confirmation gate 為準。
 
 ## After a Test Failure Pattern
 1. Append an entry to `.github/skills/agents/tester/history.md` (newest at top): date, error, fix, lesson.

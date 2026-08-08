@@ -23,7 +23,16 @@ Executes full-stack implementation across the scraper (Python), web (Next.js 16)
 
 ## Session Start Checklist
 1. Read `.github/skills/agents/engineer/SKILL.md` — apply all rules before starting.
-2. If `run_in_terminal` output shows intermittent CJK mojibake, it's a locale (`C.UTF-8`) issue, not your command — see SKILL.md → "Terminal Mojibake / Locale". Redirect output to a file and `read_file` it as the immediate workaround.
+2. Run the Worktree 確認閘門 below before touching any functional code.
+3. If `run_in_terminal` output shows intermittent CJK mojibake, it's a locale (`C.UTF-8`) issue, not your command — see SKILL.md → "Terminal Mojibake / Locale". Redirect output to a file and `read_file` it as the immediate workaround.
+
+## Worktree 確認閘門
+
+任何實作工作開始前，必須先向使用者確認在哪個 worktree 進行，得到明確答覆才動工。不得自行推定，也不得因為變更很小而跳過。
+
+主工作樹（`Tokyo Taiwan Radar`／`main`）**僅供治理與盤點使用**。不得在此進行功能實作。若計畫未註明 worktree，停下來問，不要預設主工作樹。
+
+實行方式與建立指令一律以 `.github/instructions/git.instructions.md` § Worktree confirmation gate 為準。
 
 ## After Fixing Any Error
 1. Append an entry to `.github/skills/agents/engineer/history.md` (newest at top): date, error, fix, lesson.
@@ -103,7 +112,7 @@ When changing any `GITHUB_TOKEN` / `--create-issue` behavior or documentation:
 3. rebase／preview 前確認 worktree clean——**絕不 `git stash`**（見 canonical）。
 4. 每完成一步在 `docs/specs/active/<slug>/tasks.md` 打勾並 commit（跨 session 進度真值）。
 
-小改動（無 spec）跳過此步，在主工作目錄依既有 commit → V-M-D → approval 流程（不直推 main、不繞過 approval）。
+小改動（無 spec）跳過建立專用 worktree 這一步，但**仍須先走 Worktree 確認閘門**請使用者指定一個現有 worktree，在其中依既有 commit → V-M-D → approval 流程進行（不直推 main、不繞過 approval）。
 
 ### Step 1: Understand
 

@@ -30,8 +30,17 @@ Plans architecture, development roadmaps, and technical design for Tokyo Taiwan 
 
 ## Session Start Checklist
 1. Read `.github/skills/agents/architect/SKILL.md` — apply all rules before starting.
-2. If the task includes SQL migration text, perform a quick PostgreSQL syntax sanity check on privilege statements (`GRANT`/`REVOKE`/`ALTER VIEW`) before handing off.
-3. If the task includes Supabase admin RPC auth gate logic, require auth-context sanity check (`auth.uid()` primary, claim fallback for SQL Editor) in the plan.
+2. Run the Worktree 確認閘門 below before planning any implementation work.
+3. If the task includes SQL migration text, perform a quick PostgreSQL syntax sanity check on privilege statements (`GRANT`/`REVOKE`/`ALTER VIEW`) before handing off.
+4. If the task includes Supabase admin RPC auth gate logic, require auth-context sanity check (`auth.uid()` primary, claim fallback for SQL Editor) in the plan.
+
+## Worktree 確認閘門
+
+任何實作工作開始前，必須先向使用者確認在哪個 worktree 進行，得到明確答覆才動工。不得自行推定，也不得因為變更很小而跳過。
+
+主工作樹（`Tokyo Taiwan Radar`／`main`）**僅供治理與盤點使用** —— 規劃、稽核、文件、spec 維護、狀態對帳。不得在此進行功能實作。
+
+實行方式、建立指令與例外條件，一律以 `.github/instructions/git.instructions.md` § Worktree confirmation gate 為準。計畫中需寫明實作落在哪個 worktree，不可留白讓 Engineer 自行判斷。
 
 ## After Identifying a Planning Mistake
 1. Append an entry to `.github/skills/agents/architect/history.md` (newest at top): date, error, fix, lesson.
@@ -60,9 +69,9 @@ Before writing any plan, classify the feature's size — it drives spec + worktr
 | Signal (any one) | Class | Provisioning |
 |---|---|---|
 | New module/subsystem, multi-session, spans web+scraper, or the user calls it 長期／持續開發 | **Large feature** | `docs/specs/active/<slug>/` (proposal + tasks) **AND** a dedicated `ttr-<slug>-worktree` on `feat/<slug>` |
-| Single-session, few files, one bug / one field | **Small change** | No spec, no worktree — main working dir + existing trunk-based flow (commit → V-M-D → push with approval) |
+| Single-session, few files, one bug / one field | **Small change** | No spec — but still a worktree: ask the user which existing one to use (see the Worktree 確認閘門 above) |
 
-**Rule: spec ⟺ worktree (1:1), prospective only.** If a change earns a spec it earns a worktree. Applies to specs created / re-activated after this rule; existing active specs are grandfathered (do not retro-create worktrees). "Small change" means "no worktree" — it does NOT mean "push straight to main without approval".
+**Rule: spec ⟺ worktree (1:1), prospective only.** If a change earns a spec it earns a *dedicated* worktree. Applies to specs created / re-activated after this rule; existing active specs are grandfathered (do not retro-create worktrees). "Small change" means "no dedicated worktree" — it does NOT mean "work in the main working directory", and it does NOT mean "push straight to main without approval".
 
 For every **Large feature** plan, include a **"Worktree & Spec Tracking"** section stating:
 

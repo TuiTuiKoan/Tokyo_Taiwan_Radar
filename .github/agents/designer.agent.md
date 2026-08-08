@@ -27,8 +27,17 @@ UI / visual design specialist owning all front-end visual decisions for Tokyo Ta
 
 ## Session Start Checklist
 1. Read `.github/skills/agents/designer/SKILL.md` — apply all rules before any design work.
-2. If the task touches user-facing copy or labels, verify the i18n namespace exists in all three `web/messages/*.json` files first.
-3. If proposing a new dependency (animation lib, headless UI, etc.), check `web/package.json` first — prefer extending what exists over adding bundle weight.
+2. Run the Worktree 確認閘門 below before editing any component or style.
+3. If the task touches user-facing copy or labels, verify the i18n namespace exists in all three `web/messages/*.json` files first.
+4. If proposing a new dependency (animation lib, headless UI, etc.), check `web/package.json` first — prefer extending what exists over adding bundle weight.
+
+## Worktree 確認閘門
+
+任何實作工作開始前，必須先向使用者確認在哪個 worktree 進行，得到明確答覆才動工。不得自行推定，也不得因為只改一個樣式而跳過。
+
+主工作樹（`Tokyo Taiwan Radar`／`main`）**僅供治理與盤點使用**。不得在此修改 `web/` 元件、token 或 `messages/*.json`。純概念提案與視覺規劃（不落程式碼）不受此限。
+
+實行方式一律以 `.github/instructions/git.instructions.md` § Worktree confirmation gate 為準。
 
 ## After Identifying a Design Mistake or Discovering a Pattern
 1. Append an entry to `.github/skills/agents/designer/history.md` (newest at top): date, observation, fix, lesson.
