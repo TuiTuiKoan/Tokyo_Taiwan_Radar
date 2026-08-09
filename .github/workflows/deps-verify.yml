@@ -1,0 +1,105 @@
+# Temporary dependency-verification tool, NOT a per-PR dependency CI gate: manual dispatch plus a single branch only.
+# Rationale: the local device blocks the public npm registry, so lockfiles can only be verified on a CI runner.
+# E2E is intentionally out of scope here — web-darkmode-smoke.yml already covers the Playwright surface.
+name: deps-verify
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref or SHA to verify (default: PR #205 head)'
+        required: true
+        default: 'ec8a26c42300ecdc51f369174cdb084fdf697850'
+  push:
+    branches: [chore/deps-security]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout target ref
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.event.inputs.ref || github.sha }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10.33.3
+
+      # No dependency cache on purpose: a restored store would mask the thing under test,
+      # namely that every locked version is still fetchable from the public registry.
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+
+      - name: Create .env.local for CI
+        working-directory: web
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL}"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}"
+            echo "NEXT_PUBLIC_SITE_URL=${SITE_URL}"
+            echo "SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}"
+            echo "OPENAI_API_KEY=${OPENAI_API_KEY}"
+            echo "NEXT_PUBLIC_SENTRY_DSN=${SENTRY_DSN}"
+          } >> .env.local
+
+      - name: install --frozen-lockfile --ignore-scripts (blocking)
+        working-directory: web
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: install --frozen-lockfile (blocking)
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      # Evidence steps: must print even when a vulnerable instance is still resolved,
+      # so continue-on-error keeps the real exit status visible without stopping the job.
+      - name: list advisory packages (evidence, non-blocking)
+        working-directory: web
+        continue-on-error: true
+        run: pnpm list js-yaml nanoid postcss brace-expansion sharp --depth Infinity
+
+      - name: why per advisory package (evidence, non-blocking)
+        working-directory: web
+        continue-on-error: true
+        run: |
+          for pkg in js-yaml nanoid postcss brace-expansion sharp; do
+            echo "::group::pnpm why ${pkg}"
+            pnpm why "${pkg}" || true
+            echo "::endgroup::"
+          done
+
+      - name: tsc --noEmit (blocking)
+        working-directory: web
+        run: pnpm exec tsc --noEmit
+
+      - name: lint (blocking)
+        working-directory: web
+        run: pnpm lint
+
+      - name: node tests (blocking)
+        working-directory: web
+        run: pnpm exec tsx --test tests/*.test.ts
+
+      - name: build (blocking)
+        working-directory: web
+        run: pnpm build
+
+      # Reports vulnerabilities without failing the job; severity triage stays a human decision.
+      - name: audit (report-only)
+        working-directory: web
+        continue-on-error: true
+        run: pnpm audit --audit-level=moderate
