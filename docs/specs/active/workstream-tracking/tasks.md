@@ -295,6 +295,26 @@ git --no-pager cherry origin/main <branch>   # '-' 前綴 = 內容已在上游
 下一步需先恢復對目標 registry 的存取（移除本機 proxy 設定或改用可達公開 npm 的環境），
 再重跑 Phase 1B 完整驗證。
 
+#### G4 Phase 1 後續：registry 存取的長期解
+
+短期已加入 `.github/workflows/deps-verify.yml`（手動 `workflow_dispatch` 與 `chore/deps-security`
+push 觸發）作為繞道，讓驗證改在可連公開 npm 的 runner 上執行。**該 workflow 尚未取得任何執行結果**，
+9 筆 alert identity 仍全數 `OPEN`。以下兩項為尚未著手的長期解：
+
+- [ ] **B（長期）**：請 1ES feed 擁有者 ingest 缺少的版本。後端為
+      `ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/`，
+      metadata 回 200 但特定版本 tarball 404，因為 packument 內根本沒有該版本
+      （例：nanoid `3.3.16` present → 303；`3.3.17`、`3.3.18` absent → 404）。
+      缺版含 `@types/node 26.2.0`，該版本已存在於 `origin/main` 現有 lockfile，
+      因此連 main 都無法本機 clean install。
+      **這是反覆性問題**：每次 Dependabot bump 都會再撞一次缺版，
+      需要建立常態的 ingest 流程或自動補版機制，一次性補件無法收斂
+- [ ] **C（長期）**：請裝置政策擁有者評估放行 `registry.npmjs.org`。
+      攔截發生在 TLS 層而非設定層——DNS 正常、TCP 443 可連，
+      但 Client Hello 之後連線即被切斷（`Recv failure: Socket is not connected`），
+      裝置裝有 Microsoft Defender。因此**修改 npmrc 無效**，
+      必須由裝置政策端處置
+
 ### G5: Worktree 註冊路徑漂移
 
 - [x] 保存 10 個 worktree 的完整 registered path、physical path 與 path class 證據
