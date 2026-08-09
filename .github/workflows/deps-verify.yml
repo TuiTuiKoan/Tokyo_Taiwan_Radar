@@ -65,6 +65,12 @@ jobs:
         working-directory: web
         run: pnpm install --frozen-lockfile
 
+      # tsc and lint import lib/specs/*.json, which are gitignored build-time artifacts
+      # normally produced by prebuild — so they must be generated before any type check.
+      - name: Generate specs snapshot (blocking)
+        working-directory: web
+        run: pnpm run build-specs-snapshot
+
       # Evidence steps: must print even when a vulnerable instance is still resolved,
       # so continue-on-error keeps the real exit status visible without stopping the job.
       - name: list advisory packages (evidence, non-blocking)
