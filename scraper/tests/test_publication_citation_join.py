@@ -57,6 +57,20 @@ SPOOFED_PRODUCTION_URLS = (
     f"https://{PRODUCTION_REF}.supabase.co@evil.com",
     f"https://{PRODUCTION_REF}.supabase.co.evil.com",
 )
+# The ref's own label on a TLD this project does not own. `.com` is one
+# character from `.co`, which is the typo a hurried invocation actually makes.
+LOOKALIKE_TLD_URLS = tuple(
+    f"https://{PRODUCTION_REF}.supabase.{tld}" for tld in ("in", "dev", "xyz", "com", "io")
+)
+# The production host as a real invocation writes it: bare, with a trailing
+# slash, with the explicit port, with the REST path, and shouted.
+PRODUCTION_URL_SPELLINGS = (
+    PRODUCTION_URL,
+    f"{PRODUCTION_URL}/",
+    f"https://{PRODUCTION_REF}.supabase.co:443",
+    f"{PRODUCTION_URL}/rest/v1/",
+    f"HTTPS://{PRODUCTION_REF.upper()}.SUPABASE.CO",
+)
 
 
 def _artifact(
@@ -483,8 +497,31 @@ def test_a_production_apply_is_an_explicit_choice_rather_than_a_refusal():
     assert manifest.assert_apply_target("production", PRODUCTION_URL) == PRODUCTION_REF
 
 
+@pytest.mark.parametrize("url", PRODUCTION_URL_SPELLINGS)
+def test_a_production_apply_accepts_the_production_host_however_it_is_written(url):
+    assert manifest.assert_apply_target("production", url) == PRODUCTION_REF
+
+
+@pytest.mark.parametrize("url", LOOKALIKE_TLD_URLS)
+def test_a_production_apply_refuses_the_refs_label_on_another_tld(url):
+    with pytest.raises(RuntimeError, match="not the production host"):
+        manifest.assert_apply_target("production", url)
+
+
+@pytest.mark.parametrize("url", LOOKALIKE_TLD_URLS)
+def test_a_rehearsal_apply_still_refuses_the_refs_label_on_another_tld(url):
+    with pytest.raises(RuntimeError, match="production project ref"):
+        manifest.assert_apply_target("rehearsal", url)
+
+
+def test_a_production_apply_refuses_a_missing_env(monkeypatch):
+    monkeypatch.delenv("SUPABASE_URL", raising=False)
+    with pytest.raises(RuntimeError, match="cannot resolve a hostname"):
+        manifest.assert_apply_target("production")
+
+
 def test_a_production_declaration_that_lands_elsewhere_is_refused():
-    with pytest.raises(RuntimeError, match="not the production project ref"):
+    with pytest.raises(RuntimeError, match="not the production host"):
         manifest.assert_apply_target("production", REHEARSAL_URL)
 
 
@@ -507,7 +544,7 @@ def test_a_rehearsal_apply_refuses_a_host_that_only_looks_like_loopback(url):
 
 @pytest.mark.parametrize("url", SPOOFED_PRODUCTION_URLS)
 def test_a_production_apply_refuses_a_host_that_only_carries_the_ref(url):
-    with pytest.raises(RuntimeError, match="cannot resolve a Supabase project ref"):
+    with pytest.raises(RuntimeError, match="not the production host"):
         manifest.assert_apply_target("production", url)
 
 

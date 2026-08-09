@@ -91,9 +91,15 @@ MANIFEST_SCOPE_ESLITE = "eslite-identity"
 # Rehearsal guard. `--apply` disables `_ReadOnlyProxy`, so the env file alone is
 # not a barrier between a rehearsal and production.
 PRODUCTION_PROJECT_REF = "cjtndektjjpvvjofdvzr"
+# `--target production` is whole-host equality against this, so no list of
+# acceptable TLDs has to be maintained and the one-character typo `.com` for
+# `.co` is simply a different host.
+PRODUCTION_HOST = f"{PRODUCTION_PROJECT_REF}.supabase.co"
 # Fullmatched against the parsed hostname, so a ref is the host's own first
-# label. The single trailing TLD label admits the regional variants of
-# `<ref>.supabase.co` while refusing the suffix spoof `<ref>.supabase.co.evil.com`.
+# label and the suffix spoof `<ref>.supabase.co.evil.com` is refused. The
+# trailing TLD label stays loose on purpose: a look-alike such as
+# `<ref>.supabase.in` still resolves the production ref, so the rehearsal guard
+# refuses it too. `--target production` is not decided here.
 _PROJECT_REF_HOST_RE = re.compile(r"([a-z0-9]{16,})\.supabase\.[a-z]{2,}", re.IGNORECASE)
 APPLY_TARGETS = ("rehearsal", "production")
 # A local `supabase start` stack has no project ref, so ref resolution alone
@@ -341,6 +347,19 @@ def resolve_project_ref(url: str | None) -> str | None:
     return match.group(1).lower() if match else None
 
 
+def resolve_target_host(url: str | None) -> str | None:
+    """The URL's own hostname, lowercased, or None.
+
+    Carries neither port nor path, so a legitimate URL written with either still
+    compares equal to the bare host it names.
+    """
+    try:
+        hostname = urlparse(str(url or "")).hostname
+    except ValueError:
+        return None
+    return hostname.lower() if hostname else None
+
+
 def is_loopback_target(url: str | None) -> bool:
     """True only when the URL's own hostname is a loopback name.
 
@@ -388,8 +407,10 @@ def assert_apply_target(target: str, url: str | None = None) -> str:
     Fail-closed in both directions: an unresolvable URL is refused rather than
     assumed safe, a rehearsal never runs against production, and a production
     declaration never silently lands on some other project nor on a loopback
-    stack that cannot be production. Ref resolution and the production
-    comparison stay in `assert_non_production_target()`.
+    stack that cannot be production. The rehearsal direction delegates to
+    `assert_non_production_target()`; the production direction compares the
+    whole host, so a look-alike TLD is another host rather than a variant of
+    this one.
     """
     if target not in APPLY_TARGETS:
         raise RuntimeError(
@@ -404,18 +425,18 @@ def assert_apply_target(target: str, url: str | None = None) -> str:
             "STOP: --target production resolved to a loopback host, which cannot "
             "be the production project; zero writes performed"
         )
-    ref = resolve_project_ref(resolved)
-    if ref is None:
+    host = resolve_target_host(resolved)
+    if host is None:
         raise RuntimeError(
-            "STOP: cannot resolve a Supabase project ref from the configured "
-            "SUPABASE_URL; zero writes performed"
+            "STOP: cannot resolve a hostname from the configured SUPABASE_URL; "
+            "zero writes performed"
         )
-    if ref != PRODUCTION_PROJECT_REF:
+    if host != PRODUCTION_HOST:
         raise RuntimeError(
-            f"STOP: --target production resolved to {ref}, which is not the "
-            "production project ref; zero writes performed"
+            f"STOP: --target production resolved to {host}, which is not the "
+            f"production host {PRODUCTION_HOST}; zero writes performed"
         )
-    return ref
+    return PRODUCTION_PROJECT_REF
 
 
 def now_iso() -> str:
