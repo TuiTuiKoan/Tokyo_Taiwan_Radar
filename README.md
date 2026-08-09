@@ -6,8 +6,11 @@
 
 🇹🇼🇯🇵🇺🇸 Trilingual (Chinese / Japanese / English)
 
+- 8/8 -
+Improving dev governance across multiple worktrees and re-organizing spec-plan for workstream auditing.
+
 - 8/2 -
-Improving data accuracy and overall site development observability in July.
+Improving data accuracy and overall site development observability in July, cleaning autoQA issues from 500+ to 170+. Preparing the foundation of groundtruth for eval.
 
 - 6/28 -
 Preparing for round 2 weekly news upgrading, including cover visual style and template based on perfectures and categories.  Meanwhile, rebuilding the self-event publishing function with 2 methods, poster-oriented and full manual.  In parallel, a series of cyber security approach is introduced to guard prompt injecttion and other risks.
