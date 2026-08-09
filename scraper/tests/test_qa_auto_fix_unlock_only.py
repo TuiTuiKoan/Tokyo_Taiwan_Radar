@@ -6,6 +6,7 @@ in-memory fake below.
 
 from __future__ import annotations
 
+import json
 from copy import deepcopy
 from types import SimpleNamespace
 from typing import Any
@@ -240,6 +241,283 @@ def _audits(client):
 def _data_writes(client):
     """Writes to real data tables; audit rows are bookkeeping, not mutations."""
     return [write for write in client.writes if write[0] != "field_corrections_audit"]
+
+
+OTHER_EVENT_ID = "55555555-5555-4555-8555-555555555555"
+STORED_END = "2026-07-18T00:00:00+00:00"
+REPAIRED_END = "2026-08-31T00:00:00+00:00"
+END_REASON = f"publication_manifest:end-date:{DIGEST}"
+
+
+def _lock_clean_client(fc_rows=None, event_overrides=None, cls=None, **cls_kwargs):
+    """Client for lock_clean cases: one target event plus an untargeted twin.
+
+    The twin shares the target's CAS value, so a write that is not scoped to the
+    full event id would visibly touch two rows instead of exactly one.
+    """
+    event = {
+        "id": EVENT_ID,
+        "event_form": ["exhibition"],
+        "end_date": STORED_END,
+        "performers": None,
+        "price_amount": None,
+    }
+    event.update(event_overrides or {})
+    twin = {
+        "id": OTHER_EVENT_ID,
+        "event_form": ["exhibition"],
+        "end_date": STORED_END,
+        "performers": None,
+        "price_amount": None,
+    }
+    tables = {
+        "events": [event, twin],
+        "field_corrections": list(fc_rows or []),
+        "field_corrections_audit": [],
+    }
+    if cls is None:
+        return FakeSupabase(tables)
+    return cls(tables, **cls_kwargs)
+
+
+class _DriftQuery(FakeQuery):
+    """Select that reports a value other than the one actually stored."""
+
+    def execute(self):
+        result = super().execute()
+        field = self.client.drift_field
+        if isinstance(result.data, dict) and field in result.data:
+            drifted = dict(result.data)
+            drifted[field] = self.client.drift_value
+            return SimpleNamespace(data=drifted, count=result.count)
+        return result
+
+
+class _VerifyDriftTable(FakeTable):
+    def select(self, columns: str = "*", count: str | None = None, head: bool = False):
+        if self.name == "events":
+            self.client.event_select_count += 1
+            # 1st = pre-mutation snapshot, 2nd = post-write verification read.
+            if self.client.event_select_count >= 2:
+                return _DriftQuery(self.client, self.name, "select").select(
+                    columns, count=count, head=head
+                )
+        return super().select(columns, count=count, head=head)
+
+
+class _VerifyDriftSupabase(FakeSupabase):
+    """Stored rows keep the applied values, but verification reads a stale value."""
+
+    def __init__(self, tables, *, field: str, drift_value: Any):
+        super().__init__(tables)
+        self.drift_field = field
+        self.drift_value = drift_value
+        self.event_select_count = 0
+
+    def table(self, name: str):
+        self.tables.setdefault(name, [])
+        return _VerifyDriftTable(self, name)
+
+
+def test_lock_clean_scalar_cas_writes_exactly_the_targeted_event():
+    client = _lock_clean_client()
+
+    ok = qa_auto_fix.unlock_and_write(
+        client,
+        event_id=EVENT_ID,
+        field_name="end_date",
+        new_value=REPAIRED_END,
+        mode="lock_clean",
+        unlock_reason=END_REASON,
+        expected_fc=None,
+        expected_event_value=STORED_END,
+    )
+
+    assert ok is True
+    rows = {row["id"]: row for row in client.tables["events"]}
+    assert rows[EVENT_ID]["end_date"] == REPAIRED_END
+    assert rows[OTHER_EVENT_ID]["end_date"] == STORED_END
+
+    update = next(w for w in client.writes if w[0] == "events" and w[1] == "update")
+    assert {column for _, column, _ in update[3]} == {"id", "end_date"}
+    assert ("eq", "end_date", STORED_END) in update[3]
+
+
+def test_lock_clean_scalar_correction_is_exact_text_not_repr():
+    client = _lock_clean_client()
+
+    qa_auto_fix.unlock_and_write(
+        client,
+        event_id=EVENT_ID,
+        field_name="end_date",
+        new_value=REPAIRED_END,
+        mode="lock_clean",
+        unlock_reason=END_REASON,
+        expected_fc=None,
+        expected_event_value=STORED_END,
+    )
+
+    corrections = client.tables["field_corrections"]
+    assert len(corrections) == 1
+    assert corrections[0]["field_name"] == "end_date"
+    assert corrections[0]["corrected_value"] == str(REPAIRED_END)
+    assert corrections[0]["corrected_value"] != repr(REPAIRED_END)
+
+
+def test_lock_clean_non_string_scalar_correction_uses_str_not_json():
+    client = _lock_clean_client()
+
+    ok = qa_auto_fix.unlock_and_write(
+        client,
+        event_id=EVENT_ID,
+        field_name="price_amount",
+        new_value=1800,
+        mode="lock_clean",
+        unlock_reason=f"publication_manifest:price:{DIGEST}",
+        expected_fc=None,
+        expected_event_value=None,
+    )
+
+    assert ok is True
+    assert client.tables["field_corrections"][0]["corrected_value"] == "1800"
+
+
+def test_lock_clean_list_correction_is_json_text_not_repr_or_comma_join():
+    stored = ["旧名"]
+    value = ["王小明", "李小華"]
+    client = _lock_clean_client(event_overrides={"performers": stored})
+
+    ok = qa_auto_fix.unlock_and_write(
+        client,
+        event_id=EVENT_ID,
+        field_name="performers",
+        new_value=value,
+        mode="lock_clean",
+        unlock_reason=f"publication_manifest:performers:{DIGEST}",
+        expected_fc=None,
+        expected_event_value=stored,
+    )
+
+    assert ok is True
+    assert client.tables["events"][0]["performers"] == value
+
+    corrected = client.tables["field_corrections"][0]["corrected_value"]
+    assert corrected == json.dumps(value, ensure_ascii=False)
+    assert json.loads(corrected) == value
+    assert corrected != repr(value)
+    assert corrected != str(value)
+    assert corrected != "、".join(value)
+    assert corrected != ", ".join(value)
+
+    update = next(w for w in client.writes if w[0] == "events" and w[1] == "update")
+    assert ("eq", "performers", '{"旧名"}') in update[3]
+
+
+def test_lock_clean_expected_absent_correction_rejects_before_touching_the_event():
+    existing = _polluted_fc(field_name="end_date", corrected_value=STORED_END)
+    client = _lock_clean_client([deepcopy(existing)])
+
+    ok = qa_auto_fix.unlock_and_write(
+        client,
+        event_id=EVENT_ID,
+        field_name="end_date",
+        new_value=REPAIRED_END,
+        mode="lock_clean",
+        unlock_reason=END_REASON,
+        expected_fc=None,
+        expected_event_value=STORED_END,
+    )
+
+    assert ok is False
+    assert client.tables["events"][0]["end_date"] == STORED_END
+    assert client.tables["field_corrections"] == [existing]
+    assert _data_writes(client) == []
+
+    failed = [row for row in _audits(client) if row["operation_status"] == "verify_failed"]
+    assert len(failed) == 1
+    assert "expected_fc_mismatch" in failed[0]["error_message"]
+
+
+def test_lock_clean_event_value_drift_rejects_before_touching_the_event():
+    client = _lock_clean_client(event_overrides={"end_date": "2026-09-30T00:00:00+00:00"})
+
+    ok = qa_auto_fix.unlock_and_write(
+        client,
+        event_id=EVENT_ID,
+        field_name="end_date",
+        new_value=REPAIRED_END,
+        mode="lock_clean",
+        unlock_reason=END_REASON,
+        expected_fc=None,
+        expected_event_value=STORED_END,
+    )
+
+    assert ok is False
+    assert client.tables["events"][0]["end_date"] == "2026-09-30T00:00:00+00:00"
+    assert client.tables["field_corrections"] == []
+    assert _data_writes(client) == []
+
+    failed = [row for row in _audits(client) if row["operation_status"] == "verify_failed"]
+    assert len(failed) == 1
+    assert "expected_event_value_mismatch" in failed[0]["error_message"]
+
+
+def test_lock_clean_success_finalizes_one_applied_audit_with_the_after_value():
+    client = _lock_clean_client()
+
+    qa_auto_fix.unlock_and_write(
+        client,
+        event_id=EVENT_ID,
+        field_name="end_date",
+        new_value=REPAIRED_END,
+        mode="lock_clean",
+        unlock_reason=END_REASON,
+        r_class="publication_policy",
+        expected_fc=None,
+        expected_event_value=STORED_END,
+    )
+
+    audits = _audits(client)
+    assert len(audits) == 1
+    assert audits[0]["operation_status"] == "applied"
+    assert audits[0]["event_before_value_json"] == STORED_END
+    assert audits[0]["event_after_value_json"] == REPAIRED_END
+    assert audits[0]["verified_at"]
+    assert audits[0]["unlock_reason"] == END_REASON
+    assert DIGEST in audits[0]["unlock_reason"]
+
+
+def test_lock_clean_false_does_not_mean_nothing_was_written():
+    # unlock_and_write is NOT transactional: the event and field_correction writes
+    # land first, and only the later verification read fails. A False return must
+    # therefore never be read as "no write happened".
+    client = _lock_clean_client(
+        cls=_VerifyDriftSupabase,
+        field="end_date",
+        drift_value="2026-09-30T00:00:00+00:00",
+    )
+
+    ok = qa_auto_fix.unlock_and_write(
+        client,
+        event_id=EVENT_ID,
+        field_name="end_date",
+        new_value=REPAIRED_END,
+        mode="lock_clean",
+        unlock_reason=END_REASON,
+        expected_fc=None,
+        expected_event_value=STORED_END,
+    )
+
+    assert ok is False
+    # Both writes are already applied and observable despite the False return.
+    assert client.tables["events"][0]["end_date"] == REPAIRED_END
+    assert client.tables["field_corrections"][0]["corrected_value"] == REPAIRED_END
+    assert [w[1] for w in _data_writes(client)] == ["update", "upsert"]
+
+    failed = [row for row in _audits(client) if row["operation_status"] == "verify_failed"]
+    assert len(failed) == 1
+    assert "post_write_mismatch" in failed[0]["error_message"]
+    assert failed[0].get("event_after_value_json") is None
 
 
 def test_unlock_only_expected_fc_deletes_and_finalizes_one_anchored_audit():
