@@ -8,34 +8,80 @@
 
 * 觀測日期：**2026-08-08**
 * `origin/main`：`5d6e4a43`（docs(agents): require worktree confirmation before implementation）
+* 註冊拓撲：1 main + 5 canonical child + 3 case-split registration + 1 external
 * 下次更新時請一併更新本區塊，否則勾選狀態會腐化
 
 ---
 
 ## Phase 0: 重新查證（每次開始前必做）
 
-- [ ] 執行下方查證指令，回報與 snapshot 的差異
-- [ ] 就地更新本檔數字與 Snapshot 基準
-- [ ] 差異重大時（例如 worktree 增減、spec 增減），同步更新 [proposal.md](./proposal.md)
+- [x] 執行下方查證指令，回報與 snapshot 的差異
+- [x] 就地更新本檔數字與 Snapshot 基準
+- [x] Worktree 註冊路徑拓撲有重大差異，已同步更新 [proposal.md](./proposal.md)
 
 ```bash
 cd '/Users/flyingship/Development/Tokyo Taiwan Radar' && git fetch origin main -q
+export GIT_OPTIONAL_LOCKS=0
 
 git --no-pager log origin/main --oneline -1
 
-# 所有 worktree（路徑含空白，不可用 awk $2）
-git worktree list --porcelain | sed -n 's/^worktree //p' > /tmp/wt.txt
+# 完整路徑是證據。不可先 basename，也不可只看 pwd -P。
+canonical_root=$(pwd -P)
+wt_file="${TMPDIR:-/tmp}/ttr-worktrees.$$"
+git worktree list --porcelain | sed -n 's/^worktree //p' > "$wt_file"
 while IFS= read -r p; do
-  n=$(basename "$p")
-  b=$(git -C "$p" rev-parse --abbrev-ref HEAD 2>/dev/null)
-  ab=$(git -C "$p" rev-list --left-right --count HEAD...origin/main 2>/dev/null | tr '\t' '/')
-  d=$(git -C "$p" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
-  printf '%-44s %-40s %-9s dirty=%s\n' "$n" "$b" "$ab" "$d"
-done < /tmp/wt.txt; rm -f /tmp/wt.txt
+      physical_path=$(cd "$p" && pwd -P) || {
+            printf 'UNREACHABLE registered=%s\n' "$p"
+            continue
+      }
+      if [[ "$physical_path" == "$canonical_root" ]]; then
+            path_class=canonical-main
+      elif [[ "$physical_path" == "$canonical_root/"* ]]; then
+            if [[ "$p" == "$physical_path" ]]; then
+                  path_class=canonical-child
+            else
+                  path_class=case-split-registration
+            fi
+      else
+            path_class=external
+      fi
+      branch_name=$(git -C "$p" branch --show-current 2>/dev/null)
+      ahead_behind=$(git -C "$p" rev-list --left-right --count HEAD...origin/main 2>/dev/null | tr '\t' '/')
+      dirty_count=$(git -C "$p" status --porcelain=v1 --untracked-files=all 2>/dev/null | wc -l | tr -d ' ')
+      printf 'class=%s\nregistered=%s\nphysical=%s\nbranch=%s ahead/behind=%s dirty=%s\n\n' \
+            "$path_class" "$p" "$physical_path" "$branch_name" "$ahead_behind" "$dirty_count"
+done < "$wt_file"
+rm -f "$wt_file"
 
-ls docs/specs/active/
+find docs/specs/active -mindepth 1 -maxdepth 1 -type d -print | sort
 git status --short -- .github/prompts/
 ```
+
+---
+
+## Worktree 註冊路徑拓撲
+
+Git 的 registered path 與檔案系統 physical path 是兩種不同證據。下表保留 Git
+`--porcelain` 的完整註冊字串；basename 只在其他摘要表中作顯示用途。
+
+| Path class | Registered path | Physical path (`pwd -P`) | Branch |
+|---|---|---|---|
+| canonical main | `/Users/flyingship/Development/Tokyo Taiwan Radar` | `/Users/flyingship/Development/Tokyo Taiwan Radar` | `main` |
+| canonical child | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-admin-qa-cleanup-worktree` | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-admin-qa-cleanup-worktree` | `feat/admin-qa-cleanup` |
+| canonical child | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-authoritative-venue-repair-worktree` | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-authoritative-venue-repair-worktree` | `feat/authoritative-venue-repair` |
+| canonical child | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-evaluation-framework-worktree` | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-evaluation-framework-worktree` | `feat/evaluation-framework` |
+| canonical child | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-event-report-writer-safety-worktree` | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-event-report-writer-safety-worktree` | `fix/event-report-writer-safety` |
+| canonical child | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-japan-scope-gate-worktree` | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-japan-scope-gate-worktree` | `feat/japan-scope-gate` |
+| case-split registration | `/Users/flyingship/development/Tokyo Taiwan Radar/ttr-publication-policy-worktree` | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-publication-policy-worktree` | `feat/publication-policy` |
+| case-split registration | `/Users/flyingship/development/Tokyo Taiwan Radar/ttr-taiwan-expo-japan-worktree` | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-taiwan-expo-japan-worktree` | `feat/taiwan-expo-japan` |
+| case-split registration | `/Users/flyingship/development/Tokyo Taiwan Radar/ttr-v8-worktree` | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-v8-worktree` | `feat/event-intake-wizard` |
+| external | `/Users/flyingship/development/ttr-security-hardening-worktree` | `/Users/flyingship/Development/ttr-security-hardening-worktree` | `feat/security-hardening-report-only-csp` |
+
+大小寫兩條 repo parent path 在目前檔案系統解析到相同 device/inode：
+`/Users/flyingship/Development` 與 `/Users/flyingship/development` 都是
+device `16777233`、inode `535486743`；兩條 `Tokyo Taiwan Radar` 都是 inode
+`553836739`。這證明前三筆是 Git lexical registration drift，不是重複實體目錄。
+`security-hardening` 的 physical path 則在 repo root 之外。
 
 ---
 
@@ -112,6 +158,7 @@ Eslite identity migration、PN-3a.0（`b4cb383f`）、F-1（`831871e0`）。
 - [ ] Authoritative venue repair（進行中）
 - [ ] F-2 `container_title` 專屬欄位（需 migration）
 - [x] 決策閘門規則寫入 `SKILL.md`（`335e462a`）
+- [x] Worktree 確認閘門已進入 `origin/main`（`5d6e4a43`）
 
 ---
 
@@ -121,12 +168,12 @@ Eslite identity migration、PN-3a.0（`b4cb383f`）、F-1（`831871e0`）。
 
 | Worktree | ahead/behind | dirty | 判讀 |
 |---|---|---|---|
-| `ttr-japan-scope-gate-worktree` | 11/1 | 16 | 活躍，規模不小 |
-| `ttr-evaluation-framework-worktree` | 0/6 | 0 | 待同步 |
-| `ttr-event-report-writer-safety-worktree` | 0/60 | 0 | 停滯 |
-| `ttr-taiwan-expo-japan-worktree` | 0/34 | 0 | 停滯 |
-| `ttr-v8-worktree` | 0/121 | 3 | 嚴重停滯 |
-| `ttr-security-hardening-worktree` | 0/68 | 0 | 停滯 |
+| `ttr-japan-scope-gate-worktree` | 11/7 | 16 | 活躍，規模不小 |
+| `ttr-evaluation-framework-worktree` | 0/12 | 0 | 待同步 |
+| `ttr-event-report-writer-safety-worktree` | 0/66 | 0 | 停滯 |
+| `ttr-taiwan-expo-japan-worktree` | 0/40 | 0 | 停滯；case-split registration |
+| `ttr-v8-worktree` | 0/127 | 3 | 嚴重停滯；case-split registration |
+| `ttr-security-hardening-worktree` | 0/74 | 0 | 停滯；external registration |
 
 ---
 
@@ -136,23 +183,25 @@ Eslite identity migration、PN-3a.0（`b4cb383f`）、F-1（`831871e0`）。
 |---|---|---|---|---|
 | A（successor） | `ttr-admin-qa-cleanup-worktree` | 0/0 | 0 | **未建立** |
 | A（predecessor） | 已移除 | — | — | `admin-reports-204-cleanup`（保留 active） |
-| B | `ttr-publication-policy-worktree` | 3/0 | 0 | `publication-policy` |
+| B | `ttr-publication-policy-worktree`（case-split） | 3/0 | 0 | `publication-policy` |
 | C | **無** | — | — | **無** |
-| D | 主工作樹 + publication worktree | — | — | **無** |
-| E（venue repair） | `ttr-authoritative-venue-repair-worktree` | 11/6 | 0 | **未建立** |
-| 未編號 | japan-scope-gate | 11/1 | 16 | 無 |
-| 未編號 | evaluation-framework | 0/6 | 0 | `evaluation-framework` |
-| 未編號 | event-report-writer-safety | 0/60 | 0 | 無 |
-| 未編號 | taiwan-expo-japan | 0/34 | 0 | 無 |
-| 未編號 | v8 / event-intake-wizard | 0/121 | 3 | 無 |
-| 未編號 | security-hardening | 0/68 | 0 | 無 |
-| —（主工作樹） | `Tokyo Taiwan Radar` | 0/0 | 12 | — |
+| D | publication worktree + 無歸屬 backlog | — | — | **無** |
+| E（venue repair） | `ttr-authoritative-venue-repair-worktree` | 11/12 | 0 | **未建立** |
+| 未編號 | japan-scope-gate | 11/7 | 16 | 無 |
+| 未編號 | evaluation-framework | 0/12 | 0 | `evaluation-framework` |
+| 未編號 | event-report-writer-safety | 0/66 | 0 | 無 |
+| 未編號 | taiwan-expo-japan（case-split） | 0/40 | 0 | 無 |
+| 未編號 | v8 / event-intake-wizard（case-split） | 0/127 | 3 | 無 |
+| 未編號 | security-hardening（external） | 0/74 | 0 | 無 |
+| —（主工作樹） | `Tokyo Taiwan Radar` | 0/0 | 1 | `workstream-tracking`（governance-only） |
 
-無 worktree 的 spec（12）：`admin-report-workflow`、`autoresearch-auto-scraper`、
+位於 `docs/specs/active/`、但無 dedicated linked worktree 的 spec 目錄（14，含
+grandfathered、frontmatter status 漂移與 governance-only）：
+`admin-report-workflow`、`admin-reports-204-cleanup`、`autoresearch-auto-scraper`、
 `bauhaus-design-system`、`japan-open-data-integration`、`market-positioning-strategy`、
 `merger-multi-signal-pass4`、`product-c-opportunity-radar`、`report-prototype-gap-fix`、
 `seo-polish`、`spec-architecture-dashboard`、`tier1-data-completion`、
-`works-entity-for-films-and-tours`。
+`works-entity-for-films-and-tours`、`workstream-tracking`。
 
 ---
 
@@ -162,21 +211,25 @@ Eslite identity migration、PN-3a.0（`b4cb383f`）、F-1（`831871e0`）。
 
 - [x] 三個 prompt 納入版控（`7598b411`）
 
-### G2: 有 commit 卻無 spec
+### G2: Linked worktree 缺 matching spec 目錄
 
-違反 Architect 的 spec ⟺ worktree 一對一規則。
+9 個 linked worktree 中有 7 個沒有 `docs/specs/active/` 下的同 branch spec 目錄。
+依狀態分流，不把 grandfathered 停滯 branch 一律判成新規則違規。
 
-- [ ] `ttr-authoritative-venue-repair-worktree`（11 commits）補建 spec
-- [ ] `ttr-admin-qa-cleanup-worktree` 的 spec 待其 prompt 執行時建立
+- [ ] `ttr-authoritative-venue-repair-worktree`（ahead 11）補建 spec
+- [ ] `ttr-japan-scope-gate-worktree`（ahead 11）補建 spec 或明確指定既有 spec
+- [ ] `ttr-admin-qa-cleanup-worktree` 的 successor spec 待其 prompt 執行時建立
+- [ ] event-report-writer-safety、taiwan-expo-japan、v8、security-hardening 先走 G3
+      去留判定；未決定繼續前不追建 spec
 
 ### G3: 停滯 worktree 去留
 
 落後幅度持續擴大（2026-08-06 → 08-08 各 +2），rebase 成本只會更高。
 
-- [ ] `ttr-v8-worktree`（behind 121，dirty 3 需先確認）
-- [ ] `ttr-security-hardening-worktree`（68）
-- [ ] `ttr-event-report-writer-safety-worktree`（60）
-- [ ] `ttr-taiwan-expo-japan-worktree`（34）
+- [ ] `ttr-v8-worktree`（behind 127，dirty 3；case-split registration）
+- [ ] `ttr-security-hardening-worktree`（behind 74；external registration）
+- [ ] `ttr-event-report-writer-safety-worktree`（behind 66）
+- [ ] `ttr-taiwan-expo-japan-worktree`（behind 40；case-split registration）
 
 決定前必須查證各分支是否有未推送且未合併的 commit：
 
@@ -190,24 +243,47 @@ git --no-pager cherry origin/main <branch>   # '-' 前綴 = 內容已在上游
 - [x] `.git/info/exclude` 補上 `ttr-admin-qa-cleanup-worktree/`，並清除兩個已不存在的
       殘留項目（`ttr-admin-reports-204-cleanup-worktree/`、`ttr-organizer-authority-wave2-worktree/`）。
       刪除前已驗證兩者皆無目錄、無 worktree 註冊、無對應分支。
-      現存 8 個 worktree 全數排除，主工作樹 `git status` 的 untracked 清單已清空
+      目前實體位於 project root 內的 8 個 linked worktree basename 全數排除。
+      `security-hardening` 位於 project root 外，不適用該 exclude；主工作樹目前 dirty 1
+      是使用者的 tracked `README.md`，不是 linked worktree untracked noise
 - [ ] Dependabot 回報 9 個依賴漏洞（8 high、1 moderate），與本專案工作無關但需處理。
       **性質上不屬於工作線盤點**，僅暫置於此；建議另立資安維護歸屬
+
+### G5: Worktree 註冊路徑漂移
+
+- [x] 保存 10 個 worktree 的完整 registered path、physical path 與 path class 證據
+- [x] 證明 `Development`／`development` 解析為相同 inode，不是兩套實體 repo
+- [ ] 另案決定是否將 publication-policy、taiwan-expo-japan、v8 的 Git lexical
+      registration 正規化為 canonical `Development` 路徑
+- [ ] 另案決定 security-hardening 應搬回 project root，或正式 grandfather 為 external
+
+本次只更新證據，不授權 `git worktree move`、remove/re-add、repair 或手改 `.git/worktrees`。
 
 ---
 
 ## 操作教訓
 
-### 決策閘門修正（已寫入 `SKILL.md`，`335e462a`）
+### Worktree 確認閘門（已寫入 `SKILL.md`，`335e462a`；agent 指示 `5d6e4a43`）
 
-現行「small change → 不開 worktree」隱含假設主工作樹乾淨，但本 repo 經常多 session
-同時寫入。建議改為：
-
-> 若主工作樹存在其他 session 的未提交變更，即使是 small change，
-> 也應在該工作線的 owning worktree 進行。
+任何功能實作前必須由使用者明確指定 worktree；主工作樹只處理治理、盤點、文件、spec
+維護與狀態對帳。Small change 也不得自行落在主工作樹。這取代先前「主工作樹 dirty
+時才改走 owning worktree」的條件式建議。
 
 2026-08-06 實證：21 小時殘留 `index.lock`、他人 commit 落在同一分支差點被夾帶推送、
-rebase 前需備份 11 個他人 WIP 檔。
+rebase 前需備份 11 個他人 WIP 檔。2026-08-08 又發現跨四天的 11 檔 agent 教訓 WIP
+長期懸在主工作樹，因此改為無條件確認閘門。
+
+### 完整 registered path 才是 worktree 身分證據
+
+`basename "$path"` 只能作顯示，不能作 inventory identity 或 root-containment 判斷。
+稽核必須同時保存：
+
+1. `git worktree list --porcelain` 的 registered path，辨識 Git lexical drift。
+2. `cd "$path" && pwd -P` 的 physical path，辨識同 inode alias 與 project 外 placement。
+3. Branch、ahead/behind、dirty，避免同名目錄或 relocation 後把工作線對錯。
+
+只看 registered path 會把大小寫 alias 誤判成兩套目錄；只看 physical path 會抹掉 Git
+保存的小寫 registration；只看 basename 則兩種問題都看不見。
 
 ### 只推自己 commit
 
@@ -237,6 +313,10 @@ git worktree remove "$TMPDIR/ttr-<slug>-push"
 ### 本 repo 實測的 shell 陷阱
 
 * worktree 路徑含空白（`Tokyo Taiwan Radar`），`awk '{print $2}'` 只取到 `Tokyo`
+* macOS 路徑解析可能不分大小寫，但 Git 仍保存原始 lexical registration；
+      `Development` 與 `development` 不可在文字證據中互換
+* Worktree 可以註冊在 project root 外；以 basename 或 `.git/info/exclude` 推定 containment
+      會把 external worktree 誤報為 nested
 * zsh 的 `[ "$a" \> "$b" ]` 不支援字串比較，噴 `condition expected`；改用 `sort`
 * `grep -c` 命中 0 時 exit code 為 1，會中斷 `&&` 鏈；需加 `|| true`
 * `cmd && echo '(空=乾淨)'` 不論有無輸出都會印，是**無效驗證**
@@ -246,7 +326,8 @@ git worktree remove "$TMPDIR/ttr-<slug>-push"
 
 ## Verification
 
-- [ ] Phase 0 查證指令已重跑，數字已更新
-- [ ] 三方對照表與 live 狀態一致
-- [ ] 治理缺口各有明確建議與所需批准
-- [ ] 未執行任何 worktree/branch/spec 變更或 production 寫入
+- [x] Phase 0 查證指令已重跑，數字已更新
+- [x] 三方對照表與 live 狀態一致
+- [x] 完整 registered path、physical path 與 path class 已保留
+- [x] 治理缺口各有明確建議與所需批准
+- [x] 未執行任何 worktree/branch/spec 變更或 production 寫入
