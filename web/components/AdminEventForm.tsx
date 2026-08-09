@@ -475,8 +475,8 @@ export default function AdminEventForm({
             type="text"
             value={(form as any).performer ?? ""}
             onChange={(e) => updateField("performer", e.target.value)}
-            placeholder="例: 李映萱、唐 顥芸"
-            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper"
+            placeholder={label("fieldPerformerPlaceholder", "performerPlaceholder")}
+            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper placeholder:text-fg-subtle"
           />
         </div>
 
@@ -537,8 +537,8 @@ export default function AdminEventForm({
             type="text"
             value={(form as any).co_organizers ?? ""}
             onChange={(e) => updateField("co_organizers", e.target.value)}
-            placeholder="例: A機構, B機構"
-            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper"
+            placeholder={label("fieldCoOrganizersPlaceholder", "coOrganizersPlaceholder")}
+            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper placeholder:text-fg-subtle"
           />
         </div>
 
@@ -549,8 +549,8 @@ export default function AdminEventForm({
             type="text"
             value={(form as any).sponsors ?? ""}
             onChange={(e) => updateField("sponsors", e.target.value)}
-            placeholder="例: C企業, D企業"
-            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper"
+            placeholder={label("fieldSponsorsPlaceholder", "sponsorsPlaceholder")}
+            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper placeholder:text-fg-subtle"
           />
         </div>
       </section>
