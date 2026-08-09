@@ -8,6 +8,8 @@
     "test:publication": "tsx --test tests/publication-policy.test.ts tests/publication-rendering-structured-data.test.ts",
     "test:e2e:dark-smoke": "playwright test tests/e2e/darkmode-navbar-related.smoke.spec.ts",
     "test:e2e:security-headers": "playwright test tests/e2e/security-headers.smoke.spec.ts",
+    "e2e:auth-state": "tsx scripts/e2e-auth-state.ts",
+    "test:e2e:auth-smoke": "pnpm run e2e:auth-state && playwright test tests/e2e/authenticated-intake.smoke.spec.ts",
     "test:security:jsonld": "tsx scripts/assert-json-ld-security.ts",
     "build-specs-snapshot": "tsx scripts/build-specs-snapshot.ts",
     "prebuild": "tsx scripts/assert-i18n-parity.ts && pnpm run test:security:jsonld && tsx scripts/build-specs-snapshot.ts",
