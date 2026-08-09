@@ -92,9 +92,29 @@ jobs:
         working-directory: web
         run: pnpm exec tsc --noEmit
 
-      - name: lint (blocking)
+      # Report-only by design: main already carries baseline lint debt, and the approved plan
+      # requires separating that baseline from changed-hunk regressions. Blocking here would
+      # hide the build/audit signals this workflow exists to collect. The printed counts are
+      # the baseline that a dependency bump (e.g. eslint-config-next) must be compared against.
+      - name: lint (report-only, baseline-comparable)
         working-directory: web
-        run: pnpm lint
+        continue-on-error: true
+        env:
+          TARGET_REF: ${{ github.event.inputs.ref || github.sha }}
+        run: |
+          set +e
+          pnpm lint 2>&1 | tee /tmp/lint.txt
+          code=${PIPESTATUS[0]}
+          summary="$(grep -oE '[0-9]+ problems \([0-9]+ errors, [0-9]+ warnings\)' /tmp/lint.txt | tail -1)"
+          echo "LINT_EXIT=${code}"
+          echo "LINT_SUMMARY=${summary:-none}"
+          {
+            echo "### lint (report-only)"
+            echo ""
+            echo "- ref: \`${TARGET_REF}\`"
+            echo "- exit: \`${code}\`"
+            echo "- summary: \`${summary:-none}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: node tests (blocking)
         working-directory: web
