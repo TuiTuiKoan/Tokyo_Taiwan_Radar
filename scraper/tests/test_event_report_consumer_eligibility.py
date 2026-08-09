@@ -84,6 +84,7 @@ class _Query:
         return self
 
     def contains(self, col, vals):
+        self._db.contains_calls.append((self._table, col, list(vals)))
         want = set(vals)
         self._rows = [r for r in self._rows if want <= set(r.get(col) or [])]
         return self
@@ -144,6 +145,7 @@ class FakeSupabase:
         # store real dict refs so update()-CAS mutations persist across queries
         self.tables = {name: list(rows) for name, rows in tables.items()}
         self.in_calls: list[tuple] = []
+        self.contains_calls: list[tuple] = []
 
     def table(self, name):
         return _Query(self, name)
@@ -473,3 +475,60 @@ def test_close_report_exactly_one_supports_dismiss():
     assert close_report_exactly_one(sb, "r2", status="dismissed") == (True, 1)
     row = sb.table("event_reports").select("*").eq("id", "r2").single().execute().data
     assert row["status"] == "dismissed"
+
+
+# ---------------------------------------------------------------------------
+# 6. Review-only Auto-QA types: scheduled reconcile is the sole auto resolver
+# ---------------------------------------------------------------------------
+REVIEW_ONLY_TYPES = (
+    "auto_qa_missing_date",
+    "auto_qa_missing_organizer",
+    "auto_qa_missing_performers",
+)
+
+
+def test_review_only_types_have_no_auto_fix_handler():
+    from qa_auto_fix import HANDLER_MAP, SAFE_REPORT_TYPES
+
+    for report_type in REVIEW_ONLY_TYPES:
+        # known Auto-QA types, but deliberately outside every auto-fix path
+        assert is_known_auto_type(report_type) is True, report_type
+        assert report_type not in SAFE_REPORT_TYPES, report_type
+        assert report_type not in HANDLER_MAP, report_type
+
+
+def test_qa_heartbeat_enumerates_only_safe_report_types():
+    from qa_auto_fix import SAFE_REPORT_TYPES
+    from qa_heartbeat import _fetch_pending_reports
+
+    review_only_rows = [
+        {"id": f"ro{index}", "event_id": f"eo{index}", "report_types": [report_type],
+         "status": "pending", "created_at": f"2024-02-0{index + 1}T00:00:00Z",
+         "admin_notes": None}
+        for index, report_type in enumerate(REVIEW_ONLY_TYPES)
+    ]
+    safe_row = {"id": "safe1", "event_id": "es1", "report_types": [SIMP],
+                "status": "pending", "created_at": "2024-02-09T00:00:00Z",
+                "admin_notes": None}
+    sb = FakeSupabase({"event_reports": [*review_only_rows, safe_row]})
+
+    out = _fetch_pending_reports(sb, limit=50)
+
+    enumerated = [
+        values[0]
+        for (table, column, values) in sb.contains_calls
+        if table == "event_reports" and column == "report_types"
+    ]
+    assert enumerated == list(SAFE_REPORT_TYPES)
+    for report_type in REVIEW_ONLY_TYPES:
+        assert report_type not in enumerated, report_type
+    assert {row["id"] for row in out} == {"safe1"}
+
+
+def test_reconcile_disposition_is_the_resolver_for_review_only_types():
+    resolved = _base_event(start_date="2026-01-30")
+    assert _resolve_report_disposition(resolved, ["auto_qa_missing_date"]) == (
+        "confirm", "issue resolved")
+    still_missing = _base_event(start_date=None)
+    assert _resolve_report_disposition(still_missing, ["auto_qa_missing_date"]) == (
+        "keep", "predicate still fires")

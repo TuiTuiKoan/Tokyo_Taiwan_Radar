@@ -111,6 +111,46 @@ def test_missing_performers_fires_when_a_named_person_is_present():
         assert _check_missing_performers(ev) is not None, raw
 
 
+def test_missing_performers_fires_on_a_labelled_instructor_or_creator_list():
+    listing = "講師：陳美玲\nアーティスト：林大衛\n作家：宇多田花子"
+    assert _check_missing_performers(_perf_event(raw_description=listing)) is not None
+    # each labelled entry is self-contained local evidence on its own
+    for line in listing.split("\n"):
+        assert _check_missing_performers(_perf_event(raw_description=line)) is not None, line
+
+
+def test_missing_performers_requires_the_role_and_the_name_in_one_local_unit():
+    # G-A: the role signal and the personal name must share a line, sentence or
+    # labelled clause. Matching them independently anywhere in the text made a
+    # generic role word borrow an unrelated Katakana title as its "name".
+    same_unit = _perf_event(raw_description="ゲストにジョン・スミスが登壇します")
+    split_units = _perf_event(
+        raw_description="ファンタジック・ジャーニー。\n企画にはクリエイターが多数参加します"
+    )
+    assert _check_missing_performers(same_unit) is not None
+    assert _check_missing_performers(split_units) is None
+
+
+def test_missing_performers_ignores_a_katakana_subtitle_far_from_a_generic_role_word():
+    ev = _perf_event(
+        raw_title="eslite Collection -夏日の奇幻旅程- ファンタジック・ジャーニー",
+        raw_description="台湾のクリエイターによる作品を集めた企画展です。",
+        event_form=["exhibition"],
+    )
+    assert _check_missing_performers(ev) is None
+
+
+def test_missing_performers_pure_predicate_treats_null_and_empty_array_alike():
+    # Known asymmetry with _detect_missing_performers, preserved on purpose:
+    # the detector selects only `performers IS NULL`.
+    labelled = "講師：山田太郎さん による講演"
+    assert _check_missing_performers(_perf_event(performers=None, raw_description=labelled)) is not None
+    assert _check_missing_performers(_perf_event(performers=[], raw_description=labelled)) is not None
+    assert _check_missing_performers(
+        _perf_event(performers=["山田太郎"], raw_description=labelled)
+    ) is None
+
+
 # --- thin-content: child-with-structure context ----------------------------
 
 def test_thin_content_skips_child_with_structured_data():

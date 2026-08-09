@@ -1,12 +1,17 @@
+from copy import deepcopy
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
+import auto_qa
 from auto_qa import (
     _all_auto_report_types,
     _check_missing_date,
     _check_missing_hours,
     _check_missing_organizer,
+    _check_missing_performers,
     _check_missing_price,
     _detect_missing_date,
+    _detect_missing_performers,
     _resolve_report_disposition,
     _single_auto_report_type,
     detect,
@@ -74,6 +79,62 @@ class _FakeSupabase:
         return self.query
 
 
+class _RecordingQuery:
+    """PostgREST stand-in that records the projection and applies real filters."""
+
+    def __init__(self, rows, recorder):
+        self._rows = [dict(row) for row in rows]
+        self._recorder = recorder
+        self.selected = ""
+
+    def select(self, columns):
+        self.selected = columns
+        self._recorder.append(columns)
+        return self
+
+    def eq(self, column, value):
+        self._rows = [row for row in self._rows if row.get(column) == value]
+        return self
+
+    def in_(self, column, values):
+        wanted = set(values)
+        self._rows = [row for row in self._rows if row.get(column) in wanted]
+        return self
+
+    def is_(self, column, _value):
+        self._rows = [row for row in self._rows if row.get(column) is None]
+        return self
+
+    def gte(self, column, value):
+        self._rows = [row for row in self._rows if (row.get(column) or "") >= value]
+        return self
+
+    def range(self, start, end):
+        self._rows = self._rows[start : end + 1]
+        return self
+
+    def execute(self):
+        columns = [column.strip() for column in self.selected.split(",")]
+        return SimpleNamespace(
+            data=[{k: v for k, v in row.items() if k in columns} for row in self._rows]
+        )
+
+
+class _RecordingSupabase:
+    def __init__(self, tables):
+        self._tables = tables
+        self.selects: dict[str, list[str]] = {}
+
+    def table(self, name):
+        return _RecordingQuery(
+            self._tables.get(name, []), self.selects.setdefault(name, [])
+        )
+
+
+def _iso(days_ago: int) -> str:
+    return (datetime.now(timezone.utc) - timedelta(days=days_ago)).isoformat()
+
+
 def test_detect_skips_venue_checks_only_for_exact_pure_publication():
     pure = _base_event(
         event_form=["publication"],
@@ -138,33 +199,44 @@ def test_missing_price_skips_only_exact_pure_publication():
     assert "price_keyword" in (_check_missing_price(mixed) or "")
 
 
-def test_january_placeholder_skips_only_exact_pure_publication():
-    pure = _base_event(
-        source_name="ndl_opensearch", event_form=["publication"], start_date="2026-01-01"
+def test_check_missing_date_fires_only_on_a_null_start_date():
+    assert "start_date is null" in (_check_missing_date(_base_event(start_date=None)) or "")
+    valid = (
+        "2026-01-01",
+        "2026-01-24",
+        "2026-01-30",
+        "2026-01-01T00:00:00+00:00",
+        "2026-05-01",
     )
-    physical = _base_event(source_name="ndl_opensearch", event_form=["lecture"], start_date="2026-01-01")
-    mixed = _base_event(
-        source_name="ndl_opensearch", event_form=["publication", "lecture"], start_date="2026-01-01"
-    )
+    for value in valid:
+        assert _check_missing_date(_base_event(start_date=value)) is None, value
 
-    assert _check_missing_date(pure) is None
-    assert "start_date missing/placeholder" in (_check_missing_date(physical) or "")
-    assert "start_date missing/placeholder" in (_check_missing_date(mixed) or "")
+
+def test_check_missing_date_is_source_and_event_form_agnostic():
+    sources = ("ndl_opensearch", "note_creators", "tokyoartbeat", "eslite_spectrum")
+    forms = (["publication"], ["lecture"], ["publication", "lecture"], ["exhibition"])
+    for source in sources:
+        for form in forms:
+            january = _base_event(source_name=source, event_form=form, start_date="2026-01-15")
+            missing = _base_event(source_name=source, event_form=form, start_date=None)
+            assert _check_missing_date(january) is None, (source, form)
+            assert _check_missing_date(missing) is not None, (source, form)
+
+
+def test_check_missing_date_applies_no_time_window():
+    # The pure predicate is the reconcile authority and must not inherit the
+    # detector's rolling candidate window.
+    stale = _base_event(start_date=None, created_at="2019-01-01T00:00:00+00:00")
+    fresh = _base_event(start_date=None, created_at=_iso(0))
+    assert _check_missing_date(stale) is not None
+    assert _check_missing_date(fresh) is not None
+    assert _check_missing_date(_base_event(start_date="2026-01-30", created_at=_iso(0))) is None
 
 
 def test_null_start_date_still_fires_for_pure_publication():
     pure = _base_event(source_name="ndl_opensearch", event_form=["publication"], start_date=None)
 
-    assert "start_date missing/placeholder" in (_check_missing_date(pure) or "")
-
-
-def test_publish_date_sources_january_behaviour_is_unchanged():
-    for source in ("note_creators", "google_news_rss", "prtimes", "nhk_rss", "walkerplus"):
-        feed = _base_event(source_name=source, event_form=["other"], start_date="2026-01-15")
-        assert _check_missing_date(feed) is None, source
-        assert "start_date missing/placeholder" in (
-            _check_missing_date(_base_event(source_name=source, event_form=["other"], start_date=None)) or ""
-        ), source
+    assert "start_date is null" in (_check_missing_date(pure) or "")
 
 
 def test_non_january_pure_publication_is_not_flagged():
@@ -175,21 +247,121 @@ def test_non_january_pure_publication_is_not_flagged():
     assert _check_missing_date(pure) is None
 
 
-def test_detect_missing_date_selects_event_form():
-    # The January exemption reads event_form, so dropping it from the select
-    # silently reinstates the false positives the predicate was fixed for.
-    pure = _base_event(
-        id="ev-pure", source_name="ndl_opensearch", event_form=["publication"], start_date="2026-01-01"
-    )
-    physical = _base_event(
-        id="ev-physical", source_name="ndl_opensearch", event_form=["lecture"], start_date="2026-01-01"
-    )
-    sb = _FakeSupabase([pure, physical])
+def test_detect_missing_date_only_reports_rows_inside_the_thirty_day_window():
+    # The DETECTOR keeps its rolling candidate window even though the pure
+    # predicate has none: an old null-date row must not create a new report.
+    inside = _base_event(id="ev-inside", start_date=None, created_at=_iso(1))
+    outside = _base_event(id="ev-outside", start_date=None, created_at=_iso(90))
+    sb = _RecordingSupabase({"events": [inside, outside]})
 
     reports = _detect_missing_date(sb)
 
-    assert "event_form" in [column.strip() for column in sb.query.selected.split(",")]
-    assert [report["event_id"] for report in reports] == ["ev-physical"]
+    assert [report["event_id"] for report in reports] == ["ev-inside"]
+    assert reports[0]["report_type"] == "auto_qa_missing_date"
+
+
+def test_detect_missing_date_ignores_january_rows_inside_the_window():
+    january = _base_event(id="ev-january", start_date="2026-01-30", created_at=_iso(1))
+    sb = _RecordingSupabase({"events": [january]})
+
+    assert _detect_missing_date(sb) == []
+
+
+def test_detect_missing_date_projection_carries_every_predicate_field():
+    # Dropping any of these from the select makes the predicate read None and
+    # silently changes its verdict.
+    sb = _RecordingSupabase({"events": [_base_event(start_date=None, created_at=_iso(1))]})
+
+    _detect_missing_date(sb)
+
+    columns = {column.strip() for column in sb.selects["events"][0].split(",")}
+    assert {"id", "start_date", "source_name"} <= columns
+
+
+def test_detect_missing_performers_selects_only_null_arrays_inside_the_window():
+    # Known asymmetry, preserved on purpose: the detector considers only
+    # `performers IS NULL`, while the pure predicate treats [] as missing too.
+    labelled = "\u8b1b\u5e2b\uff1a\u5c71\u7530\u592a\u90ce\u3055\u3093 \u306b\u3088\u308b\u8b1b\u6f14"
+    null_inside = _base_event(
+        id="ev-null-inside", performers=None, raw_description=labelled, created_at=_iso(1)
+    )
+    empty_inside = _base_event(
+        id="ev-empty-inside", performers=[], raw_description=labelled, created_at=_iso(1)
+    )
+    null_outside = _base_event(
+        id="ev-null-outside", performers=None, raw_description=labelled, created_at=_iso(90)
+    )
+    sb = _RecordingSupabase({"events": [null_inside, empty_inside, null_outside]})
+
+    reports = _detect_missing_performers(sb)
+
+    assert [report["event_id"] for report in reports] == ["ev-null-inside"]
+    assert _check_missing_performers(empty_inside) is not None
+
+
+def test_detect_missing_performers_projection_carries_every_predicate_field():
+    sb = _RecordingSupabase({"events": [_base_event(performers=None, created_at=_iso(1))]})
+
+    _detect_missing_performers(sb)
+
+    columns = {column.strip() for column in sb.selects["events"][0].split(",")}
+    required = {
+        "id",
+        "source_name",
+        "raw_title",
+        "raw_description",
+        "event_form",
+        "parent_event_id",
+        "category",
+        "performers",
+    }
+    assert required <= columns
+
+
+def test_reconcile_projection_carries_every_predicate_field(monkeypatch):
+    event = _base_event(id="e1", start_date=None, performers=None, parent_event_id=None)
+    reports = [{
+        "id": "r1",
+        "event_id": "e1",
+        "report_types": ["auto_qa_missing_date"],
+        "admin_notes": None,
+        "status": "pending",
+    }]
+    sb = _RecordingSupabase({"event_reports": reports, "events": [event]})
+    monkeypatch.setattr(auto_qa, "_supabase_client", lambda: sb)
+
+    summary = auto_qa.reconcile(dry_run=True)
+
+    assert summary["scanned_pending"] == 1
+    columns = {column.strip() for column in sb.selects["events"][0].split(",")}
+    required = {
+        "id",
+        "is_active",
+        "start_date",
+        "source_name",
+        "raw_title",
+        "raw_description",
+        "event_form",
+        "parent_event_id",
+        "category",
+        "performers",
+    }
+    assert required <= columns
+
+
+def test_missing_date_and_performer_predicates_never_mutate_their_input():
+    event = _base_event(
+        start_date=None,
+        performers=None,
+        event_form=["lecture"],
+        raw_description="\u8b1b\u5e2b\uff1a\u5c71\u7530\u592a\u90ce\u3055\u3093 \u306b\u3088\u308b\u8b1b\u6f14",
+    )
+    before = deepcopy(event)
+
+    _check_missing_date(event)
+    _check_missing_performers(event)
+
+    assert event == before
 
 
 def test_single_auto_report_type_protects_manual_unknown_and_compound_rows():

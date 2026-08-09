@@ -85,10 +85,6 @@ OVERSEAS_KEYWORDS = (
     'ニューヨーク', 'パリ', 'ロンドン', 'ベルリン', '台湾', '香港',
 )
 
-# Sources whose start_date legitimately reflects publish date (often January
-# placeholder) — skip January placeholder guard in missing_date detection.
-PUBLISH_DATE_SOURCES = frozenset({"note_creators", "google_news_rss", "prtimes", "nhk_rss", "walkerplus"})
-
 # Sources that legitimately produce thin metadata (news/article feeds) — skip
 # missing_organizer detection (organizer is rarely available for these).
 THIN_CONTENT_SOURCES = frozenset({"note_creators", "google_news_rss", "prtimes", "nhk_rss", "walkerplus"})
@@ -138,8 +134,14 @@ _KATAKANA_FULLNAME_RE = re.compile(r'[ァ-ヶー]{2,}[・･][ァ-ヶー]{2,}')
 _HONORIFIC_NAME_RE = re.compile(r'[一-龥ぁ-んァ-ヶーA-Za-z]{2,12}(?:氏|先生|教授|監督)')
 _PERFORMER_LIST_RE = re.compile(
     r'(?:出演者?|登壇者?|講師|ゲスト|司会|モデレーター|演奏|パフォーマー|'
-    r'アーティスト)\s*[:：]\s*[^\s、,，。\n]{2,}'
+    r'アーティスト|作家)\s*[:：]\s*[^\s、,，。\n]{2,}'
 )
+
+# Local evidence unit: a line, a sentence, or a clause separated by an
+# ideographic space. A role signal only counts as performer evidence when a
+# named person appears in the SAME unit, so a generic role word cannot pair with
+# an unrelated Katakana title elsewhere on the page.
+_LOCAL_UNIT_SPLIT_RE = re.compile(r'[\n\r。！？!?　]+|\s{2,}')
 
 _TAIWAN_ADDR_RE = re.compile(
     r'台北|台中|台南|高雄|台湾|基隆|新竹|桃園|彰化|嘉義|花蓮|宜蘭|台東|台灣'
@@ -343,6 +345,26 @@ def _has_named_person_candidate(text: str | None) -> bool:
         or _HONORIFIC_NAME_RE.search(text)
         or _PERFORMER_LIST_RE.search(text)
     )
+
+
+def _has_local_performer_evidence(text: str | None) -> bool:
+    """True when a performer role signal and a named person share one LOCAL unit.
+
+    An explicit 'role: name' list entry is self-contained evidence. Otherwise the
+    role signal and the personal name must appear in the same line, sentence or
+    labeled clause; a generic role word plus an unrelated Katakana title
+    elsewhere in the text is not evidence. Pure and deterministic (no I/O).
+    """
+    if not text:
+        return False
+    for unit in _LOCAL_UNIT_SPLIT_RE.split(text):
+        if not unit:
+            continue
+        if _PERFORMER_LIST_RE.search(unit):
+            return True
+        if _PERFORMER_SIGNAL_RE.search(unit) and _has_named_person_candidate(unit):
+            return True
+    return False
 
 
 def _has_thin_content_context(ev: dict) -> bool:
@@ -722,32 +744,24 @@ def _detect_performer_zh_katakana(sb) -> list[dict]:
 
 
 def _check_missing_date(ev: dict) -> str | None:
-    """Return note if event has null or January-placeholder start_date."""
-    start_date = ev.get("start_date")
-    source_name = ev.get("source_name")
-    if start_date is None:
-        return f"start_date missing/placeholder (value={start_date!r}); source={source_name}"
-    try:
-        month = datetime.fromisoformat(start_date).month
-    except (ValueError, TypeError):
+    """Return note if the event has no start_date at all.
+
+    A null start_date is the ONLY pure missing-date signal. The former January
+    branch treated every January date as a Contentful placeholder, which flagged
+    genuinely valid January events forever; date-shape repair belongs to the
+    owning source (tokyoartbeat already rebuilds its dates from the URL slug).
+    """
+    if ev.get("start_date") is not None:
         return None
-    if month != 1:
-        return None
-    # The January rule is a Contentful placeholder heuristic; it does not apply to
-    # catalogue records whose bibliography supplies only a publication year (NDL
-    # etc.), which legitimately normalise to YYYY-01-01.
-    if source_name in PUBLISH_DATE_SOURCES or _is_exact_pure_publication(ev):
-        return None
-    return f"start_date missing/placeholder (value={start_date!r}); source={source_name}"
+    return f"start_date is null; source={ev.get('source_name')}"
 
 
 def _detect_missing_date(sb) -> list[dict]:
-    """Flag active annotated/reviewed events with missing or placeholder
-    start_date. Review-only — no auto-fix.
+    """Flag recent active annotated/reviewed events with a null start_date.
+    Review-only — no auto-fix.
 
-    A start_date in January is treated as a Contentful placeholder and flagged,
-    EXCEPT for publish-date sources whose January dates may be legitimate and
-    exact pure publications dated by publication year alone.
+    Candidates are limited to a rolling 30-day `created_at` window; the pure
+    predicate itself applies no time window.
     """
     thirty_days_ago_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     rows = (
@@ -884,8 +898,10 @@ def _check_missing_performers(ev: dict) -> str | None:
     forms = ev.get("event_form") or []
     if not any(f in _PERFORMER_SIGNAL_FORMS for f in forms):
         return None
-    raw = ((ev.get("raw_title") or "") + " " + (ev.get("raw_description") or ""))[:2000]
-    if _PERFORMER_SIGNAL_RE.search(raw) and _has_named_person_candidate(raw):
+    # Title and description stay separate local units so a Katakana subtitle in
+    # the title cannot supply the name for a generic role word in the body.
+    raw = ((ev.get("raw_title") or "") + "\n" + (ev.get("raw_description") or ""))[:2000]
+    if _has_local_performer_evidence(raw):
         return (
             f"performers[] null but role signal in raw text; "
             f"event_form={forms}; source={source_name}"
