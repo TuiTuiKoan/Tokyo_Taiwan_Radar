@@ -87,6 +87,25 @@ MANIFEST_DIGEST_PLACEHOLDER = "<manifest_digest>"
 MANIFEST_SCOPE_CLEANUP = "cleanup"
 MANIFEST_SCOPE_ESLITE = "eslite-identity"
 
+# Rehearsal guard. `--apply` disables `_ReadOnlyProxy`, so the env file alone is
+# not a barrier between a rehearsal and production.
+PRODUCTION_PROJECT_REF = "cjtndektjjpvvjofdvzr"
+_PROJECT_REF_RE = re.compile(r"://([a-z0-9]{16,})\.supabase\.", re.IGNORECASE)
+APPLY_TARGETS = ("rehearsal", "production")
+
+# Citation-safety artifact produced by _oneoff_backfill_ndl_container_title.py.
+# The cleanup hard-joins it: clearing location_name destroys the only structured
+# copy of the journal citation, so a row is cleaned only when B1 proved the
+# citation survives elsewhere.
+CITATION_SAFETY_SCHEMA_NAMES = (
+    "tokyo-taiwan-radar/ndl-container-title-plan",
+    "tokyo-taiwan-radar/ndl-container-title-journal",
+)
+CITATION_SAFETY_SETS = ("safe", "pending_apply", "confirm_per_row", "unsafe")
+# `pending_apply` means B1 planned the write but no read-back proved it landed,
+# so it is excluded exactly like `unsafe`.
+CITATION_SAFETY_EXCLUDED_SETS = ("unsafe", "pending_apply")
+
 ESLITE_TALK_ID = "50c83c11-ed64-481a-bb5a-caa3e9981943"
 ESLITE_OLD_SOURCE_ID = "eslite_spectrum_9"
 ESLITE_NEW_SOURCE_ID = "eslite_spectrum_f0039984-3181-450d-8b59-e024a8eea070"
@@ -289,6 +308,57 @@ def get_supabase(*, read_only: bool):
 
     client = create_client(url, key)
     return _ReadOnlyProxy(client) if read_only else client
+
+
+def resolve_project_ref(url: str | None) -> str | None:
+    match = _PROJECT_REF_RE.search(str(url or ""))
+    return match.group(1).lower() if match else None
+
+
+def assert_non_production_target(url: str | None = None) -> str:
+    """Refuse a rehearsal write whose resolved project ref is production."""
+    resolved = url if url is not None else os.environ.get("SUPABASE_URL")
+    ref = resolve_project_ref(resolved)
+    if ref is None:
+        raise RuntimeError(
+            "STOP: cannot resolve a Supabase project ref from the configured "
+            "SUPABASE_URL; zero writes performed"
+        )
+    if ref == PRODUCTION_PROJECT_REF:
+        raise RuntimeError(
+            f"STOP: rehearsal target resolved to the production project ref {ref}; "
+            "zero writes performed"
+        )
+    return ref
+
+
+def assert_apply_target(target: str, url: str | None = None) -> str:
+    """`--apply` must name its target, and the name must match the resolved ref.
+
+    Fail-closed in both directions: an unresolvable URL is refused rather than
+    assumed safe, a rehearsal never runs against production, and a production
+    declaration never silently lands on some other project. Ref resolution and
+    the production comparison stay in `assert_non_production_target()`.
+    """
+    if target not in APPLY_TARGETS:
+        raise RuntimeError(
+            f"STOP: --apply requires --target rehearsal|production; got {target!r}; "
+            "zero writes performed"
+        )
+    if target == "rehearsal":
+        return assert_non_production_target(url)
+    ref = resolve_project_ref(url if url is not None else os.environ.get("SUPABASE_URL"))
+    if ref is None:
+        raise RuntimeError(
+            "STOP: cannot resolve a Supabase project ref from the configured "
+            "SUPABASE_URL; zero writes performed"
+        )
+    if ref != PRODUCTION_PROJECT_REF:
+        raise RuntimeError(
+            f"STOP: --target production resolved to {ref}, which is not the "
+            "production project ref; zero writes performed"
+        )
+    return ref
 
 
 def now_iso() -> str:
@@ -1137,7 +1207,12 @@ def excluded_plan(
     }
 
 
-def build_summary(candidates: list[dict[str, Any]], fingerprint: dict[str, Any]) -> dict[str, Any]:
+def build_summary(
+    candidates: list[dict[str, Any]],
+    fingerprint: dict[str, Any],
+    *,
+    citation_excluded_would_be_pure: list[str] | tuple[str, ...] = (),
+) -> dict[str, Any]:
     actions = Counter(candidate["action_type"] for candidate in candidates)
     conflicts = Counter(
         conflict["type"]
@@ -1150,6 +1225,13 @@ def build_summary(candidates: list[dict[str, Any]], fingerprint: dict[str, Any])
         "fetched_counts": fingerprint["fetched_counts"],
         "candidate_total": len(candidates),
         "included_pure": actions["pure_cleanup"],
+        # Equality of these two means the citation-safety join removed nothing,
+        # which is a claim to verify rather than assume.
+        "pure_candidates_before_citation_join": (
+            actions["pure_cleanup"] + len(citation_excluded_would_be_pure)
+        ),
+        "cleanup_candidates_after_citation_join": actions["pure_cleanup"],
+        "excluded_citation_unsafe": conflicts["citation_unsafe"],
         "poster_placeholder_pollution_evidence_rows": sum(
             candidate.get("poster_pollution_repair", {}).get("status") == "evidence_only"
             for candidate in candidates
@@ -1386,9 +1468,14 @@ def build_manifest(
     *,
     generated_at: str | None = None,
     scope: str = MANIFEST_SCOPE_CLEANUP,
+    citation_safety: dict[str, Any] | None = None,
+    confirmed_unavailable: list[str] | tuple[str, ...] = (),
 ) -> dict[str, Any]:
     if scope not in (MANIFEST_SCOPE_CLEANUP, MANIFEST_SCOPE_ESLITE):
         raise RuntimeError(f"unknown manifest scope: {scope!r}")
+    confirmed = {str(value) for value in confirmed_unavailable}
+    citation_exclusions: dict[str, str] = {}
+    citation_excluded_would_be_pure: list[str] = []
     tables = state["tables"]
     fingerprint = state["fingerprint"]
     fc_by_event: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -1425,8 +1512,30 @@ def build_manifest(
             events_by_source_id,
         )
         human_locked = human_locked_target_fields(fc_rows)
+        citation_reason = (
+            citation_join_decision(event_id, citation_safety, confirmed)
+            if citation_safety is not None
+            else None
+        )
         if event_id == ESLITE_TALK_ID:
             plan = eslite_plan(event, fc_rows, reports, publisher)
+        elif citation_reason:
+            citation_exclusions[event_id] = citation_reason
+            if (
+                is_pure_publication_record(event)
+                and not human_locked
+                and not poster_evidence
+                and not classification["location_conflict"]
+            ):
+                citation_excluded_would_be_pure.append(event_id)
+            plan = excluded_plan(
+                event,
+                fc_rows,
+                reports,
+                publisher,
+                reason=citation_reason,
+                conflict_type="citation_unsafe",
+            )
         elif human_locked:
             plan = excluded_plan(
                 event,
@@ -1511,6 +1620,28 @@ def build_manifest(
             "event_form normalization contains publication; exact pure helper alone "
             "controls pure cleanup inclusion"
         ),
+        "citation_safety_join": {
+            "required_for_scope": [MANIFEST_SCOPE_CLEANUP],
+            "performed": citation_safety is not None,
+            "artifact": (
+                {
+                    "path": citation_safety["path"],
+                    "schema": citation_safety["schema"],
+                    "stage": citation_safety["stage"],
+                    "digest_field": citation_safety["digest_field"],
+                    "digest": citation_safety["digest"],
+                    "set_sizes": {
+                        name: len(values)
+                        for name, values in citation_safety["sets"].items()
+                    },
+                }
+                if citation_safety is not None
+                else None
+            ),
+            "excluded_sets": list(CITATION_SAFETY_EXCLUDED_SETS),
+            "confirmed_unavailable": sorted(confirmed),
+            "excluded_event_ids": dict(sorted(citation_exclusions.items())),
+        },
         "apply_contract": {
             "requires_flags": ["--apply", "--manifest PATH", "--apply-phase PHASE"],
             "supported_apply_phases": supported_phases,
@@ -1567,7 +1698,11 @@ def build_manifest(
         "wave2_boundary": deepcopy(WAVE2_BOUNDARY),
         "candidates": candidates,
     }
-    manifest["summary"] = build_summary(candidates, fingerprint)
+    manifest["summary"] = build_summary(
+        candidates,
+        fingerprint,
+        citation_excluded_would_be_pure=citation_excluded_would_be_pure,
+    )
     manifest["manifest_sha256"] = sha256(manifest)
     assert_no_secret_material(manifest)
     return manifest
@@ -1601,6 +1736,12 @@ def write_immutable_json(path: Path, payload: dict[str, Any]) -> None:
 
 
 def write_manifest(path: Path, manifest: dict[str, Any]) -> Path:
+    join = manifest.get("citation_safety_join") or {}
+    if manifest.get("scope") == MANIFEST_SCOPE_CLEANUP and not join.get("performed"):
+        raise RuntimeError(
+            "STOP: a cleanup manifest requires the B1 citation-safety artifact "
+            "(--citation-safety PATH); nothing written"
+        )
     resolved = assert_ignored_output_path(path)
     write_immutable_json(resolved, manifest)
     return resolved
@@ -1617,6 +1758,57 @@ def load_manifest(path: Path) -> dict[str, Any]:
     if payload.get("wave") != WAVE:
         raise RuntimeError("only Wave 1 manifests are accepted")
     return payload
+
+
+def load_citation_safety(path: Path) -> dict[str, Any]:
+    """Load and digest-verify the B1 artifact the cleanup hard-joins against."""
+    payload = json.loads(Path(path).expanduser().read_text(encoding="utf-8"))
+    schema = payload.get("schema") or {}
+    if schema.get("name") not in CITATION_SAFETY_SCHEMA_NAMES:
+        raise RuntimeError(f"not a citation-safety artifact: schema={schema!r}")
+    digest_field = payload.get("digest_field")
+    if digest_field not in ("plan_sha256", "journal_sha256"):
+        raise RuntimeError("citation-safety artifact declares no digest field")
+    digest = payload.pop(digest_field, None)
+    if digest != sha256(payload):
+        raise RuntimeError("citation-safety artifact digest mismatch; the approved input was modified")
+    payload[digest_field] = digest
+    sets = payload.get("citation_safety_sets") or {}
+    unknown = sorted(set(sets) - set(CITATION_SAFETY_SETS))
+    if unknown:
+        raise RuntimeError(f"unknown citation-safety sets: {unknown}")
+    return {
+        "path": str(path),
+        "schema": schema,
+        "stage": payload.get("stage"),
+        "digest_field": digest_field,
+        "digest": digest,
+        "sets": {
+            name: sorted(str(value) for value in sets.get(name) or [])
+            for name in CITATION_SAFETY_SETS
+        },
+    }
+
+
+def citation_join_decision(
+    event_id: str,
+    citation_safety: dict[str, Any],
+    confirmed_unavailable: set[str],
+) -> str | None:
+    """The reason this row is not provably citation-safe, or None when it is."""
+    sets = citation_safety["sets"]
+    for name in CITATION_SAFETY_EXCLUDED_SETS:
+        if event_id in sets[name]:
+            return (
+                f"citation safety {name}: clearing location_name would remove the "
+                "only proven copy of the journal citation"
+            )
+    if event_id in sets["confirm_per_row"] and event_id not in confirmed_unavailable:
+        return (
+            "citation safety confirm_per_row: needs an explicit "
+            "--confirm-unavailable EVENT_ID before inclusion"
+        )
+    return None
 
 
 def snapshot_payload(state: dict[str, Any], manifest: dict[str, Any]) -> dict[str, Any]:
@@ -2149,6 +2341,69 @@ def assert_cleanup_manifest_excludes_eslite(manifest: dict[str, Any]) -> None:
         )
 
 
+def assert_cleanup_manifest_citation_join(
+    manifest: dict[str, Any], *, apply_phase: str
+) -> None:
+    """Re-verify the citation-safety join at the write site, from the manifest.
+
+    `write_manifest()` is not the only door onto disk: `build_manifest()` is a
+    public function, and any cleanup manifest generated before the join shipped
+    carries no `citation_safety_join` block at all. Both produce a
+    digest-consistent file that apply would otherwise accept and use to clear
+    `location_name` — for the NDL cohort the only structured copy of the journal
+    citation. Absent evidence is refused, never read as safe.
+    """
+    if manifest.get("scope") != MANIFEST_SCOPE_CLEANUP:
+        return
+    join = manifest.get("citation_safety_join")
+    if not isinstance(join, dict) or join.get("performed") is not True:
+        observed = join.get("performed") if isinstance(join, dict) else "<block absent>"
+        raise RuntimeError(
+            "STOP: cleanup manifest carries no completed citation-safety join "
+            f"(citation_safety_join.performed={observed!r}); zero writes performed. "
+            "Regenerate the manifest with --citation-safety PATH."
+        )
+    artifact = join.get("artifact")
+    if not isinstance(artifact, dict):
+        raise RuntimeError(
+            "STOP: citation-safety join records no artifact; zero writes performed"
+        )
+    schema_name = (artifact.get("schema") or {}).get("name")
+    if schema_name not in CITATION_SAFETY_SCHEMA_NAMES:
+        raise RuntimeError(
+            f"STOP: citation-safety join names an unrecognised artifact schema "
+            f"{schema_name!r}; zero writes performed"
+        )
+    if not isinstance(artifact.get("digest"), str) or not artifact["digest"]:
+        raise RuntimeError(
+            "STOP: citation-safety join records no artifact digest; zero writes performed"
+        )
+    unexcluded = [
+        name
+        for name in CITATION_SAFETY_EXCLUDED_SETS
+        if name not in (join.get("excluded_sets") or [])
+    ]
+    if unexcluded:
+        raise RuntimeError(
+            f"STOP: citation-safety join does not exclude {unexcluded}; zero writes performed"
+        )
+    excluded = join.get("excluded_event_ids")
+    if not isinstance(excluded, dict):
+        raise RuntimeError(
+            "STOP: citation-safety join records no excluded_event_ids map; "
+            "zero writes performed"
+        )
+    leaked = sorted(
+        set(excluded)
+        & {candidate["event_id"] for candidate in phase_candidates(manifest, apply_phase)}
+    )
+    if leaked:
+        raise RuntimeError(
+            f"STOP: citation-unsafe rows reached the {apply_phase} candidate set: "
+            f"{leaked}; zero writes performed"
+        )
+
+
 def apply_manifest(
     sb,
     manifest: dict[str, Any],
@@ -2166,6 +2421,7 @@ def apply_manifest(
             f"STOP: manifest does not support apply_phase={apply_phase}; zero writes performed"
         )
     assert_cleanup_manifest_excludes_eslite(manifest)
+    assert_cleanup_manifest_citation_join(manifest, apply_phase=apply_phase)
     unresolved_classification = [
         candidate["event_id"]
         for candidate in manifest["candidates"]
@@ -2251,6 +2507,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Sole write selector; required with --apply --manifest",
     )
     parser.add_argument("--rollback-snapshot", type=Path, help="Ignored snapshot path for future apply")
+    parser.add_argument(
+        "--target",
+        choices=APPLY_TARGETS,
+        help="Required with --apply; rehearsal refuses the production project ref",
+    )
+    parser.add_argument(
+        "--citation-safety",
+        type=Path,
+        help="B1 citation-safety artifact hard-joined by the cleanup manifest",
+    )
+    parser.add_argument(
+        "--confirm-unavailable",
+        action="append",
+        default=[],
+        metavar="EVENT_ID",
+        help="Include one citation `unavailable` row after per-row confirmation",
+    )
     args = parser.parse_args(argv)
     if args.apply and not args.manifest:
         parser.error("--apply requires --manifest PATH")
@@ -2264,8 +2537,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         parser.error("--apply --manifest requires --apply-phase PHASE")
     if not args.apply and args.apply_phase:
         parser.error("--apply-phase is only accepted with --apply --manifest")
+    if args.apply and not args.target:
+        parser.error("--apply requires --target rehearsal|production")
+    if not args.apply and args.target:
+        parser.error("--target is only accepted with --apply")
     if not args.apply and args.scope not in (MANIFEST_SCOPE_CLEANUP, MANIFEST_SCOPE_ESLITE):
         parser.error("--scope must be cleanup or eslite-identity")
+    if args.apply and args.citation_safety:
+        parser.error("--citation-safety is only accepted when generating a manifest")
+    if not args.apply and args.scope == MANIFEST_SCOPE_CLEANUP and not args.citation_safety:
+        parser.error(
+            "--scope cleanup requires --citation-safety PATH: the cleanup clears "
+            "location_name, so every row must be hard-joined to the B1 safe set"
+        )
+    if args.confirm_unavailable and not args.citation_safety:
+        parser.error("--confirm-unavailable is only accepted with --citation-safety")
     return args
 
 
@@ -2273,6 +2559,7 @@ def main() -> None:
     args = parse_args()
     sb = get_supabase(read_only=not args.apply)
     if args.apply:
+        assert_apply_target(args.target)
         manifest_path = args.manifest.expanduser().resolve()
         result = apply_manifest(
             sb,
@@ -2285,7 +2572,14 @@ def main() -> None:
         return
 
     state = read_database_state(sb)
-    manifest = build_manifest(state, scope=args.scope)
+    manifest = build_manifest(
+        state,
+        scope=args.scope,
+        citation_safety=(
+            load_citation_safety(args.citation_safety) if args.citation_safety else None
+        ),
+        confirmed_unavailable=args.confirm_unavailable,
+    )
     output = write_manifest(
         args.manifest_output or default_manifest_path(args.scope), manifest
     )

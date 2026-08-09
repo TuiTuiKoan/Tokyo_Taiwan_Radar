@@ -100,8 +100,41 @@ def _fake_db(state, *, extra_events=None, extra_field_corrections=None):
     )
 
 
-def _apply(monkeypatch, tmp_path, sb, result, apply_phase, snapshots=None):
+def _stamp_citation_join(result):
+    """Fixture only: these cases exercise phase mechanics, not the join.
+
+    Apply now re-verifies the citation-safety join from the manifest itself, so a
+    cleanup manifest built without an artifact is refused. The join's own
+    behaviour lives in `test_publication_citation_join.py`, which opts out with
+    `stamp_citation_join=False`.
+    """
+    join = result.get("citation_safety_join")
+    if result.get("scope") != manifest.MANIFEST_SCOPE_CLEANUP:
+        return result
+    if isinstance(join, dict) and join.get("performed"):
+        return result
+    result["citation_safety_join"] = {
+        "required_for_scope": [manifest.MANIFEST_SCOPE_CLEANUP],
+        "performed": True,
+        "artifact": {
+            "path": "fixture-b1-journal.json",
+            "schema": {"name": manifest.CITATION_SAFETY_SCHEMA_NAMES[-1], "version": 1},
+            "stage": "journal",
+            "digest_field": "journal_sha256",
+            "digest": "f" * 64,
+            "set_sizes": {name: 0 for name in manifest.CITATION_SAFETY_SETS},
+        },
+        "excluded_sets": list(manifest.CITATION_SAFETY_EXCLUDED_SETS),
+        "confirmed_unavailable": [],
+        "excluded_event_ids": {},
+    }
+    return result
+
+
+def _apply(monkeypatch, tmp_path, sb, result, apply_phase, snapshots=None, stamp_citation_join=True):
     sink = snapshots if snapshots is not None else []
+    if stamp_citation_join:
+        result = _stamp_citation_join(result)
     monkeypatch.setattr(manifest, "assert_ignored_output_path", lambda path: path)
     monkeypatch.setattr(manifest, "write_immutable_json", lambda _path, payload: sink.append(payload))
     return manifest.apply_manifest(
@@ -707,19 +740,24 @@ def test_manifest_hash_rejects_tampering(tmp_path):
 
 
 def test_apply_phase_is_required_only_with_apply_and_manifest():
-    args = manifest.parse_args(["--apply", "--manifest", "m.json", "--apply-phase", "fc-remove"])
+    args = manifest.parse_args(
+        ["--apply", "--manifest", "m.json", "--apply-phase", "fc-remove", "--target", "rehearsal"]
+    )
     assert args.apply_phase == "fc-remove"
 
     with pytest.raises(SystemExit):
-        manifest.parse_args(["--apply", "--manifest", "m.json"])
+        manifest.parse_args(["--apply", "--manifest", "m.json", "--target", "rehearsal"])
     with pytest.raises(SystemExit):
         manifest.parse_args(["--apply-phase", "fc-remove"])
     with pytest.raises(SystemExit):
         manifest.parse_args(["--manifest-output", "o.json", "--apply-phase", "event-clear"])
     with pytest.raises(SystemExit):
-        manifest.parse_args(["--apply", "--manifest", "m.json", "--apply-phase", "nope"])
+        manifest.parse_args(
+            ["--apply", "--manifest", "m.json", "--apply-phase", "nope", "--target", "rehearsal"]
+        )
 
-    assert manifest.parse_args([]).apply_phase is None
+    # Cleanup generation now also requires the B1 citation-safety artifact.
+    assert manifest.parse_args(["--citation-safety", "b1.json"]).apply_phase is None
     assert manifest.parse_args(["--scope", "eslite-identity"]).scope == "eslite-identity"
 
 
@@ -1177,7 +1215,7 @@ def test_apply_blocks_unresolved_location_conflicts_before_database_read(monkeyp
     with pytest.raises(RuntimeError, match="unresolved classification/location conflicts"):
         manifest.apply_manifest(
             object(),
-            result,
+            _stamp_citation_join(result),
             manifest_path=tmp_path / "manifest.json",
             apply_phase="fc-remove",
         )
