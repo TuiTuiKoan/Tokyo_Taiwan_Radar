@@ -249,6 +249,52 @@ git --no-pager cherry origin/main <branch>   # '-' 前綴 = 內容已在上游
 - [ ] Dependabot 回報 9 個依賴漏洞（8 high、1 moderate），與本專案工作無關但需處理。
       **性質上不屬於工作線盤點**，僅暫置於此；建議另立資安維護歸屬
 
+#### G4 依賴維護：固定驗收集合（2026-08-10 重查，9 筆皆 `open`）
+
+以 alert identity 作終局判定，不以 alert 總數代替。
+
+| Alert | GHSA | package | severity | first patched |
+|---|---|---|---|---|
+| #45 | GHSA-f88m-g3jw-g9cj | `sharp` | high | 0.35.0 |
+| #50 | GHSA-3jxr-9vmj-r5cp | `brace-expansion` | high | 1.1.16 |
+| #51 | GHSA-r28c-9q8g-f849 | `postcss` | high | 8.5.18 |
+| #53 | GHSA-mh99-v99m-4gvg | `brace-expansion` | high | 5.0.8 |
+| #54 | GHSA-rgw5-rvv9-x895 | `brace-expansion` | high | 5.0.9 |
+| #60 | GHSA-fxqj-rqcc-2cmp | `postcss` | medium | 8.5.23 |
+| #61 | GHSA-5p4m-2wfm-xmqj | `js-yaml` | high | 4.3.1 |
+| #62 | GHSA-5p4m-2wfm-xmqj | `js-yaml` | high | 3.15.1 |
+| #63 | GHSA-2v37-7h3g-55p8 | `nanoid` | high | 3.3.17 |
+
+全 9 筆 manifest 皆為 `web/pnpm-lock.yaml`。
+
+#### G4 Phase 1：PR #205 驗證於本機環境受阻
+
+- [ ] PR #205（`chore(deps)`，minor-and-patch group，15 updates）尚未驗證，**未 merge**
+
+已確認的事實：
+
+- exact `baseRefOid` `ebf3daae`、`headRefOid` `ec8a26c4`，changed files 僅
+  `web/package.json`、`web/pnpm-lock.yaml`，符合 scope 限制
+- dependency-file drift gate `ebf3daae..origin/main` 輸出為空，main 對這兩個檔案零漂移，
+  不需 `@dependabot rebase`
+
+阻擋原因為**本機 registry 不可達**，不是 PR 本身缺陷，也不構成 `BLOCKED_BY_UPSTREAM`：
+
+- 本機 npm registry 被 `~/.npmrc`、`/usr/local/etc/npmrc`、`/opt/homebrew/etc/npmrc`
+  設為 `https://packagefeedproxy.microsoft.io/npm/`；repo 未追蹤任何 `.npmrc`，
+  CI 與 Vercel 實際使用的目標 registry 是公開 npm
+- 該 proxy 對較新版本回 404（`electron-to-chromium@1.5.402`、`node-releases@2.0.53`、
+  `nanoid@3.3.18`、`postcss@8.5.26`），較舊版本（如 `electron-to-chromium@1.5.350`）則正常
+- **控制組證明屬環境問題**：`origin/main` 自己的 lockfile 走同一 proxy 亦
+  `ERR_PNPM_FETCH_404` 失敗，與 PR #205 無關
+- `registry.npmjs.org` 在 sandbox 內外皆不可達（`Recv failure: Socket is not connected`）
+
+因此 9 筆 identity 現況一律為 `OPEN`，無任何一筆可判為 `FIXED` 或 `BLOCKED_BY_UPSTREAM`。
+未使用 `dismissed`、未 ignore audit、未降低 audit level。
+
+下一步需先恢復對目標 registry 的存取（移除本機 proxy 設定或改用可達公開 npm 的環境），
+再重跑 Phase 1B 完整驗證。
+
 ### G5: Worktree 註冊路徑漂移
 
 - [x] 保存 10 個 worktree 的完整 registered path、physical path 與 path class 證據
