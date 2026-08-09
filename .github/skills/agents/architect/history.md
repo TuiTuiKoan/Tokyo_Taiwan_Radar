@@ -2,6 +2,36 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-08-09：把無關 B 線設為前置依賴，且 canonicality 判準不會觸發
+
+### Mistake
+
+第一版 worktree topology maintenance 計畫把 Tier 1 的三個 clean checkout 退役綁在
+publication B 線 production gate 之後。兩者沒有 code、data 或 runtime 依賴；真正需要
+避免的只有同 repo 的並行 Git mutation。這個錯誤前置條件會讓低風險清理被無限期擱置。
+
+同一版 Tier 4 用 `registered_path != physical_path` 判定大小寫 lexical drift。實測顯示
+macOS 的 `pwd -P` 會保留呼叫路徑的大小寫，四個非 canonical 註冊的兩個值仍逐字相等，
+因此不變量永遠不會觸發。計畫另以 worktree 自身 inode 證明 root containment，但子目錄
+本來就不會與父 root 共用 inode，證據對象也選錯。
+
+### Repair
+
+Tier 1 改為只要求執行期間沒有同 repo Git mutation，不再等待 B 線或暫停唯讀工作。
+Tier 4 改從 main worktree 的精確註冊路徑取得 canonical root，逐字比對預期 child path，
+並比較 worktree 父目錄與 canonical root 的 device/inode，區分 canonical child、
+case-split registration 與 external path。固定 fixture 覆蓋大寫 child、小寫 alias、
+外部 sibling 與 unreachable path。
+
+### Lesson
+
+維護工作的前置條件必須對應真實依賴或衝突的 mutation surface。商業優先序可以決定何時
+投入注意力，但不可虛構 code／data 依賴來阻擋無關工作。
+
+在大小寫不敏感檔案系統上，`pwd -P` 不是 canonical case resolver。Lexical canonicality
+必須以 main worktree 的精確註冊 root 建立 expected path；device/inode 僅用來確認父目錄
+物件身分，不能取代字串 canonicality 判斷。
+
 ## 2026-08-08：「小改動走主工作樹」是規則寫進去的漏洞，不是疏忽
 
 ### Mistake

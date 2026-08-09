@@ -76,6 +76,7 @@ Read this at the start of every session before producing any plan.
    detail venue/address、region filter、FAQ／narrative／SEO 與五條獨立連結。
 - **日文都道府縣正規化禁用單一 `rstrip("都道府県")`（2026-06-29 教訓）**：rstrip 是字元集合剝除非後綴剝除，`京都府`→`京`、`東京都`→`東京`、`北海道`→`北海` 皆過度剝離（「都」同時是京都/東京內字）。任何依縣名建查表/分組/排序的計畫，必須要求多段 fallback（精確 label match → rstrip → 原值 direct → 去末字 `[:-1]`），並列子字串陷阱測試（東京都≠京都、神奈川≠奈良、和歌山≠山形/岡山、福岡≠福島/福井）。Reference: 2026-06-29 週報 geo-sort（commit `3c590e4`）。
 - **工作流／治理計畫三查（2026-07-10 教訓）**：規劃涉及 (a) push/merge 行為 → 先讀 `.github/instructions/git.instructions.md` 現行政策**並**比對實務（V-M-D／CI 實際怎麼推），矛盾拆獨立任務對齊，不在子段落暗改全 repo 政策；(b) 新增「供追蹤」的 metadata 欄位（spec frontmatter／DB 欄位）→ 先追其 type/parser/consumer，無 consumer＝dead field 會被靜默丟棄（v1 的 `worktree:` frontmatter 就會被 spec dashboard snapshot parser 丟掉），可推導值優先於新增可過期欄位；(c) 強制／1:1 規則 → 只 prospective 套用並 grandfather 既有資產。詳見 `history.md` 2026-07-10 spec⟺worktree v1 三 P0。
+- **治理維護依賴與 canonical path guard（2026-08-09 教訓）**：排程前置條件必須對應真實 code／data／runtime 依賴或相同 mutation surface；不得把無關 production gate 當阻擋條件。只需序列化 Git mutation 的 checkout 清理，不得因此暫停唯讀產品或資料工作。大小寫不敏感檔案系統上的 `pwd -P` 會保留呼叫路徑大小寫，`registered_path == physical_path` 不能證明 lexical canonicality。Worktree audit 必須從 main worktree 的精確 registered path 取得 canonical root，以 `canonical_root/basename` 做逐字比對，並比較 worktree **父目錄**與 canonical root 的 device/inode 來確認同一物件；固定 fixture 至少覆蓋 canonical child、case-split alias、external sibling 與 unreachable path。
 
 ### Workstream Status Governance Guard
 
