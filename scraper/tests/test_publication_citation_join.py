@@ -47,6 +47,16 @@ SPOOFED_LOOPBACK_URLS = (
 # PRODUCTION_PROJECT_REF must fail here rather than agree with itself.
 PRODUCTION_REF = "cjtndektjjpvvjofdvzr"
 PRODUCTION_URL = f"https://{PRODUCTION_REF}.supabase.co"
+# Every one of these carries the production ref where a substring search over
+# the whole URL finds it, while the host actually connected to is not the
+# project. `--target production` must refuse them, not wave them through.
+SPOOFED_PRODUCTION_URLS = (
+    f"https://evil.com/?u={PRODUCTION_URL}",
+    f"https://evil.com/{PRODUCTION_REF}.supabase.co",
+    f"https://evil.com#{PRODUCTION_REF}.supabase.co",
+    f"https://{PRODUCTION_REF}.supabase.co@evil.com",
+    f"https://{PRODUCTION_REF}.supabase.co.evil.com",
+)
 
 
 def _artifact(
@@ -419,6 +429,21 @@ def test_a_production_ref_is_still_refused_when_the_url_carries_a_loopback_liter
         manifest.assert_non_production_target(f"{PRODUCTION_URL}/?host=127.0.0.1")
 
 
+@pytest.mark.parametrize("url", SPOOFED_PRODUCTION_URLS)
+def test_a_host_that_only_carries_the_production_ref_resolves_to_nothing(url):
+    assert manifest.resolve_project_ref(url) is None
+
+
+def test_a_project_ref_is_the_first_label_of_its_host():
+    assert manifest.resolve_project_ref(f"https://db.{PRODUCTION_REF}.supabase.co") is None
+
+
+@pytest.mark.parametrize("url", SPOOFED_PRODUCTION_URLS)
+def test_a_rehearsal_refuses_a_host_that_only_carries_the_production_ref(url):
+    with pytest.raises(RuntimeError, match="cannot resolve a Supabase project ref"):
+        manifest.assert_non_production_target(url)
+
+
 # --- the manifest executor's own apply target ------------------------------
 
 
@@ -476,6 +501,18 @@ def test_a_production_apply_never_lands_on_a_loopback_stack(url):
 
 @pytest.mark.parametrize("url", SPOOFED_LOOPBACK_URLS)
 def test_a_rehearsal_apply_refuses_a_host_that_only_looks_like_loopback(url):
+    with pytest.raises(RuntimeError, match="cannot resolve a Supabase project ref"):
+        manifest.assert_apply_target("rehearsal", url)
+
+
+@pytest.mark.parametrize("url", SPOOFED_PRODUCTION_URLS)
+def test_a_production_apply_refuses_a_host_that_only_carries_the_ref(url):
+    with pytest.raises(RuntimeError, match="cannot resolve a Supabase project ref"):
+        manifest.assert_apply_target("production", url)
+
+
+@pytest.mark.parametrize("url", SPOOFED_PRODUCTION_URLS)
+def test_a_rehearsal_apply_refuses_a_host_that_only_carries_the_ref(url):
     with pytest.raises(RuntimeError, match="cannot resolve a Supabase project ref"):
         manifest.assert_apply_target("rehearsal", url)
 

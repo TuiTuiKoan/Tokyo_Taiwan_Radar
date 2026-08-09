@@ -91,7 +91,10 @@ MANIFEST_SCOPE_ESLITE = "eslite-identity"
 # Rehearsal guard. `--apply` disables `_ReadOnlyProxy`, so the env file alone is
 # not a barrier between a rehearsal and production.
 PRODUCTION_PROJECT_REF = "cjtndektjjpvvjofdvzr"
-_PROJECT_REF_RE = re.compile(r"://([a-z0-9]{16,})\.supabase\.", re.IGNORECASE)
+# Fullmatched against the parsed hostname, so a ref is the host's own first
+# label. The single trailing TLD label admits the regional variants of
+# `<ref>.supabase.co` while refusing the suffix spoof `<ref>.supabase.co.evil.com`.
+_PROJECT_REF_HOST_RE = re.compile(r"([a-z0-9]{16,})\.supabase\.[a-z]{2,}", re.IGNORECASE)
 APPLY_TARGETS = ("rehearsal", "production")
 # A local `supabase start` stack has no project ref, so ref resolution alone
 # refuses the one target that is provably not production. Loopback is matched on
@@ -323,7 +326,18 @@ def get_supabase(*, read_only: bool):
 
 
 def resolve_project_ref(url: str | None) -> str | None:
-    match = _PROJECT_REF_RE.search(str(url or ""))
+    """The project ref of the URL's own hostname, or None.
+
+    Parsed and fullmatched, never substring-searched: the hostname of
+    `https://evil.com/?u=https://<ref>.supabase.co` is `evil.com`, and of
+    `https://<ref>.supabase.co@evil.com` is `evil.com` — neither host is the
+    project, however plainly the ref reads in the surrounding URL text.
+    """
+    try:
+        hostname = urlparse(str(url or "")).hostname
+    except ValueError:
+        return None
+    match = _PROJECT_REF_HOST_RE.fullmatch(hostname or "")
     return match.group(1).lower() if match else None
 
 
