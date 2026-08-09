@@ -26,6 +26,23 @@ UNAVAILABLE_ID = "dddddddd-4444-4444-8444-444444444444"
 UNKNOWN_ID = "eeeeeeee-5555-4555-8555-555555555555"
 
 REHEARSAL_URL = "https://abcdefghijklmnopqrst.supabase.co"
+# What `supabase start` actually prints, plus the two other loopback spellings.
+LOOPBACK_URLS = (
+    "http://127.0.0.1:54321",
+    "http://localhost:54321",
+    "http://[::1]:54321",
+    "https://127.0.0.1:54321",
+)
+# Every one of these carries a loopback literal that a substring test would
+# accept, while the host actually connected to is remote.
+SPOOFED_LOOPBACK_URLS = (
+    "https://127.0.0.1.evil.com",
+    "https://localhost.evil.com",
+    "https://127.0.0.1@evil.com",
+    "https://evil.com/127.0.0.1",
+    "https://evil.com/?host=localhost",
+    "https://evil.com#127.0.0.1",
+)
 # Literal, never derived from the module under test: a mistyped or mutated
 # PRODUCTION_PROJECT_REF must fail here rather than agree with itself.
 PRODUCTION_REF = "cjtndektjjpvvjofdvzr"
@@ -361,6 +378,47 @@ def test_an_unresolvable_target_is_refused_rather_than_assumed_safe():
         manifest.assert_non_production_target("postgresql://localhost:5432/postgres")
 
 
+def test_one_guard_is_shared_by_every_script_that_writes():
+    assert b1.assert_non_production_target is manifest.assert_non_production_target
+    assert restore_cli.assert_non_production_target is manifest.assert_non_production_target
+
+
+@pytest.mark.parametrize("url", LOOPBACK_URLS)
+def test_a_rehearsal_accepts_a_loopback_stack(url):
+    assert manifest.is_loopback_target(url) is True
+    assert manifest.assert_non_production_target(url) == manifest.LOOPBACK_TARGET_REF
+
+
+def test_the_loopback_marker_cannot_be_mistaken_for_a_project_ref():
+    assert manifest.LOOPBACK_TARGET_REF != manifest.PRODUCTION_PROJECT_REF
+    # Too short to satisfy the {16,} a real ref must match, so no URL can resolve to it.
+    assert manifest.resolve_project_ref(
+        f"https://{manifest.LOOPBACK_TARGET_REF}.supabase.co"
+    ) is None
+
+
+@pytest.mark.parametrize("url", SPOOFED_LOOPBACK_URLS)
+def test_a_host_that_only_looks_like_loopback_is_refused(url):
+    assert manifest.is_loopback_target(url) is False
+    with pytest.raises(RuntimeError, match="cannot resolve a Supabase project ref"):
+        manifest.assert_non_production_target(url)
+
+
+def test_a_bind_wildcard_is_not_a_loopback_destination():
+    assert manifest.is_loopback_target("http://0.0.0.0:54321") is False
+    with pytest.raises(RuntimeError, match="cannot resolve a Supabase project ref"):
+        manifest.assert_non_production_target("http://0.0.0.0:54321")
+
+
+def test_a_loopback_host_on_a_scheme_the_rest_client_cannot_speak_is_refused():
+    assert manifest.is_loopback_target("postgresql://localhost:5432/postgres") is False
+
+
+def test_a_production_ref_is_still_refused_when_the_url_carries_a_loopback_literal():
+    with pytest.raises(RuntimeError, match="production project ref"):
+        manifest.assert_non_production_target(f"{PRODUCTION_URL}/?host=127.0.0.1")
+
+
 # --- the manifest executor's own apply target ------------------------------
 
 
@@ -403,6 +461,23 @@ def test_a_production_apply_is_an_explicit_choice_rather_than_a_refusal():
 def test_a_production_declaration_that_lands_elsewhere_is_refused():
     with pytest.raises(RuntimeError, match="not the production project ref"):
         manifest.assert_apply_target("production", REHEARSAL_URL)
+
+
+@pytest.mark.parametrize("url", LOOPBACK_URLS)
+def test_a_rehearsal_apply_accepts_a_loopback_stack(url):
+    assert manifest.assert_apply_target("rehearsal", url) == manifest.LOOPBACK_TARGET_REF
+
+
+@pytest.mark.parametrize("url", LOOPBACK_URLS)
+def test_a_production_apply_never_lands_on_a_loopback_stack(url):
+    with pytest.raises(RuntimeError, match="loopback host"):
+        manifest.assert_apply_target("production", url)
+
+
+@pytest.mark.parametrize("url", SPOOFED_LOOPBACK_URLS)
+def test_a_rehearsal_apply_refuses_a_host_that_only_looks_like_loopback(url):
+    with pytest.raises(RuntimeError, match="cannot resolve a Supabase project ref"):
+        manifest.assert_apply_target("rehearsal", url)
 
 
 def test_an_undeclared_target_is_refused_by_the_guard_itself():

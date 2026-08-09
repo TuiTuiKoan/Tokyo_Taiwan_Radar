@@ -14,6 +14,7 @@ import re
 import subprocess
 import time
 from typing import Any, Callable
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
@@ -92,6 +93,17 @@ MANIFEST_SCOPE_ESLITE = "eslite-identity"
 PRODUCTION_PROJECT_REF = "cjtndektjjpvvjofdvzr"
 _PROJECT_REF_RE = re.compile(r"://([a-z0-9]{16,})\.supabase\.", re.IGNORECASE)
 APPLY_TARGETS = ("rehearsal", "production")
+# A local `supabase start` stack has no project ref, so ref resolution alone
+# refuses the one target that is provably not production. Loopback is matched on
+# the parsed hostname, and only on the http(s) scheme the REST client speaks.
+# `0.0.0.0` is excluded: it is a bind wildcard, not a destination that is
+# guaranteed to stay on this host.
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+LOOPBACK_SCHEMES = frozenset({"http", "https"})
+# Stands in for the project ref a loopback stack does not have. Shorter than the
+# 16 characters a real ref must match, so it can never collide with one, and
+# unlike `None` it never reads as "unresolved".
+LOOPBACK_TARGET_REF = "loopback"
 
 # Citation-safety artifact produced by _oneoff_backfill_ndl_container_title.py.
 # The cleanup hard-joins it: clearing location_name destroys the only structured
@@ -315,9 +327,33 @@ def resolve_project_ref(url: str | None) -> str | None:
     return match.group(1).lower() if match else None
 
 
+def is_loopback_target(url: str | None) -> bool:
+    """True only when the URL's own hostname is a loopback name.
+
+    Parsed, never substring-matched: the hostname of `https://127.0.0.1.evil.com`
+    is `127.0.0.1.evil.com`, and of `https://127.0.0.1@evil.com` is `evil.com` —
+    both remote hosts that merely carry a loopback literal.
+    """
+    try:
+        parsed = urlparse(str(url or ""))
+        hostname = parsed.hostname
+    except ValueError:
+        return False
+    return (
+        parsed.scheme.lower() in LOOPBACK_SCHEMES
+        and (hostname or "").lower() in LOOPBACK_HOSTS
+    )
+
+
 def assert_non_production_target(url: str | None = None) -> str:
-    """Refuse a rehearsal write whose resolved project ref is production."""
+    """Refuse a rehearsal write whose resolved project ref is production.
+
+    Returns the resolved ref, or `LOOPBACK_TARGET_REF` for a local stack, which
+    has no ref and is by construction not production.
+    """
     resolved = url if url is not None else os.environ.get("SUPABASE_URL")
+    if is_loopback_target(resolved):
+        return LOOPBACK_TARGET_REF
     ref = resolve_project_ref(resolved)
     if ref is None:
         raise RuntimeError(
@@ -337,8 +373,9 @@ def assert_apply_target(target: str, url: str | None = None) -> str:
 
     Fail-closed in both directions: an unresolvable URL is refused rather than
     assumed safe, a rehearsal never runs against production, and a production
-    declaration never silently lands on some other project. Ref resolution and
-    the production comparison stay in `assert_non_production_target()`.
+    declaration never silently lands on some other project nor on a loopback
+    stack that cannot be production. Ref resolution and the production
+    comparison stay in `assert_non_production_target()`.
     """
     if target not in APPLY_TARGETS:
         raise RuntimeError(
@@ -347,7 +384,13 @@ def assert_apply_target(target: str, url: str | None = None) -> str:
         )
     if target == "rehearsal":
         return assert_non_production_target(url)
-    ref = resolve_project_ref(url if url is not None else os.environ.get("SUPABASE_URL"))
+    resolved = url if url is not None else os.environ.get("SUPABASE_URL")
+    if is_loopback_target(resolved):
+        raise RuntimeError(
+            "STOP: --target production resolved to a loopback host, which cannot "
+            "be the production project; zero writes performed"
+        )
+    ref = resolve_project_ref(resolved)
     if ref is None:
         raise RuntimeError(
             "STOP: cannot resolve a Supabase project ref from the configured "
