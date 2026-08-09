@@ -73,10 +73,36 @@ _ARTICLE_UUID_RE = re.compile(
     re.IGNORECASE,
 )
 _TIME_RE = re.compile(r"([01]?\d|2[0-3]):([0-5]\d)")
-_RANGE_DATE_RE = re.compile(
-    r"(20\d{2})[./年-]\s*(\d{1,2})[./月-]\s*(\d{1,2})日?"
-    r"(?:\s*(?:[〜～~\-]|から)\s*(?:(20\d{2})[./年-])?\s*(?:(\d{1,2})[./月-])?\s*(\d{1,2})日?)?"
+
+# Real listings write weekday tokens between the date and the range separator
+# ("2026.7.18 Sat.ー8.31 Mon.") and use ー / ～ / − as the separator, so both have to
+# be tolerated or the end date is silently dropped and the event looks one-day.
+_WEEKDAY_SRC = (
+    r"(?:\s*(?:"
+    r"(?:Mon|Tues?|Wed|Thur?s?|Fri|Sat|Sun)(?:day)?\.?"
+    r"|[（(][月火水木金土日][）)]"
+    r"))?"
 )
+_RANGE_SEP_SRC = r"\s*(?:[〜～~ー－−–—‐-]|から)\s*"
+_RANGE_DATE_RE = re.compile(
+    r"(?P<sy>20\d{2})[./年-]\s*(?P<sm>\d{1,2})[./月-]\s*(?P<sd>\d{1,2})日?"
+    + _WEEKDAY_SRC
+    + r"(?:"
+    + _RANGE_SEP_SRC
+    + r"(?:(?P<ey>20\d{2})[./年-])?\s*(?:(?P<em>\d{1,2})[./月-])?\s*(?P<ed>\d{1,2})日?"
+    + _WEEKDAY_SRC
+    + r")?"
+)
+# A labelled top-level range is the event's own schedule and outranks everything
+# else on the page.
+_EVENT_RANGE_LABEL_RE = re.compile(
+    r"(?:開催日時|開催期間|開催時間|開催日|イベント期間|会期|期間|日時)\s*[:：]?\s*"
+)
+# Page-publication metadata is never the event's schedule.
+_PUBLISH_LABEL_RE = re.compile(
+    r"ページ公開日|公開日|掲載日|更新日|投稿日|発行日|published", re.IGNORECASE
+)
+_BARE_ISO_LINE_RE = re.compile(r"^\s*20\d{2}-\d{2}-\d{2}\s*$")
 _LOCATION_LABEL_RE = re.compile(r"(?:会場|開催場所|場所)\s*[:：]\s*([^\n]+)")
 _ADDRESS_LABEL_RE = re.compile(r"(?:住所|所在地)\s*[:：]\s*([^\n]+)")
 _PRICE_LABEL_RE = re.compile(r"(?:参加費|料金|費用|入場料)\s*[:：]\s*([^\n]+)")
@@ -128,30 +154,69 @@ def _extract_business_hours(text: str) -> Optional[str]:
     return None
 
 
-def _extract_event_datetime_range(text: str) -> tuple[Optional[datetime], Optional[datetime], Optional[str]]:
+def _parse_date_range(text: str) -> Optional[tuple[datetime, datetime]]:
     match = _RANGE_DATE_RE.search(text)
     if not match:
-        return None, None, None
-
+        return None
     try:
-        start_year = int(match.group(1))
-        start_month = int(match.group(2))
-        start_day = int(match.group(3))
-        start_date = datetime(start_year, start_month, start_day, tzinfo=timezone.utc)
+        start_date = datetime(
+            int(match.group("sy")),
+            int(match.group("sm")),
+            int(match.group("sd")),
+            tzinfo=timezone.utc,
+        )
     except ValueError:
+        return None
+    if not match.group("ed"):
+        return start_date, start_date
+    try:
+        end_date = datetime(
+            int(match.group("ey") or match.group("sy")),
+            int(match.group("em") or match.group("sm")),
+            int(match.group("ed")),
+            tzinfo=timezone.utc,
+        )
+    except ValueError:
+        end_date = start_date
+    return start_date, end_date
+
+
+def _extract_event_datetime_range(text: str) -> tuple[Optional[datetime], Optional[datetime], Optional[str]]:
+    """Return (start, end, business_hours) for the event's own schedule.
+
+    A labelled top-level range wins over page-publication dates and over nested
+    item ranges. Without a labelled range, a single unambiguous range is used;
+    several competing nested ranges yield a start with NO end, because an
+    umbrella end that no line actually states must never be invented.
+    """
+    if not text:
         return None, None, None
 
-    end_date = start_date
-    if match.group(6):
-        try:
-            end_year = int(match.group(4) or start_year)
-            end_month = int(match.group(5) or start_month)
-            end_day = int(match.group(6))
-            end_date = datetime(end_year, end_month, end_day, tzinfo=timezone.utc)
-        except ValueError:
-            end_date = start_date
+    lines = text.splitlines()
 
-    return start_date, end_date, _extract_business_hours(text)
+    for line in lines:
+        if _PUBLISH_LABEL_RE.search(line):
+            continue
+        label = _EVENT_RANGE_LABEL_RE.search(line)
+        if not label:
+            continue
+        labelled = _parse_date_range(line[label.end():])
+        if labelled:
+            return labelled[0], labelled[1], _extract_business_hours(text)
+
+    candidates: list[tuple[datetime, datetime]] = []
+    for line in lines:
+        if _PUBLISH_LABEL_RE.search(line) or _BARE_ISO_LINE_RE.match(line):
+            continue
+        parsed = _parse_date_range(line)
+        if parsed and parsed not in candidates:
+            candidates.append(parsed)
+
+    if not candidates:
+        return None, None, None
+    if len(candidates) == 1:
+        return candidates[0][0], candidates[0][1], _extract_business_hours(text)
+    return min(start for start, _end in candidates), None, _extract_business_hours(text)
 
 
 def _extract_labeled_value(text: str, pattern: re.Pattern[str]) -> Optional[str]:

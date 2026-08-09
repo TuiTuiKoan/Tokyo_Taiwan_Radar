@@ -6,6 +6,7 @@ from sources.eslite_spectrum import (
     _HISTORY_FLOOR,
     _SKIP_TITLE_RE,
     EsliteSpectrumScraper,
+    _extract_event_datetime_range,
 )
 from sources.hanmoto import (
     _normalize_official_url,
@@ -332,6 +333,62 @@ def test_eslite_history_floor_drops_archive_and_keeps_floor_day(monkeypatch):
     kept = EsliteSpectrumScraper().scrape()
     assert len(kept) == 1
     assert kept[0].start_date.date() == _HISTORY_FLOOR
+
+
+def test_eslite_event_range_accepts_a_weekday_token_and_a_wave_separator():
+    start, end, _hours = _extract_event_datetime_range("2026.1.30 Fri. ～ 2.23 Mon.")
+
+    assert start.date().isoformat() == "2026-01-30"
+    assert end.date().isoformat() == "2026-02-23"
+
+
+def test_eslite_event_range_accepts_a_prolonged_sound_mark_separator():
+    start, end, _hours = _extract_event_datetime_range("2026.7.18 Sat.ー8.31 Mon.")
+
+    assert start.date().isoformat() == "2026-07-18"
+    assert end.date().isoformat() == "2026-08-31"
+
+
+def test_eslite_labelled_one_day_event_keeps_identical_start_and_end():
+    text = (
+        "会場：誠品生活日本橋 EVENT SPACE\n"
+        "開催日時：2026年7月20日 13:00〜15:00\n"
+        "参加費：1,500円"
+    )
+
+    start, end, hours = _extract_event_datetime_range(text)
+
+    assert start == end
+    assert start.date().isoformat() == "2026-07-20"
+    assert hours == "13:00〜15:00"
+
+
+def test_eslite_publication_line_never_outranks_the_labelled_event_range():
+    # The page-publication date sits first and previously won by document order,
+    # which truncated multi-month exhibitions to their publication day.
+    text = (
+        "ページ公開日: 2026年07月05日\n"
+        "2026-07-05\n"
+        "会期：2026.7.18 Sat.ー8.31 Mon."
+    )
+
+    start, end, _hours = _extract_event_datetime_range(text)
+
+    assert start.date().isoformat() == "2026-07-18"
+    assert end.date().isoformat() == "2026-08-31"
+
+
+def test_eslite_nested_ranges_without_an_umbrella_never_invent_an_end():
+    text = (
+        "台湾ブックフェア\n"
+        "1F 展示：2026.7.18 Sat.ー7.31 Thu.\n"
+        "2F 物販：2026.8.1 Sat.ー8.20 Wed."
+    )
+
+    start, end, _hours = _extract_event_datetime_range(text)
+
+    assert start.date().isoformat() == "2026-07-18"
+    assert end is None
 
 
 def test_eslite_skip_patterns_drop_promotions_but_keep_real_events():
