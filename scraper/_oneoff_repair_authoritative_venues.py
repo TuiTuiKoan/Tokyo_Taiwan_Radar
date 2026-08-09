@@ -62,6 +62,29 @@ ACTION_REQUIRED_KEYS = frozenset(
         "skips",
         "already_applied",
         "volatile_event_fields",
+        "volatile_venue_fields",
+    }
+)
+VENUE_REQUIRED_FIELDS = frozenset(
+    {
+        "id",
+        "canonical_name_ja",
+        "canonical_name_zh",
+        "canonical_name_en",
+        "address",
+        "prefecture",
+        "city",
+        "latitude",
+        "longitude",
+        "aliases",
+        "notes",
+        "created_at",
+        "updated_at",
+        "is_authoritative",
+        "is_multi_venue",
+        "homepage",
+        "prefectures",
+        "business_hours",
     }
 )
 TCC_MIGRATE_EVENT_IDS = (
@@ -127,6 +150,18 @@ TCC_JAPANESE_DUPLICATE_VENUE_ID = "e87b461e-8e8d-4fa0-b461-22a7ff2b6fdd"
 TCC_CHINESE_DUPLICATE_VENUE_ID = "124ca4f6-448c-4fd2-894b-5aab2fbcb456"
 TIFF_MULTI_VENUE_ID = "597eaa36-191b-48d4-9a34-cd7c128579f1"
 CENTURY_VENUE_ID = "e2f5fd1f-f92c-4e61-9f5f-383ac84c5d8b"
+HIGH_TAKADA_VENUE_ID = "1de8358d-f100-487d-aff3-cff7f686ae0a"
+HATCHOZA_VENUE_ID = "10a9aa7a-f8e1-4721-9fd8-77af830b74d2"
+SALON_CINEMA_VENUE_ID = "29fef1e9-67d1-457f-81a2-17b1d80437f8"
+EXISTING_UPDATE_VENUES = {
+    HIGH_TAKADA_VENUE_ID: "高田世界館",
+    TCC_CANONICAL_VENUE_ID: "台北駐日経済文化代表処 台湾文化センター",
+    TIFF_MULTI_VENUE_ID: "東京国際映画祭",
+    HATCHOZA_VENUE_ID: "八丁座",
+    SALON_CINEMA_VENUE_ID: "サロンシネマ",
+    CENTURY_VENUE_ID: "センチュリーシネマ",
+}
+EXISTING_UPDATE_VENUE_IDS = tuple(EXISTING_UPDATE_VENUES)
 NEW_TIFF_VENUE_NAMES = (
     "ヒューリックホール東京",
     "TOHOシネマズ シャンテ",
@@ -201,9 +236,37 @@ def build_production_plan(snapshot: dict[str, Any]) -> dict[str, Any]:
             + ", ".join(missing_fc_coverage)
         )
 
-    tcc = _require_venue(venues_by_id, TCC_CANONICAL_VENUE_ID)
-    tiff_multi = _require_venue(venues_by_id, TIFF_MULTI_VENUE_ID)
-    century = _require_venue(venues_by_id, CENTURY_VENUE_ID)
+    reference_sets = snapshot.get("venue_references")
+    if not isinstance(reference_sets, dict):
+        raise RuntimeError("STOP/INCONCLUSIVE: venue reference sets are missing")
+    reference_venue_ids = (
+        *EXISTING_UPDATE_VENUE_IDS,
+        TCC_JAPANESE_DUPLICATE_VENUE_ID,
+        TCC_CHINESE_DUPLICATE_VENUE_ID,
+    )
+    before_references = {
+        venue_id: _validated_reference_set(
+            reference_sets,
+            venue_id=venue_id,
+            events_by_id=events_by_id,
+        )
+        for venue_id in reference_venue_ids
+    }
+    desired_venues = _build_existing_venue_desired_rows(venues_by_id)
+    update_is_eligible = {
+        venue_id: _venue_rows_differ(
+            venues_by_id[venue_id],
+            desired_venues[venue_id],
+        )
+        for venue_id in EXISTING_UPDATE_VENUE_IDS
+    }
+
+    def venue_dependency(venue_id: str) -> list[str]:
+        return [venue_id] if update_is_eligible[venue_id] else []
+
+    tcc = desired_venues[TCC_CANONICAL_VENUE_ID]
+    tiff_multi = desired_venues[TIFF_MULTI_VENUE_ID]
+    century = desired_venues[CENTURY_VENUE_ID]
     japanese_duplicate = _require_venue(
         venues_by_id,
         TCC_JAPANESE_DUPLICATE_VENUE_ID,
@@ -215,7 +278,7 @@ def build_production_plan(snapshot: dict[str, Any]) -> dict[str, Any]:
     cineswitch = _require_unique_venue_name(venues, "シネスイッチ銀座")
     new_venues = _build_frozen_new_venues(snapshot, venues, captured_at=captured_at)
 
-    actions: list[dict[str, Any]] = [
+    insert_actions = [
         _venue_insert_action(
             row,
             after_references=(
@@ -257,6 +320,7 @@ def build_production_plan(snapshot: dict[str, Any]) -> dict[str, Any]:
             desired,
             classification="tcc_migrate",
             conflicts=conflicts,
+            dependencies=venue_dependency(TCC_CANONICAL_VENUE_ID),
         )
 
     for event_id in TCC_ATTACH_EVENT_IDS:
@@ -270,6 +334,7 @@ def build_production_plan(snapshot: dict[str, Any]) -> dict[str, Any]:
                 event,
                 allowed={None, TCC_CANONICAL_VENUE_ID},
             ),
+            dependencies=venue_dependency(TCC_CANONICAL_VENUE_ID),
         )
 
     unlink_groups = (
@@ -347,7 +412,7 @@ def build_production_plan(snapshot: dict[str, Any]) -> dict[str, Any]:
             TIFF_EVENT_IDS[0],
             "tiff_parent_multi_entity",
             _multi_entity_event_fields(tiff_multi),
-            [],
+            venue_dependency(TIFF_MULTI_VENUE_ID),
         ),
         (
             TIFF_EVENT_IDS[1],
@@ -393,6 +458,7 @@ def build_production_plan(snapshot: dict[str, Any]) -> dict[str, Any]:
             century_keep,
             allowed={CENTURY_VENUE_ID},
         ),
+        dependencies=venue_dependency(CENTURY_VENUE_ID),
     )
     century_attach = events_by_id[CENTURY_EVENT_IDS[1]]
     century_attach_conflicts = _venue_precondition_conflicts(
@@ -413,6 +479,7 @@ def build_production_plan(snapshot: dict[str, Any]) -> dict[str, Any]:
         _single_venue_event_fields(century),
         classification="century_attach_fk",
         conflicts=century_attach_conflicts,
+        dependencies=venue_dependency(CENTURY_VENUE_ID),
     )
 
     for event_id in sorted(cohort_ids - EXPLICIT_TARGET_EVENT_IDS):
@@ -423,6 +490,7 @@ def build_production_plan(snapshot: dict[str, Any]) -> dict[str, Any]:
             _single_venue_event_fields(tcc),
             classification="tcc_canonical_linked",
             conflicts=_tcc_cohort_conflicts(event, tcc),
+            dependencies=venue_dependency(TCC_CANONICAL_VENUE_ID),
         )
 
     missing_actions = sorted(EXPLICIT_TARGET_EVENT_IDS - set(event_actions))
@@ -443,11 +511,25 @@ def build_production_plan(snapshot: dict[str, Any]) -> dict[str, Any]:
         *CENTURY_EVENT_IDS,
         *sorted(cohort_ids - EXPLICIT_TARGET_EVENT_IDS),
     )
+    final_update_references = _derive_final_venue_references(
+        {
+            venue_id: before_references[venue_id]
+            for venue_id in EXISTING_UPDATE_VENUE_IDS
+        },
+        event_actions,
+    )
+    actions: list[dict[str, Any]] = [
+        _venue_update_action(
+            venues_by_id[venue_id],
+            desired_venues[venue_id],
+            before_references=before_references[venue_id],
+            after_references=final_update_references[venue_id],
+        )
+        for venue_id in EXISTING_UPDATE_VENUE_IDS
+    ]
+    actions.extend(insert_actions)
     actions.extend(event_actions[event_id] for event_id in event_order)
 
-    reference_sets = snapshot.get("venue_references")
-    if not isinstance(reference_sets, dict):
-        raise RuntimeError("STOP/INCONCLUSIVE: duplicate venue reference sets are missing")
     japanese_expected = set(
         (
             *TCC_MIGRATE_EVENT_IDS,
@@ -456,16 +538,8 @@ def build_production_plan(snapshot: dict[str, Any]) -> dict[str, Any]:
             *JAPANESE_DUPLICATE_MULTI_EVENT_IDS,
         )
     )
-    japanese_refs = _validated_reference_set(
-        reference_sets,
-        venue_id=TCC_JAPANESE_DUPLICATE_VENUE_ID,
-        events_by_id=events_by_id,
-    )
-    chinese_refs = _validated_reference_set(
-        reference_sets,
-        venue_id=TCC_CHINESE_DUPLICATE_VENUE_ID,
-        events_by_id=events_by_id,
-    )
+    japanese_refs = before_references[TCC_JAPANESE_DUPLICATE_VENUE_ID]
+    chinese_refs = before_references[TCC_CHINESE_DUPLICATE_VENUE_ID]
     japanese_unlisted = sorted(set(japanese_refs) - japanese_expected)
     chinese_unlisted = sorted(set(chinese_refs) - {CHINESE_DUPLICATE_EVENT_ID})
     actions.append(
@@ -592,6 +666,102 @@ def _require_venue(
     if venue is None:
         raise RuntimeError(f"STOP/INCONCLUSIVE: missing target venue UUID: {venue_id}")
     return deepcopy(venue)
+
+
+def _build_existing_venue_desired_rows(
+    venues_by_id: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    from _oneoff_seed_authoritative_venues import SEED_DATA, _desired_payload
+
+    seeds: dict[str, dict[str, Any]] = {}
+    for venue_id, canonical_name in EXISTING_UPDATE_VENUES.items():
+        matches = [
+            seed
+            for seed in SEED_DATA
+            if seed.get("canonical_name_ja") == canonical_name
+        ]
+        if len(matches) > 1:
+            raise RuntimeError(
+                f"STOP/INCONCLUSIVE: duplicate desired-state seed name: {canonical_name}"
+            )
+        if not matches:
+            continue
+        seed = matches[0]
+        if seed.get("_expected_id") != venue_id:
+            raise RuntimeError(
+                f"STOP/INCONCLUSIVE: venue seed ID mismatch: {canonical_name}"
+            )
+        seeds[venue_id] = seed
+    missing = sorted(set(EXISTING_UPDATE_VENUES) - set(seeds))
+    if missing:
+        raise RuntimeError(
+            "STOP/INCONCLUSIVE: existing venue desired-state seeds are incomplete: "
+            + ", ".join(missing)
+        )
+
+    desired: dict[str, dict[str, Any]] = {}
+    for venue_id in EXISTING_UPDATE_VENUE_IDS:
+        before = _require_venue(venues_by_id, venue_id)
+        missing_fields = sorted(VENUE_REQUIRED_FIELDS - set(before))
+        if missing_fields:
+            raise RuntimeError(
+                f"STOP/INCONCLUSIVE: venue {venue_id} lacks complete before columns: "
+                f"{missing_fields}"
+            )
+        seed = seeds[venue_id]
+        if seed.get("_expected_id") != before["id"]:
+            raise RuntimeError(
+                f"STOP/INCONCLUSIVE: venue seed ID mismatch: {venue_id}"
+            )
+        after = deepcopy(before)
+        after.update(deepcopy(_desired_payload(seed, before)))
+        after["id"] = venue_id
+        desired[venue_id] = after
+    return desired
+
+
+def _venue_rows_differ(
+    before: dict[str, Any],
+    after: dict[str, Any],
+) -> bool:
+    return any(
+        before.get(field) != after.get(field)
+        for field in set(before) | set(after)
+        if field != "updated_at"
+    )
+
+
+def _derive_final_venue_references(
+    before_references: dict[str, list[str]],
+    event_actions: dict[str, dict[str, Any]],
+) -> dict[str, list[str]]:
+    final = {
+        venue_id: set(references)
+        for venue_id, references in before_references.items()
+    }
+    for event_id, action in event_actions.items():
+        before_id = action["before"]["event"].get("venue_id")
+        after_id = action["after"]["event"].get("venue_id")
+        if before_id == after_id:
+            continue
+        if before_id in final:
+            if event_id not in final[before_id]:
+                raise RuntimeError(
+                    f"STOP/INCONCLUSIVE: missing before venue reference: "
+                    f"{before_id} -> {event_id}"
+                )
+            final[before_id].remove(event_id)
+        if after_id in final:
+            if event_id in final[after_id]:
+                raise RuntimeError(
+                    f"STOP/INCONCLUSIVE: duplicate final venue reference: "
+                    f"{after_id} -> {event_id}"
+                )
+            final[after_id].add(event_id)
+    return {
+        venue_id: sorted(references)
+        for venue_id, references in final.items()
+    }
 
 
 def _require_unique_venue_name(
@@ -792,6 +962,7 @@ def _event_fc_action(
             "skips": [],
             "already_applied": [],
             "volatile_event_fields": ["updated_at"] if "updated_at" in event else [],
+            "volatile_venue_fields": [],
         }
 
     after_event = {**before_event, **deepcopy(desired)}
@@ -881,6 +1052,7 @@ def _event_fc_action(
         "skips": skips,
         "already_applied": [],
         "volatile_event_fields": ["updated_at"] if "updated_at" in event else [],
+        "volatile_venue_fields": [],
     }
 
 
@@ -915,6 +1087,49 @@ def _venue_insert_action(
         "skips": [],
         "already_applied": [],
         "volatile_event_fields": [],
+        "volatile_venue_fields": [],
+    }
+
+
+def _venue_update_action(
+    before_row: dict[str, Any],
+    after_row: dict[str, Any],
+    *,
+    before_references: list[str],
+    after_references: list[str],
+) -> dict[str, Any]:
+    before = empty_state_image()
+    before["venue"] = deepcopy(before_row)
+    before["venue_references"] = sorted(before_references)
+    after = empty_state_image()
+    after["venue"] = deepcopy(after_row)
+    after["venue_references"] = sorted(after_references)
+    changed = _venue_rows_differ(before_row, after_row)
+    return {
+        "id": str(before_row["id"]),
+        "type": "venue_update",
+        "dependencies": [],
+        "eligibility": {
+            "status": "eligible" if changed else "skip",
+            "reason": "authoritative_venue_seed_sync",
+        },
+        "evidence": {
+            "complete": True,
+            "source": "complete_live_snapshot_and_seed_data",
+            "classification": "authoritative_venue_update",
+            "canonical_name_ja": after_row["canonical_name_ja"],
+        },
+        "before": before,
+        "after": after,
+        "apply_expected": deepcopy(before),
+        "rollback_expected": deepcopy(after),
+        "apply_operations": [],
+        "rollback_operations": [],
+        "conflicts": [],
+        "skips": [] if changed else [{"reason": "exact_desired_venue_state"}],
+        "already_applied": [],
+        "volatile_event_fields": [],
+        "volatile_venue_fields": ["updated_at"],
     }
 
 
@@ -951,6 +1166,7 @@ def _venue_delete_action(
         "skips": [],
         "already_applied": [],
         "volatile_event_fields": [],
+        "volatile_venue_fields": [],
     }
 
 
@@ -1359,6 +1575,8 @@ def validate_action(action: dict[str, Any], *, require_digest: bool) -> None:
         raise RuntimeError(f"{action['id']} eligibility evidence is incomplete")
     if not isinstance(action["volatile_event_fields"], list):
         raise RuntimeError(f"{action['id']} volatile_event_fields must be a list")
+    if not isinstance(action["volatile_venue_fields"], list):
+        raise RuntimeError(f"{action['id']} volatile_venue_fields must be a list")
     _validate_state_image(action["before"], label=f"{action['id']} before")
     _validate_state_image(action["after"], label=f"{action['id']} after")
     if action["apply_expected"] != action["before"]:
@@ -1400,6 +1618,21 @@ def validate_action(action: dict[str, Any], *, require_digest: bool) -> None:
             raise RuntimeError(f"{action['id']} venue update images are incomplete")
         if set(before_venue) != set(after_venue):
             raise RuntimeError(f"{action['id']} venue update columns differ")
+        expected_volatile = ["updated_at"] if "updated_at" in before_venue else []
+        if action["volatile_venue_fields"] != expected_volatile:
+            raise RuntimeError(
+                f"{action['id']} venue update volatility must contain only updated_at"
+            )
+        changed = _venue_rows_differ(before_venue, after_venue)
+        if action["eligibility"]["status"] == "eligible" and not changed:
+            raise RuntimeError(f"{action['id']} eligible venue update is a no-op")
+        if action["eligibility"]["status"] == "skip" and (
+            changed
+            or action["skips"] != [{"reason": "exact_desired_venue_state"}]
+        ):
+            raise RuntimeError(f"{action['id']} venue update skip is inconsistent")
+    elif action["volatile_venue_fields"]:
+        raise RuntimeError(f"{action['id']} non-update venue volatility is unsupported")
     if action["type"] == "venue_insert" and (before_venue is not None or not after_venue):
         raise RuntimeError(f"{action['id']} venue insert absence/after image is incomplete")
     if action["type"] == "venue_delete" and (not before_venue or after_venue is not None):
@@ -1665,12 +1898,25 @@ def _row_matches(
 
 
 def state_image_matches(
-    action: dict[str, Any], expected: dict[str, Any], actual: dict[str, Any], *, after: bool
+    action: dict[str, Any],
+    expected: dict[str, Any],
+    actual: dict[str, Any],
+    *,
+    after: bool,
+    allow_before_venue_volatility: bool = False,
 ) -> bool:
     expected_fc = expected["field_corrections"]
     actual_fc = actual["field_corrections"]
     return (
-        _row_matches(expected["venue"], actual["venue"], volatile_fields=[])
+        _row_matches(
+            expected["venue"],
+            actual["venue"],
+            volatile_fields=(
+                action["volatile_venue_fields"]
+                if after or allow_before_venue_volatility
+                else []
+            ),
+        )
         and _row_matches(
             expected["event"],
             actual["event"],
@@ -1684,7 +1930,12 @@ def state_image_matches(
     )
 
 
-def classify_action_state(sb: Any, action: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+def classify_action_state(
+    sb: Any,
+    action: dict[str, Any],
+    *,
+    allow_before_venue_volatility: bool = False,
+) -> tuple[str, dict[str, Any]]:
     if action["type"] == "venue_insert":
         after_venue = action["after"]["venue"]
         by_id = _fetch_one(sb, "venues", str(after_venue["id"]))
@@ -1710,14 +1961,25 @@ def classify_action_state(sb: Any, action: dict[str, Any]) -> tuple[str, dict[st
             f"STOP: venue insert ID/name absence found partial or third state: {action['id']}"
         )
     observed = observe_action(sb, action)
-    if state_image_matches(action, action["before"], observed, after=False):
+    if state_image_matches(
+        action,
+        action["before"],
+        observed,
+        after=False,
+        allow_before_venue_volatility=allow_before_venue_volatility,
+    ):
         return "before", observed
     if state_image_matches(action, action["after"], observed, after=True):
         return "after", observed
     raise RuntimeError(f"STOP: action found partial, third, or drifted state: {action['id']}")
 
 
-def preflight_actions(sb: Any, manifest: dict[str, Any]) -> tuple[str, dict[str, dict[str, Any]]]:
+def preflight_actions(
+    sb: Any,
+    manifest: dict[str, Any],
+    *,
+    allow_before_venue_volatility: bool = False,
+) -> tuple[str, dict[str, dict[str, Any]]]:
     conflicts = [
         action["id"]
         for action in manifest["actions"]
@@ -1728,9 +1990,16 @@ def preflight_actions(sb: Any, manifest: dict[str, Any]) -> tuple[str, dict[str,
     states: dict[str, str] = {}
     observations: dict[str, dict[str, Any]] = {}
     for action in manifest["actions"]:
-        if action["eligibility"]["status"] == "skip":
+        if (
+            action["eligibility"]["status"] == "skip"
+            and action["before"] == action["after"]
+        ):
             continue
-        state, observed = classify_action_state(sb, action)
+        state, observed = classify_action_state(
+            sb,
+            action,
+            allow_before_venue_volatility=allow_before_venue_volatility,
+        )
         states[action["id"]] = state
         observations[action["id"]] = observed
     unique_states = set(states.values())
@@ -1928,16 +2197,43 @@ def _venue_update(
     sb: Any,
     before: dict[str, Any],
     after: dict[str, Any],
+    *,
+    volatile_fields: list[str],
+    require_exact_before: bool,
 ) -> dict[str, Any]:
-    if _fetch_one(sb, "venues", str(before["id"])) != before:
+    live_before = _fetch_one(sb, "venues", str(before["id"]))
+    before_matches = (
+        live_before == before
+        if require_exact_before
+        else _row_matches(before, live_before, volatile_fields=volatile_fields)
+    )
+    if not before_matches:
         raise RuntimeError(f"venue update full before CAS drift: {before['id']}")
-    payload = {key: deepcopy(value) for key, value in after.items() if key != "id"}
+    volatile = set(volatile_fields)
+    payload = {
+        key: deepcopy(value)
+        for key, value in after.items()
+        if key != "id" and key not in volatile
+    }
     query = sb.table("venues").update(payload)
-    query = _apply_full_row_filters(query, before)
+    query = _apply_full_row_filters(query, live_before)
     updated = query.select("*").execute().data
-    _exact_mutation_row(updated, after, label="venue update")
+    rows = list(updated or [])
+    if len(rows) != 1 or not _row_matches(
+        after,
+        rows[0],
+        volatile_fields=volatile_fields,
+    ):
+        raise RuntimeError(
+            f"venue update exact read-back mismatch: expected one deterministic full row, "
+            f"got={rows!r}"
+        )
     read_back = _fetch_one(sb, "venues", str(after["id"]))
-    if read_back != after:
+    if read_back != rows[0] or not _row_matches(
+        after,
+        read_back,
+        volatile_fields=volatile_fields,
+    ):
         raise RuntimeError(f"venue update read-back mismatch: {after['id']}")
     return read_back
 
@@ -2036,9 +2332,21 @@ def execute_venue_action(
     after = action["after"]["venue"]
     if action["type"] == "venue_update":
         read_back = (
-            _venue_update(sb, before, after)
+            _venue_update(
+                sb,
+                before,
+                after,
+                volatile_fields=action["volatile_venue_fields"],
+                require_exact_before=True,
+            )
             if direction == "apply"
-            else _venue_update(sb, after, before)
+            else _venue_update(
+                sb,
+                after,
+                before,
+                volatile_fields=action["volatile_venue_fields"],
+                require_exact_before=False,
+            )
         )
     elif action["type"] == "venue_insert":
         if direction == "apply":
@@ -2056,6 +2364,9 @@ def execute_venue_action(
         raise RuntimeError(f"unsupported venue action: {action['type']}")
     observed = observe_action(sb, action)
     expected = action["after"] if direction == "apply" else action["before"]
+    if direction == "apply" and action["type"] == "venue_update":
+        expected = deepcopy(expected)
+        expected["venue_references"] = deepcopy(action["before"]["venue_references"])
     if direction == "apply" and action["type"] == "venue_insert":
         expected = deepcopy(expected)
         expected["venue_references"] = deepcopy(action["before"]["venue_references"])
@@ -2067,6 +2378,9 @@ def execute_venue_action(
         expected,
         observed,
         after=direction == "apply",
+        allow_before_venue_volatility=(
+            direction == "rollback" and action["type"] == "venue_update"
+        ),
     ):
         raise RuntimeError(f"venue exact read-back mismatch: {action['id']}")
     return {"venue": read_back, "state": observed}
@@ -2074,7 +2388,10 @@ def execute_venue_action(
 
 def verify_predelete_invariants(sb: Any, manifest: dict[str, Any]) -> None:
     for action in manifest["actions"]:
-        if action["eligibility"]["status"] != "eligible":
+        status = action["eligibility"]["status"]
+        if status == "review_conflict" or (
+            status == "skip" and action["before"] == action["after"]
+        ):
             continue
         if action["type"] == "venue_delete":
             observed = observe_action(sb, action)
@@ -2163,7 +2480,11 @@ def _run_manifest(
             project_ref=project_ref,
             repo_sha_verifier=repo_sha_verifier,
         )
-        state, observations = preflight_actions(sb, manifest)
+        state, observations = preflight_actions(
+            sb,
+            manifest,
+            allow_before_venue_volatility=mode == "rollback",
+        )
         journal.append(
             "preflight_result",
             details={"state": state, "observations": observations},
@@ -2269,7 +2590,11 @@ def _run_manifest(
                 )
                 mutation_count += 1
                 completed.append(action["id"])
-            final_state, final_observations = preflight_actions(sb, manifest)
+            final_state, final_observations = preflight_actions(
+                sb,
+                manifest,
+                allow_before_venue_volatility=True,
+            )
             if final_state != "before":
                 raise RuntimeError("final rollback read-back is not exact before")
         journal.append(

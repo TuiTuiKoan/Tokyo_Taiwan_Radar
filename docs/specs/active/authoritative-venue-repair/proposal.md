@@ -124,6 +124,32 @@ Event/FC actions 經 `qa_auto_fix.unlock_and_write()` 加 expected event/FC CAS�
 zero-reference duplicate deletion 順序執行。Rollback 只可手動選擇，並以 post-apply state
 逆序 CAS。Partial state、額外 FC、不同 nonempty `submission_url` 或 human FC 一律停止。
 
+## Gate 1 correction cycle
+
+初次 Gate 1 push 後、production capture 前的唯讀程式盤點發現 blocker：exact
+`origin/main@01754b85eeaba72bf13e5ef9da4ec69ca886d17c` 的
+`build_production_plan()` 只產生 3 筆 venue inserts、59 筆 event/FC actions 與 2 筆
+venue deletes，完全沒有核准範圍內的 6 筆 existing venue updates。先前 64-action
+Tester PASS 驗證了 generic venue-update executor，卻沒有驗證 concrete production
+planner 的 target UUID inventory。發現後未查詢或修改 production，也未 capture manifest。
+
+修正後 planner 對高田世界館、TCC、TIFF multi entity、八丁座、サロンシネマ與
+センチュリーシネマ逐一產生 action。Desired rows 由 `SEED_DATA` 導出，強制比對
+`_expected_id`，遵守 `_preserve_existing_fields`，並保留 seed 未管理的 live-only columns。
+Changed rows 為 `eligible`；exact desired rows 仍保留明確 `skip` action，理由固定為
+`exact_desired_venue_state`。完整 fixture inventory 現為 6 updates、3 inserts、59 event/FC
+actions 與 2 deletes，共 70 actions。
+
+六筆 update venues 與兩筆 duplicate venues 都要求完整、排序且與 captured events
+一致的 before reference sets。Final references 從所有 event `venue_id` before/after delta
+機械推導。Venue update apply 階段暫時保留 before references，event actions 完成後才要求
+final references。`venues.updated_at` 另以 `volatile_venue_fields` 表示：apply 前仍完整 CAS
+live timestamp，但 update payload與 logical after comparison不預測 trigger值；rollback以
+實際 read-back timestamp做 full-row CAS，其餘欄位仍需精確匹配。
+
+本修正必須重新完成 Engineer validation、independent Tester與Gate 1批准。先前的 Tester
+PASS及push批准不涵蓋此 changeset；新批准前仍禁止push或manifest capture。
+
 ## Canonical venue truth
 
 既有 authoritative rows：
@@ -173,6 +199,8 @@ event/FC writes 與兩筆 duplicate 的 conditional deletion。新 digest 必須
 * Johakyu 與 Century 使用官方現址，ticket URL 不進 `location_url`
 * TCC writer regression suite 證明 external、multi-city 與 online 語意不被覆寫
 * Repair tool 覆蓋 immutable digest、full CAS、review conflict、ordering、rollback 與 idempotency
+* Concrete production planner 精確包含 6 update UUID 與完整 70-action inventory
+* Venue final references 由 event FK delta 推導，trigger timestamp 不破壞 apply 或 rollback CAS
 * 全量 scraper tests、compileall、四 source dry-runs、diff check 與 scope assertions 通過
 * Independent Tester 不得以 zero candidates 或 current-year TIFF empty 判 PASS
 * Gate 1 前 production mutation 為零

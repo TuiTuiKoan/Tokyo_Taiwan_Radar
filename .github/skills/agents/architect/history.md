@@ -159,6 +159,32 @@ case-split registration 與 external path。固定 fixture 覆蓋大寫 child、
 必須以 main worktree 的精確註冊 root 建立 expected path；device/inode 僅用來確認父目錄
 物件身分，不能取代字串 canonicality 判斷。
 
+## 2026-08-09：generic executor 測試不能替代 concrete planner inventory
+
+### Mistake
+
+Authoritative venue repair 的核准範圍明確包含六筆 existing venue updates，但
+`build_production_plan()` 實際只產生三筆 inserts、59 筆 event/FC actions 與兩筆 deletes。
+先前驗收看到 synthetic `venue_update` fixture 可 apply、rollback與idempotent，就把完整
+64-action aggregate判為PASS；沒有逐一比對 production planner應輸出的 mutation class與
+full target UUID。結果generic executor正確，concrete planner卻完全沒有update actions。
+
+### Repair
+
+在capture前建立concrete action matrix，逐列固定六個update UUID、三個insert names、
+59個event IDs與兩個delete UUID，並驗證每列的eligibility、dependency、before/final
+references及desired-state來源。Planner現在從`SEED_DATA`建立六筆update或explicit skip，
+fixture精確鎖定70 actions。另把`venues.updated_at`列為venue-specific volatility，測試
+真實模擬trigger改寫timestamp後的apply、second apply noop與rollback CAS。
+
+### Lesson
+
+Generic engine tests只證明executor能處理某種action，不能證明production planner會產生
+那種action。任何production repair在capture前都必須把核准mutation scope展開成
+`action type × full target identity × eligibility × dependencies × references`矩陣，並由
+focused test直接assert concrete planner輸出。Aggregate count只能作輔助檢查，不能取代
+逐項inventory；核准範圍中的任何class或target缺席都必須STOP，不得capture。
+
 ## 2026-08-08：「小改動走主工作樹」是規則寫進去的漏洞，不是疏忽
 
 ### Mistake

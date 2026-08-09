@@ -10,7 +10,7 @@ import pytest
 
 import _oneoff_repair_authoritative_venues as repair
 import qa_auto_fix
-from test_qa_auto_fix_unlock_only import FakeSupabase
+from test_qa_auto_fix_unlock_only import FakeQuery, FakeSupabase, FakeTable
 
 
 PROJECT_REF = "cjtndektjjpvvjofdvzr"
@@ -67,6 +67,16 @@ EXPECTED_EXPLICIT_TARGET_EVENT_IDS = frozenset(
         "d0d85c6e-7b33-4477-9055-e9f18bde4861",
         "4a372b17-ca36-4e61-a9db-2a93323ad88e",
         "d3bff09a-bb0e-4991-afc0-21376d62400d",
+    }
+)
+EXPECTED_UPDATE_VENUE_IDS = frozenset(
+    {
+        "1de8358d-f100-487d-aff3-cff7f686ae0a",
+        repair.TCC_CANONICAL_VENUE_ID,
+        repair.TIFF_MULTI_VENUE_ID,
+        "10a9aa7a-f8e1-4721-9fd8-77af830b74d2",
+        "29fef1e9-67d1-457f-81a2-17b1d80437f8",
+        repair.CENTURY_VENUE_ID,
     }
 )
 
@@ -174,6 +184,7 @@ def _event_action(**overrides):
         "skips": [],
         "already_applied": [],
         "volatile_event_fields": ["updated_at"],
+        "volatile_venue_fields": [],
     }
     action.update(overrides)
     return action
@@ -254,7 +265,47 @@ def _venue_action(
         "skips": [],
         "already_applied": [],
         "volatile_event_fields": [],
+        "volatile_venue_fields": ["updated_at"] if action_type == "venue_update" else [],
     }
+
+
+class TimestampTriggerQuery(FakeQuery):
+    def execute(self):
+        targets = (
+            self._selected()
+            if self.table_name == "venues" and self.op == "update"
+            else []
+        )
+        result = super().execute()
+        if targets:
+            self.client.trigger_count += 1
+            timestamp = f"2026-08-06T00:00:0{self.client.trigger_count}+00:00"
+            for row in targets:
+                row["updated_at"] = timestamp
+            result.data = self._projected(targets, self.returning)
+        return result
+
+
+class TimestampTriggerTable(FakeTable):
+    def update(self, payload):
+        return TimestampTriggerQuery(
+            self.client,
+            self.name,
+            "update",
+            payload=payload,
+        )
+
+
+class TimestampTriggerSupabase(FakeSupabase):
+    def __init__(self, tables):
+        super().__init__(tables)
+        self.trigger_count = 0
+
+    def table(self, name):
+        self.tables.setdefault(name, [])
+        if name == "venues":
+            return TimestampTriggerTable(self, name)
+        return FakeTable(self, name)
 
 
 def _unlink_action(delete_venue, *, dependencies=None):
@@ -318,6 +369,7 @@ def _unlink_action(delete_venue, *, dependencies=None):
         "skips": [],
         "already_applied": [],
         "volatile_event_fields": ["updated_at"],
+        "volatile_venue_fields": [],
     }
 
 
@@ -444,6 +496,17 @@ def _production_fc(event_id, field_name, corrected_value, number, **overrides):
 
 
 def _production_snapshot():
+    high_takada = _production_venue(
+        "1de8358d-f100-487d-aff3-cff7f686ae0a",
+        "高田世界館",
+        "高田世界館",
+        "Takada Sekaikan",
+        "新潟県上越市本町6丁目4-20",
+        ["新潟県"],
+        "https://live-preserved.example/high-takada",
+        aliases=["高田世界館", "Takada Sekaikan", "stale alias"],
+        business_hours="上映スケジュールによる",
+    )
     tcc = _production_venue(
         repair.TCC_CANONICAL_VENUE_ID,
         "台北駐日経済文化代表処 台湾文化センター",
@@ -474,6 +537,28 @@ def _production_snapshot():
         "愛知県名古屋市中区栄3-29-1 名古屋パルコ東館8F",
         ["愛知県"],
         "https://eiga.starcat.co.jp/theater/century/",
+    )
+    hatchoza = _production_venue(
+        "10a9aa7a-f8e1-4721-9fd8-77af830b74d2",
+        "八丁座",
+        "八丁座",
+        "Hatchobori",
+        "広島県広島市中区胡町6-26 福屋八丁堀本店8階",
+        ["広島県"],
+        "https://johakyu.co.jp/",
+        aliases=["Hatchobori", "サロンシネマ", "サロンシネマ1・2"],
+        business_hours="上映スケジュールによる",
+    )
+    salon_cinema = _production_venue(
+        "29fef1e9-67d1-457f-81a2-17b1d80437f8",
+        "サロンシネマ",
+        "沙龍影城",
+        "Salon Cinema",
+        "広島県広島市中区八丁堀16-10 広島東映プラザビル8F",
+        ["広島県"],
+        "https://johakyu.co.jp/",
+        aliases=["サロンシネマ1・2", "Salon Cinema"],
+        business_hours="上映スケジュールによる",
     )
     japanese_duplicate = _production_venue(
         repair.TCC_JAPANESE_DUPLICATE_VENUE_ID,
@@ -641,8 +726,11 @@ def _production_snapshot():
         "field_corrections": field_corrections,
         "field_corrections_complete_event_ids": sorted(row["id"] for row in events),
         "venues": [
+            high_takada,
             tcc,
             tiff_multi,
+            hatchoza,
+            salon_cinema,
             century,
             japanese_duplicate,
             chinese_duplicate,
@@ -651,6 +739,12 @@ def _production_snapshot():
         "frozen_new_venue_ids": deepcopy(FROZEN_NEW_VENUE_IDS),
         "tcc_canonical_linked_event_ids": cohort_ids,
         "venue_references": {
+            high_takada["id"]: [],
+            tcc["id"]: cohort_ids,
+            tiff_multi["id"]: sorted(repair.TIFF_EVENT_IDS),
+            hatchoza["id"]: [],
+            salon_cinema["id"]: [],
+            century["id"]: [repair.CENTURY_EVENT_IDS[0]],
             repair.TCC_JAPANESE_DUPLICATE_VENUE_ID: japanese_refs,
             repair.TCC_CHINESE_DUPLICATE_VENUE_ID: [
                 repair.CHINESE_DUPLICATE_EVENT_ID
@@ -752,6 +846,206 @@ def test_production_planner_rejects_missing_explicit_target():
     with pytest.raises(
         RuntimeError,
         match=f"STOP/INCONCLUSIVE: missing explicit target event UUIDs: {missing_id}",
+    ):
+        repair.build_production_plan(snapshot)
+
+
+def test_production_planner_has_exact_six_existing_venue_update_actions():
+    plan = repair.build_production_plan(_production_snapshot())
+    updates = {
+        action["id"]: action
+        for action in plan["actions"]
+        if action["type"] == "venue_update"
+    }
+
+    assert set(updates) == EXPECTED_UPDATE_VENUE_IDS
+    assert all(action["before"]["venue"]["id"] == venue_id for venue_id, action in updates.items())
+    assert all(action["after"]["venue"]["id"] == venue_id for venue_id, action in updates.items())
+    assert all(action["eligibility"]["status"] == "eligible" for action in updates.values())
+
+
+def test_production_planner_locks_complete_seventy_action_inventory():
+    actions = repair.build_production_plan(_production_snapshot())["actions"]
+
+    assert len(actions) == 70
+    assert [action["type"] for action in actions].count("venue_update") == 6
+    assert [action["type"] for action in actions].count("venue_insert") == 3
+    assert [action["type"] for action in actions].count("event_fc") == 59
+    assert [action["type"] for action in actions].count("venue_delete") == 2
+    assert {
+        action["id"] for action in actions if action["type"] == "venue_update"
+    } == EXPECTED_UPDATE_VENUE_IDS
+
+
+def test_production_planner_derives_seed_updates_and_preserves_live_only_fields():
+    snapshot = _production_snapshot()
+    high_takada = next(
+        venue
+        for venue in snapshot["venues"]
+        if venue["id"] == repair.HIGH_TAKADA_VENUE_ID
+    )
+    high_takada["capture_only_column"] = "preserve me"
+
+    actions = _actions_by_id(repair.build_production_plan(snapshot))
+    high_after = actions[repair.HIGH_TAKADA_VENUE_ID]["after"]["venue"]
+    tiff_after = actions[repair.TIFF_MULTI_VENUE_ID]["after"]["venue"]
+    hatchoza_after = actions[repair.HATCHOZA_VENUE_ID]["after"]["venue"]
+    salon_after = actions[repair.SALON_CINEMA_VENUE_ID]["after"]["venue"]
+    century_after = actions[repair.CENTURY_VENUE_ID]["after"]["venue"]
+
+    assert high_after["address"] == "新潟県上越市本町6丁目4-21"
+    assert high_after["homepage"] == "https://live-preserved.example/high-takada"
+    assert high_after["aliases"] == ["Takada Sekaikan"]
+    assert high_after["capture_only_column"] == "preserve me"
+    assert tiff_after["homepage"] == "https://2025.tiff-jp.net/"
+    assert tiff_after["is_authoritative"] is True
+    assert tiff_after["is_multi_venue"] is True
+    assert hatchoza_after["aliases"] == ["Hatchobori"]
+    assert salon_after["address"].endswith("8階")
+    assert century_after["address"].endswith("8F")
+    assert century_after["aliases"] == []
+
+
+def test_production_planner_rejects_missing_existing_venue_seed(monkeypatch):
+    import _oneoff_seed_authoritative_venues as seed_module
+
+    seeds = [
+        seed
+        for seed in deepcopy(seed_module.SEED_DATA)
+        if seed.get("canonical_name_ja") != "高田世界館"
+    ]
+    monkeypatch.setattr(seed_module, "SEED_DATA", seeds)
+
+    with pytest.raises(
+        RuntimeError,
+        match=(
+            "existing venue desired-state seeds are incomplete: "
+            f"{repair.HIGH_TAKADA_VENUE_ID}"
+        ),
+    ):
+        repair.build_production_plan(_production_snapshot())
+
+
+def test_production_planner_rejects_existing_venue_seed_id_mismatch(monkeypatch):
+    import _oneoff_seed_authoritative_venues as seed_module
+
+    seeds = deepcopy(seed_module.SEED_DATA)
+    seed = next(
+        row for row in seeds if row.get("canonical_name_ja") == "高田世界館"
+    )
+    seed["_expected_id"] = repair.TCC_CANONICAL_VENUE_ID
+    monkeypatch.setattr(seed_module, "SEED_DATA", seeds)
+
+    with pytest.raises(
+        RuntimeError,
+        match="venue seed ID mismatch: 高田世界館",
+    ):
+        repair.build_production_plan(_production_snapshot())
+
+
+def test_production_planner_rejects_incomplete_existing_venue_before_image():
+    snapshot = _production_snapshot()
+    high_takada = next(
+        venue
+        for venue in snapshot["venues"]
+        if venue["id"] == repair.HIGH_TAKADA_VENUE_ID
+    )
+    high_takada.pop("updated_at")
+
+    with pytest.raises(
+        RuntimeError,
+        match=(
+            f"venue {repair.HIGH_TAKADA_VENUE_ID} lacks complete before columns: "
+            r"\['updated_at'\]"
+        ),
+    ):
+        repair.build_production_plan(snapshot)
+
+
+def test_exact_desired_venue_is_explicit_skip_and_not_an_event_dependency():
+    from _oneoff_seed_authoritative_venues import SEED_DATA, _desired_payload
+
+    snapshot = _production_snapshot()
+    tcc = next(
+        venue
+        for venue in snapshot["venues"]
+        if venue["id"] == repair.TCC_CANONICAL_VENUE_ID
+    )
+    seed = next(
+        row
+        for row in SEED_DATA
+        if row.get("_expected_id") == repair.TCC_CANONICAL_VENUE_ID
+    )
+    tcc.update(deepcopy(_desired_payload(seed, tcc)))
+
+    actions = _actions_by_id(repair.build_production_plan(snapshot))
+    update = actions[repair.TCC_CANONICAL_VENUE_ID]
+
+    assert update["eligibility"]["status"] == "skip"
+    assert update["skips"] == [{"reason": "exact_desired_venue_state"}]
+    assert update["before"]["venue"] == update["after"]["venue"]
+    for event_id in (
+        *repair.TCC_MIGRATE_EVENT_IDS,
+        *repair.TCC_ATTACH_EVENT_IDS,
+        *COHORT_EVENT_IDS,
+    ):
+        assert repair.TCC_CANONICAL_VENUE_ID not in actions[event_id]["dependencies"]
+
+
+def test_desired_venue_after_values_flow_into_dependent_event_actions():
+    snapshot = _production_snapshot()
+    tcc = next(
+        venue
+        for venue in snapshot["venues"]
+        if venue["id"] == repair.TCC_CANONICAL_VENUE_ID
+    )
+    tcc["address"] = "stale live address"
+
+    actions = _actions_by_id(repair.build_production_plan(snapshot))
+    venue_after = actions[repair.TCC_CANONICAL_VENUE_ID]["after"]["venue"]
+    event_action = actions[repair.TCC_MIGRATE_EVENT_IDS[0]]
+
+    assert venue_after["address"] == "東京都港区虎ノ門1-1-12 虎ノ門ビル2階"
+    assert event_action["after"]["event"]["location_address"] == venue_after["address"]
+    assert event_action["dependencies"] == [repair.TCC_CANONICAL_VENUE_ID]
+
+
+def test_update_reference_sets_are_mechanically_derived_from_event_fk_deltas():
+    snapshot = _production_snapshot()
+    actions = _actions_by_id(repair.build_production_plan(snapshot))
+
+    expected_tcc = sorted(
+        (
+            set(snapshot["venue_references"][repair.TCC_CANONICAL_VENUE_ID])
+            | set(repair.TCC_MIGRATE_EVENT_IDS)
+            | set(repair.TCC_ATTACH_EVENT_IDS)
+        )
+        - {repair.ONLINE_GRANT_EVENT_ID}
+    )
+    assert actions[repair.TCC_CANONICAL_VENUE_ID]["after"]["venue_references"] == expected_tcc
+    assert len(expected_tcc) == 37
+    assert actions[repair.TIFF_MULTI_VENUE_ID]["after"]["venue_references"] == [
+        repair.TIFF_EVENT_IDS[0]
+    ]
+    assert actions[repair.CENTURY_VENUE_ID]["after"]["venue_references"] == sorted(
+        repair.CENTURY_EVENT_IDS
+    )
+    for venue_id in (
+        repair.HIGH_TAKADA_VENUE_ID,
+        repair.HATCHOZA_VENUE_ID,
+        repair.SALON_CINEMA_VENUE_ID,
+    ):
+        assert actions[venue_id]["before"]["venue_references"] == []
+        assert actions[venue_id]["after"]["venue_references"] == []
+
+
+def test_production_planner_rejects_missing_update_venue_reference_coverage():
+    snapshot = _production_snapshot()
+    snapshot["venue_references"].pop(repair.HIGH_TAKADA_VENUE_ID)
+
+    with pytest.raises(
+        RuntimeError,
+        match="venue reference set is incomplete or unsorted",
     ):
         repair.build_production_plan(snapshot)
 
@@ -1728,15 +2022,17 @@ def test_full_batch_preflight_finishes_before_first_write(monkeypatch, tmp_path)
 
 def test_eligible_action_cannot_depend_on_skipped_action(monkeypatch, tmp_path):
     venue_before = _venue(VENUE_UPDATE_ID, "Skipped Venue", "Old address")
-    venue_after = {**venue_before, "address": "New address"}
     skipped = _venue_action(
         action_id=VENUE_UPDATE_ACTION_ID,
         action_type="venue_update",
         before_venue=venue_before,
-        after_venue=venue_after,
+        after_venue=deepcopy(venue_before),
     )
-    skipped["eligibility"] = {"status": "skip", "reason": "synthetic skip"}
-    skipped["skips"] = [{"reason": "synthetic skip"}]
+    skipped["eligibility"] = {
+        "status": "skip",
+        "reason": "authoritative_venue_seed_sync",
+    }
+    skipped["skips"] = [{"reason": "exact_desired_venue_state"}]
     event_action = _event_action(dependencies=[VENUE_UPDATE_ACTION_ID])
     client = FakeSupabase(
         {
@@ -1837,7 +2133,9 @@ def test_apply_inspects_helper_args_payload_order_full_cas_and_read_back(
     update_action, insert_action, event_action, delete_action = manifest["actions"]
     venue_update = data_writes[0]
     assert venue_update[2] == {
-        key: value for key, value in update_action["after"]["venue"].items() if key != "id"
+        key: value
+        for key, value in update_action["after"]["venue"].items()
+        if key not in {"id", "updated_at"}
     }
     assert {column for _, column, _ in venue_update[3]} == set(
         update_action["before"]["venue"]
@@ -1883,6 +2181,104 @@ def test_apply_inspects_helper_args_payload_order_full_cas_and_read_back(
     )
     assert sum(entry["event"] == "action_read_back" for entry in entries) == 4
     assert stat.S_IMODE(Path(result["journal"]).stat().st_mode) == 0o444
+
+
+def test_venue_update_accepts_before_references_until_event_fk_actions_run():
+    snapshot = _production_snapshot()
+    action = _actions_by_id(repair.build_production_plan(snapshot))[
+        repair.TCC_CANONICAL_VENUE_ID
+    ]
+    client = FakeSupabase(
+        {
+            "venues": deepcopy(snapshot["venues"]),
+            "events": deepcopy(snapshot["events"]),
+            "field_corrections": deepcopy(snapshot["field_corrections"]),
+        }
+    )
+
+    result = repair.execute_venue_action(client, action, direction="apply")
+
+    assert result["state"]["venue_references"] == action["before"]["venue_references"]
+    assert result["state"]["venue_references"] != action["after"]["venue_references"]
+    with pytest.raises(RuntimeError, match="partial, third, or drifted"):
+        repair.classify_action_state(client, action)
+
+
+def test_trigger_mutated_venue_timestamp_supports_apply_noop_and_rollback(
+    monkeypatch,
+    tmp_path,
+):
+    before = _venue(VENUE_UPDATE_ID, "Trigger Venue", "Old address")
+    after = {**before, "address": "New address"}
+    action = _venue_action(
+        action_id=VENUE_UPDATE_ACTION_ID,
+        action_type="venue_update",
+        before_venue=before,
+        after_venue=after,
+    )
+    client = TimestampTriggerSupabase(
+        {
+            "venues": [deepcopy(before)],
+            "events": [],
+            "field_corrections": [],
+        }
+    )
+    manifest = _preview(client, action)
+
+    applied = _apply(client, manifest, monkeypatch, tmp_path, name="trigger-apply.jsonl")
+
+    live_after = _fetch_venue(client, VENUE_UPDATE_ID)
+    assert live_after["address"] == "New address"
+    assert live_after["updated_at"] == "2026-08-06T00:00:01+00:00"
+    update_writes = [
+        write
+        for write in client.writes
+        if write[0] == "venues" and write[1] == "update"
+    ]
+    assert "updated_at" not in update_writes[0][2]
+    assert ("eq", "updated_at", before["updated_at"]) in update_writes[0][3]
+    journal_read_back = next(
+        entry["details"]["state"]["venue"]
+        for entry in _journal_entries(Path(applied["journal"]))
+        if entry["event"] == "action_read_back"
+    )
+    assert journal_read_back["updated_at"] == live_after["updated_at"]
+
+    writes_after_apply = deepcopy(client.writes)
+    second = _apply(
+        client,
+        manifest,
+        monkeypatch,
+        tmp_path,
+        name="trigger-second.jsonl",
+    )
+    assert second["status"] == "noop"
+    assert client.writes == writes_after_apply
+
+    rolled_back = _rollback(
+        client,
+        manifest,
+        monkeypatch,
+        tmp_path,
+        name="trigger-rollback.jsonl",
+    )
+
+    live_before = _fetch_venue(client, VENUE_UPDATE_ID)
+    assert rolled_back["status"] == "completed"
+    assert live_before["address"] == "Old address"
+    assert live_before["updated_at"] == "2026-08-06T00:00:02+00:00"
+    final_update = [
+        write
+        for write in client.writes
+        if write[0] == "venues" and write[1] == "update"
+    ][-1]
+    assert "updated_at" not in final_update[2]
+    assert ("eq", "updated_at", "2026-08-06T00:00:01+00:00") in final_update[3]
+    assert repair.preflight_actions(
+        client,
+        manifest,
+        allow_before_venue_volatility=True,
+    )[0] == "before"
 
 
 def _fetch_event(client, event_id):
@@ -1993,6 +2389,7 @@ def _sentinel_action():
         "skips": [],
         "already_applied": [],
         "volatile_event_fields": ["updated_at"],
+        "volatile_venue_fields": [],
     }
 
 

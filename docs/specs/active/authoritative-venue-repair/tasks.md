@@ -332,6 +332,35 @@ shows that Starcat has exactly one changed address line and the TCC writer has z
 Gate 1 remains entirely unchecked because the validated changeset has not yet been presented
 to the user and no current push approval has been requested or granted.
 
+## Gate 1 correction cycle 2
+
+Capture preparation stopped before any production query when the pushed planner was found to
+contain zero concrete `venue_update` actions. Exact failing evidence on the old SHA showed an
+empty update UUID set instead of the six approved existing venues. The earlier 64-action PASS
+therefore did not satisfy the approved production mutation inventory.
+
+* [x] Reproduce the old planner omission with a focused failing test
+* [x] Add exact update actions for all six approved full venue UUIDs
+* [x] Derive desired rows from `SEED_DATA` and enforce `_expected_id`
+* [x] Preserve `_preserve_existing_fields` and seed-unmanaged live-only columns
+* [x] Emit explicit `exact_desired_venue_state` skip actions for no-op venue rows
+* [x] Build dependent event desired fields from venue after-images
+* [x] Depend on venue updates only when the update action is eligible
+* [x] Require complete sorted reference sets for all six update venues
+* [x] Derive final venue references from every planned event FK delta
+* [x] Accept before references only during the update-before-event transitional phase
+* [x] Separate `volatile_venue_fields` from event timestamp volatility
+* [x] Exclude trigger-managed `updated_at` from payload and logical after comparison
+* [x] CAS rollback against the actual post-apply timestamp and journal each read-back
+* [x] Lock the complete fixture inventory at 6 updates, 3 inserts, 59 event/FC, 2 deletes
+* [x] Focused repair suite PASS with 60 tests
+* [x] Compileall, editor diagnostics, diff check and exact path-scope assertion PASS
+* [ ] Independent Tester reruns the correction acceptance matrix and reports PASS
+* [ ] Present a fresh Gate 1 report and obtain approval for this exact changeset
+
+No production query, production mutation, manifest preview, manifest capture, push, merge,
+main-worktree commit, stash or clean was executed during this correction cycle.
+
 ## Gate 1: Push approval
 
 * [ ] 顯示 exact local commits 與全部 changed paths

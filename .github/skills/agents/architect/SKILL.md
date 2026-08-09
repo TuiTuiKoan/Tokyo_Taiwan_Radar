@@ -13,6 +13,14 @@ Read this at the start of every session before producing any plan.
 - Identify all code paths affected by a data model change — not just the obvious one (a new column needs both the table AND every writer that populates it).
 - Never ship a plan with an untested API or signature change. Include an explicit smoke-test step.
 - Confirm that all pending migrations are applied before designing features that build on them.
+- Production repair plans must define a concrete action matrix before capture. Expand every
+   approved mutation class into full target identities, expected `eligible` or explicit `skip`
+   status, dependencies, complete before references, and mechanically derived final references.
+   Focused tests must assert the real production planner output by action type and full identity;
+   a generic executor fixture or aggregate action count cannot prove planner completeness. Any
+   approved class or target missing from the matrix blocks capture. Trigger-managed fields need
+   entity-specific volatility metadata, exact live before CAS, observed read-back in the journal,
+   and rollback CAS against the observed physical value without weakening deterministic fields.
 - **Domain-policy surface audit（2026-07-11 教訓）**：需求若把某類記錄的欄位定義為「不適用、隱藏、免 QA、不得自動補值」，不可只改公開頁面的摘要列。計畫起草前必須建立 surface matrix，逐層追查：(1) scraper 分類與提取、(2) database writer／entity enrichment、(3) annotator／field corrections、(4) backfill 與 rollback、(5) QA detect／fix／reconcile、(6) admin quality metrics、(7) 公開摘要／敘事／FAQ／Calendar／回報 UI、(8) JSON-LD／SEO。每層都要明列適用 predicate、未來寫入守衛、legacy cleanup 與負向 fixture；缺任一層都可能讓已隱藏資料從衍生輸出重新洩漏。
 - **Policy supersession contradiction audit**：以新政策取代舊政策時，audit scope 是完整 policy surface，不是最先發現矛盾的 owner file。必須對每個 target agent、SKILL、history artifact，以及被連結且仍作 normative guidance 的 history 執行 exact 與 semantic search，涵蓋舊 predicates、code examples、exceptions、producers／consumers及 URL／field ownership。每個命中都必須分類為 active 或 historical；active guidance 要更新或明確限縮，含過時值的 historical fact 必須在相鄰位置標示 non-normative／superseded。Acceptance 的 negative search 必須覆蓋所有 target artifacts 與 linked normative history，證明舊行為已消失。
 - **Multi-phase manifest executability guard（2026-08-03 教訓）**：broad inventory 與
