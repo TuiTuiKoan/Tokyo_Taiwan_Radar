@@ -1,0 +1,121 @@
+# Companion to deps-verify.yml. The local dev device cannot reach the public npm registry,
+# so an override added to web/package.json can only be resolved into a lockfile on a runner.
+# This is the only workflow in the repo that requests contents: write, and main has no branch
+# protection, so the two hard guards below (branch allowlist, change-scope allowlist) are the
+# sole line of defence and must fail closed.
+name: deps-lockfile-sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to sync (must match chore/deps-*)'
+        required: true
+        default: 'chore/deps-security'
+  push:
+    branches: ['chore/deps-**']
+    paths: ['web/package.json']
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    # Belt and braces against a self-trigger loop: GITHUB_TOKEN pushes never re-trigger
+    # workflows, and the paths filter above already excludes this job's lockfile-only commit.
+    if: github.actor != 'github-actions[bot]'
+    permissions:
+      contents: write
+
+    steps:
+      # Deliberately ahead of checkout: the branch name is validated before it reaches
+      # actions/checkout or git push, so neither ever sees an unvetted ref.
+      - name: Resolve and validate target branch
+        id: target
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_BRANCH: ${{ github.event.inputs.branch }}
+          PUSH_BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
+            target="${DISPATCH_BRANCH}"
+          else
+            target="${PUSH_BRANCH}"
+          fi
+          case "${target}" in
+            ''|main|master|HEAD|*..*)
+              echo "::error::refusing protected, empty or traversal branch: '${target}'"
+              exit 1
+              ;;
+          esac
+          if ! printf '%s' "${target}" | grep -Eq '^chore/deps-[A-Za-z0-9._/-]+$'; then
+            echo "::error::branch must match chore/deps-*: '${target}'"
+            exit 1
+          fi
+          echo "branch=${target}" >> "$GITHUB_OUTPUT"
+          echo "validated target branch: ${target}"
+
+      - name: Checkout target branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ steps.target.outputs.branch }}
+          persist-credentials: true
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10.33.3
+
+      # No dependency cache on purpose, same reason as deps-verify: a restored store would
+      # mask whether every newly resolved version is actually fetchable from the registry.
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+
+      - name: Resolve lockfile against updated manifest
+        working-directory: web
+        run: pnpm install --no-frozen-lockfile
+
+      # Runs from the repo root so --porcelain paths are repo-relative. -uall expands
+      # untracked directories, so a stray new file cannot hide inside a collapsed entry.
+      - name: Enforce lockfile-only change scope
+        id: scope
+        run: |
+          set -euo pipefail
+          paths="$(git status --porcelain=v1 -uall | cut -c4- | sort -u)"
+          if [ -z "${paths}" ]; then
+            echo "lockfile already in sync; nothing to commit"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "${paths}" != "web/pnpm-lock.yaml" ]; then
+            echo "::error::install touched paths other than web/pnpm-lock.yaml"
+            git status --porcelain=v1 -uall
+            exit 1
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          git --no-pager diff --stat -- web/pnpm-lock.yaml
+
+      - name: Commit and push lockfile
+        if: steps.scope.outputs.changed == 'true'
+        env:
+          TARGET_BRANCH: ${{ steps.target.outputs.branch }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- web/pnpm-lock.yaml
+          staged="$(git diff --cached --name-only)"
+          if [ "${staged}" != "web/pnpm-lock.yaml" ]; then
+            echo "::error::staged set is not exactly web/pnpm-lock.yaml"
+            printf '%s\n' "${staged}"
+            exit 1
+          fi
+          git commit \
+            -m 'chore(deps): sync pnpm lockfile' \
+            -m 'Resolved on CI by deps-lockfile-sync after a web/package.json override change, because the local device cannot reach the public npm registry.'
+          git push origin "HEAD:refs/heads/${TARGET_BRANCH}"
+          echo "pushed $(git rev-parse HEAD) to ${TARGET_BRANCH}"
