@@ -18,7 +18,7 @@
   "dependencies": {
     "@sentry/nextjs": "^10.69.0",
     "@supabase/ssr": "^0.12.4",
-    "@supabase/supabase-js": "^2.112.0",
+    "@supabase/supabase-js": "^2.112.2",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
     "gray-matter": "^4.0.3",
@@ -42,7 +42,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
     "tailwindcss": "^4",
-    "tsx": "^4.23.6",
+    "tsx": "^4.23.10",
     "typescript": "^6"
   },
   "pnpm": {
