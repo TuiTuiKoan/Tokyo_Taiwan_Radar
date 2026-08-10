@@ -1,0 +1,97 @@
+name: web-auth-smoke
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - web/**
+      - .github/workflows/web-auth-smoke.yml
+  workflow_dispatch:
+
+jobs:
+  auth-smoke:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install web dependencies
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+
+      - name: Generate specs snapshot
+        working-directory: web
+        run: pnpm run build-specs-snapshot
+
+      - name: Create .env.local for CI
+        working-directory: web
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          echo "NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL}" >> .env.local
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}" >> .env.local
+          echo "NEXT_PUBLIC_SITE_URL=http://127.0.0.1:3000" >> .env.local
+
+      - name: Start Next.js app
+        working-directory: web
+        run: |
+          pnpm dev --hostname 127.0.0.1 --port 3000 > /tmp/web-auth-smoke-next.log 2>&1 &
+          echo $! > /tmp/web-auth-smoke-next.pid
+
+      - name: Wait for app health
+        run: |
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:3000/ja > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "App did not become ready in time"
+          echo "=== Next.js dev server log ==="
+          cat /tmp/web-auth-smoke-next.log || true
+          exit 1
+
+      - name: Run authenticated intake smoke test
+        working-directory: web
+        env:
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: pnpm run test:e2e:auth-smoke
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-auth-smoke
+          path: web/playwright-report
+          if-no-files-found: ignore
+
+      - name: Stop Next.js app
+        if: always()
+        run: |
+          if [ -f /tmp/web-auth-smoke-next.pid ]; then
+            kill "$(cat /tmp/web-auth-smoke-next.pid)" || true
+          fi
