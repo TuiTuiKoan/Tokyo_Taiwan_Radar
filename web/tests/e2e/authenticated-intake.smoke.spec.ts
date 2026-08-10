@@ -1,6 +1,6 @@
 import { readFileSync } from "fs";
 import { join } from "path";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const LOCALES = ["ja", "zh", "en"] as const;
 type Locale = (typeof LOCALES)[number];
@@ -12,6 +12,7 @@ const PLACEHOLDER_KEYS = [
 ] as const;
 
 const ORGANIZER_STATE = join(process.cwd(), "tests/e2e/.auth/organizer.json");
+const ADMIN_STATE = join(process.cwd(), "tests/e2e/.auth/admin.json");
 const SUBTLE_PLACEHOLDER_CLASS = /placeholder:text-fg-subtle/;
 
 type Messages = {
@@ -24,39 +25,46 @@ function messagesFor(locale: Locale): Messages {
   return JSON.parse(readFileSync(file, "utf8")) as Messages;
 }
 
+async function openManualIntake(page: Page, locale: Locale, path: string): Promise<void> {
+  await page.goto(`/${locale}${path}`);
+  await expect(page).toHaveURL(new RegExp(`${locale}${path}`));
+  await page
+    .getByRole("button", { name: messagesFor(locale).eventIntake.chooseManual, exact: true })
+    .click();
+}
+
+async function expectLocalizedPlaceholders(page: Page, locale: Locale): Promise<void> {
+  const messages = messagesFor(locale);
+  for (const key of PLACEHOLDER_KEYS) {
+    const expected = messages.admin[key];
+    expect(expected, `${locale}.admin.${key} must exist`).toBeTruthy();
+    expect(expected, `${locale}.admin.${key} must not be a raw key`).not.toBe(key);
+
+    const field = page.getByPlaceholder(expected, { exact: true });
+    await expect(field).toHaveCount(1);
+    await expect(field).toHaveClass(SUBTLE_PLACEHOLDER_CLASS);
+  }
+}
+
 test.describe("authenticated organizer intake placeholders", () => {
   test.use({ storageState: ORGANIZER_STATE });
 
   for (const locale of LOCALES) {
     test(`${locale}: intake placeholders are localized and subtle`, async ({ page }) => {
-      const messages = messagesFor(locale);
-
-      await page.goto(`/${locale}/account/events/new`);
-      await expect(page).toHaveURL(new RegExp(`/${locale}/account/events/new`));
-
-      await page
-        .getByRole("button", { name: messages.eventIntake.chooseManual, exact: true })
-        .click();
-
-      for (const key of PLACEHOLDER_KEYS) {
-        const expected = messages.admin[key];
-        expect(expected, `${locale}.admin.${key} must exist`).toBeTruthy();
-        expect(expected, `${locale}.admin.${key} must not be a raw key`).not.toBe(key);
-
-        const field = page.getByPlaceholder(expected, { exact: true });
-        await expect(field).toHaveCount(1);
-        await expect(field).toHaveClass(SUBTLE_PLACEHOLDER_CLASS);
-      }
+      await openManualIntake(page, locale, "/account/events/new");
+      await expectLocalizedPlaceholders(page, locale);
     });
   }
+
+  test("organizer cannot reach the admin intake", async ({ page }) => {
+    await page.goto("/ja/admin/events/new");
+    await expect(page).not.toHaveURL(/\/admin\/events\/new/);
+  });
 
   test("typed values are not rendered with the placeholder tone", async ({ page }) => {
     const messages = messagesFor("ja");
 
-    await page.goto("/ja/account/events/new");
-    await page
-      .getByRole("button", { name: messages.eventIntake.chooseManual, exact: true })
-      .click();
+    await openManualIntake(page, "ja", "/account/events/new");
 
     const performer = page.getByPlaceholder(messages.admin.performerPlaceholder, { exact: true });
     await performer.fill("実際の出演者");
@@ -79,6 +87,17 @@ test.describe("authenticated organizer intake placeholders", () => {
       expect(new Set(values).size, `${key} must differ per locale`).toBe(LOCALES.length);
     }
   });
+});
+
+test.describe("authenticated admin intake placeholders", () => {
+  test.use({ storageState: ADMIN_STATE });
+
+  for (const locale of LOCALES) {
+    test(`${locale}: admin intake placeholders match the organizer form`, async ({ page }) => {
+      await openManualIntake(page, locale, "/admin/events/new");
+      await expectLocalizedPlaceholders(page, locale);
+    });
+  }
 });
 
 test.describe("unauthenticated intake is denied", () => {
