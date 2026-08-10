@@ -3,6 +3,9 @@
 # This is the only workflow in the repo that requests contents: write, and main has no branch
 # protection, so the two hard guards below (branch allowlist, change-scope allowlist) are the
 # sole line of defence and must fail closed.
+# Manual dispatch only: the earlier push trigger existed so the workflow could run before it
+# reached the default branch. That is done, and an automatic write-permission job on every
+# chore/deps-** push is attack surface with no remaining purpose.
 name: deps-lockfile-sync
 
 on:
@@ -12,9 +15,6 @@ on:
         description: 'Branch to sync (must match chore/deps-*)'
         required: true
         default: 'chore/deps-security'
-  push:
-    branches: ['chore/deps-**']
-    paths: ['web/package.json']
 
 permissions:
   contents: read
@@ -22,8 +22,8 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    # Belt and braces against a self-trigger loop: GITHUB_TOKEN pushes never re-trigger
-    # workflows, and the paths filter above already excludes this job's lockfile-only commit.
+    # Kept after the push trigger was dropped: a workflow_dispatch can still be fired over the
+    # REST API by another workflow's GITHUB_TOKEN, and this blocks such a bot-initiated chain.
     if: github.actor != 'github-actions[bot]'
     permissions:
       contents: write
@@ -34,23 +34,23 @@ jobs:
       - name: Resolve and validate target branch
         id: target
         env:
-          EVENT_NAME: ${{ github.event_name }}
           DISPATCH_BRANCH: ${{ github.event.inputs.branch }}
-          PUSH_BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
-            target="${DISPATCH_BRANCH}"
-          else
-            target="${PUSH_BRANCH}"
-          fi
+          target="${DISPATCH_BRANCH}"
           case "${target}" in
             ''|main|master|HEAD|*..*)
               echo "::error::refusing protected, empty or traversal branch: '${target}'"
               exit 1
               ;;
+            *[$'\n'$'\r']*)
+              echo "::error::control character in branch name"
+              exit 1
+              ;;
           esac
-          if ! printf '%s' "${target}" | grep -Eq '^chore/deps-[A-Za-z0-9._/-]+$'; then
+          # Bash =~ tests the whole string; grep matched line by line, so an embedded newline
+          # could pass the allowlist and then write a second branch= line into GITHUB_OUTPUT.
+          if [[ ! "${target}" =~ ^chore/deps-[A-Za-z0-9._/-]+$ ]]; then
             echo "::error::branch must match chore/deps-*: '${target}'"
             exit 1
           fi
@@ -75,9 +75,13 @@ jobs:
         with:
           node-version: 20
 
+      # --ignore-scripts is required, not cosmetic: pnpm only blocks dependency build scripts
+      # by default, so the root project's own preinstall/postinstall hooks in web/package.json
+      # would still run here with contents: write and a credential-bearing .git/config.
+      # Lockfile resolution does not depend on lifecycle scripts, so output is unchanged.
       - name: Resolve lockfile against updated manifest
         working-directory: web
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --no-frozen-lockfile --ignore-scripts
 
       # Runs from the repo root so --porcelain paths are repo-relative. -uall expands
       # untracked directories, so a stray new file cannot hide inside a collapsed entry.
