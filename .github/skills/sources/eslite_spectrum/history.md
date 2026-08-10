@@ -4,6 +4,14 @@ Newest at top.
 
 ---
 
+## 2026-08-09 — 商品價格、子活動與官方營業時間
+
+**Error:** 夏季 umbrella 頁把單一台灣茶禮盒 `6,980円` 誤當整體活動費，相關項目沒有拆成子活動；父活動與三個店內項目也缺少可由官方 access 頁確認的一般營業時間。
+
+**Fix:** `_extract_price_info()` 改為只接受明確標示的活動費，保留 canonical parent 並建立七個直接子活動。官方店舖頁確認 `平日 11:00～20:00、土日祝 10:00～20:00`，寫入 authoritative venue seed／production ground truth；只回填四筆無專屬時段的父子活動，其他四筆保留自身日期別時段。
+
+**Lesson:** 商品售價、餐飲價格與抽選購買門檻都不是活動入場費。系列頁的獨立項目應保留各自日期、地點、時間及參加條件。營業時間優先取活動專屬時段；缺少時才用官方 `アクセス`／店舖頁建立的 venue ground truth，餐廳或租戶例外不可套到全館。
+
 ## 2026-07-11 — publication phase 3 invariant sync
 
 - publication 判定統一為 exact `event_form=['publication']`，不再以 source/category 當 pure shortcut。

@@ -129,13 +129,16 @@ Read this at the start of every session before writing any scraper.
 ## Venue Registry 使用慣例
 
 1. Scraper 端不要硬編固定場館地址。固定場館應新增到 `venues`，並設定 `is_authoritative = true`，scraper 只保留 `location_name` 原文。
-2. Annotator 會透過 `venue_registry.lookup_venue()` 自動補齊 `location_address`、`location_prefectures`、`venue_id` 與 i18n 欄位。
+2. Annotator 會透過 `venue_registry.lookup_venue_for_location()` 自動補齊 `location_address`、`location_prefectures`、`venue_id`、`location_url` 與可用的 `business_hours`。
 3. 新場館流程：先由 scraper 穩定抓到 `location_name`，確認重複出現（至少 2 筆）後，將場館加入 `scraper/_oneoff_seed_authoritative_venues.py` 的 `SEED_DATA`，並附上 pre-flight diff 無衝突證據。
 4. 多場館系列（影展等）請設定 `is_multi_venue = true`，讓 annotator 自動使用 `prefectures` 並將 `location_address` 保持為 `None`。
 5. **Seed pre-flight 衝突 SKIP の注意点**:
    - `_has_conflict()` は NFKC 正規化 + 番地レベルのトランケートで住所を比較する（exact match 禁止）。`\u3000`・全形数字・大樓名有無・都道府縣前綴の有無はすべて compatible として扱われる。
    - 衝突チェックは **active イベントのみ**（`is_active=True`）を対象にする。inactive gnews イベントの住所は不完全なことが多く、seed を誤ブロックする原因になる。
    - SKIP が出た場合は event_id sample を確認し、住所が本当に異なるか（別場所）または単なるフォーマット差異かを判別すること。
+6. **營業時間優先序**：活動頁明載的場次、日期別時段、期間限定營業時間永遠優先。只有活動沒有專屬時段時，才可 fill-only 套用 authoritative venue 的一般營業時間；既有值或 FC 不得覆寫。
+7. **官方來源閘門**：場館一般營業時間只可取自場館／營運方第一方的 `アクセス`、店舖資訊、利用案內或 `営業時間` 頁。把官方頁存入 `homepage`，把穩定的一般時間存入 `venues.business_hours`；禁止用常識推測，也禁止把餐廳、電影院或單一租戶的例外時間套到全館。
+8. **子空間保留**：`<canonical venue> + 子空間後綴`（如 `expo`、`書籍レジ`、`内 イベントスペース`）可繼承 parent venue 的地址、ID、官方頁及空白的一般時間，但必須保留更具體的 `location_name`。Parent-prefix fallback 只認 canonical name 與明確邊界，不以寬泛 alias 做 prefix match。
 
 ## Organizer Type & Registry 使用慣例
 
@@ -1095,9 +1098,8 @@ Reference incident: 2026-05-10 — event `a7a05be6`（台湾薬膳文化体験�
 - **Permanent IP series block**: For series where ALL events are non-Taiwan-themed (e.g. `名探偵コナン`), add the IP name to `_BLOCKED_SERIES`. Checked on BOTH card title (pre-load, fast-reject) AND h1 title (post-load). Card titles from search results can be truncated, so the pre-load check alone is not sufficient.
 - Taiwan relevance criterion: Taiwan must be the **theme or primary focus**, not just one venue on a multi-city tour.
 - **`organizer_url` enrichment**: iwafu ソースページは主催者の公式サイト URL を常に含むわけではない。ブランド商標の場合は `raw_description` 内の `extract_first_party_url()` で抽出を試みるか、公式サイトを手動で FC 設定すること。`organizer_url` を設定すると UI に「主催者名 ↗」リンクが自動表示される。(Incident: `a4442567` QUEEN SHOP 2026-05-31)
-- **小売 / モールイベントの `business_hours`**: デパート・ショッピングモールの定常営業時間はイベント固有ではなく venue-level データ。`venues` テーブルに `business_hours` カラムが存在しないため、現状は手動 FC 修正で対応。将来的には `venues.business_hours` カラム（migration 必要）+ `enrich_location.py` から自動取得する設計。UI 側は `event.business_hours` 存在時の表示に既対応済み。
-  - ⚠️ **必ず公式 venue サイトを確認してから FC 設定**。推測・常識での設定は誤りの原因（Incident: `a4442567` ルミネエスト `11:00〜22:30` と推測設定 → 実際は平日 `11:00〜21:00 / 土日祝 10:30〜21:00` だった）。
-  - 参考: ルミネエスト新宿（2026-05）ショッピング: 平日 11:00〜21:00 / 土日祝 10:30〜21:00、レストラン: 11:00〜22:00。
+- **小売 / モールイベントの `business_hours`**: `venues.business_hours`（migration 081 適用済み）を使用し、上記 Venue Registry の公式來源閘門と fill-only 優先序に従う。繰り返し使う一般営業時間を event ごとの手動 FC だけに閉じ込めず、authoritative seed に保存する。活動固有時刻は常に優先し、レストラン／映画館／個別テナントの例外は全館値にしない。
+  - 公式確認なしの推測は不可（Incident: `a4442567` ルミネエストを `11:00〜22:30` と推測したが、公式値はショッピング平日 `11:00〜21:00`、土日祝 `10:30〜21:00`、レストラン `11:00〜22:00`）。
 - **After adding a scraper filter, always audit the DB**: run `ilike("raw_title", "%keyword%")` to find existing records that should also be deactivated. The filter only prevents future inserts.
 - **Hard delete vs deactivation**: If an IP series is confirmed permanently non-Taiwan-themed, hard delete (`table.delete().eq("id", eid)`) rather than just deactivating. Deactivated events remain accessible via direct URL unless the event page also checks `is_active`.
 - **location_name / location_address**: Extract from `場所[：:]\s*(.+?)(?:\n|交通手段|Q&A|https?://|$)` in `main_text`.

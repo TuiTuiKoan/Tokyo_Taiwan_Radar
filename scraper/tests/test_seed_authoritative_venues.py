@@ -115,6 +115,21 @@ def test_core_desired_state_has_no_key_collisions():
     assert seed.check_key_collisions(rows) == {}
 
 
+def test_eslite_uses_official_access_page_hours_and_keeps_forum_alias():
+    venue = next(
+        row for row in seed.SEED_DATA
+        if row["canonical_name_ja"] == "誠品生活日本橋"
+    )
+
+    assert venue["homepage"] == (
+        "https://www.eslitespectrum.jp/about/store/"
+        "9cd1340f-26b6-4f55-9c33-d0487d7ac01d"
+    )
+    assert venue["address"] == "東京都中央区日本橋室町３丁目２−１ COREDO室町テラス 2F"
+    assert venue["business_hours"] == "平日 11:00～20:00、土日祝 10:00～20:00"
+    assert "誠品生活日本橋 イベントスペース「FORUM」" in venue["aliases"]
+
+
 def test_address_compatibility_normalizes_postal_nfkc_dash_and_whitespace():
     official = "東京都港区虎ノ門1-1-12 虎ノ門ビル2階"
     variants = [

@@ -231,10 +231,6 @@ def _extract_price_info(text: str) -> Optional[str]:
     labeled = _extract_labeled_value(text, _PRICE_LABEL_RE)
     if labeled:
         return labeled
-    for line in text.splitlines():
-        stripped = line.strip()
-        if "円" in stripped and len(stripped) <= 120:
-            return stripped
     return None
 
 

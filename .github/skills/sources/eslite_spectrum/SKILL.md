@@ -40,7 +40,23 @@ Class: `EsliteSpectrumScraper` → key auto-derived as `eslite_spectrum` (matche
 | `start_date` | First `YYYY-MM-DD` string found in detail page body |
 | `location_name` | Always `"誠品生活日本橋"` (hardcoded) |
 | `location_address` | Always `"東京都中央区日本橋室町3-2-1 COREDO室町テラス2F"` (hardcoded) |
+| `location_url` | Official store/access page from the authoritative venue registry |
+| `business_hours` | Event-specific schedule first; otherwise authoritative venue hours |
 | `raw_description` | `"開催日時: YYYY年MM月DD日\n\n" + main body text` |
+
+## Price And Series Semantics
+
+- `_extract_price_info()` accepts only an explicitly labelled event fee such as `参加費`, `料金`, or `入場料`.
+- An unlabeled merchandise amount, menu price, workshop item price, or spend threshold for a prize draw is not the event admission price.
+- When an umbrella page lists independently dated, located, or conditioned activities, model them as direct child events. Keep each child's own schedule and participation terms; do not flatten one product price or one nested time onto the parent.
+
+## Venue Hours Ground Truth
+
+- Official evidence: <https://www.eslitespectrum.jp/about/store/9cd1340f-26b6-4f55-9c33-d0487d7ac01d>
+- General store hours: `平日 11:00～20:00、土日祝 10:00～20:00`.
+- Persist these values in the authoritative `誠品生活日本橋` venue seed. If an event has no dedicated schedule, annotator may fill them from `venues.business_hours`.
+- Event-specific schedules always win. The official page lists separate restaurant/tenant hours; never promote those exceptions to the general venue value.
+- Labels such as `誠品生活日本橋 expo`, `誠品生活日本橋 書籍レジ`, and `誠品生活日本橋 各ショップ` keep their specific `location_name` while inheriting verified parent-venue metadata.
 
 ## Publication Rule Sync
 

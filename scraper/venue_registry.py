@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 _CANONICAL: dict[str, dict[str, Any]] | None = None
 _ALIASES: dict[str, dict[str, Any]] = {}
 _AMBIGUOUS: set[str] = set()
+_PARENT_SUFFIX_BOUNDARIES = frozenset(" \u3000(（[【「『・/:：内")
 
 
 def _register(
@@ -118,6 +119,57 @@ def lookup_venue(name: str | None) -> dict[str, Any] | None:
         return None
     hit = _CANONICAL.get(key) if _CANONICAL else None
     return hit if hit is not None else _ALIASES.get(key)
+
+
+def lookup_venue_for_location(
+    name: str | None,
+) -> tuple[dict[str, Any] | None, bool]:
+    """Resolve a venue label and report whether the label must be preserved.
+
+    Exact canonical names and ordinary aliases may be normalized from the
+    registry. Labels formed as ``<canonical><boundary><sub-space>`` keep their
+    more specific label while inheriting authoritative venue metadata. Parent
+    matching deliberately uses canonical names only, so a broad alias cannot
+    capture unrelated venues that merely share its prefix.
+    """
+    global _CANONICAL
+    if _CANONICAL is None:
+        _build_cache()
+    if not name:
+        return None, False
+    key = name.strip()
+    if not key or key in _AMBIGUOUS:
+        return None, False
+    if _CANONICAL and key in _CANONICAL:
+        return _CANONICAL[key], False
+    if key in _ALIASES:
+        row = _ALIASES[key]
+        canonical = (row.get("canonical_name_ja") or "").strip()
+        preserve_label = (
+            key.startswith(canonical)
+            and len(key) > len(canonical)
+            and key[len(canonical)] in _PARENT_SUFFIX_BOUNDARIES
+        )
+        return row, preserve_label
+
+    matches = [
+        (len(canonical), row)
+        for canonical, row in (_CANONICAL or {}).items()
+        if key.startswith(canonical)
+        and len(key) > len(canonical)
+        and key[len(canonical)] in _PARENT_SUFFIX_BOUNDARIES
+    ]
+    if not matches:
+        return None, False
+    longest = max(length for length, _ in matches)
+    rows = {row["id"]: row for length, row in matches if length == longest}
+    if len(rows) != 1:
+        logger.error(
+            "venue_registry: parent prefix %r maps to multiple authoritative venues; rejecting key.",
+            key,
+        )
+        return None, False
+    return next(iter(rows.values())), True
 
 
 def _reset_cache_for_tests() -> None:

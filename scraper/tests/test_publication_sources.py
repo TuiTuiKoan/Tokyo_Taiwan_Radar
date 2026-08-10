@@ -7,6 +7,7 @@ from sources.eslite_spectrum import (
     _SKIP_TITLE_RE,
     EsliteSpectrumScraper,
     _extract_event_datetime_range,
+    _extract_price_info,
 )
 from sources.hanmoto import (
     _normalize_official_url,
@@ -361,6 +362,17 @@ def test_eslite_labelled_one_day_event_keeps_identical_start_and_end():
     assert start == end
     assert start.date().isoformat() == "2026-07-20"
     assert hours == "13:00〜15:00"
+
+
+def test_eslite_price_requires_an_event_fee_label():
+    assert _extract_price_info("参加費：1,500円\n定員：30名") == "1,500円"
+
+    merchandise_only = (
+        "王徳傅 金萱ウーロン茶ギフトセット\n"
+        "6,980円(税込)\n"
+        "レシート合計5,000円(税込)ごとに抽選券を1枚お渡しします。"
+    )
+    assert _extract_price_info(merchandise_only) is None
 
 
 def test_eslite_publication_line_never_outranks_the_labelled_event_range():

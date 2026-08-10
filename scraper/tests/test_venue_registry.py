@@ -85,6 +85,36 @@ def test_same_row_canonical_alias_repetition_is_not_ambiguous(monkeypatch):
     assert venue_registry.lookup_venue("正規館")["id"] == "venue-1"
 
 
+def test_location_lookup_preserves_alias_and_canonical_subspace(monkeypatch):
+    venue = _venue("venue-1", "正規館", ["正規館 イベントスペース"])
+    venue["business_hours"] = "平日 11:00～20:00"
+    _install(monkeypatch, _Client([venue]))
+
+    canonical, preserve_canonical = venue_registry.lookup_venue_for_location("正規館")
+    alias, preserve_alias = venue_registry.lookup_venue_for_location(
+        "正規館 イベントスペース"
+    )
+    subspace, preserve_subspace = venue_registry.lookup_venue_for_location(
+        "正規館 書籍レジ"
+    )
+
+    assert canonical["id"] == alias["id"] == subspace["id"] == "venue-1"
+    assert subspace["business_hours"] == "平日 11:00～20:00"
+    assert preserve_canonical is False
+    assert preserve_alias is True
+    assert preserve_subspace is True
+
+
+def test_location_lookup_parent_match_is_boundary_guarded_and_canonical_only(monkeypatch):
+    _install(monkeypatch, _Client([_venue("venue-1", "正規館", ["広い別名"])]))
+
+    alias, preserve_alias = venue_registry.lookup_venue_for_location("広い別名")
+    assert alias["id"] == "venue-1"
+    assert preserve_alias is False
+    assert venue_registry.lookup_venue_for_location("正規館別館") == (None, False)
+    assert venue_registry.lookup_venue_for_location("広い別名 展示室") == (None, False)
+
+
 @pytest.mark.parametrize(
     "rows,key",
     [

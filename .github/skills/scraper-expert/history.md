@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-08-09 - official access-page venue hours fallback
+
+**問題：** 誠品夏季 umbrella 活動與三個店內子活動沒有 `business_hours`；父活動另有三筆 empty-sentinel FC，會阻止後續補值。Authoritative `誠品生活日本橋` venue 已存在，但 `business_hours=null`。既有 skill 仍沿用 migration 081 前的 venue-hours 設計說明。
+
+**根本原因：** 場館一般營業時間與活動專屬時段沒有明確來源優先序；annotator 的 venue lookup 只接受 exact name，所以 `expo`、`書籍レジ`、`各ショップ` 等 canonical+子空間標籤無法繼承 ground truth。
+
+**修復：** 以誠品官方 store/access 頁確認一般時間 `平日 11:00～20:00、土日祝 10:00～20:00`，寫入 authoritative venue seed 與 production `venues` row。新增 `lookup_venue_for_location()`，只對 canonical name 加明確後綴邊界做 parent match；alias／子空間保留原 `location_name`。Annotator prompt 明定活動專屬時段優先、一般時間只從第一方 access/store/visitor-information 頁建立的 registry fill-only 取得，租戶例外不得套到全館。
+
+**驗證：** Production manifest `5742d0438ed9` 回讀 venue 1 筆、無專屬時段 events 4 筆、FC 12 筆、`applied` audit 12 筆；另 4 個有專屬時段的子活動未修改。Venue seed 測試 11 passed；registry／sub-event fallback 測試 20 passed。
+
+**教訓：** 優先序固定為 `event-specific schedule > authoritative venue hours > UI source-link fallback`。一般時間必須先查官方 `アクセス`／店舖／利用案內／`営業時間` 頁並存到 venue ground truth，不可依常識推測，也不可用 event-level FC 取代可重用的 authoritative 資料。
+
 ## 2026-08-03 - organizer entity 型別漂移與 registry 權威化
 
 **問題：** `organizer_type` 由 GPT 逐 event 重新推斷，同一 entity 在不同 events 之間漂移。audit 實測：`台湾文化センター`（38 events）同時存在 `academic` / `cultural_institution` / `government` / `semi_official` 四型；連鎖商業書店（誠品、蔦屋、有隣堂、紀伊國屋）被依「活動主題是文化講座」誤判成 `cultural_institution` / `independent_venue`。

@@ -42,7 +42,7 @@ from bs4 import BeautifulSoup
 from category_feedback import load_corrections, build_feedback_prompt
 from selection_reason_feedback import load_sr_corrections, build_sr_feedback_prompt
 from movie_title_lookup import lookup_movie_titles, lookup_movie_titles_with_metadata
-from venue_registry import lookup_venue
+from venue_registry import lookup_venue_for_location
 from organizer_registry import lookup_organizer
 from security.injection_guard import (
     scan_for_injection,
@@ -1133,6 +1133,12 @@ OTHER RULES:
 3. Translate the event name and a concise summary description into all three languages (ja, zh, en).
 4. The description should be a clean, concise summary (2-4 sentences), NOT a copy of the raw text.
 5. Extract location, address, business hours, and pricing from the text if available.
+
+BUSINESS HOURS SOURCE RULE — CRITICAL:
+- An event-specific schedule, session time, or dated opening period in the raw text always wins over regular venue hours.
+- If no event-specific time is provided, do not guess regular hours from training knowledge. Leave business_hours null so the deterministic authoritative venue registry can fill it.
+- Venue ground truth must come from the venue/operator's first-party store, access, visitor-information, or 営業時間 page. General mall/store hours apply only to that venue; do not copy a tenant, restaurant, cinema, or other facility-specific exception to the entire venue.
+- A sub-space label such as "<venue> expo", "<venue> 書籍レジ", or "<venue>内 イベントスペース" keeps its specific location_name while inheriting only verified parent-venue metadata. Never replace its event-specific schedule with regular venue hours.
 
 NAME WRITING RULES — CRITICAL:
 - name_ja: copy the raw_title as-is. Do NOT rewrite, shorten, or "improve" it. The scraper's original title is the source of truth. Your name_ja output is only used for sub-events (the parent's name_ja is always preserved from the scraper).
@@ -2866,19 +2872,24 @@ def annotate_pending_events(
                 _loc_name_for_lookup = update_data.get("location_name")
                 _effective_is_pure = is_pure_publication_record({**event, **update_data})
                 if not _effective_is_pure and not _is_multi_city_parent(_loc_name_for_lookup):
-                    _venue = lookup_venue(_loc_name_for_lookup)
+                    _venue, _preserve_venue_label = lookup_venue_for_location(
+                        _loc_name_for_lookup
+                    )
                     if _venue:
                         _venue_cols = {
-                            "location_name": _venue.get("canonical_name_ja"),
                             "location_address": None if _venue.get("is_multi_venue") else _venue.get("address"),
                             "location_prefectures": _venue.get("prefectures") or (
                                 [_venue.get("prefecture")] if _venue.get("prefecture") else None
                             ),
-                            "location_name_zh": _venue.get("canonical_name_zh"),
-                            "location_name_en": _venue.get("canonical_name_en"),
                             "location_url": _venue.get("homepage"),
                             "venue_id": _venue.get("id"),
                         }
+                        if not _preserve_venue_label:
+                            _venue_cols.update({
+                                "location_name": _venue.get("canonical_name_ja"),
+                                "location_name_zh": _venue.get("canonical_name_zh"),
+                                "location_name_en": _venue.get("canonical_name_en"),
+                            })
                         for _col, _val in _venue_cols.items():
                             if _col in _human_protected:
                                 continue
