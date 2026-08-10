@@ -1823,6 +1823,7 @@ Add city and category pages to `sitemap.ts` with `priority: 0.7` and `changeFreq
     curl ... --data "$(jq -n --arg t "$MSG" "$JQ_FILTER")"
   ```
   Reference: commits `c38ddd5`, `b9a462c`.
+- **`supabase-js` scripts need `node-version: 22`**: `@supabase/supabase-js` requires a native `WebSocket`, which Node 20 lacks. A job that runs it outside the Next.js runtime (seed scripts, backfills, storage-state generators) dies with `Node.js detected but native WebSocket not found` **after** every install step succeeds, so the failure looks like a test failure rather than a runtime mismatch. Local machines on Node 22 pass, hiding it until CI runs. Reference: `web-auth-smoke.yml`, commit `0bc86fd1`.
 
 ### Scraper/Merger pipeline step order
 
