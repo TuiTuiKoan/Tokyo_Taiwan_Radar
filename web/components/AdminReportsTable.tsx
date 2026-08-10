@@ -514,7 +514,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                                               }))
                                             }
                                             placeholder={t("directCorrect")}
-                                            className="w-full text-xs border border-line rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-green-400 placeholder:text-fg-subtle resize-y"
+                                            className="w-full text-xs border border-line rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-green-400 resize-y"
                                           />
                                         ) : (
                                           <input
@@ -530,7 +530,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                                               }))
                                             }
                                             placeholder={t("directCorrect")}
-                                            className="w-full text-xs border border-line rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-green-400 placeholder:text-fg-subtle"
+                                            className="w-full text-xs border border-line rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-green-400"
                                           />
                                         )
                                       )}

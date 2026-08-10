@@ -476,7 +476,7 @@ export default function AdminEventForm({
             value={(form as any).performer ?? ""}
             onChange={(e) => updateField("performer", e.target.value)}
             placeholder={label("fieldPerformerPlaceholder", "performerPlaceholder")}
-            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper placeholder:text-fg-subtle"
+            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper"
           />
         </div>
 
@@ -538,7 +538,7 @@ export default function AdminEventForm({
             value={(form as any).co_organizers ?? ""}
             onChange={(e) => updateField("co_organizers", e.target.value)}
             placeholder={label("fieldCoOrganizersPlaceholder", "coOrganizersPlaceholder")}
-            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper placeholder:text-fg-subtle"
+            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper"
           />
         </div>
 
@@ -550,7 +550,7 @@ export default function AdminEventForm({
             value={(form as any).sponsors ?? ""}
             onChange={(e) => updateField("sponsors", e.target.value)}
             placeholder={label("fieldSponsorsPlaceholder", "sponsorsPlaceholder")}
-            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper placeholder:text-fg-subtle"
+            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper"
           />
         </div>
       </section>

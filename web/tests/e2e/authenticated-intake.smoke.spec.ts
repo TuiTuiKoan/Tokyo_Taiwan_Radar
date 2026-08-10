@@ -13,7 +13,10 @@ const PLACEHOLDER_KEYS = [
 
 const ORGANIZER_STATE = join(process.cwd(), "tests/e2e/.auth/organizer.json");
 const ADMIN_STATE = join(process.cwd(), "tests/e2e/.auth/admin.json");
-const SUBTLE_PLACEHOLDER_CLASS = /placeholder:text-fg-subtle/;
+
+/** Light-theme --color-text-placeholder. Asserted as a value, because a class
+ *  name proves nothing about what the browser actually painted. */
+const MATCHA_PLACEHOLDER = "rgb(109, 123, 74)";
 
 type Messages = {
   admin: Record<string, string>;
@@ -33,6 +36,12 @@ async function openManualIntake(page: Page, locale: Locale, path: string): Promi
     .click();
 }
 
+async function placeholderColor(page: Page, text: string): Promise<string> {
+  return page.getByPlaceholder(text, { exact: true }).evaluate((node) =>
+    getComputedStyle(node as HTMLInputElement, "::placeholder").color,
+  );
+}
+
 async function expectLocalizedPlaceholders(page: Page, locale: Locale): Promise<void> {
   const messages = messagesFor(locale);
   for (const key of PLACEHOLDER_KEYS) {
@@ -42,7 +51,9 @@ async function expectLocalizedPlaceholders(page: Page, locale: Locale): Promise<
 
     const field = page.getByPlaceholder(expected, { exact: true });
     await expect(field).toHaveCount(1);
-    await expect(field).toHaveClass(SUBTLE_PLACEHOLDER_CLASS);
+    expect(await placeholderColor(page, expected), `${locale}.${key} tone`).toBe(
+      MATCHA_PLACEHOLDER,
+    );
   }
 }
 
@@ -61,24 +72,19 @@ test.describe("authenticated organizer intake placeholders", () => {
     await expect(page).not.toHaveURL(/\/admin\/events\/new/);
   });
 
-  test("typed values are not rendered with the placeholder tone", async ({ page }) => {
+  test("typed values keep the normal text colour", async ({ page }) => {
     const messages = messagesFor("ja");
 
     await openManualIntake(page, "ja", "/account/events/new");
 
     const performer = page.getByPlaceholder(messages.admin.performerPlaceholder, { exact: true });
+    const hint = await placeholderColor(page, messages.admin.performerPlaceholder);
     await performer.fill("実際の出演者");
 
-    // The subtle tone is scoped to ::placeholder, so a filled field keeps the normal colour.
     await expect(performer).toHaveValue("実際の出演者");
-    const [placeholderColor, valueColor] = await performer.evaluate((node) => {
-      const element = node as HTMLInputElement;
-      return [
-        getComputedStyle(element, "::placeholder").color,
-        getComputedStyle(element).color,
-      ];
-    });
-    expect(placeholderColor).not.toBe(valueColor);
+    const value = await performer.evaluate((node) => getComputedStyle(node).color);
+    expect(hint).toBe(MATCHA_PLACEHOLDER);
+    expect(value).not.toBe(MATCHA_PLACEHOLDER);
   });
 
   test("locales serve distinct placeholder strings", async () => {

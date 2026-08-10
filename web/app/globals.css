@@ -30,7 +30,8 @@
   /* Text */
   --color-text: #171717;           /* primary body text */
   --color-text-muted: #6b7280;     /* secondary text (gray-500) */
-  --color-text-subtle: #9ca3af;    /* placeholder, disabled (gray-400) */
+  --color-text-subtle: #9ca3af;    /* disabled, de-emphasised UI (gray-400) */
+  --color-text-placeholder: #6D7B4A; /* matcha — hint text, 4.50:1 on paper */
   --color-text-strong: #111827;    /* headings (gray-900) */
 
   /* Borders & dividers */
@@ -87,6 +88,7 @@
   --color-text: #ededed;
   --color-text-muted: #a1a1aa;
   --color-text-subtle: #71717a;
+  --color-text-placeholder: #A8BF6F; /* matcha — hint text, 7.62:1 on dark paper */
   --color-text-strong: #fafafa;
 
   --color-border: #2a2a2a;
@@ -119,6 +121,7 @@
   --color-fg: var(--color-text);
   --color-fg-muted: var(--color-text-muted);
   --color-fg-subtle: var(--color-text-subtle);
+  --color-fg-placeholder: var(--color-text-placeholder);
   --color-fg-strong: var(--color-text-strong);
 
   --color-line: var(--color-border);
@@ -221,7 +224,10 @@ html:has([data-site-bg]) body {
 
   input::placeholder,
   textarea::placeholder {
-    color: var(--color-text-subtle);
+    color: var(--color-text-placeholder);
+    /* The input rule above sets -webkit-text-fill-color, which WebKit would
+       otherwise apply to the hint text and ignore `color`. */
+    -webkit-text-fill-color: var(--color-text-placeholder);
     opacity: 1;
   }
 
