@@ -2,6 +2,31 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-08-11：把 CSS utility 存在誤判為可見的 placeholder 變化
+
+### Mistake
+
+Placeholder 計畫要求把提示文字調淡，初版卻只在三個活動表單欄位加上
+`placeholder:text-fg-subtle`，並以 utility class 存在及 placeholder 與輸入文字不同色作
+驗收。既有全域 `::placeholder` 與新 utility 最終都解析為 `#9ca3af`，因此畫面沒有任何
+變化；舊規則本來也已讓 placeholder 與輸入文字不同色，測試無法辨認這次需求是否落地。
+我仍在 `e3135b90` closeout 把視覺項目寫成完成，直到使用者直接指出畫面未變才重新查證。
+
+### Repair
+
+`dc1d2387` 在 controlling global selector 新增專用 placeholder token，亮色使用
+`#6D7B4A`、暗色使用 `#A8BF6F`，並移除五個 component overrides。Playwright 改為從
+真實 input 讀取 `getComputedStyle(node, "::placeholder").color`；mutation control
+還原舊 `#9ca3af` 後，測試必須失敗。Production 最終量測為
+`rgb(109, 123, 74)` 與 `rgb(168, 191, 111)`，對比分別為 4.50:1 與 7.62:1。
+
+### Lesson
+
+CSS class、token 名稱與 source diff 都不是 painted-output 證據。視覺計畫必須先取得舊
+rendered baseline，解析新 token 的最終值，並盤點全域 selector、utility 與 specificity；
+若新舊 computed value 相同，該實作就是 no-op。驗收需在真實元素上讀 computed style 或
+做像素級 visual assertion，再以還原舊值的 mutation 證明測試能捕捉原始失敗。
+
 ## 2026-08-09：把無關 B 線設為前置依賴，且 canonicality 判準不會觸發
 
 ### Mistake
