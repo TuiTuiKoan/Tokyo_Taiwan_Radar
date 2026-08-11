@@ -1,4 +1,5 @@
 import re
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from publication_rules import is_ndl_periodical_article, is_pure_publication_record
@@ -13,9 +14,10 @@ from sources.hanmoto import (
     _normalize_official_url,
     _normalize_organizer_url,
     _scrape_hanmoto_detail,
+    _select_release_date,
 )
 from sources.kawade_rss import KawadeRssScraper
-from sources.ndl_opensearch import NdlOpensearchScraper
+from sources.ndl_opensearch import NdlOpensearchScraper, _parse_issued_date
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "publication"
@@ -460,3 +462,58 @@ def test_source_and_category_do_not_force_publication():
         "category": ["books_media"],
         "event_form": ["lecture"],
     })
+
+
+def test_hanmoto_release_date_accepts_only_a_labelled_full_date():
+    # A 発売日 span with a complete year date is the only accepted source; a
+    # 登録日 span sitting earlier in document order must never win.
+    parsed = _select_release_date([
+        "登録日 2026年3月7日",
+        "発売予定日 2026年8月17日",
+    ])
+    assert parsed == datetime(2026, 8, 17, tzinfo=timezone.utc)
+
+
+def test_hanmoto_release_date_rejects_registration_and_incomplete_dates():
+    # 登録日 (catalogue registration) carries a full date but is not 発売日.
+    assert _select_release_date(["登録日 2026年3月7日"]) is None
+    # 初版年月日 is only a year-month with no 発売 label → rejected.
+    assert _select_release_date(["初版年月日 2026年2月"]) is None
+    # Even a 発売 span is rejected when its date lacks a day.
+    assert _select_release_date(["発売予定日 2026年2月"]) is None
+    # No spans at all → no date.
+    assert _select_release_date([]) is None
+
+
+def test_ndl_parse_issued_date_accepts_only_complete_iso_dates():
+    assert _parse_issued_date("2026-08-17") == date(2026, 8, 17)
+    # YYYY-MM and YYYY were previously padded to day/month 1; now rejected.
+    assert _parse_issued_date("2026-03") is None
+    assert _parse_issued_date("2026") is None
+
+
+def test_ndl_ignores_pubdate_when_issued_and_dc_date_are_absent(monkeypatch):
+    # pubDate is the feed's transport timestamp, not the book's publication date.
+    body = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<rss xmlns:dc="http://purl.org/dc/elements/1.1/" '
+        'xmlns:dcterms="http://purl.org/dc/terms/"><channel><item>'
+        "<title>台湾研究の新刊（発行日不明）</title>"
+        "<link>https://ndlsearch.ndl.go.jp/books/R100000002-I223456789</link>"
+        "<description>台湾に関する書籍。</description>"
+        "<dc:identifier>JP223456789</dc:identifier>"
+        "<dc:publisher>架空出版社</dc:publisher>"
+        "<dc:creator>著者名</dc:creator>"
+        "<pubDate>Mon, 17 Aug 2026 00:00:00 +0900</pubDate>"
+        "</item></channel></rss>"
+    ).encode("utf-8")
+    monkeypatch.setattr("sources.ndl_opensearch.requests.get", lambda *args, **kwargs: FakeResponse(body))
+
+    events = NdlOpensearchScraper().scrape()
+
+    assert len(events) == 1
+    event = events[0]
+    assert event.event_form == ["publication"]
+    # pubDate is no longer a date source, so the record stays date-less.
+    assert event.start_date is None
+    assert event.end_date is None

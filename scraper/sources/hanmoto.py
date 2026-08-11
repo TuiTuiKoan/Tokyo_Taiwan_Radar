@@ -75,6 +75,19 @@ def _parse_date(text: str) -> Optional[datetime]:
     return None
 
 
+def _select_release_date(span_texts) -> Optional[datetime]:
+    """Return the 発売日 from the first '発売' span carrying a full YYYY年 date.
+
+    Only '発売' spans qualify: '登録日' (catalogue registration) and other
+    labels are ignored, and there is no unlabelled full-page fallback, so an
+    incomplete or wrong-label date never leaks in as the publication date.
+    """
+    for txt in span_texts:
+        if "発売" in txt and re.search(r"\d{4}年", txt):
+            return _parse_date(txt)
+    return None
+
+
 def _extract_isbn_from_href(href: str) -> Optional[str]:
     """Extract 13-digit ISBN from a URL path like /isbn/9784123456789."""
     m = re.search(r"/isbn/(\d{13})", href)
@@ -435,16 +448,10 @@ class HanmotoScraper(BaseScraper):
                         if not price_info:
                             price_info = _extract_detail_field(detail_text, ("定価", "価格", "本体価格"))
 
-                        # Publication date — find span containing '発売' + year pattern
-                        date_text = ""
-                        for span in card.query_selector_all("span"):
-                            txt = span.inner_text()
-                            if ("発売" in txt or "登録" in txt) and re.search(r"\d{4}年", txt):
-                                date_text = txt
-                                break
-                        start_dt = _parse_date(date_text)
-                        if start_dt is None:
-                            start_dt = _parse_date(detail_text)
+                        # Publication date — only a 発売日 span with a full year date
+                        start_dt = _select_release_date(
+                            span.inner_text() for span in card.query_selector_all("span")
+                        )
                         end_dt = start_dt
 
                         # Recency cutoff: since sorted by release date desc,

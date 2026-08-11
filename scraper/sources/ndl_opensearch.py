@@ -23,7 +23,6 @@ import re
 import time
 import xml.etree.ElementTree as ET
 from datetime import date, datetime, timedelta, timezone
-from email.utils import parsedate_to_datetime
 from typing import Optional
 
 import requests
@@ -78,25 +77,17 @@ def _strip_null(s: Optional[str]) -> Optional[str]:
 
 
 def _parse_issued_date(value: str) -> Optional[date]:
-    """Parse dcterms:issued / dc:date values such as '2024', '2024-03', '2024-03-15'."""
+    """Parse a complete dcterms:issued / dc:date value 'YYYY-MM-DD'.
+
+    Incomplete values ('YYYY' or 'YYYY-MM') are rejected so a partial date is
+    never padded into a fabricated publication day.
+    """
     value = value.strip().translate(str.maketrans("０１２３４５６７８９", "0123456789"))
     value = value.replace("．", ".")
     m = re.match(r"^(\d{4})-(\d{2})-(\d{2})", value)
     if m:
         try:
             return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
-        except ValueError:
-            pass
-    m = re.match(r"^(\d{4})-(\d{2})", value)
-    if m:
-        try:
-            return date(int(m.group(1)), int(m.group(2)), 1)
-        except ValueError:
-            pass
-    m = re.match(r"^(\d{4})", value)
-    if m:
-        try:
-            return date(int(m.group(1)), 1, 1)
         except ValueError:
             pass
     return None
@@ -171,7 +162,7 @@ class NdlOpensearchScraper(BaseScraper):
                 if not _is_taiwan(f"{title_raw} {description_raw}"):
                     continue
 
-                # Publication date: dcterms:issued → dc:date → pubDate
+                # Publication date: dcterms:issued → dc:date (complete YYYY-MM-DD only)
                 issued_date: Optional[date] = None
 
                 issued_el = item.find("dcterms:issued", NS)
@@ -182,15 +173,6 @@ class NdlOpensearchScraper(BaseScraper):
                     dc_date_el = item.find("dc:date", NS)
                     if dc_date_el is not None and dc_date_el.text:
                         issued_date = _parse_issued_date(dc_date_el.text)
-
-                if issued_date is None:
-                    pub_date_el = item.find("pubDate")
-                    if pub_date_el is not None and pub_date_el.text:
-                        try:
-                            dt = parsedate_to_datetime(pub_date_el.text)
-                            issued_date = dt.date()
-                        except Exception:
-                            pass
 
                 # source_id: prefer trailing digits from dc:identifier, else md5(link)
                 identifier_el = item.find("dc:identifier", NS)
