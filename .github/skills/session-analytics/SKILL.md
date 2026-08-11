@@ -1,7 +1,7 @@
 ---
 name: session-analytics
 description: 解析 VS Code Copilot Chat transcript，量化每個 session 的工具呼叫效率，並依三個反模式診斷高工具數回合
-ms.date: 2025-05-04
+ms.date: 2026-08-11
 ---
 
 # Session Analytics Skill
@@ -25,6 +25,28 @@ python3 .github/skills/session-analytics/analyze.py --days 7 --json
 
 Transcript 位置：
 `~/Library/Application Support/Code/User/workspaceStorage/6ff2cb1100e61f123c7d4efbbe510f8c/GitHub.copilot-chat/transcripts/`
+
+---
+
+## 三種產物的職責分界
+
+本 skill 的腳本與 campaign 結案文件常被混為一談。三者用途不同，**本輪不合併成單一 CLI**。
+
+| 產物 | 產生方式 | 性質 | 可否事後修改 |
+|---|---|---|---|
+| `analyze.py` 輸出 | `analyze.py --days N` | 探索統計，用來找高工具數回合 | 不留存，隨時可重跑 |
+| v1 anchor 與其 ledger | `oneoff_campaign_anchor.py` | 凍結證據，數字可由 ledger 重算 | 否，禁止手改 |
+| Campaign 結案 Markdown | 人工撰寫 | 人工結論與風險判斷 | 可，但只能循 correction 流程 |
+
+判斷方式：
+
+* 想知道「哪個 session 效率差」→ `analyze.py`。輸出是暫時的，不進 repo。
+* 想讓某個數字日後仍可驗證 → v1 anchor。它同時寫出 record 與 ledger，且 `--session-slice`
+  僅接受一次，一份 anchor 對應一個 slice；跨 session 的 campaign 產生多份 anchor，並列不合併。
+* 想說明「這件事做完了、證據在哪、風險是什麼」→ 結案 Markdown，格式見
+  [docs/evaluation/campaigns/README.md](../../../docs/evaluation/campaigns/README.md)。
+
+三者不互相取代：統計不能當證據，證據不能當結論，結論不能自己產生數字。
 
 ---
 

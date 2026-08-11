@@ -110,6 +110,39 @@ per-source 新增指標：
 - **Lighthouse CI**：對 `/zh`、`/zh/events/[id]`、`/ja/announcements` 跑 perf/a11y/SEO，門檻 perf ≥ 80
 - **Playwright E2E**：FilterBar 跨地區 / 城市切換 + AdminEventTable 的 `globalIndexMap` 行為（防 cross-filter reference 回歸）
 
+### Worktree Close-out Pilot（bounded pilot，2026-08-11 加入）
+
+Campaign 結案目前沒有共同格式。三份既有記錄各自發明結構，於是出現三種可觀察的失效：
+結案報告把未完成的視覺改動誤判為完成、worktree disposition 寫成前瞻宣告而在其後失效、
+worktree 已解除註冊但目錄殘留無人察覺。
+
+本 pilot 只驗證「人工 Markdown 結案記錄 + 既有 v1 anchor」這個組合能否表達上述情境，**不建立任何新程式**。
+交付為一份 `docs/evaluation/campaigns/README.md`，內含十個必填段的可複製骨架、三個 contract 的可執行查證指令、
+以及 cleanup checklist；Reviewer 與 V-M-D 各接一段最小唯讀檢查。
+
+三個 contract 與其對應的實際失效：
+
+| Contract | 要求 | 已觀察到的失效樣態 |
+|---|---|---|
+| Identity | 同時記錄 registered path、physical path、path class 與 branch；禁止 basename-only | 7 個註冊 worktree 中有 2 個的 registered path 與 physical path 僅差在大小寫，basename 無法區分 |
+| Freshness | disposition 判定綁定六項觀測值，任一改變即 `STALE` | 前瞻式 disposition 宣告寫下後，同一份報告又追加兩次 commit，宣告當下的狀態已不成立 |
+| Correction | 已發布記錄就地加 Correction 段，或發新記錄雙向標註 supersedes／superseded_by，不靜默覆寫 | 首次結案把零視覺差異的樣式改動判為完成，同日才修訂 |
+
+inventory 的唯一 authority 是 `workstream-tracking`；結案記錄只引用其快照與觀測時間，不自建第二份可變 inventory。
+
+**明確不做**：新 Python 或測試、JSON manifest schema、專用 prompt、monthly rollup、
+修改 v1 generator 或既有 campaign artifacts、把結案升格為 mandatory gate。
+`2026-08-03-organizer-type-authority` 屬 v1 telemetry-only reference，grandfathered，不套用本 template、不原地升級、不重生。
+
+**Success Criteria（本 pilot 專屬）**：
+
+- [ ] `docs/evaluation/campaigns/README.md` 存在，十個必填段各有可複製骨架
+- [ ] 三個 contract 各附至少一條可實際執行的查證指令，且輸出可判讀
+- [ ] 三個 retrospective 案例的結論寫回 README，每案對應一個 contract
+- [ ] Reviewer 具備唯讀 close-out checklist，回傳 `PASS | FAIL | INCONCLUSIVE | STALE`
+- [ ] V-M-D 在提示 cleanup 前先做 freshness 重驗與 ignored artifact preflight，且記錄未進 `origin/main` 前不提示 removal
+- [ ] v1 anchor 工具與既有 campaign artifacts 位元不變，70 tests 維持 PASS
+
 ### F. AI 報錯 / Guards / history 的元評估（Meta-Evaluation）
 
 針對「**SKILL.md / history.md 究竟有沒有效**」：

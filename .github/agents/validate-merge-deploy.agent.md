@@ -49,7 +49,18 @@ handoffs:
 1. `cd` 進該 worktree，確認 `git rev-parse --abbrev-ref HEAD` 與路徑相符；不符 → STOP 回報。
 2. **接著照常走既有 Steps 1–5**（狀態分類、rebase、verify、push、deploy）——**不要**在此另做一套 rebase/build/push。
 3. Step 4 push 時 **branch-aware**：push 當前 worktree 的正確 HEAD（rebase 成 linear 後 `git push origin HEAD:main`），保留 explicit user approval 與既有 gitleaks/i18n gate；禁 `--no-ff`、禁 `--no-verify`。
-4. push 成功後（依 canonical STOP 條件）可提示使用者 cleanup worktree。
+4. push 成功後，**先做 cleanup preflight，再提示使用者**：
+   - 若本次工作有 campaign 結案記錄，該記錄必須已進入 `origin/main`。未進入前**不提示 removal**，
+     因為記錄只存在於 worktree 內時，removal 會連它一起刪掉。
+   - 重新觀測 freshness 六項：branch tip sha、ahead、behind、dirty count、ignored artifact set、
+     registered path 與 physical path。任一項與先前判定不符 → 標為 `STALE`，不提示 removal。
+   - Ignored artifact preflight：`git -C "$WT" status --porcelain --ignored | grep '^!!'` 與
+     `find "$WT/tmp" -type f`，逐筆確認他處有副本後才可視為可丟。邊界 baseline 與 rollback 快照
+     常是全機唯一副本。
+   - 三項皆通過，且符合 `.github/instructions/git.instructions.md` 的 canonical STOP 條件，才提示
+     使用者 cleanup。**V-M-D 不自動執行 `git worktree remove` 或 `git branch -d`。**
+   - 完整 checklist（含移除後殘留檢查）見
+     [docs/evaluation/campaigns/README.md](../../docs/evaluation/campaigns/README.md)。
 
 若在主工作樹發現未提交變更：**絕不 `git stash` 或 `git clean` 清場**。那是別的 session 的 WIP，或是尚未提交的治理文件。停下來回報給使用者，由使用者決定先提交或先擱置。V-M-D 曾是這類 WIP 被掃走的主因。
 

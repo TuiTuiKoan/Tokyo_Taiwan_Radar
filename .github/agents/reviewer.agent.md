@@ -86,6 +86,65 @@ Reviewer 月度復盤時：開啟 `docs/skill_scan/YYYY-MM.md` → 挑 1–3 件
 2. 找出 description 中有語義重疊的 agent pair
 3. 輸出：「建議釐清邊界：Agent A vs Agent B — 兩者都提到 XXX」
 
+### 功能 4：Campaign Close-out 檢核（唯讀）
+
+檢核 `docs/evaluation/campaigns/` 下的結案記錄是否可信。規則見
+[docs/evaluation/campaigns/README.md](../../docs/evaluation/campaigns/README.md)。
+本功能**不改檔、不刪 worktree、不做月度聚合**。
+
+五項檢核：
+
+1. 十個必填段齊全（Outcome／Delivered commits／Verification／Correction and supersession／
+   Known risks／Deferred work／Spec disposition／Worktree disposition／
+   Ignored artifacts and handling／Evidence anchors）。缺段即 `FAIL`；明寫 `None` 視為齊全。
+2. Delivered commits 每一筆都是 `origin/main` 的 ancestor。
+3. Worktree disposition 的六項 freshness 值已在判定時點觀測，且與現況一致。
+4. Identity 以 path class 判定，非 basename：記錄內具備 path class
+   （`canonical`／`divergent`／`external`）、directory、branch 三者。directory 在
+   `canonical`／`divergent` 為 repository-relative，在 `external` 只有目錄名。
+   registered path 與 physical path 屬觀測值，依隱私邊界不寫入記錄，由檢核者以下方指令
+   重新取得，再驗證記錄所載 class 是否成立。
+5. Ignored artifacts 已盤點，每筆有 handling 分類與 digest。
+
+```bash
+# 2. delivered commits ancestry
+git merge-base --is-ancestor '<sha>' origin/main && echo ANCESTOR || echo NOT_ANCESTOR
+
+# 3. freshness 六項重驗
+WT='<registered-path>'
+git -C "$WT" rev-parse HEAD
+git -C "$WT" rev-list --left-right --count HEAD...origin/main
+git -C "$WT" status --porcelain | wc -l
+git -C "$WT" status --porcelain --ignored | grep '^!!'
+git worktree list --porcelain | sed -n 's/^worktree //p'
+( cd "$WT" && /bin/pwd -P )
+
+# 4. path class 重新推導（不從記錄讀取 registered／physical）
+# 一律用 /bin/pwd，不用 shell builtin：zsh builtin 由 getcwd() 取回真實大小寫，
+# bash／sh builtin 只回傳字面字串，會把 divergent 誤判為 external。
+MAIN=$( git worktree list --porcelain | sed -n '1s/^worktree //p' )
+ROOT=$( cd "$( git -C "$MAIN" rev-parse --show-toplevel )" && /bin/pwd -P )
+PHYS=$( cd "$WT" && /bin/pwd -P )
+case "$PHYS" in
+  "$ROOT"|"$ROOT"/*)
+    [ "$WT" = "$PHYS" ] && echo 'class=canonical' || echo 'class=divergent' ;;
+  *)
+    echo 'class=external' ;;
+esac
+```
+
+判定結果：
+
+| 結果 | 條件 |
+|---|---|
+| `PASS` | 五項全部通過 |
+| `FAIL` | 任一項不成立，且證據明確 |
+| `INCONCLUSIVE` | 缺少可查證的證據，例如 worktree 已不存在而無法重新觀測 |
+| `STALE` | 六項 freshness 值中任一項與記錄不符 |
+
+`STALE` 不等於 `FAIL`：它表示記錄當時可能正確，但現在不可據以執行 removal。回報 `STALE` 時列出
+變動的是哪幾項，交由使用者決定重新判定或重寫 disposition。
+
 ## 輸出格式
 
 每次復盤輸出一份 Markdown 報告，結構如下：
