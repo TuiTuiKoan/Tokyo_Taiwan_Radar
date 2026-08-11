@@ -1290,6 +1290,7 @@ def build_summary(
     fingerprint: dict[str, Any],
     *,
     citation_excluded_would_be_pure: list[str] | tuple[str, ...] = (),
+    citation_undetermined: list[str] | tuple[str, ...] = (),
 ) -> dict[str, Any]:
     actions = Counter(candidate["action_type"] for candidate in candidates)
     conflicts = Counter(
@@ -1310,6 +1311,8 @@ def build_summary(
         ),
         "cleanup_candidates_after_citation_join": actions["pure_cleanup"],
         "excluded_citation_unsafe": conflicts["citation_unsafe"],
+        # A candidate the artifact never mentions: refused, never defaulted safe.
+        "excluded_citation_undetermined": len(citation_undetermined),
         "poster_placeholder_pollution_evidence_rows": sum(
             candidate.get("poster_pollution_repair", {}).get("status") == "evidence_only"
             for candidate in candidates
@@ -1553,6 +1556,7 @@ def build_manifest(
         raise RuntimeError(f"unknown manifest scope: {scope!r}")
     confirmed = {str(value) for value in confirmed_unavailable}
     citation_exclusions: dict[str, str] = {}
+    citation_undetermined: list[str] = []
     citation_excluded_would_be_pure: list[str] = []
     tables = state["tables"]
     fingerprint = state["fingerprint"]
@@ -1590,8 +1594,22 @@ def build_manifest(
             events_by_source_id,
         )
         human_locked = human_locked_target_fields(fc_rows)
+        # "Cleanup candidate" means a row that would actually be cleared. Rows
+        # already excluded for another reason keep that reason, so the join can
+        # never shadow the classification conflict the apply gate stops on.
+        would_be_pure = (
+            is_pure_publication_record(event)
+            and not human_locked
+            and not poster_evidence
+            and not classification["location_conflict"]
+        )
         citation_reason = (
-            citation_join_decision(event_id, citation_safety, confirmed)
+            citation_join_decision(
+                event_id,
+                citation_safety,
+                confirmed,
+                require_determination=would_be_pure,
+            )
             if citation_safety is not None
             else None
         )
@@ -1599,12 +1617,9 @@ def build_manifest(
             plan = eslite_plan(event, fc_rows, reports, publisher)
         elif citation_reason:
             citation_exclusions[event_id] = citation_reason
-            if (
-                is_pure_publication_record(event)
-                and not human_locked
-                and not poster_evidence
-                and not classification["location_conflict"]
-            ):
+            if citation_reason.startswith("citation safety undetermined"):
+                citation_undetermined.append(event_id)
+            if would_be_pure:
                 citation_excluded_would_be_pure.append(event_id)
             plan = excluded_plan(
                 event,
@@ -1717,6 +1732,10 @@ def build_manifest(
                 else None
             ),
             "excluded_sets": list(CITATION_SAFETY_EXCLUDED_SETS),
+            # Scope completeness: an exact-pure candidate the artifact never
+            # mentions is unproven, not safe.
+            "requires_determination_for_pure_candidates": True,
+            "undetermined_event_ids": sorted(citation_undetermined),
             "confirmed_unavailable": sorted(confirmed),
             "excluded_event_ids": dict(sorted(citation_exclusions.items())),
         },
@@ -1780,6 +1799,7 @@ def build_manifest(
         candidates,
         fingerprint,
         citation_excluded_would_be_pure=citation_excluded_would_be_pure,
+        citation_undetermined=citation_undetermined,
     )
     manifest["manifest_sha256"] = sha256(manifest)
     assert_no_secret_material(manifest)
@@ -1872,8 +1892,17 @@ def citation_join_decision(
     event_id: str,
     citation_safety: dict[str, Any],
     confirmed_unavailable: set[str],
+    *,
+    require_determination: bool = False,
 ) -> str | None:
-    """The reason this row is not provably citation-safe, or None when it is."""
+    """The reason this row is not provably citation-safe, or None when it is.
+
+    `require_determination` makes the join scope-complete. Asking only whether a
+    row sits in an *unsafe* set answers a question about the artifact's cohort,
+    not about the cleanup's: every candidate the artifact never mentions would
+    pass, and its `location_name` would be cleared on no evidence at all. For a
+    cleanup candidate, silence is refused rather than read as safety.
+    """
     sets = citation_safety["sets"]
     for name in CITATION_SAFETY_EXCLUDED_SETS:
         if event_id in sets[name]:
@@ -1886,7 +1915,14 @@ def citation_join_decision(
             "citation safety confirm_per_row: needs an explicit "
             "--confirm-unavailable EVENT_ID before inclusion"
         )
-    return None
+    if not require_determination:
+        return None
+    if any(event_id in sets[name] for name in CITATION_SAFETY_SETS):
+        return None
+    return (
+        "citation safety undetermined: the artifact carries no determination for "
+        "this cleanup candidate, so clearing location_name is unproven"
+    )
 
 
 def snapshot_payload(state: dict[str, Any], manifest: dict[str, Any]) -> dict[str, Any]:
@@ -2464,6 +2500,12 @@ def assert_cleanup_manifest_citation_join(
     if unexcluded:
         raise RuntimeError(
             f"STOP: citation-safety join does not exclude {unexcluded}; zero writes performed"
+        )
+    if join.get("requires_determination_for_pure_candidates") is not True:
+        raise RuntimeError(
+            "STOP: citation-safety join does not require a determination for every "
+            "exact-pure candidate, so an unmentioned row would have been read as "
+            "safe; zero writes performed. Regenerate the manifest."
         )
     excluded = join.get("excluded_event_ids")
     if not isinstance(excluded, dict):

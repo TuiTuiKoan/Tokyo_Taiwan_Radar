@@ -224,10 +224,10 @@ def test_only_provably_safe_rows_survive_the_join(tmp_path):
         for candidate in result["candidates"]
         if candidate["action_type"] == "pure_cleanup"
     }
-    assert included == {SAFE_ID, UNKNOWN_ID}
+    assert included == {SAFE_ID}
 
 
-@pytest.mark.parametrize("event_id", [UNSAFE_ID, PENDING_ID, UNAVAILABLE_ID])
+@pytest.mark.parametrize("event_id", [UNSAFE_ID, PENDING_ID, UNAVAILABLE_ID, UNKNOWN_ID])
 def test_each_unproven_row_is_excluded_with_a_recorded_reason(tmp_path, event_id):
     result = _joined(tmp_path)
     candidate = _candidate(result, event_id)
@@ -243,17 +243,55 @@ def test_an_unavailable_row_joins_only_after_explicit_confirmation(tmp_path):
     assert result["citation_safety_join"]["confirmed_unavailable"] == [UNAVAILABLE_ID]
 
 
-def test_a_row_outside_the_b1_cohort_is_untouched_by_the_join(tmp_path):
+def test_a_candidate_the_artifact_never_mentions_is_refused_as_unproven(tmp_path):
+    """Silence is not evidence: B1's cohort is narrower than the cleanup's.
+
+    Asking only "is this row in an unsafe set" answers a question about the
+    artifact's rows, not the cleanup's, so every candidate it never saw would
+    have had its location_name cleared on no evidence at all.
+    """
     result = _joined(tmp_path)
-    assert _candidate(result, UNKNOWN_ID)["action_type"] == "pure_cleanup"
-    assert UNKNOWN_ID not in result["citation_safety_join"]["excluded_event_ids"]
+    candidate = _candidate(result, UNKNOWN_ID)
+    assert candidate["action_type"] == "excluded"
+    assert candidate["excluded_reason"] == (
+        "citation safety undetermined: the artifact carries no determination for "
+        "this cleanup candidate, so clearing location_name is unproven"
+    )
+
+
+def test_the_join_records_which_candidates_were_undetermined(tmp_path):
+    join = _joined(tmp_path)["citation_safety_join"]
+    assert join["requires_determination_for_pure_candidates"] is True
+    assert join["undetermined_event_ids"] == [UNKNOWN_ID]
+
+
+def test_a_determined_safe_row_still_joins(tmp_path):
+    """Completeness must not collapse into refusing everything."""
+    result = manifest.build_manifest(
+        _cohort_state(),
+        citation_safety=manifest.load_citation_safety(
+            _artifact(
+                tmp_path,
+                safe=[SAFE_ID, UNKNOWN_ID, PENDING_ID, UNAVAILABLE_ID, UNSAFE_ID],
+                name="all-safe.json",
+            )
+        ),
+    )
+    included = {
+        candidate["event_id"]
+        for candidate in result["candidates"]
+        if candidate["action_type"] == "pure_cleanup"
+    }
+    assert included == {SAFE_ID, UNKNOWN_ID, PENDING_ID, UNAVAILABLE_ID, UNSAFE_ID}
+    assert result["citation_safety_join"]["undetermined_event_ids"] == []
 
 
 def test_the_summary_records_both_sides_of_the_join(tmp_path):
     summary = _joined(tmp_path)["summary"]
     assert summary["pure_candidates_before_citation_join"] == 5
-    assert summary["cleanup_candidates_after_citation_join"] == 2
-    assert summary["excluded_citation_unsafe"] == 3
+    assert summary["cleanup_candidates_after_citation_join"] == 1
+    assert summary["excluded_citation_unsafe"] == 4
+    assert summary["excluded_citation_undetermined"] == 1
 
 
 def test_the_manifest_records_the_artifact_digest_it_was_joined_to(tmp_path):
@@ -274,7 +312,7 @@ def test_an_excluded_id_is_never_selected_by_any_apply_phase(tmp_path, apply_pha
     selected = {
         candidate["event_id"] for candidate in manifest.phase_candidates(result, apply_phase)
     }
-    assert selected == {SAFE_ID, UNKNOWN_ID}
+    assert selected == {SAFE_ID}
 
 
 def test_an_excluded_row_is_untouched_by_the_real_apply_phases(monkeypatch, tmp_path):
@@ -376,7 +414,20 @@ def test_a_correctly_joined_manifest_still_applies(monkeypatch, tmp_path):
         outcome = _apply(
             monkeypatch, tmp_path, sb, result, apply_phase, stamp_citation_join=False
         )
-        assert sorted(outcome["applied_event_ids"]) == sorted([SAFE_ID, UNKNOWN_ID])
+        assert sorted(outcome["applied_event_ids"]) == [SAFE_ID]
+
+
+@pytest.mark.parametrize("apply_phase", ["fc-remove", "event-clear"])
+def test_a_join_that_does_not_require_a_determination_is_refused_by_apply(
+    monkeypatch, tmp_path, apply_phase
+):
+    """A manifest generated before the join was scope-complete must not apply."""
+    stale = _joined(tmp_path)
+    stale["citation_safety_join"].pop("requires_determination_for_pure_candidates")
+    sb = _fake_db(_cohort_state())
+    with pytest.raises(RuntimeError, match="does not require a determination"):
+        _apply(monkeypatch, tmp_path, sb, stale, apply_phase, stamp_citation_join=False)
+    assert sb.writes == []
 
 
 # --- rehearsal production guard -------------------------------------------

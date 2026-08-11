@@ -1,15 +1,22 @@
 """One-off DRY-RUN backfill: restore the NDL container (journal) title into
 raw_description before the publication cleanup clears location_name.
 
-Cohort (exactly the rows whose citation would otherwise be destroyed):
+Two tiers, because the cleanup's citation-safety join is only as complete as
+this artifact.
+
+Write cohort (the rows whose citation would otherwise be destroyed):
   * source_name == "ndl_opensearch"
   * exact-pure publication record
   * not an audited poster-pollution row (its location_name is a poster venue,
     not a journal title)
-  * location_name is a legacy physical-venue conflict, i.e. the journal title
-    parked in location_name
+  * location_name carries an identity-bearing citation core
   * that journal title is absent from description_ja, so clearing location_name
     would lose the only copy
+
+Assessed-only tier (no write, no network): every other exact-pure publication
+row. The cleanup clears location_name on all of them, so each one needs an
+explicit determination here; a candidate this artifact never mentions is
+unproven, and the join refuses it rather than reading silence as safety.
 
 Records are keyed by source_url, never by title: 7 of the cohort carry an
 `ndl_<md5>` source_id because the source has no dc:identifier suffix, which makes
@@ -50,6 +57,7 @@ consumes only that plan and performs no network call at all.
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 from copy import deepcopy
 import json
 import os
@@ -66,10 +74,9 @@ import requests
 from bs4 import BeautifulSoup
 
 from _oneoff_backfill_publication_metadata import (
-    PHYSICAL_LOCATION_RE,
     POSTER_POLLUTION_REPAIRS,
     PUBLICATION_EXTENDED_CLEAR_FIELDS,
-    PUBLICATION_LOCATION_MARKERS,
+    PUBLICATION_PLACEHOLDER_VALUES,
     assert_ignored_output_path,
     assert_non_production_target,
     get_supabase,
@@ -127,18 +134,38 @@ CAS_COLUMNS = ("raw_description", "location_name", "source_url", "event_form")
 APPLY_ALLOWED_DELTA_FIELDS = ("raw_description", "updated_at")
 # Frozen by the B2 descoping: this release unit proves it never touched them.
 DESCRIPTION_FC_FIELDS = ("description_ja", "description_zh", "description_en")
+# Fields the cleanup keeps, so a citation found in one of them survives the clear.
+CITATION_RETAINED_FIELDS = (
+    "raw_description",
+    "description_ja",
+    "description_zh",
+    "description_en",
+    "raw_title",
+    "name_ja",
+)
+# Transactional placeholder vocabulary: text that is never part of a journal name.
+# Deliberately narrower than PUBLICATION_LOCATION_MARKERS, which also lists 雑誌 —
+# a legitimate ending for a journal name (神戸法学雑誌), so rejecting on the wider
+# list would drop exactly the citations this cohort exists to preserve.
+CITATION_BOILERPLATE_MARKERS = ("購入", "購買", "販売チャネル", "各通路")
 
 PLAN_SCHEMA = {"name": "tokyo-taiwan-radar/ndl-container-title-plan", "version": 1}
 JOURNAL_SCHEMA = {"name": "tokyo-taiwan-radar/ndl-container-title-journal", "version": 1}
 CITATION_SAFETY_SETS = ("safe", "pending_apply", "confirm_per_row", "unsafe")
-# `plan_row()` emits four statuses and only `planned` is ever written, so "B1
+# `plan_row()` emits the first four and only `planned` is ever written, so "B1
 # applied it" is not the same question as "is the citation safe to clear".
+# `assess_row()` emits the last two for candidates that need no write but still
+# need a determination the join can find.
 PLAN_CITATION_SAFETY = {
     "planned": "pending_apply",
     "already_present": "safe",
+    "citation_present_elsewhere": "safe",
+    "no_citation": "safe",
     "unavailable": "confirm_per_row",
     "needs_review": "unsafe",
 }
+# Rows the reviewer reads one by one; the safe assessments are summarised instead.
+DETAILED_REPORT_STATUSES = ("planned", "already_present", "unavailable", "needs_review")
 
 # Citation detail NDL may contribute on top of location_name. Volume numbers are
 # deliberately absent: location_name is authoritative for those.
@@ -217,16 +244,65 @@ def lookup_via_detail_page(row: dict[str, Any]) -> str | None:
     return container_title_from_detail_html(resp.text)
 
 
+def is_citation_boilerplate(value: str | None) -> bool:
+    """Producer template text parked in location_name, never a journal name."""
+    text = str(value or "").strip()
+    return bool(text) and (
+        text in PUBLICATION_PLACEHOLDER_VALUES
+        or any(marker in text for marker in CITATION_BOILERPLATE_MARKERS)
+    )
+
+
 def is_journal_title_in_location_name(row: dict[str, Any]) -> bool:
+    """Does `location_name` carry an identity-bearing citation?
+
+    Venue shape is deliberately not consulted. A venue test answers a different
+    question and drops exactly the rows this cohort exists for: `神戸法学雑誌 =
+    Kobe law journal 75(3・4):2026.3`, `文芸春秋 104(5):2026.5` and
+    `月刊カレント 63(6)=982:2026.6` are journals that match no venue pattern.
+    Preserving a row that needed no preservation costs one prefix line; skipping
+    one is permanent loss, so the trade-off is resolved towards preserving.
+    """
     value = str(row.get("location_name") or "").strip()
-    if not value or any(marker in value for marker in PUBLICATION_LOCATION_MARKERS):
+    if not value or is_citation_boilerplate(value):
         return False
-    return bool(PHYSICAL_LOCATION_RE.search(value))
+    return bool(citation_core(value))
+
+
+def citation_present_elsewhere(row: dict[str, Any]) -> str | None:
+    """The retained field that reproduces this citation verbatim, or None.
+
+    Matched on the whole `location_name`. A truncated title would be too weak to
+    decide safety: 25 of the live values shorten to a two-character everyday word
+    (`交流`, `令和`, `農業`, `紀要`) that prose hits by coincidence, and a
+    coincidence read as a match clears a citation that survives nowhere. Every
+    row this reports as present elsewhere carries the full catalogue string, so
+    the exact test costs no coverage; anything weaker falls through to the
+    `needs_review` default in `assess_row()`.
+    """
+    value = str(row.get("location_name") or "").strip()
+    if not value:
+        return None
+    for field in CITATION_RETAINED_FIELDS:
+        if value in str(row.get(field) or ""):
+            return field
+    return None
+
+
+def cleanup_candidate_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Every exact-pure publication row: the full set the cleanup can clear."""
+    return sorted(
+        (row for row in rows if is_pure_publication_record(row)),
+        key=lambda row: str(row["id"]),
+    )
 
 
 def select_cohort(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The subset that needs a write: an NDL citation that lives nowhere else."""
     cohort = []
     for row in rows:
+        if row.get("source_name") != SOURCE_NAME:
+            continue
         if str(row.get("id")) in POSTER_POLLUTION_REPAIRS:
             continue
         if not is_pure_publication_record(row):
@@ -283,13 +359,19 @@ def planned_raw_description(current: str | None, container_line: str) -> str:
 
 
 def fetch_rows(sb) -> list[dict[str, Any]]:
+    """Every publication-form row, not just the NDL ones the write cohort needs.
+
+    The cleanup clears `location_name` on exact-pure rows from every source, and
+    the join treats an unmentioned candidate as unproven, so the artifact has to
+    see them all.
+    """
     rows: list[dict[str, Any]] = []
     offset = 0
     while True:
         batch = (
             sb.table("events")
             .select(SELECT_COLUMNS)
-            .eq("source_name", SOURCE_NAME)
+            .contains("event_form", ["publication"])
             .range(offset, offset + PAGE_SIZE - 1)
             .execute()
             .data
@@ -312,6 +394,7 @@ def plan_row(row: dict[str, Any]) -> dict[str, Any]:
         "container_title": None,
         "retrieved_via": None,
         "planned_raw_description": None,
+        "assessment": None,
         "status": "unavailable",
     }
     if CONTAINER_TITLE_LABEL in (current or ""):
@@ -350,6 +433,36 @@ def plan_row(row: dict[str, Any]) -> dict[str, Any]:
 def applicable_plans(plans: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Only rows whose planned value provably preserves location_name are written."""
     return [plan for plan in plans if plan["status"] == "planned"]
+
+
+def assess_row(row: dict[str, Any]) -> dict[str, Any]:
+    """Determine a cleanup candidate B1 does not write, using no network at all."""
+    location_name = str(row.get("location_name") or "").strip()
+    current = row.get("raw_description")
+    plan: dict[str, Any] = {
+        "event_id": str(row["id"]),
+        "source_url": row.get("source_url"),
+        "location_name": row.get("location_name"),
+        "current_raw_description": current,
+        "current_raw_description_length": len(current or ""),
+        "container_title": None,
+        "retrieved_via": None,
+        "planned_raw_description": None,
+        "assessment": "citation_only_in_location_name",
+        "status": "needs_review",
+    }
+    present_in = citation_present_elsewhere(row)
+    if str(row.get("id")) in POSTER_POLLUTION_REPAIRS:
+        plan["status"], plan["assessment"] = "no_citation", "poster_pollution_residue"
+    elif not location_name:
+        plan["status"], plan["assessment"] = "no_citation", "location_name_empty"
+    elif is_citation_boilerplate(location_name):
+        plan["status"], plan["assessment"] = "no_citation", "publication_boilerplate"
+    elif not citation_core(location_name):
+        plan["status"], plan["assessment"] = "unavailable", "no_citation_core"
+    elif present_in:
+        plan["status"], plan["assessment"] = "citation_present_elsewhere", present_in
+    return plan
 
 
 def projection_columns() -> list[str]:
@@ -407,6 +520,7 @@ def build_plan(
         {
             "event_id": plan["event_id"],
             "status": plan["status"],
+            "assessment": plan.get("assessment"),
             "citation_safety": PLAN_CITATION_SAFETY[plan["status"]],
             "before_image": before_image(rows_by_id[plan["event_id"]]),
             "evidence": {
@@ -443,6 +557,13 @@ def build_plan(
                 status: sum(1 for entry in entries if entry["status"] == status)
                 for status in PLAN_CITATION_SAFETY
             },
+            "assessments": dict(
+                sorted(
+                    Counter(
+                        entry["assessment"] for entry in entries if entry["assessment"]
+                    ).items()
+                )
+            ),
         },
     }
     payload["plan_sha256"] = sha256(payload)
@@ -572,6 +693,8 @@ def build_journal(
 
 def print_report(plans: list[dict[str, Any]]) -> None:
     for plan in plans:
+        if plan["status"] not in DETAILED_REPORT_STATUSES:
+            continue
         print(f"--- {plan['event_id']}  [{plan['status']}]")
         print(f"    source_url          : {plan['source_url']}")
         print(f"    location_name       : {plan['location_name']!r}")
@@ -581,14 +704,19 @@ def print_report(plans: list[dict[str, Any]]) -> None:
     counts = {status: 0 for status in PLAN_CITATION_SAFETY}
     for plan in plans:
         counts[plan["status"]] += 1
+    assessments = Counter(plan["assessment"] for plan in plans if plan.get("assessment"))
     print()
-    print(f"cohort: {len(plans)}")
+    print(f"cleanup candidates: {len(plans)}")
     for status, count in counts.items():
         print(f"  {status}: {count} -> citation_safety={PLAN_CITATION_SAFETY[status]}")
+    for reason, count in sorted(assessments.items()):
+        print(f"  assessment {reason}: {count}")
 
 
 def run_plan(sb, args: argparse.Namespace) -> int:
-    cohort = select_cohort(fetch_rows(sb))
+    candidates = cleanup_candidate_rows(fetch_rows(sb))
+    cohort = select_cohort(candidates)
+    cohort_ids = {str(row["id"]) for row in cohort}
     plans: list[dict[str, Any]] = []
     try:
         for row in cohort:
@@ -597,13 +725,16 @@ def run_plan(sb, args: argparse.Namespace) -> int:
         print_report(plans)
         print(f"\nABORTED before completing the cohort — network fault, not 'unavailable': {exc}")
         return 2
+    plans.extend(
+        assess_row(row) for row in candidates if str(row["id"]) not in cohort_ids
+    )
 
     print_report(plans)
     plan = build_plan(
-        cohort,
+        candidates,
         plans,
         description_field_corrections=description_fc_digest(
-            sb, [str(row["id"]) for row in cohort]
+            sb, [str(row["id"]) for row in candidates]
         ),
     )
     if args.plan_output:

@@ -125,6 +125,8 @@ def _stamp_citation_join(result):
             "set_sizes": {name: 0 for name in manifest.CITATION_SAFETY_SETS},
         },
         "excluded_sets": list(manifest.CITATION_SAFETY_EXCLUDED_SETS),
+        "requires_determination_for_pure_candidates": True,
+        "undetermined_event_ids": [],
         "confirmed_unavailable": [],
         "excluded_event_ids": {},
     }

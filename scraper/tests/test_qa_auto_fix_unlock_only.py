@@ -59,6 +59,10 @@ class FakeQuery:
         self.filters.append(("in", column, list(values)))
         return self
 
+    def contains(self, column: str, values):
+        self.filters.append(("contains", column, list(values)))
+        return self
+
     def order(self, column: str, desc: bool = False):
         self.filters.append(("order", column, desc))
         return self
@@ -93,6 +97,10 @@ class FakeQuery:
                     return False
             elif kind == "in":
                 if str(actual) not in {str(item) for item in value}:
+                    return False
+            elif kind == "contains":
+                held = actual if isinstance(actual, (list, tuple)) else []
+                if not {str(item) for item in value} <= {str(item) for item in held}:
                     return False
         return True
 

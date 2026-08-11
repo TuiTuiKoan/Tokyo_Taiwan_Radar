@@ -13,13 +13,18 @@ import json
 import pytest
 
 import _oneoff_backfill_ndl_container_title as b1
+from _oneoff_backfill_publication_metadata import PHYSICAL_LOCATION_RE
 from test_qa_auto_fix_unlock_only import FakeSupabase
 
 EVENT_A = "11111111-1111-4111-8111-111111111111"
 EVENT_B = "22222222-2222-4222-8222-222222222222"
+EVENT_C = "33333333-3333-4333-8333-333333333333"
+EVENT_D = "44444444-4444-4444-8444-444444444444"
+EVENT_E = "55555555-5555-4555-8555-555555555555"
 # The legacy pollution this cohort is defined by: a journal title parked in
 # location_name that also trips the physical-venue detector.
 JOURNAL = "台湾大学学報 = Taiwan studies / 台湾学会 編"
+BOILERPLATE = "新刊のご購入は各販売チャネルでお願いします"
 BODY = "本稿は台湾の文化交流を論じる。"
 PLANNED = f"{b1.CONTAINER_TITLE_PREFIX}{JOURNAL}\n\n{BODY}"
 EMPTY_DIGEST = {"row_count": 0, "sha256": b1.sha256([])}
@@ -383,3 +388,156 @@ def test_this_release_unit_never_writes_a_description_or_its_field_correction(
         "本文討論台灣的文化交流。",
         "An essay on Taiwan cultural exchange.",
     )
+
+
+# --- the cohort predicate tests citation identity, not venue shape --------
+
+# Measured against the live cohort. Only the first value is venue-shaped, so a
+# venue-shaped test selected it and dropped four real journals whose citation
+# lives nowhere else. Pinned here so that coupling cannot return.
+PREDICATE_SAMPLES = (
+    ("北海道教育大学大学院高度教職実践専攻研究紀要 : 教職大学院研究紀要 (16):2026.3", True),
+    ("神戸法学雑誌 = Kobe law journal 75(3・4):2026.3", True),
+    ("文芸春秋 104(5):2026.5", True),
+    ("月刊カレント 63(6)=982:2026.6", True),
+    ("防衛技術ジャーナル / 防衛技術協会 [編] 46(4)=541:2026.4", True),
+    ("新刊のご購入は各販売チャネルでお願いします", False),
+)
+
+
+@pytest.mark.parametrize("location_name,preserved", PREDICATE_SAMPLES)
+def test_the_predicate_pins_the_real_location_names(location_name, preserved):
+    assert b1.is_journal_title_in_location_name({"location_name": location_name}) is preserved
+
+
+def test_venue_shape_is_not_what_decides_preservation():
+    """Four of the five preserved values match no venue pattern, yet are preserved."""
+    not_venue_shaped = [
+        name
+        for name, preserved in PREDICATE_SAMPLES
+        if preserved and not PHYSICAL_LOCATION_RE.search(name)
+    ]
+    assert not_venue_shaped == [name for name, _ in PREDICATE_SAMPLES[1:5]]
+    assert [
+        name
+        for name in not_venue_shaped
+        if b1.is_journal_title_in_location_name({"location_name": name})
+    ] == not_venue_shaped
+
+
+@pytest.mark.parametrize("location_name,preserved", PREDICATE_SAMPLES)
+def test_the_predicate_decides_the_write_cohort(location_name, preserved):
+    cohort = b1.select_cohort([_row(location_name=location_name)])
+    assert [row["id"] for row in cohort] == ([EVENT_A] if preserved else [])
+
+
+@pytest.mark.parametrize("location_name", ["", "   ", "16", "2026.3"])
+def test_an_empty_citation_core_never_enters_the_cohort(location_name):
+    assert b1.citation_core(location_name) == ""
+    assert b1.is_journal_title_in_location_name({"location_name": location_name}) is False
+    assert b1.select_cohort([_row(location_name=location_name)]) == []
+
+
+# --- every exact-pure candidate carries a determination -------------------
+
+
+def _full_plan(sb, monkeypatch, *, retrieved=JOURNAL):
+    """Stage 1 end to end: the write cohort planned, every other candidate assessed."""
+    _stub_lookups(monkeypatch, retrieved)
+    candidates = b1.cleanup_candidate_rows(b1.fetch_rows(sb))
+    cohort = b1.select_cohort(candidates)
+    cohort_ids = {str(row["id"]) for row in cohort}
+    plans = [b1.plan_row(row) for row in cohort]
+    plans.extend(b1.assess_row(row) for row in candidates if str(row["id"]) not in cohort_ids)
+    return b1.build_plan(
+        candidates,
+        plans,
+        description_field_corrections=b1.description_fc_digest(
+            sb, [str(row["id"]) for row in candidates]
+        ),
+    )
+
+
+def test_the_artifact_determines_every_exact_pure_candidate(monkeypatch):
+    """The cleanup clears location_name on all of them, so all of them need a verdict."""
+    plan = _full_plan(
+        _fake(
+            [
+                _row(),
+                _row(EVENT_C, source_name="hanmoto", location_name=BOILERPLATE),
+                _row(EVENT_D, source_name="hanmoto", location_name=None),
+                _row(EVENT_E, event_form=["publication", "lecture"]),
+            ]
+        ),
+        monkeypatch,
+    )
+    determined = {
+        event_id for values in plan["citation_safety_sets"].values() for event_id in values
+    }
+    assert determined == {EVENT_A, EVENT_C, EVENT_D}
+    assert {entry["event_id"] for entry in plan["rows"]} == determined
+
+
+def test_an_assessed_row_costs_no_network_call(monkeypatch):
+    _no_network(monkeypatch)
+    assert b1.assess_row(_row(source_name="hanmoto", location_name=BOILERPLATE))["status"] == (
+        "no_citation"
+    )
+
+
+@pytest.mark.parametrize(
+    "overrides,status,assessment",
+    [
+        ({"location_name": None}, "no_citation", "location_name_empty"),
+        ({"location_name": BOILERPLATE}, "no_citation", "publication_boilerplate"),
+        ({"location_name": "16"}, "unavailable", "no_citation_core"),
+        (
+            {
+                "location_name": "文芸春秋 104(5):2026.5",
+                "description_ja": "初出: 文芸春秋 104(5):2026.5。",
+            },
+            "citation_present_elsewhere",
+            "description_ja",
+        ),
+        ({"location_name": "文芸春秋 104(5):2026.5"}, "needs_review", "citation_only_in_location_name"),
+    ],
+)
+def test_an_assessed_row_records_why_it_needs_no_write(overrides, status, assessment):
+    plan = b1.assess_row(_row(**overrides))
+    assert (plan["status"], plan["assessment"]) == (status, assessment)
+    assert plan["planned_raw_description"] is None
+
+
+def test_a_journal_named_nowhere_else_is_unsafe_rather_than_quietly_safe():
+    assert b1.PLAN_CITATION_SAFETY["needs_review"] == "unsafe"
+    assert b1.PLAN_CITATION_SAFETY["no_citation"] == "safe"
+    assert b1.PLAN_CITATION_SAFETY["citation_present_elsewhere"] == "safe"
+
+
+# --- a shared word is a coincidence, not a citation ----------------------
+
+# 25 live location_names shorten to a two-character everyday word once the
+# catalogue tail is dropped. This is one of them.
+SHORT_TITLE_CITATION = "交流 (1021):2026.4"
+
+
+def test_a_title_fragment_the_prose_uses_in_passing_is_not_a_citation_match():
+    """Five retained fields say `交流`; none reproduce the catalogue value."""
+    row = _row(source_name="hanmoto", location_name=SHORT_TITLE_CITATION)
+
+    assert [
+        field for field in b1.CITATION_RETAINED_FIELDS if "交流" in str(row[field] or "")
+    ] == ["raw_description", "description_ja", "description_zh", "raw_title", "name_ja"]
+    assert not [
+        field
+        for field in b1.CITATION_RETAINED_FIELDS
+        if SHORT_TITLE_CITATION in str(row[field] or "")
+    ]
+
+    assert b1.citation_present_elsewhere(row) is None
+    plan = b1.assess_row(row)
+    assert (plan["status"], plan["assessment"]) == (
+        "needs_review",
+        "citation_only_in_location_name",
+    )
+    assert b1.PLAN_CITATION_SAFETY[plan["status"]] == "unsafe"
