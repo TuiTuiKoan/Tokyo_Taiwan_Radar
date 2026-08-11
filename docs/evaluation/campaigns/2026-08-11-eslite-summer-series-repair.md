@@ -114,25 +114,20 @@ correction-audit set. Its verified interval is
 | `93513aa1e7f5cf87e7c7b6eb81483a4661b89798` | Made labeled top-level Eslite ranges outrank publication and nested dates |
 | `5c5a6deede589a32f372a6ea3244b5a9c13c391e` | Repaired pricing, event hierarchy, venue hours, registry inheritance, and operational guidance |
 | `0a1a8c8e72eaf276cdcadffc534ab7b95cc52554` | Published the original campaign closeout evidence |
+| `d4b2bafc0c624d077a23f886ea31e718ba1cec37` | Retired both applied one-offs and hardened fill-only venue inheritance |
+| `ff3fcaec93d000950d4bd0425e559ebddec9d79d` | Aligned agent, shared-skill, source-skill, and history guidance |
+| `1c81270a7362c985c0b212fcd249a46075723640` | Reconciled campaign and Admin QA evidence before release |
 
-All six commits are ancestors of `origin/main`. The forward release candidate
-then adds exactly these three subjects:
-
-* `fix(scraper): harden Eslite venue release`
-* `chore(skills): align Eslite release guidance`
-* `docs: reconcile Eslite and admin QA evidence` (this update; hash intentionally
-  omitted)
-
-The exact three post-commit SHAs belong in the Engineer Changes Log, Tester
-report, and V-M-D approval so a clean rebase cannot make this report stale.
+All nine commits are ancestors of `origin/main`. The final three release commits
+were independently validated at the exact SHAs recorded above.
 
 Natural Daily Scraper run `31345880622` completed successfully at head
 `39dbba0e7b923f8b003da0566bbd3da1a8d1639b` and covered the first four delivery
 commits only. Run `31447829421` completed successfully from a scheduled event at
 head `dc1d23873c790bb0f16fe41ac4ad96cfd7bc2bff`. That head descends from all six
-published commits, but not from the three forward candidate commits. A later
-successful natural run whose head descends from all three forward commits is
-still required.
+originally published campaign commits, but predates the three release-hardening
+commits. A later successful natural run whose head descends from `1c81270a` is
+still required as post-release operational evidence.
 
 ## Prevention Rules
 
@@ -155,7 +150,7 @@ history files record the same contracts.
 
 ## Validation
 
-The forward candidate's pre-evidence Phase 3 validation produced these results:
+The pre-release Phase 3 validation produced these results:
 
 * The five-file focused set passed 75 tests in 5.79 seconds, with 6.70 seconds
   wall time. It covers venue-overlay `BYPASSED`, `MATCHED`, and `MISS` outcomes,
@@ -175,8 +170,26 @@ The forward candidate's pre-evidence Phase 3 validation produced these results:
   conflict-marker checks, EOF-newline checks, and `git diff --check` passed.
 
 The independent production read-back also passed for the venue, eight events,
-12 corrections, and 12 audit rows. Final-tree Phase 5 validation and final
-independent Tester approval remain release gates after this evidence commit.
+12 corrections, and 12 audit rows.
+
+Post-release independent Tester validation at published `origin/main`
+`1c81270a7362c985c0b212fcd249a46075723640` produced an `APPROVE` decision with
+no blocking findings:
+
+* The six-file focused suite passed 84 tests in 6.36 seconds.
+* The read-only post-build audit reported `ALL CLEAR`.
+* A production `SELECT` read-back confirmed one parent, seven direct children,
+  four general-hours events, four event-specific schedules, one venue, 12 field
+  corrections, and the expected applied audit rows.
+* Both one-off `--apply` paths exited before client creation. The venue overlay
+  remained fill-only behind field corrections and current or stored schedules.
+* The Tester made no file, Git, or production/database writes.
+
+The Tester recorded one Low, non-blocking caveat: the summer hierarchy script's
+private `_verify()` checks the intermediate state before the venue-hours
+manifest, so it is not a standalone verifier for the final composed production
+state. The composed read-back passed, and both public write paths are retired.
+Final-tree validation and independent Tester approval are complete.
 
 ## Data Lifecycle
 
@@ -197,10 +210,11 @@ change.
 
 ## Remaining Work
 
-The production data repair is complete, and the remaining release hardening is
-implemented in the forward candidate. Final-tree validation, independent Tester
-approval, explicit push approval, and a later descendant natural run remain
-required before the forward closeout is released.
+The production data repair and release hardening are published and independently
+approved. The only campaign-specific evidence still pending is a successful
+natural scheduled run whose workflow head descends from `1c81270a`. This
+post-release observation does not require the campaign worktree to remain
+mounted.
 
 One optional future enhancement remains outside this campaign: monitor the
 first-party venue page, detect a change, open a review item, and propagate an
@@ -216,10 +230,21 @@ Closeout remain unapproved.
 
 ## Worktree Disposition
 
-The original evidence commit `0a1a8c8e` is a published `origin/main` ancestor.
-This update is the third commit in a forward candidate after the runtime and
-customization commits named above. Keep `ttr-admin-qa-cleanup-worktree` mounted
-while final Tester validation and the approved release cycle are pending. Any
-later removal requires a fresh check that the worktree is clean, every candidate
-commit is published, no Git operation is active, and no unique evidence remains.
-Removing a worktree never archives or closes the active Admin QA specification.
+The three release commits were fast-forwarded to `origin/main` through
+`1c81270a`. Before removal, the campaign worktree was clean, had zero commits
+ahead of or behind `origin/main`, had no active Git operation, and was fully
+contained by local and remote `main`.
+
+All ignored evidence was preserved byte-for-byte in the main worktree before
+the linked worktree was removed without `--force`:
+
+| Preserved artifact | SHA-256 |
+|--------------------|---------|
+| `tmp/gnews_streaming_ids.txt` | `0ef3f279188231a8a67ea8f04e6e2f126689c97762fed01a274e415b34e1472a` |
+| `tmp/publication-policy/20260731T025527Z/lane-o-pre-gp1-baseline.json` | `495453151f78ca18b9c8ec7c71709f9359339a3dde7bc04126ae57426f970dad` |
+| `tmp/read_eslite_mutation_evidence.py` | `3eeb7ac4588ccd22ba27fe7c9cfb9e54709ee8d8511defacf91300bf3c399d29` |
+
+The merged local branch was deleted with `git branch -d`, and its obsolete
+`.git/info/exclude` entry was removed. The broader active Admin QA specification
+and its separately governed work remain open; removing this campaign worktree
+did not archive or close them.
