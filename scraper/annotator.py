@@ -19,6 +19,8 @@ import os
 import re
 import sys
 import time
+from dataclasses import dataclass
+from enum import Enum
 from functools import lru_cache
 from datetime import datetime, timezone
 from html import unescape
@@ -2138,6 +2140,129 @@ def _assert_pure_publication_payload(
         )
 
 
+class VenueRegistryOutcome(str, Enum):
+    BYPASSED = "BYPASSED"
+    MATCHED = "MATCHED"
+    MISS = "MISS"
+
+
+@dataclass(frozen=True)
+class VenueRegistryResult:
+    outcome: VenueRegistryOutcome
+    preserve_venue_label: bool
+    protected_assignment_attempts: int
+
+
+def _apply_venue_registry(
+    event: dict[str, Any],
+    update_data: dict[str, Any],
+    protected_fields: dict[str, Any],
+) -> VenueRegistryResult:
+    location_name = update_data.get("location_name")
+    effective_is_pure = is_pure_publication_record({**event, **update_data})
+    if effective_is_pure or _is_multi_city_parent(location_name):
+        return VenueRegistryResult(VenueRegistryOutcome.BYPASSED, False, 0)
+
+    venue, preserve_venue_label = lookup_venue_for_location(location_name)
+    protected_attempts = 0
+    if venue:
+        venue_columns = {
+            "location_address": None if venue.get("is_multi_venue") else venue.get("address"),
+            "location_prefectures": venue.get("prefectures") or (
+                [venue.get("prefecture")] if venue.get("prefecture") else None
+            ),
+            "location_url": venue.get("homepage"),
+            "venue_id": venue.get("id"),
+        }
+        if not preserve_venue_label:
+            venue_columns.update({
+                "location_name": venue.get("canonical_name_ja"),
+                "location_name_zh": venue.get("canonical_name_zh"),
+                "location_name_en": venue.get("canonical_name_en"),
+            })
+        for field, value in venue_columns.items():
+            if value is None and field != "location_address":
+                continue
+            if field in protected_fields:
+                protected_attempts += 1
+                continue
+            update_data[field] = value
+
+        venue_hours = venue.get("business_hours")
+        hours_eligible = bool(
+            venue_hours
+            and not update_data.get("business_hours")
+            and not event.get("business_hours")
+        )
+        if hours_eligible:
+            if "business_hours" in protected_fields:
+                protected_attempts += 1
+            else:
+                update_data["business_hours"] = venue_hours
+        return VenueRegistryResult(
+            VenueRegistryOutcome.MATCHED,
+            bool(preserve_venue_label),
+            protected_attempts,
+        )
+
+    if not update_data.get("location_url") and not event.get("location_url"):
+        venue_url = _search_venue_homepage(
+            location_name,
+            update_data.get("location_address") or event.get("location_address"),
+        )
+        if venue_url:
+            if "location_url" in protected_fields:
+                protected_attempts += 1
+            else:
+                update_data["location_url"] = venue_url
+    return VenueRegistryResult(VenueRegistryOutcome.MISS, False, protected_attempts)
+
+
+def _build_localized_location_data(
+    annotation: dict[str, Any],
+    event: dict[str, Any],
+    update_data: dict[str, Any],
+    preserve_venue_label: bool,
+    protect: bool,
+    fix_reviewed: bool,
+    protected_fields: dict[str, Any],
+) -> dict[str, Any]:
+    def nonempty_string(value: Any) -> str | None:
+        return value if isinstance(value, str) and value.strip() else None
+
+    def location_value(value: Any) -> str | None:
+        text = nonempty_string(value)
+        if text:
+            text = text.lstrip("：；:; \u3000")
+        return text or None
+
+    localized_location_data: dict[str, Any] = {
+        "location_name_zh": _to_trad(location_value(annotation.get("location_name_zh"))),
+        "location_name_en": location_value(annotation.get("location_name_en")),
+        "location_address_zh": _to_trad(location_value(annotation.get("location_address_zh"))),
+        "location_address_en": location_value(annotation.get("location_address_en")),
+        "business_hours_zh": _to_trad(nonempty_string(annotation.get("business_hours_zh"))),
+        "business_hours_en": nonempty_string(annotation.get("business_hours_en")),
+    }
+    if not fix_reviewed:
+        for field in ("location_name_zh", "location_name_en"):
+            if preserve_venue_label:
+                localized_location_data[field] = (
+                    update_data.get(field)
+                    or event.get(field)
+                    or localized_location_data.get(field)
+                )
+            elif update_data.get(field):
+                localized_location_data[field] = update_data[field]
+    return {
+        field: value
+        for field, value in localized_location_data.items()
+        if value is not None
+        and field not in protected_fields
+        and not (protect and event.get(field) is not None)
+    }
+
+
 def annotate_pending_events(
     re_annotate_all: bool = False,
     fix_translations: bool = False,
@@ -2521,6 +2646,7 @@ def annotate_pending_events(
                 s = _loc(val)
                 return _to_trad(s)
 
+            _preserve_venue_label = False
             if fix_reviewed:
                 # --fix-reviewed mode: only write translation fields; preserve
                 # annotation_status='reviewed', category, dates, and all other
@@ -2869,47 +2995,16 @@ def annotate_pending_events(
                         if not update_data.get(_pf):
                             update_data[_pf] = _parent_event.get(_pf)
 
-                _loc_name_for_lookup = update_data.get("location_name")
-                _effective_is_pure = is_pure_publication_record({**event, **update_data})
-                if not _effective_is_pure and not _is_multi_city_parent(_loc_name_for_lookup):
-                    _venue, _preserve_venue_label = lookup_venue_for_location(
-                        _loc_name_for_lookup
-                    )
-                    if _venue:
-                        _venue_cols = {
-                            "location_address": None if _venue.get("is_multi_venue") else _venue.get("address"),
-                            "location_prefectures": _venue.get("prefectures") or (
-                                [_venue.get("prefecture")] if _venue.get("prefecture") else None
-                            ),
-                            "location_url": _venue.get("homepage"),
-                            "venue_id": _venue.get("id"),
-                        }
-                        if not _preserve_venue_label:
-                            _venue_cols.update({
-                                "location_name": _venue.get("canonical_name_ja"),
-                                "location_name_zh": _venue.get("canonical_name_zh"),
-                                "location_name_en": _venue.get("canonical_name_en"),
-                            })
-                        for _col, _val in _venue_cols.items():
-                            if _col in _human_protected:
-                                continue
-                            if _val is None and _col != "location_address":
-                                continue
-                            update_data[_col] = _val
-
-                        # business_hours：fill-only-if-empty（不覆寫既有場次時刻表）
-                        _vh = _venue.get("business_hours")
-                        if (
-                            _vh
-                            and "business_hours" not in _human_protected
-                            and not update_data.get("business_hours")
-                            and not event.get("business_hours")
-                        ):
-                            update_data["business_hours"] = _vh
-                    elif not update_data.get("location_url") and not event.get("location_url"):
-                        _venue_url = _search_venue_homepage(_loc_name_for_lookup, update_data.get("location_address") or event.get("location_address"))
-                        if _venue_url:
-                            update_data["location_url"] = _venue_url
+                venue_registry_result = _apply_venue_registry(
+                    event,
+                    update_data,
+                    _human_protected,
+                )
+                _preserve_venue_label = venue_registry_result.preserve_venue_label
+                venue_protected_attempts = (
+                    venue_registry_result.protected_assignment_attempts
+                )
+                field_protect_hits += venue_protected_attempts
 
             # Auto-sync location_prefectures from location_address.
             # Handles the case where location_address was manually FC-corrected but
@@ -2944,28 +3039,15 @@ def annotate_pending_events(
 
             # Localized location/hours fields added in migration 010.
             # Kept separate so the primary update above never fails on old DB schemas.
-            localized_location_data: dict[str, Any] = {
-                "location_name_zh": _loc_zh(annotation.get("location_name_zh")),
-                "location_name_en": _loc(annotation.get("location_name_en")),
-                "location_address_zh": _loc_zh(annotation.get("location_address_zh")),
-                "location_address_en": _loc(annotation.get("location_address_en")),
-                "business_hours_zh": _to_trad(_str(annotation.get("business_hours_zh"))),
-                "business_hours_en": _str(annotation.get("business_hours_en")),
-            }
-            if not fix_reviewed:
-                if update_data.get("location_name_zh"):
-                    localized_location_data["location_name_zh"] = update_data["location_name_zh"]
-                if update_data.get("location_name_en"):
-                    localized_location_data["location_name_en"] = update_data["location_name_en"]
-            # Only send non-null values; in protect mode also skip fields where DB
-            # already has a non-null value (admin-corrected localized location fields).
-            # Also skip any field in _human_protected (explicitly corrected by admin).
-            localized_location_data = {
-                k: v for k, v in localized_location_data.items()
-                if v is not None
-                and k not in _human_protected
-                and not (_protect and event.get(k) is not None)
-            }
+            localized_location_data = _build_localized_location_data(
+                annotation,
+                event,
+                update_data,
+                _preserve_venue_label,
+                _protect,
+                fix_reviewed,
+                _human_protected,
+            )
 
             # Guard: force single-day end_date only in clearly determinable single-day cases.
             if not fix_reviewed:

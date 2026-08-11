@@ -1,4 +1,4 @@
-"""Repair the 2026 Eslite summer umbrella event and its child activities.
+"""Applied provenance for the 2026 Eslite summer hierarchy repair.
 
 The public ``eslite Collection`` row incorrectly treated a 6,980 JPY tea gift
 as the admission price for the whole summer campaign. The official umbrella
@@ -9,9 +9,13 @@ page already belongs to the canonical IWAFU event, so this repair:
 3. inserts the six other first-level items listed by the official umbrella;
 4. merges the incorrect Collection row into the canonical parent last.
 
-Usage:
-    ../.venv/bin/python _oneoff_fix_eslite_summer_children.py --dry-run
-    ../.venv/bin/python _oneoff_fix_eslite_summer_children.py --apply
+Manifest ``4f25dfc756d3`` was applied in verified stages on 2026-08-09 UTC:
+23 correction audits ran from 21:52:50.401181 to 21:53:29.089863, six child
+rows were inserted at 21:53:29.721030, and the duplicate row was deactivated
+and redirected from 21:53:31.250239 to 21:53:31.541644. The verified post-state
+is one canonical parent with seven direct children and one inactive duplicate
+redirect. The historical mutation and verification functions remain for audit
+inspection; the ``--apply`` path is permanently retired.
 """
 
 from __future__ import annotations
@@ -595,6 +599,12 @@ def main() -> int:
     mode.add_argument("--dry-run", action="store_true")
     mode.add_argument("--apply", action="store_true")
     args = parser.parse_args()
+
+    if args.apply:
+        raise SystemExit(
+            "--apply is permanently retired: Eslite summer hierarchy manifest "
+            "4f25dfc756d3 is already applied and verified"
+        )
 
     sb = _client()
     snapshot = _preflight(sb)

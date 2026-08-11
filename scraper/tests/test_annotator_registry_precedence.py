@@ -1,14 +1,11 @@
-"""Registry-precedence tests for ``annotator._apply_organizer_registry``.
+"""Registry-precedence tests for deterministic annotator overlays.
 
-Every test monkeypatches ``annotator.lookup_organizer`` with a controlled fake,
-so none of them depend on a live database or on migration 095's
-``organizers.is_authoritative`` column. The final test pins the graceful-
-degradation contract: when the registry is empty (every lookup → ``None``, the
-real behaviour before migration 095 is applied) the helper is a field-for-field
-no-op, even for GPT payloads whose parallel arrays have mismatched cardinality.
+Every test monkeypatches registry and homepage lookups with controlled fakes, so
+none depend on a live database, network access, or registry migrations.
 """
 
 import copy
+import inspect
 
 import annotator
 
@@ -173,3 +170,340 @@ def test_graceful_noop_when_registry_empty(monkeypatch):
     before = copy.deepcopy(data)
     annotator._apply_organizer_registry({}, data)
     assert data == before
+
+
+def _venue_record() -> dict:
+    return {
+        "id": "venue-eslite",
+        "canonical_name_ja": "誠品生活日本橋",
+        "canonical_name_zh": "誠品生活日本橋",
+        "canonical_name_en": "Eslite Spectrum Nihonbashi",
+        "address": "東京都中央区日本橋室町3-2-1",
+        "prefecture": "東京都",
+        "prefectures": ["東京都"],
+        "homepage": "https://www.eslitespectrum.jp/about/store/nihonbashi",
+        "is_multi_venue": False,
+        "business_hours": "平日 11:00～20:00、土日祝 10:00～20:00",
+    }
+
+
+def _patch_venue_services(
+    monkeypatch,
+    *,
+    venue: dict | None,
+    preserve_venue_label: bool = False,
+    homepage: str | None = None,
+) -> dict[str, list]:
+    calls = {"lookup": [], "homepage": []}
+
+    def fake_lookup(name):
+        calls["lookup"].append(name)
+        return venue, preserve_venue_label
+
+    def fake_homepage(name, address=None):
+        calls["homepage"].append((name, address))
+        return homepage
+
+    monkeypatch.setattr(annotator, "lookup_venue_for_location", fake_lookup)
+    monkeypatch.setattr(annotator, "_search_venue_homepage", fake_homepage)
+    return calls
+
+
+def test_venue_ordinary_exact_alias_canonicalizes_names_and_metadata(monkeypatch):
+    venue = _venue_record()
+    calls = _patch_venue_services(monkeypatch, venue=venue)
+    update_data = {"location_name": "誠品生活日本橋店"}
+
+    result = annotator._apply_venue_registry({}, update_data, {})
+
+    assert result == annotator.VenueRegistryResult(
+        annotator.VenueRegistryOutcome.MATCHED,
+        False,
+        0,
+    )
+    assert update_data == {
+        "location_name": venue["canonical_name_ja"],
+        "location_name_zh": venue["canonical_name_zh"],
+        "location_name_en": venue["canonical_name_en"],
+        "location_address": venue["address"],
+        "location_prefectures": venue["prefectures"],
+        "location_url": venue["homepage"],
+        "venue_id": venue["id"],
+        "business_hours": venue["business_hours"],
+    }
+    assert calls == {"lookup": ["誠品生活日本橋店"], "homepage": []}
+
+
+def _assert_subspace_two_payloads(
+    monkeypatch,
+    *,
+    names: tuple[str, str, str],
+) -> None:
+    venue = _venue_record()
+    _patch_venue_services(
+        monkeypatch,
+        venue=venue,
+        preserve_venue_label=True,
+    )
+    name_ja, name_zh, name_en = names
+    update_data = {
+        "location_name": name_ja,
+        "location_name_zh": name_zh,
+        "location_name_en": name_en,
+    }
+    annotation = {
+        "location_name_zh": venue["canonical_name_zh"],
+        "location_name_en": venue["canonical_name_en"],
+    }
+
+    result = annotator._apply_venue_registry({}, update_data, {})
+    localized = annotator._build_localized_location_data(
+        annotation,
+        {},
+        update_data,
+        result.preserve_venue_label,
+        False,
+        False,
+        {},
+    )
+
+    assert result.outcome is annotator.VenueRegistryOutcome.MATCHED
+    assert result.preserve_venue_label is True
+    assert (
+        update_data["location_name"],
+        update_data["location_name_zh"],
+        update_data["location_name_en"],
+    ) == names
+    assert localized["location_name_zh"] == name_zh
+    assert localized["location_name_en"] == name_en
+    assert update_data["location_address"] == venue["address"]
+    assert update_data["location_prefectures"] == venue["prefectures"]
+    assert update_data["location_url"] == venue["homepage"]
+    assert update_data["venue_id"] == venue["id"]
+
+
+def test_venue_exact_subspace_alias_preserves_both_payloads(monkeypatch):
+    _assert_subspace_two_payloads(
+        monkeypatch,
+        names=(
+            "誠品生活日本橋 expo",
+            "誠品生活日本橋 expo 展演空間",
+            "Eslite Spectrum Nihonbashi expo",
+        ),
+    )
+
+
+def test_venue_canonical_prefix_subspace_preserves_both_payloads(monkeypatch):
+    _assert_subspace_two_payloads(
+        monkeypatch,
+        names=(
+            "誠品生活日本橋 書籍レジ",
+            "誠品生活日本橋 書籍櫃檯",
+            "Eslite Spectrum Nihonbashi Book Counter",
+        ),
+    )
+
+
+def test_venue_subspace_missing_locale_uses_gpt_not_parent_label(monkeypatch):
+    venue = _venue_record()
+    _patch_venue_services(
+        monkeypatch,
+        venue=venue,
+        preserve_venue_label=True,
+    )
+    update_data = {
+        "location_name": "誠品生活日本橋 各ショップ",
+        "location_name_zh": "誠品生活日本橋 各店舖",
+    }
+    annotation = {"location_name_en": "Participating Eslite shops"}
+
+    result = annotator._apply_venue_registry({}, update_data, {})
+    localized = annotator._build_localized_location_data(
+        annotation,
+        {},
+        update_data,
+        result.preserve_venue_label,
+        False,
+        False,
+        {},
+    )
+
+    assert "location_name_en" not in update_data
+    assert localized["location_name_zh"] == "誠品生活日本橋 各店舖"
+    assert localized["location_name_en"] == "Participating Eslite shops"
+    assert localized["location_name_en"] != venue["canonical_name_en"]
+
+
+def test_venue_empty_hours_inherit_authoritative_hours(monkeypatch):
+    venue = _venue_record()
+    _patch_venue_services(monkeypatch, venue=venue)
+    update_data = {"location_name": venue["canonical_name_ja"]}
+
+    result = annotator._apply_venue_registry({}, update_data, {})
+
+    assert update_data["business_hours"] == venue["business_hours"]
+    assert result.protected_assignment_attempts == 0
+
+
+def test_venue_current_annotation_hours_are_preserved(monkeypatch):
+    venue = _venue_record()
+    _patch_venue_services(monkeypatch, venue=venue)
+    update_data = {
+        "location_name": venue["canonical_name_ja"],
+        "business_hours": "8/22 12:00～20:00、8/23 12:00～19:00",
+    }
+
+    result = annotator._apply_venue_registry({}, update_data, {})
+
+    assert update_data["business_hours"] == "8/22 12:00～20:00、8/23 12:00～19:00"
+    assert result.protected_assignment_attempts == 0
+
+
+def test_venue_stored_event_hours_are_preserved(monkeypatch):
+    venue = _venue_record()
+    _patch_venue_services(monkeypatch, venue=venue)
+    event = {"business_hours": "8/30 14:00～16:00"}
+    update_data = {"location_name": venue["canonical_name_ja"]}
+
+    result = annotator._apply_venue_registry(event, update_data, {})
+
+    assert "business_hours" not in update_data
+    assert event["business_hours"] == "8/30 14:00～16:00"
+    assert result.protected_assignment_attempts == 0
+
+
+def test_venue_empty_fc_sentinel_blocks_hours_and_counts_one(monkeypatch):
+    venue = _venue_record()
+    _patch_venue_services(monkeypatch, venue=venue)
+    update_data = {"location_name": venue["canonical_name_ja"]}
+
+    result = annotator._apply_venue_registry(
+        {},
+        update_data,
+        {"business_hours": ""},
+    )
+
+    assert "business_hours" not in update_data
+    assert result.protected_assignment_attempts == 1
+
+
+def test_venue_protected_location_candidates_count_exactly_two(monkeypatch):
+    venue = _venue_record()
+    _patch_venue_services(monkeypatch, venue=venue)
+    update_data = {"location_name": venue["canonical_name_ja"]}
+
+    result = annotator._apply_venue_registry(
+        {},
+        update_data,
+        {"location_address": "", "venue_id": "locked"},
+    )
+
+    assert result.protected_assignment_attempts == 2
+    assert "location_address" not in update_data
+    assert "venue_id" not in update_data
+    assert update_data["location_prefectures"] == venue["prefectures"]
+
+
+def test_venue_protected_attempt_wiring_is_single():
+    source = inspect.getsource(annotator.annotate_pending_events)
+
+    assert source.count("field_protect_hits += venue_protected_attempts") == 1
+
+
+def test_venue_pure_publication_bypasses_lookup_and_homepage(monkeypatch):
+    calls = _patch_venue_services(monkeypatch, venue=_venue_record())
+    update_data = {
+        "event_form": ["publication"],
+        "location_name": "誠品生活日本橋",
+    }
+
+    result = annotator._apply_venue_registry({}, update_data, {})
+
+    assert result == annotator.VenueRegistryResult(
+        annotator.VenueRegistryOutcome.BYPASSED,
+        False,
+        0,
+    )
+    assert calls == {"lookup": [], "homepage": []}
+
+
+def test_venue_multi_city_bypasses_lookup_and_homepage(monkeypatch):
+    calls = _patch_venue_services(monkeypatch, venue=_venue_record())
+    update_data = {"location_name": "東京・大阪"}
+
+    result = annotator._apply_venue_registry({}, update_data, {})
+
+    assert result == annotator.VenueRegistryResult(
+        annotator.VenueRegistryOutcome.BYPASSED,
+        False,
+        0,
+    )
+    assert calls == {"lookup": [], "homepage": []}
+
+
+def test_venue_match_calls_lookup_once_and_never_searches_homepage(monkeypatch):
+    venue = _venue_record()
+    calls = _patch_venue_services(monkeypatch, venue=venue)
+    update_data = {"location_name": venue["canonical_name_ja"]}
+
+    result = annotator._apply_venue_registry({}, update_data, {})
+
+    assert result.outcome is annotator.VenueRegistryOutcome.MATCHED
+    assert calls == {"lookup": [venue["canonical_name_ja"]], "homepage": []}
+
+
+def test_venue_miss_empty_urls_searches_once_and_applies_result(monkeypatch):
+    homepage = "https://venue.example/official"
+    calls = _patch_venue_services(
+        monkeypatch,
+        venue=None,
+        homepage=homepage,
+    )
+    update_data = {
+        "location_name": "未登録会場",
+        "location_address": "東京都中央区1-1",
+    }
+
+    result = annotator._apply_venue_registry({}, update_data, {})
+
+    assert result.outcome is annotator.VenueRegistryOutcome.MISS
+    assert result.preserve_venue_label is False
+    assert update_data["location_url"] == homepage
+    assert calls == {
+        "lookup": ["未登録会場"],
+        "homepage": [("未登録会場", "東京都中央区1-1")],
+    }
+
+
+def test_venue_miss_assembled_url_skips_homepage_search(monkeypatch):
+    calls = _patch_venue_services(
+        monkeypatch,
+        venue=None,
+        homepage="https://unexpected.example/",
+    )
+    update_data = {
+        "location_name": "未登録会場",
+        "location_url": "https://assembled.example/",
+    }
+
+    result = annotator._apply_venue_registry({}, update_data, {})
+
+    assert result.outcome is annotator.VenueRegistryOutcome.MISS
+    assert update_data["location_url"] == "https://assembled.example/"
+    assert calls == {"lookup": ["未登録会場"], "homepage": []}
+
+
+def test_venue_miss_stored_url_skips_homepage_search(monkeypatch):
+    calls = _patch_venue_services(
+        monkeypatch,
+        venue=None,
+        homepage="https://unexpected.example/",
+    )
+    event = {"location_url": "https://stored.example/"}
+    update_data = {"location_name": "未登録会場"}
+
+    result = annotator._apply_venue_registry(event, update_data, {})
+
+    assert result.outcome is annotator.VenueRegistryOutcome.MISS
+    assert "location_url" not in update_data
+    assert calls == {"lookup": ["未登録会場"], "homepage": []}

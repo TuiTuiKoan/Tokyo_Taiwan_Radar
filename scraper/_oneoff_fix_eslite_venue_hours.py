@@ -1,13 +1,16 @@
-"""Seed Eslite Nihonbashi hours and repair hours-less summer events.
+"""Applied provenance for the Eslite Nihonbashi venue-hours repair.
 
 The official store/access page states the general opening hours as weekdays
 11:00-20:00 and weekends/public holidays 10:00-20:00. Event-specific schedules
 remain untouched; this repair only fills the umbrella event and three child
 activities whose hours are currently empty.
 
-Usage:
-    ../.venv/bin/python _oneoff_fix_eslite_venue_hours.py --dry-run
-    ../.venv/bin/python _oneoff_fix_eslite_venue_hours.py --apply
+Manifest ``5742d0438ed9`` was applied from 2026-08-09T22:09:12.030295Z through
+2026-08-09T22:09:31.152860Z. The verified post-state is one authoritative venue
+row, four general-hours events, four preserved event-specific schedules, 12
+field corrections, and 12 applied audit rows. The historical mutation and
+verification functions remain for audit inspection; the ``--apply`` path is
+permanently retired.
 """
 
 from __future__ import annotations
@@ -294,6 +297,12 @@ def main() -> int:
     mode.add_argument("--dry-run", action="store_true")
     mode.add_argument("--apply", action="store_true")
     args = parser.parse_args()
+
+    if args.apply:
+        raise SystemExit(
+            "--apply is permanently retired: Eslite venue-hours manifest "
+            "5742d0438ed9 is already applied and verified"
+        )
 
     sb = _client()
     snapshot = _preflight(sb)
