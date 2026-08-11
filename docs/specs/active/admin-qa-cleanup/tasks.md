@@ -5,9 +5,12 @@ description: Successor checklist and transfer map for the remaining Admin Report
 
 ## Tasks
 
-This file is the execution ledger for the successor. Package A0 and Package A
-checkboxes below track the current delivery. Every T-A0, T-A1, Phase D, and Phase
-S checkbox remains unapproved. The predecessor remains immutable audit history.
+This file is the execution ledger for the successor. Package A0, Package A, and
+the Eslite production repair are delivered. The forward three-commit candidate
+still requires final Tester validation, explicit push approval, and a later
+natural scheduled observation. Every T-A0, P0, T-A1, Phase D, Phase S, and
+Closeout checkbox remains unapproved. The predecessor remains immutable audit
+history.
 
 ## Audit References
 
@@ -171,80 +174,103 @@ The total is $6 + 5 + 2 + 9 + 10 + 7 = 39$.
 * [x] Restructure the drafts around Package A0 and Package A
 * [x] Record the 2026-08-09 observation separately from the 179-row baseline
 * [x] Retain every full report and event identifier
-* [ ] Commit exactly the two successor files as a docs-only change
-* [ ] Record the committed successor SHA and both file digests
+* [x] Publish the two-path successor draft in `738fd9e8`
+* [x] Record the proposal digest
+  `1d58638652c2e8caf1117f3b611577f96dec0a101d9c01065fa3d14d7434fc57` and
+  task-ledger digest
+  `becd6060eaaf45ee34ba8f36b6fcb4f8bc7f61a38ca6796b07c406adf1bed5b2`
 * [x] Keep the predecessor three-file hashes unchanged
 
 ## Package A0: Time-Critical Exact Repair
 
 ### A0.1 Offline `lock_clean` contract tests
 
-* [ ] Modify only `scraper/tests/test_qa_auto_fix_unlock_only.py`
-* [ ] Extend the existing in-memory fake instead of adding a framework
-* [ ] Prove scalar `expected_event_value` CAS returns exactly one event row
-* [ ] Prove a list value encodes as `_fc_value()` JSON text, never `repr()` and
+* [x] Modify only `scraper/tests/test_qa_auto_fix_unlock_only.py`
+* [x] Extend the existing in-memory fake instead of adding a framework
+* [x] Prove scalar `expected_event_value` CAS returns exactly one event row
+* [x] Prove a list value encodes as `_fc_value()` JSON text, never `repr()` and
   never a comma join
-* [ ] Prove a scalar value encodes as exact `str(value)` text
-* [ ] Prove `expected_fc=None` rejects an unexpected row before event mutation
-* [ ] Prove `expected_event_value` drift rejects before event mutation
-* [ ] Prove success finalizes the audit row to `applied` with
+* [x] Prove a scalar value encodes as exact `str(value)` text
+* [x] Prove `expected_fc=None` rejects an unexpected row before event mutation
+* [x] Prove `expected_event_value` drift rejects before event mutation
+* [x] Prove success finalizes the audit row to `applied` with
   `event_after_value_json` set
-* [ ] Prove a post-write verification failure returns `False`, leaves the applied
+* [x] Prove a post-write verification failure returns `False`, leaves the applied
   event and correction writes observable, and finalizes `verify_failed`
-* [ ] Reach no network and no Supabase
+* [x] Reach no network and no Supabase
 
 ### A0.2 Summer Collection `end_date` correction
 
-* [ ] Read the exact before-image for event
+* [x] Read the exact before-image for event
   `c1eb5e53-6779-4379-ba2a-95e8ae8e8255` read-only
-* [ ] Confirm no `field_corrections` row exists for `end_date` on that event
-* [ ] Enumerate all other corrections on that event as preserve-only
-* [ ] Obtain a separate approval naming the verbatim before-image, the new value
+* [x] Confirm no `field_corrections` row exists for `end_date` on that event
+* [x] Enumerate all other corrections on that event as preserve-only
+* [x] Obtain a separate approval naming the verbatim before-image, the new value
   `2026-08-31T00:00:00+00:00`, `expected_fc=None`, the audit reason digest, and
   `report_id=None`
-* [ ] Execute exactly one `unlock_and_write(..., mode="lock_clean")` call
-* [ ] Independently re-read event, `end_date` correction, unrelated corrections,
+* [x] Execute exactly one `unlock_and_write(..., mode="lock_clean")` call
+* [x] Independently re-read event, `end_date` correction, unrelated corrections,
   and the audit row
-* [ ] On `False` or ambiguity, stop, classify the actual partial state, and
-  require a revised approval before any retry
+* [x] Complete without `False`, ambiguity, or a retry
 
 ## Package A: Predicate And Parser Root Cause
 
 ### Phase 1 Auto-QA predicates
 
-* [ ] Make `start_date IS NULL` the only pure missing-date signal
-* [ ] Remove `PUBLISH_DATE_SOURCES` after proving it has no remaining consumer
-* [ ] Preserve `THIN_CONTENT_SOURCES` and its other consumers
-* [ ] Require local honorific or middle-dot person evidence for missing-performers
-* [ ] Keep explicit labeled role lists sufficient on their own
-* [ ] Keep every consumed field in the detector and `reconcile()` projections
-* [ ] Add projection-aware tests that fail if either projection drops a field
-* [ ] Test `_check_*()` pure contracts and the detector 30-day window separately
-* [ ] Preserve and test the `NULL` versus `[]` missing-performer asymmetry
-* [ ] Assert the three target types are absent from `SAFE_REPORT_TYPES` and
+* [x] Make `start_date IS NULL` the only pure missing-date signal
+* [x] Remove `PUBLISH_DATE_SOURCES` after proving it has no remaining consumer
+* [x] Preserve `THIN_CONTENT_SOURCES` and its other consumers
+* [x] Require local honorific or middle-dot person evidence for missing-performers
+* [x] Keep explicit labeled role lists sufficient on their own
+* [x] Keep every consumed field in the detector and `reconcile()` projections
+* [x] Add projection-aware tests that fail if either projection drops a field
+* [x] Test `_check_*()` pure contracts and the detector 30-day window separately
+* [x] Preserve and test the `NULL` versus `[]` missing-performer asymmetry
+* [x] Assert the three target types are absent from `SAFE_REPORT_TYPES` and
   `HANDLER_MAP`, and that the heartbeat enumerates only `SAFE_REPORT_TYPES`
-* [ ] Mutate no event or report inside any predicate
+* [x] Mutate no event or report inside any predicate
 
 ### Phase 2 Prospective Eslite parser
 
-* [ ] Prefer a labeled top-level event range over publication ISO text
-* [ ] Prefer a labeled top-level event range over nested item ranges
-* [ ] Accept weekday tokens and both `～` and `ー` separators
-* [ ] Keep a one-day labeled event's start and end identical
-* [ ] Invent no umbrella end when only nested ranges exist
-* [ ] Claim no repair of already-stored Eslite rows
+* [x] Prefer a labeled top-level event range over publication ISO text
+* [x] Prefer a labeled top-level event range over nested item ranges
+* [x] Accept weekday tokens and both `～` and `ー` separators
+* [x] Keep a one-day labeled event's start and end identical
+* [x] Invent no umbrella end when only nested ranges exist
+* [x] Claim no repair of already-stored Eslite rows
 
 ### Package A validation
 
-* [ ] Keep successor docs, A0.1 tests, predicates, and parser as separate commits
-* [ ] Run focused tests, compile checks, and the full scraper suite
-* [ ] Run the Eslite dry-run and confirm it writes nothing
-* [ ] Obtain an independent Tester PASS
-* [ ] Obtain a normal validate, merge, and deploy approval before any push
-* [ ] Observe the next natural scheduled run on the exact released SHA
-* [ ] Re-read the eight named reports and derive disposition per event state
-* [ ] Measure paginated pending counts by type to decide whether the 82-report
-  organizer cohort warrants a separate root-cause workstream
+* [x] Keep successor docs, A0.1 tests, predicates, and parser in four commits
+* [x] Pass 75 focused tests, six-file compilation, the 834-test full suite, and
+  the post-build audit in Phase 3
+* [x] Complete the write-free Eslite source smoke with 37 events and exit code 0
+* [ ] Obtain final independent Tester PASS for the three-commit candidate
+* [ ] Obtain explicit approval for the exact three-commit candidate before push
+* [ ] Observe the first successful natural run whose head descends from all
+  three forward candidate commits
+* [x] Re-read the eight named reports and record their actual dispositions
+* [x] Record the paginated post-run observation of 173 pending reports, including
+  83 `auto_qa_missing_organizer` rows, without authorizing organizer cleanup
+
+### Eslite release and forward hardening
+
+* [x] Publish combined Eslite implementation commit `5c5a6dee`
+* [x] Publish the original campaign evidence in `0a1a8c8e`
+* [x] Verify one parent, seven direct children, and one inactive redirect
+* [x] Verify one authoritative venue, four general-hours events, and four
+  preserved event-specific schedules
+* [x] Verify 12 field corrections and 12 applied audit rows
+* [x] Record summer manifest `4f25dfc756d3` and venue-hours manifest
+  `5742d0438ed9` with their verified mutation intervals
+* [x] Add direct venue-overlay and one-off-retirement tests in
+  `fix(scraper): harden Eslite venue release`
+* [x] Align the seven customization files in
+  `chore(skills): align Eslite release guidance`
+* [x] Complete Phase 3 with 75 focused tests, six-file compilation, 834 passed,
+  1 skipped, a passing post-build audit, and a 37-event write-free source smoke
+* [x] Observe successful scheduled run `31447829421` covering `5c5a6dee` and
+  `0a1a8c8e`, while recording that forward candidate coverage remains pending
 
 ## Phase T-A0: Read-Only Tooling
 
@@ -308,7 +334,7 @@ The total is $6 + 5 + 2 + 9 + 10 + 7 = 39$.
 * [x] Markdown and prompt diagnostics pass
 * [x] UTF-8, EOF newline, whitespace, tab, and conflict-marker checks pass
 * [x] `git diff --check` and `git diff --cached --check` pass
-* [ ] The docs-only commit contains exactly the two successor files
+* [x] Commit `738fd9e8` contains exactly the two successor files
 * [x] Predecessor `proposal.md`, `tasks.md`, and `notes.md` hashes are unchanged
 * [x] Worktree path, branch, base, ahead/behind, and status checks pass
 * [ ] Lane O baseline mode, size, SHA, byte comparison, and ignore checks pass

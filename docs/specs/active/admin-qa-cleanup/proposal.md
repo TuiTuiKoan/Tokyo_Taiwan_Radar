@@ -15,12 +15,13 @@ rebaseline. This successor is the execution tracker for future work. The
 predecessor at `docs/specs/active/admin-reports-204-cleanup/` remains immutable
 audit history until a separate final archive approval.
 
-Delivery runs as two ordered packages. Package A0 is the time-critical
-correction: offline `lock_clean` contract coverage first, then a separately
-approved single-field `end_date` repair for the still-running eslite Collection
-event. Package A is the root-cause implementation: refresh this successor, repair
-the missing-date and missing-performer predicates, repair Eslite date-range
-parsing prospectively, validate, and release through the normal cycle.
+Delivery began as two ordered packages. Package A0 supplied offline `lock_clean`
+contract coverage, followed by the separately approved single-field `end_date`
+repair for the then-running eslite Collection event. Package A delivered the
+missing-date and missing-performer predicate repairs plus prospective Eslite
+date-range parsing. Those packages and the later Eslite production repair are
+now delivered. This active successor retains the remaining Admin QA gates and
+tracks the three-commit forward hardening and evidence candidate.
 
 The tools-only track named T-A0 remains a later, approval-bound slice. It can
 discover, classify, freeze, and export the pending queue, but it cannot write to
@@ -64,6 +65,56 @@ Every predecessor delivery reference resolved uniquely and is an
 `c7f42c4c`, G-P `7c98491b8f7efd60d03c2b6d21112aca5a20389f`, G-P.1
 `085d4441edf9a12eeb4ec774b84f900649f08302`, and Lane R
 `fadbe289cb57d49f018d00cc22db0c5bdd87729d`.
+
+### Delivered successor and Eslite release
+
+The successor and root-cause packages were delivered in five commits:
+
+* `738fd9e8004fa4e0230b3cd22479c43ef62356bd` restructured this active spec.
+  Its committed proposal digest is
+  `1d58638652c2e8caf1117f3b611577f96dec0a101d9c01065fa3d14d7434fc57`, and
+  its task-ledger digest is
+  `becd6060eaaf45ee34ba8f36b6fcb4f8bc7f61a38ca6796b07c406adf1bed5b2`.
+* `784653d87461d659090eea17e63e539b51d00900` added the offline
+  `lock_clean` contracts.
+* `0f347f81fb238e4313691202d90ff48a7ac4687d` repaired the two Auto-QA
+  predicates.
+* `93513aa1e7f5cf87e7c7b6eb81483a4661b89798` repaired prospective Eslite
+  range parsing.
+* `5c5a6deede589a32f372a6ea3244b5a9c13c391e` delivered pricing, hierarchy,
+  authoritative venue, venue-hours, and subspace-label behavior.
+
+Commit `0a1a8c8e72eaf276cdcadffc534ab7b95cc52554` published the original Eslite
+campaign closeout. The forward candidate then adds commits with subjects
+`fix(scraper): harden Eslite venue release`,
+`chore(skills): align Eslite release guidance`, and
+`docs: reconcile Eslite and admin QA evidence`. The first two exact candidate
+SHAs and the final three-SHA list belong in the Engineer Changes Log and Tester
+report so a clean rebase cannot make this spec stale. This evidence commit does
+not record its own hash.
+
+Natural Daily Scraper run `31345880622` used head
+`39dbba0e7b923f8b003da0566bbd3da1a8d1639b` and covers the first four commits
+only. Run `31447829421` completed successfully from a scheduled event at head
+`dc1d23873c790bb0f16fe41ac4ad96cfd7bc2bff`; that head descends from all five
+delivered commits and `0a1a8c8e`, but not from the three forward candidate
+commits. The first successful natural run whose head descends from all three
+forward commits remains pending.
+
+The applied summer-hierarchy manifest is `4f25dfc756d3`. Its correction audits
+ran from `2026-08-09T21:52:50.401181Z` to
+`2026-08-09T21:53:29.089863Z`, six child rows were inserted at
+`2026-08-09T21:53:29.721030Z`, and the final duplicate redirect ran from
+`2026-08-09T21:53:31.250239Z` to `2026-08-09T21:53:31.541644Z`. The applied
+venue-hours manifest is `5742d0438ed9`, with a verified interval from
+`2026-08-09T22:09:12.030295Z` through `2026-08-09T22:09:31.152860Z`.
+
+The combined read-back found one canonical parent with seven direct children,
+one inactive duplicate redirect, one authoritative venue row, four events with
+general venue hours, four preserved event-specific schedules, 12 field
+corrections, and 12 applied audit rows. This closure authorizes no additional or
+manually triggered production mutation. Existing scheduled writers remain
+unchanged.
 
 ### Lane O and publication closeout
 
@@ -203,12 +254,13 @@ finalization, and the non-transactional failure contract.
 
 A0.2 corrects the `end_date` of event `c1eb5e53-6779-4379-ba2a-95e8ae8e8255` from
 its exact stored before-image to `2026-08-31T00:00:00+00:00`, using first-party
-evidence of 2026-07-18 through 2026-08-31. It is the only production mutation
-anywhere in this successor, it needs its own approval naming the verbatim
-before-image string, and it runs as exactly one
+evidence of 2026-07-18 through 2026-08-31. It was the first separately approved
+production mutation in this successor and ran as exactly one
 `qa_auto_fix.unlock_and_write(..., mode="lock_clean")` call. A `False` return
-never means nothing was written: stop, re-read event, `field_corrections`, and
-audit state, and require a revised approval before any retry.
+never meant nothing was written: the execution required an event,
+`field_corrections`, and audit re-read before any possible retry. The later
+summer-hierarchy and venue-hours manifests were separate, source-scoped
+operations and are preserved above as applied evidence, not reusable approval.
 
 ### Package A: predicate and parser root cause
 
@@ -261,7 +313,8 @@ from URL slugs, so such a branch would be dead code.
 * No push or deployment without a normal validate, merge, and deploy approval
 * No workflow dispatch, workflow-variable change, or maintenance lock
 * No migration, GPT run, reset, report settlement, or schema change
-* No production database write outside the single approved A0.2 correction
+* No additional or manually triggered production database write under this
+  evidence closure
 * No repair of the expired Spring campaign, Spring Festival performers, or TOKYO
   CITY BOOK JAM organizer
 * No January source allowlist, source-wide organizer default, comma-joined
@@ -447,8 +500,15 @@ PYTHON="/Users/flyingship/Development/Tokyo Taiwan Radar/.venv/bin/python"
 git diff --check
 ```
 
-The dry-run must write nothing. If the source network is unavailable, record the
-dry-run as `INCONCLUSIVE`; fixture coverage must still pass.
+The pre-evidence Phase 3 run on 2026-08-11 passed 75 focused tests in 5.79
+seconds (6.70 seconds wall time), compiled all six target Python files in 0.12
+seconds, and passed the full scraper suite with 834 passed, 1 skipped, and 25
+warnings in 15.61 seconds (16.42 seconds wall time). The read-only post-build
+audit passed in 2.96 seconds. The Eslite source smoke completed with exit code 0,
+37 events, the explicit `DRY RUN` no-write marker, and 648.16 seconds wall time.
+It therefore does not require an `INCONCLUSIVE` classification. The dry-run
+control flow skips event upserts, scraper-run logging, merger, annotation, and
+IndexNow publication.
 
 The proposed T-A0 slice must later pass:
 

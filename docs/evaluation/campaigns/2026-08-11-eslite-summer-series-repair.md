@@ -79,8 +79,17 @@ applied audits=12
 
 The authoritative venue row is
 `fd330e2a-e8e8-40fb-9fcb-d1af44d7be3a`. It stores the official store page and
-the verified general hours. Repair manifest `5742d0438ed9` identifies the
-venue-hours mutation and its correction-audit set.
+the verified general hours. Summer hierarchy manifest `4f25dfc756d3` identifies
+the parent, child, pricing, and redirect repair. Its correction audits ran from
+`2026-08-09T21:52:50.401181Z` to `2026-08-09T21:53:29.089863Z`, six child rows
+were inserted at `2026-08-09T21:53:29.721030Z`, and the final duplicate redirect
+ran from `2026-08-09T21:53:31.250239Z` to
+`2026-08-09T21:53:31.541644Z`.
+
+Venue-hours manifest `5742d0438ed9` identifies the venue mutation and its
+correction-audit set. Its verified interval is
+`2026-08-09T22:09:12.030295Z` through
+`2026-08-09T22:09:31.152860Z`.
 
 ### Event Inventory
 
@@ -104,8 +113,26 @@ venue-hours mutation and its correction-audit set.
 | `0f347f81fb238e4313691202d90ff48a7ac4687d` | Removed the January heuristic and required local performer evidence |
 | `93513aa1e7f5cf87e7c7b6eb81483a4661b89798` | Made labeled top-level Eslite ranges outrank publication and nested dates |
 | `5c5a6deede589a32f372a6ea3244b5a9c13c391e` | Repaired pricing, event hierarchy, venue hours, registry inheritance, and operational guidance |
+| `0a1a8c8e72eaf276cdcadffc534ab7b95cc52554` | Published the original campaign closeout evidence |
 
-All five commits are ancestors of `origin/main`.
+All six commits are ancestors of `origin/main`. The forward release candidate
+then adds exactly these three subjects:
+
+* `fix(scraper): harden Eslite venue release`
+* `chore(skills): align Eslite release guidance`
+* `docs: reconcile Eslite and admin QA evidence` (this update; hash intentionally
+  omitted)
+
+The exact three post-commit SHAs belong in the Engineer Changes Log, Tester
+report, and V-M-D approval so a clean rebase cannot make this report stale.
+
+Natural Daily Scraper run `31345880622` completed successfully at head
+`39dbba0e7b923f8b003da0566bbd3da1a8d1639b` and covered the first four delivery
+commits only. Run `31447829421` completed successfully from a scheduled event at
+head `dc1d23873c790bb0f16fe41ac4ad96cfd7bc2bff`. That head descends from all six
+published commits, but not from the three forward candidate commits. A later
+successful natural run whose head descends from all three forward commits is
+still required.
 
 ## Prevention Rules
 
@@ -128,18 +155,28 @@ history files record the same contracts.
 
 ## Validation
 
-The final implementation passed these checks after rebasing onto `origin/main`:
+The forward candidate's pre-evidence Phase 3 validation produced these results:
 
-* 55 focused tests covering venue seed data, venue registry resolution,
-  annotator sub-event fallback, and publication-source parsing
-* Scraper post-build audit with all registered scrapers and implemented research
-  sources reconciled
-* YAML frontmatter parsing and stale-guidance searches
-* Shared skill and history synchronization checks
-* `git diff --check`
-* Gitleaks pre-push scan with no leaks found
-* Independent production read-back of the venue, eight events, 12 corrections,
-  and 12 audit rows
+* The five-file focused set passed 75 tests in 5.79 seconds, with 6.70 seconds
+  wall time. It covers venue-overlay `BYPASSED`, `MATCHED`, and `MISS` outcomes,
+  two-payload subspace-label preservation, field-correction empty sentinels,
+  protected-attempt counts, homepage fallback, and both retired one-off apply
+  paths.
+* Six target Python files compiled successfully in 0.12 seconds wall time.
+* The complete scraper suite passed 834 tests, skipped 1, and emitted 25 known
+  deprecation warnings in 15.61 seconds, with 16.42 seconds wall time.
+* The read-only post-build audit passed in 2.96 seconds. All scrapers were
+  registered, and all implemented research sources had a source key.
+* The write-free Eslite source smoke completed with exit code 0, found 738 news
+  items, emitted 37 events, printed the explicit `DRY RUN` no-write marker, and
+  took 648.16 seconds wall time.
+* Editor diagnostics reported no errors across the 15 candidate paths.
+* YAML frontmatter parsing, stale-claim searches, replacement-character checks,
+  conflict-marker checks, EOF-newline checks, and `git diff --check` passed.
+
+The independent production read-back also passed for the venue, eight events,
+12 corrections, and 12 audit rows. Final-tree Phase 5 validation and final
+independent Tester approval remain release gates after this evidence commit.
 
 ## Data Lifecycle
 
@@ -160,7 +197,10 @@ change.
 
 ## Remaining Work
 
-No correctness repair remains for this Eslite summer series.
+The production data repair is complete, and the remaining release hardening is
+implemented in the forward candidate. Final-tree validation, independent Tester
+approval, explicit push approval, and a later descendant natural run remain
+required before the forward closeout is released.
 
 One optional future enhancement remains outside this campaign: monitor the
 first-party venue page, detect a change, open a review item, and propagate an
@@ -171,15 +211,15 @@ hours with restaurant, cinema, and tenant exceptions.
 The broader `admin-qa-cleanup` specification remains active. Its remaining work
 includes read-only queue tooling and freeze artifacts, mutation tooling,
 artifact-bound production windows, natural scheduled observations, final scans,
-and docs-only reconciliation or archive approval. Several Package A checkboxes
-also lag the commits listed above and need a future ledger-only reconciliation.
-Those items do not require this campaign worktree to remain mounted.
+and docs-only archive approval. T-A0, P0, T-A1, Phase D, Phase S, and final
+Closeout remain unapproved.
 
 ## Worktree Disposition
 
-The campaign branch contains no unpushed commit and is an ancestor of
-`origin/main`. The ignored Lane O baseline has an identical SHA-256 copy in the
-main worktree, and `tmp/gnews_streaming_ids.txt` is replicated across worktrees.
-The `ttr-admin-qa-cleanup-worktree` may therefore be removed after this report
-lands without losing unique code, commits, or evidence. Removing the worktree
-does not archive or close the active Admin QA specification.
+The original evidence commit `0a1a8c8e` is a published `origin/main` ancestor.
+This update is the third commit in a forward candidate after the runtime and
+customization commits named above. Keep `ttr-admin-qa-cleanup-worktree` mounted
+while final Tester validation and the approved release cycle are pending. Any
+later removal requires a fresh check that the worktree is clean, every candidate
+commit is published, no Git operation is active, and no unique evidence remains.
+Removing a worktree never archives or closes the active Admin QA specification.
