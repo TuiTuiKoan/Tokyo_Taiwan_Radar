@@ -4,13 +4,33 @@ Newest at top.
 
 ---
 
-## 2026-08-09 — 商品價格、子活動與官方營業時間
+## 2026-08-09 - authoritative venue hours and subspace precedence
 
-**Error:** 夏季 umbrella 頁把單一台灣茶禮盒 `6,980円` 誤當整體活動費，相關項目沒有拆成子活動；父活動與三個店內項目也缺少可由官方 access 頁確認的一般營業時間。
+### Error
 
-**Fix:** `_extract_price_info()` 改為只接受明確標示的活動費，保留 canonical parent 並建立七個直接子活動。官方店舖頁確認 `平日 11:00～20:00、土日祝 10:00～20:00`，寫入 authoritative venue seed／production ground truth；只回填四筆無專屬時段的父子活動，其他四筆保留自身日期別時段。
+The canonical summer parent and three in-store children had no `business_hours`. The authoritative `誠品生活日本橋` venue also lacked hours, and exact-only lookup could not attach parent metadata to specific labels such as `expo`, `書籍レジ`, and `各ショップ`.
 
-**Lesson:** 商品售價、餐飲價格與抽選購買門檻都不是活動入場費。系列頁的獨立項目應保留各自日期、地點、時間及參加條件。營業時間優先取活動專屬時段；缺少時才用官方 `アクセス`／店舖頁建立的 venue ground truth，餐廳或租戶例外不可套到全館。
+### Fix
+
+The first-party store and access page verified `平日 11:00～20:00、土日祝 10:00～20:00` as general venue hours. Manifest `5742d0438ed9` filled four events with no dedicated schedule while preserving four event-specific schedules. The venue overlay now preserves all three localized subspace labels, applies parent metadata only where eligible, respects every field-correction key including empty sentinels, and permanently rejects another `--apply` run.
+
+### Lesson
+
+Current and stored event schedules take precedence over authoritative venue hours. General hours require first-party venue evidence, while restaurant and tenant exceptions remain separate. Subspace labels inherit parent metadata without losing their more specific names in any locale.
+
+## 2026-08-09 - price and summer hierarchy repair
+
+### Error
+
+The summer umbrella page treated an unlabeled `6,980円` Taiwan tea gift as the campaign admission price and did not represent the listed independently scheduled or conditioned activities as children.
+
+### Fix
+
+`_extract_price_info()` now accepts only explicitly labeled event fees such as `参加費`, `料金`, or `入場料`. Applied manifest `4f25dfc756d3` retained one canonical parent with seven direct children, deactivated the duplicate Collection row, and redirected it to the canonical parent. Its historical mutation code remains available for audit inspection, but another `--apply` run is permanently rejected.
+
+### Lesson
+
+Merchandise prices, menu prices, and purchase thresholds are not event admission fees. An umbrella page with independently dated, located, or conditioned activities requires child records that preserve each activity's schedule and participation terms.
 
 ## 2026-07-11 — publication phase 3 invariant sync
 

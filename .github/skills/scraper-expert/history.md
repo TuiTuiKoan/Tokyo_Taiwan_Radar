@@ -4,17 +4,21 @@
 
 ---
 
-## 2026-08-09 - official access-page venue hours fallback
+## 2026-08-09 - official venue hours and subspace precedence
 
-**問題：** 誠品夏季 umbrella 活動與三個店內子活動沒有 `business_hours`；父活動另有三筆 empty-sentinel FC，會阻止後續補值。Authoritative `誠品生活日本橋` venue 已存在，但 `business_hours=null`。既有 skill 仍沿用 migration 081 前的 venue-hours 設計說明。
+### Error
 
-**根本原因：** 場館一般營業時間與活動專屬時段沒有明確來源優先序；annotator 的 venue lookup 只接受 exact name，所以 `expo`、`書籍レジ`、`各ショップ` 等 canonical+子空間標籤無法繼承 ground truth。
+The Eslite summer parent and three in-store children had no `business_hours`. Three empty-sentinel field corrections protected the parent, the authoritative `誠品生活日本橋` venue still had `business_hours=null`, and exact-only lookup prevented `expo`, `書籍レジ`, and `各ショップ` labels from inheriting venue ground truth.
 
-**修復：** 以誠品官方 store/access 頁確認一般時間 `平日 11:00～20:00、土日祝 10:00～20:00`，寫入 authoritative venue seed 與 production `venues` row。新增 `lookup_venue_for_location()`，只對 canonical name 加明確後綴邊界做 parent match；alias／子空間保留原 `location_name`。Annotator prompt 明定活動專屬時段優先、一般時間只從第一方 access/store/visitor-information 頁建立的 registry fill-only 取得，租戶例外不得套到全館。
+### Fix
 
-**驗證：** Production manifest `5742d0438ed9` 回讀 venue 1 筆、無專屬時段 events 4 筆、FC 12 筆、`applied` audit 12 筆；另 4 個有專屬時段的子活動未修改。Venue seed 測試 11 passed；registry／sub-event fallback 測試 20 passed。
+The first-party store and access page verified general hours of `平日 11:00～20:00、土日祝 10:00～20:00`. The authoritative venue seed now stores those hours and its official homepage. `lookup_venue_for_location()` permits canonical-prefix matches only at explicit suffix boundaries, while the annotator overlay preserves all three specific subspace labels and fills eligible parent metadata. Current and stored event schedules take precedence, and every field-correction key remains locked, including an empty sentinel.
 
-**教訓：** 優先序固定為 `event-specific schedule > authoritative venue hours > UI source-link fallback`。一般時間必須先查官方 `アクセス`／店舖／利用案內／`営業時間` 頁並存到 venue ground truth，不可依常識推測，也不可用 event-level FC 取代可重用的 authoritative 資料。
+Production manifest `5742d0438ed9` read back one venue row, four general-hours events, four unchanged event-specific schedules, 12 field corrections, and 12 applied audit rows. The applied one-off is retained only as provenance and its `--apply` path is permanently retired.
+
+### Lesson
+
+The precedence order is `field corrections > current event schedule > stored event schedule > authoritative venue hours > UI source-link fallback`. General hours require first-party venue evidence and reusable venue ground truth. They must never be guessed, copied from a tenant exception, or used to replace a specific subspace label.
 
 ## 2026-08-03 - organizer entity 型別漂移與 registry 權威化
 
@@ -69,7 +73,7 @@ Annual Wix pages need semantic text anchors and a year-consistency guard, not ge
 
 **修復：** `scraper/sources/johakyu.py` 將主 schedule page 的 parser 改為 `BeautifulSoup(resp.content, "html.parser")`，讓 BeautifulSoup 依 `<meta charset="UTF-8">` 解碼 bytes；`scraper/health_check.py` 新增 `nhk_rss`、`walkerplus`、`bookandbeer`、`internet_museum` 到 `ZERO_EVENT_OK_SOURCES`；`johakyu` 本次未加入，保留監控。
 
-**驗證：** dry-run 從 0 件恢復，抓到 `ギデンズ・コーの功夫(カンフー)`，`raw_description` 正常含 `開催日時: 2026年7月3日〜2026年7月9日`，未見 mojibake / `�`；`ZERO_EVENT_OK_SOURCES` 以 frozenset 正負向檢查確認新增四來源，且 `johakyu` / `taipei_fukuoka` / `jinf` / `morc_asagaya` 未加入。已 push commits：`1cc92bd`、`abc913e`。
+**驗證：** dry-run 從 0 件恢復，抓到 `ギデンズ・コーの功夫(カンフー)`，`raw_description` 正常含 `開催日時: 2026年7月3日〜2026年7月9日`，未見 mojibake / `U+FFFD`；`ZERO_EVENT_OK_SOURCES` 以 frozenset 正負向檢查確認新增四來源，且 `johakyu` / `taipei_fukuoka` / `jinf` / `morc_asagaya` 未加入。已 push commits：`1cc92bd`、`abc913e`。
 
 **教訓：** 先修 selector / encoding bug，再決定是否加入 `ZERO_EVENT_OK_SOURCES`；keyword-filtered long-tail sources 在 scraper logic 已驗證後可以加入零事件豁免；跨天等待 push 的修復不可裸留工作區，至少 commit 到 branch 或 safety branch。
 

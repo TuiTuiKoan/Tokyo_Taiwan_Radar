@@ -53,7 +53,7 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 - For bugs: isolate the failing tier (date extraction, selector, dedup key) and fix the smallest unit
 - Validate with `--dry-run` before handing off to Tester
 - After fixing venue or address issues, verify every user-facing surface that renders the same event, including narrative summary, FAQ, calendar export, and address card, so postal codes and other display-only artifacts stay consistent.
-- When a fixed physical venue event lacks `business_hours`, preserve any event-specific schedule first. If none exists, verify the venue/operator's first-party `アクセス`, store, visitor-information, or `営業時間` page, then persist stable general hours and that official page in the authoritative venue seed. Never guess hours or promote one tenant/restaurant exception to the whole venue.
+- When a fixed physical venue event lacks `business_hours`, preserve current and stored event-specific schedules plus every `field_corrections` lock, including empty sentinels. Only then may the annotator fill stable general hours from an authoritative venue record backed by the venue or operator's first-party `アクセス`, store, visitor-information, or `営業時間` page. Never guess hours or promote a tenant or restaurant exception to the whole venue.
 - Apply the Hybrid Venue Verification checklist below to every physical-plus-online event.
 
 ### Hybrid Venue Verification

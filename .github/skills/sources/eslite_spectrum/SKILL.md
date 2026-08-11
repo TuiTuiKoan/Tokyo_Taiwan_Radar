@@ -54,9 +54,9 @@ Class: `EsliteSpectrumScraper` → key auto-derived as `eslite_spectrum` (matche
 
 - Official evidence: <https://www.eslitespectrum.jp/about/store/9cd1340f-26b6-4f55-9c33-d0487d7ac01d>
 - General store hours: `平日 11:00～20:00、土日祝 10:00～20:00`.
-- Persist these values in the authoritative `誠品生活日本橋` venue seed. If an event has no dedicated schedule, annotator may fill them from `venues.business_hours`.
+- Persist these values in the authoritative `誠品生活日本橋` venue seed. The annotator may fill them from `venues.business_hours` only when the assembled annotation and stored event schedules are both empty and no `business_hours` field-correction key exists. An empty-string correction is still a lock.
 - Event-specific schedules always win. The official page lists separate restaurant/tenant hours; never promote those exceptions to the general venue value.
-- Labels such as `誠品生活日本橋 expo`, `誠品生活日本橋 書籍レジ`, and `誠品生活日本橋 各ショップ` keep their specific `location_name` while inheriting verified parent-venue metadata.
+- For exact aliases and canonical-prefix matches, treat the registry's `preserve_venue_label` result as authoritative. Labels such as `誠品生活日本橋 expo`, `誠品生活日本橋 書籍レジ`, and `誠品生活日本橋 各ショップ` keep their specific `location_name`, `location_name_zh`, and `location_name_en` while inheriting eligible parent address, prefecture, venue ID, homepage, and general-hours metadata.
 
 ## Publication Rule Sync
 
