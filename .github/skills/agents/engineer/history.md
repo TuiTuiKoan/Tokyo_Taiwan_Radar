@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-08-12 - a metric denominator that was never produced (feedback-loop A2 = 0)
+
+**Error**: `docs/evaluation/feedback_loop/` reported `Annotated Events = 0` and hit rate `n/a` for two consecutive months (2026-07, 2026-08). The pipeline was running and the numerator was real, so nothing failed loudly — the metric was simply meaningless. Root cause was a broken string contract between producer and consumer: `scraper/annotator.py` writes the run summary into `scraper_runs.notes` as a flat `key=value` string containing `total={len(events)}`, while `scraper/monthly_health_check.py::_protect_hit_trend()` searched for `annotated=(\d+)` — **a token that was never written by anything, at any point in the history of that string**. `field_protect_hits=` matched (numerator populated), `annotated=` never matched (denominator pinned to 0), and division-guard logic dutifully emitted `n/a`.
+
+**Fix**: Repaired both ends, asymmetrically and deliberately. Consumer now tries `annotated=(\d+)` first and falls back to `total=(\d+)`; the fallback is what makes **every existing historical row immediately usable**, so the metric recovers now instead of after a month of new data accumulates — it is a data-recovery mechanism, not defensive padding, and the docstring says so to stop a future reader deleting it as redundant. Producer additionally emits `annotated=` while keeping `total=` untouched, since other consumers read `total=`. Both regexes carry a `(?<![a-z_])` lookbehind: the notes string always contains `re_annotate_all=False`, and Tester's adversarial `re_annotated=999` case confirmed the naive pattern happily matches `999` out of the middle of an unrelated key.
+
+**Lesson**: A string contract across module boundaries has no type checker behind it. One side formats, the other side reads with a regex, and a renamed — or never-existent — token raises nothing; it silently yields `0` or `n/a` forever. Treat "this metric has been 0 for months while the job is clearly running" as a producer/consumer token mismatch until proven otherwise, and grep the producer for the literal token before trusting any consumer-side regex. When repairing one, prefer a consumer-side fallback that revives historical rows over a producer-only fix that starts the clock from zero. Any regex matching a `key=value` token inside a flat blob needs a boundary assertion (`(?<![a-z_])`), because sibling keys ending in the same suffix are the normal case, not the exotic one.
+
+---
+
 ## 2026-08-06 - predicate projection must carry the domain invariant
 
 **Error**: NDL year-only publication metadata is validly normalized to `YYYY-01-01`; this is not a date extraction failure. The January placeholder exemption must use the exact-pure domain invariant, normalized `event_form == ['publication']`, and must not fall back to an `ndl_opensearch` source whitelist. Mixed records such as `['publication', 'lecture']` remain subject to the January placeholder check, and `start_date=None` must still be reported. The root-cause change made `_check_missing_date()` depend on `event_form`, but `_detect_missing_date()` omitted `event_form` from its PostgREST `.select()`, so the predicate received an incomplete row. The initial fake ignored projection and always returned the full dict, so it could not kill a column-removal mutation.

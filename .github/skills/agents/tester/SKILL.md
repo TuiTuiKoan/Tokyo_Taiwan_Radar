@@ -23,6 +23,12 @@ Read this at the start of every session before running any test.
 - When publication handling changes, include a writer-whitelist check (`scraper/database.py::_VALID_EVENT_FORMS` includes `publication`) in regression validation.
 - If the repaired slice includes named public figures or other high-risk proper nouns, add at least one human semantic spot check on `name_en` / `name_zh`. GPT can fill all required fields while still hallucinating a person name.
 
+## Verification Discipline (applies to every test, not just scrapers)
+- **Establish a positive control before you trust a negative result.** Before accepting that a fail-closed script correctly returned `UNDETERMINED` / non-zero, first prove that a clean environment with all arguments supplied *actually reaches* the success path (e.g. `RETIRE_CANDIDATE`, exit 0). Without that control you cannot distinguish "correctly refused" from "broken and refuses everything" — both look identical from the outside, and the second one passes review.
+- **Never accept the implementer's self-reported fix as evidence.** Re-derive it independently. Example: Engineer reported the `trim()` defect as fixed; direct execution showed `trim()` still returned `TokyoTaiwanRadarclone` for a path containing spaces, while `trim_edges()` preserved it. Self-reports describe intent; only execution describes behavior.
+- **Never read an exit code through a pipeline.** In `cmd | tail`, `$?` is `tail`'s status, not `cmd`'s — a failing command reads as exit 0. Capture output to a file or variable first, then test `$?`, or use `set -o pipefail` / `${PIPESTATUS[0]}`. Assert the exit code and the stdout marker as two separate checks.
+- **Probe with a variant the implementer has not seen.** A fix aimed at one shape of input (say, quoted values) frequently leaves neighbouring shapes (quoted *and* padded with whitespace) broken. Choose the untested combination on purpose.
+
 ## Reporting
 - Report failures with: source name, event title, field name, expected value, actual value.
 - If > 20% of events from a source have null `start_date`, escalate to Engineer before proceeding.

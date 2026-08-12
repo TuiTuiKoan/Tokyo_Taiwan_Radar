@@ -239,7 +239,30 @@ def _count_recurrence(sb) -> dict:
 # ─── A2: Protect hit trend (30/60/90 day windows) ────────────────────────────
 
 def _protect_hit_trend(sb) -> dict:
-    """A2 — field_protect_hits / annotated_events ratio for 30/60/90 day windows."""
+    """A2 — field_protect_hits / annotated_events ratio for 30/60/90 day windows.
+
+    Denominator token provenance
+    ----------------------------
+    ``annotator.py`` writes the run summary into ``scraper_runs.notes`` as a flat
+    ``key=value`` string. Two tokens can carry the number of events the annotator
+    processed, and both must be accepted:
+
+    * ``annotated=<n>`` — the explicit denominator. Added 2026-08-12.
+    * ``total=<n>``     — the number of events in the batch. Present since the
+      notes string was introduced, and the only denominator available on every
+      historical row.
+
+    Before 2026-08-12 only ``total=`` was ever written, while this function
+    searched for ``annotated=`` alone. That token therefore never matched, the
+    denominator was always ``0``, and ``rate_*`` was reported as ``n/a`` for two
+    consecutive months even though ``field_protect_hits`` was being recorded
+    correctly. The fallback below is what makes those historical rows usable; it
+    is not a defensive nicety and must not be removed as one.
+
+    ``total=`` is kept in the notes string as well, because other consumers read
+    it. Rows written from now on carry both tokens, and ``annotated=`` wins when
+    the two ever diverge.
+    """
     now = datetime.now(tz=UTC)
     windows = [("30d", 30), ("60d", 60), ("90d", 90)]
     result: dict[str, int | float | None] = {}
@@ -266,7 +289,9 @@ def _protect_hit_trend(sb) -> dict:
                 continue
             notes = r.get("notes") or ""
             m_hits = re.search(r"field_protect_hits=(\d+)", notes)
-            m_ann = re.search(r"annotated=(\d+)", notes)
+            # Explicit denominator first, batch size as the historical fallback.
+            m_ann = re.search(r"(?<![a-z_])annotated=(\d+)", notes) \
+                or re.search(r"(?<![a-z_])total=(\d+)", notes)
             if m_hits:
                 hits += int(m_hits.group(1))
             if m_ann:

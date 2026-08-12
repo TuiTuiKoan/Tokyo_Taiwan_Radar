@@ -51,6 +51,20 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - Pre-ship check for agent changes: verify target agent names resolve correctly and at least one post-task handoff exists for the expected next action.
 - **Every new agent file must include `handoffs:` at creation time.** An agent with no handoffs leaves users stranded after task completion.
 
+## Shell Script Implementation (`scripts/*.sh`)
+
+- **`bash -n` passing does not mean the edit is correct.** It is a parser check only. `[ "$x" != "${$(…)}" ]` is syntactically legal and semantically meaningless, and `bash -n` accepts it without comment. **Use `shellcheck` as the acceptance gate for any shell script** — it is built precisely for always-true/always-false conditions, unused variables and bad expansions. Target: zero warnings (verified with 0.11.0).
+- **This repo's path contains a space (`Tokyo Taiwan Radar`).** Any `tr -d '[:space:]'` applied to a path shreds it into `TokyoTaiwanRadar`. Never use a whitespace-stripping helper on anything that might be a path. Split the helper in two — one *numeric-only* (safe to strip all whitespace) and one *edge-trim-only, path-safe* — and state the constraint in a comment at each definition, not only at the call site.
+- **Anchored cleanup is order-dependent.** Expressions anchored with `^` / `$`, such as `sed 's/^"\(.*\)"$/\1/'`, only match when the target character is genuinely first/last. Run them **after** leading/trailing whitespace has been removed; a stray space makes the anchor fail and the substitution becomes a silent no-op that returns the input unchanged.
+- **Fixing one variant is not fixing the class.** A quote-stripping fix that only handles `"value"` leaves `  "value"  ` broken. When a SKILL or contract states a rule, the implementation must cover the whole class it describes, and must be validated against a combination that was **not** used while writing the fix.
+
+## Cross-module String Contracts (`key=value` blobs)
+
+- Fields packed into a free-text column (e.g. `scraper_runs.notes`) and read back with a regex have **no type checking on either side**. A renamed or never-emitted token throws nothing — it produces `0` or `n/a` indefinitely.
+- Before trusting a consumer-side regex, grep the producer for the literal token. "This metric has been 0 for months while the job clearly runs" is a producer/consumer mismatch until proven otherwise.
+- When repairing one, prefer a **consumer-side fallback to an older token** so existing historical rows become usable immediately, rather than a producer-only fix that restarts the metric from zero. Document why the fallback exists so it is not later deleted as dead defensive code.
+- Anchor every token regex with a boundary assertion — `(?<![a-z_])annotated=(\d+)` — because sibling keys sharing a suffix (`re_annotated=`, `re_annotate_all=`) are normal, not exotic.
+
 ## CSS Selector Specificity Pitfalls
 
 - `[attr='x'].class` = same element (no space). `[attr='x'] .class` = descendant combinator (space = different element).

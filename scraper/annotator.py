@@ -3533,7 +3533,10 @@ def annotate_pending_events(
                 "openai_tokens_out": total_tokens_out,
                 "cost_usd": round(cost, 6),
                 "duration_seconds": int(time.time() - annotation_start),
-                "notes": f"re_annotate_all={re_annotate_all}, fix_translations={fix_translations}, fix_reviewed={fix_reviewed}, total={len(events)}, field_protect_hits={field_protect_hits}, dry_run={dry_run}",
+                # `annotated=` is the explicit denominator read by
+                # monthly_health_check._protect_hit_trend; `total=` is kept for
+                # existing consumers and as the fallback for historical rows.
+                "notes": f"re_annotate_all={re_annotate_all}, fix_translations={fix_translations}, fix_reviewed={fix_reviewed}, total={len(events)}, annotated={len(events)}, field_protect_hits={field_protect_hits}, dry_run={dry_run}",
             }).execute()
             logger.info(
                 "scraper_runs logged: %d events, %d in / %d out tokens, $%.6f",
