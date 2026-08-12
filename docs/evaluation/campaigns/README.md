@@ -144,8 +144,10 @@ reciprocal pointer if a separate record supersedes this one.>
 
 ## Contracts
 
-Three contracts turn the sections above from a template into something a reviewer can
-falsify. Each one exists because a published record already failed it.
+Six contracts turn the sections above from a template into something a reviewer can
+falsify. The first three exist because a published record already failed them. The last
+three exist because a retirement decision would otherwise be allowed to pass on evidence
+that nobody gathered.
 
 ### Identity
 
@@ -273,6 +275,76 @@ reading the repository history.
 grep -rn 'supersedes\|superseded_by' docs/evaluation/campaigns/
 ```
 
+### Unhandled work
+
+A campaign is not finished because its last commit landed. It is finished when nothing is
+still waiting on it. Five sources are consulted before a worktree is proposed for
+retirement, and each one reports a number or reports `not_checked`:
+
+1. Unchecked items in `docs/specs/active/<slug>/tasks.md`.
+2. Deferred entries in that spec's `changes-log.md` and `proposal.md`.
+3. Unfinished items in `.copilot-tracking/plans/*.md` inside the worktree.
+4. `TODO` and `FIXME` on lines **added** by the campaign's own commits.
+5. Open GitHub issues naming the slug.
+
+`not_checked` and `0` are different claims. `0` means the source was read and held nothing;
+`not_checked` means it was never read. Only the first supports retirement, so a verdict of
+`RETIRE_CANDIDATE` requires all five to be numbers.
+
+Source 4 needs a commit range, and the range is `<base>..<head>` where `base` is the
+`origin/main` tip **before** the campaign was pushed. The three-dot `origin/main...HEAD`
+form is refused: after the push `HEAD` equals `origin/main`, so that form is empty for
+every campaign that actually shipped and would report a false zero. When the base SHA was
+not handed over, source 4 reports `not_checked` rather than falling back.
+
+### Session contention
+
+A worktree is only retired by the session that owns it. Ownership is decided from the
+Copilot CLI session state, one level deep, and conservatively:
+
+* A session holding no `inuse.*.lock` is not counted.
+* A session whose recorded root resolves to the target worktree, holding a lock, with a
+  recently modified transcript, is `CONTENDED`.
+* The same session with a quiet transcript is `UNDETERMINED`, never cleared. A lock that
+  has gone quiet is an open but idle session, not a finished one.
+* The session performing the audit excludes itself.
+
+Two traps are worth naming, because both were measured on this machine rather than
+imagined.
+
+A process id is not a liveness signal. Copilot CLI sessions share one Code Helper process,
+so unrelated sessions legitimately record the same pid; three did. Any `kill -0` style
+check therefore marks strangers as contenders, and no such check belongs in this gate.
+
+A recorded root may differ from the physical path only in capitalization, which on a
+case-insensitive filesystem is the same directory. Resolve with `/bin/pwd -P` before
+comparing. When a recorded root cannot be resolved at all, an inexact match is a doubt and
+yields `UNDETERMINED`; it is never treated as a clearance.
+
+The coverage boundary is stated in every report. **Only Copilot CLI sessions are visible.**
+VS Code chat sessions are not: every workspaceStorage entry pointing at this project
+resolves to the repository root rather than to a worktree, so it cannot say who holds what.
+A clear result is therefore recorded as `SOLE_OWNER (CLI-scope)`, and the user confirmation
+gate is the backstop. Undetectable is not the same as absent.
+
+`UNDETERMINED` means stop and ask a person. It is neither a pass nor a permanent block; the
+missing input is supplied, or the user confirms, and the gate is re-run.
+
+### Recovery capsule
+
+Removal destroys the ability to observe the six freshness values ever again. Before the
+removal command runs, they are written to a capsule **outside the worktree** — a capsule
+stored inside it disappears with it. The capsule carries the six values, the decision
+timestamp, the repository-relative path of the close-out record, the registered path and
+branch, and each ignored artifact's handling and digest.
+
+The capsule exists to make one specific failure recoverable: removal succeeds and the
+disposition backfill is then interrupted, leaving the worktree gone and the record still
+saying `pending`. Backfill is therefore idempotent and resumable. Re-running it means
+reading the six values from the capsule, editing only that one table block in the record,
+staging that single path, committing, and pushing. A permanent `pending` is not an
+acceptable end state.
+
 ## Evidence anchors
 
 The anchor generator freezes process telemetry for one session slice and writes a ledger
@@ -310,7 +382,10 @@ Before removal:
 1. Re-observe all six freshness values. Any change since the disposition means `STALE`.
 2. Confirm the close-out record itself has landed on `origin/main`. A record that only
    exists inside the worktree disappears with it.
-3. Run the ignored artifact preflight below and resolve every finding.
+3. Clear the unhandled work and session contention gates above. A `not_checked` source and
+   an `UNDETERMINED` contention verdict both stop the removal.
+4. Run the ignored artifact preflight below and resolve every finding.
+5. Write the recovery capsule, outside the worktree.
 
 ```bash
 WT='<registered-path>'
@@ -332,17 +407,23 @@ Removal follows the mechanics in `.github/instructions/git.instructions.md`. Nev
 `--force` and never use `git branch -D`.
 
 After removal, verify that nothing survived. A successful `git worktree remove` does not
-guarantee an empty parent directory:
+guarantee an empty parent directory. The checks below take the observed directory name and
+branch rather than deriving them from the slug: `ttr-<slug>-worktree` and `feat/<slug>` are
+the convention, not a guarantee, and this repository already holds worktrees that follow
+neither. For an `external` worktree, `DIR` is an absolute path outside the repository root,
+and the exclude check does not apply because no exclude line was ever added.
 
 ```bash
-SLUG='<slug>'
-git worktree list --porcelain | sed -n 's/^worktree //p' | grep -F "ttr-$SLUG-worktree" \
+DIR='<observed-directory>'      # repository-relative, or absolute when external
+BRANCH='<observed-branch>'
+
+git worktree list --porcelain | sed -n 's/^worktree //p' | grep -F "$DIR" \
   || echo 'unregistered=ok'
-git rev-parse --verify --quiet "refs/heads/feat/$SLUG" >/dev/null \
+git rev-parse --verify --quiet "refs/heads/$BRANCH" >/dev/null \
   && echo 'branch=STILL PRESENT' || echo 'branch=deleted'
-grep -qF "ttr-$SLUG-worktree/" .git/info/exclude \
+grep -qF "$DIR/" .git/info/exclude \
   && echo 'exclude=STILL PRESENT' || echo 'exclude=removed'
-[ -d "ttr-$SLUG-worktree" ] && echo 'directory=RESIDUE' || echo 'directory=gone'
+[ -d "$DIR" ] && echo 'directory=RESIDUE' || echo 'directory=gone'
 ```
 
 When a residual directory is found, prove it holds nothing unique before anyone deletes
@@ -350,8 +431,8 @@ it. Every file must be byte-identical to `origin/main`, and the directory must c
 ignored artifacts:
 
 ```bash
-find "ttr-$SLUG-worktree" -type f | while IFS= read -r f; do
-  rel=${f#ttr-$SLUG-worktree/}
+find "$DIR" -type f | while IFS= read -r f; do
+  rel=${f#"$DIR"/}
   if [ "$(git hash-object "$f")" = "$(git rev-parse "origin/main:$rel" 2>/dev/null)" ]; then
     echo "identical $rel"
   else
@@ -362,15 +443,34 @@ done
 
 A single `UNIQUE` line stops the deletion and returns the case to a person.
 
+Phase A of this checklist is automated by `scripts/campaign-closeout-audit.sh`, which is
+read-only and exits `0` for `RETIRE_CANDIDATE`, `10` for `HOLD`, and `20` for
+`UNDETERMINED`. It is a single-worktree probe and not an inventory; `workstream-tracking`
+remains the only authority for which worktrees exist. It never fetches, so ahead and behind
+are relative to the local `origin/main` ref and the caller fetches first.
+
 ## Privacy boundary
 
 Records describe outcomes and carry digests. They do not carry conversation material.
 
 Never include verbatim conversation text, prompts, tool arguments, or raw request and
-response payloads. Never include per-request usage counters, billing figures, or engine
-identifiers. Never include absolute paths from a personal machine: use the path class
-verdict together with the repository-relative directory, or with the bare directory name
-when the class is `external`.
+response payloads. Never include per-request usage counters or raw billing figures. Never
+include absolute paths from a personal machine: use the path class verdict together with
+the repository-relative directory, or with the bare directory name when the class is
+`external`.
+
+Model identifiers and usage figures sit on a line worth drawing precisely, because a future
+per-slice metrics index is expected to cross it in one direction only. A model alias, and
+token or cost figures **aggregated over a whole session slice**, are outcome facts about
+the campaign and are permitted. A per-request counter is not, because a sequence of
+per-request figures reconstructs the shape of the conversation that produced it. The
+aggregate is the safe form; the sequence is not.
+
+Any such aggregate is reported as measured, never derived. A figure obtained by multiplying
+tokens by a published rate is not evidence: on this project's own measurements, cached
+input dominated the token count and the request multiplier varied by more than tenfold
+within a single session. When a measured figure is unavailable the field is `null`, and
+figures are never compared across clients.
 
 Digests, commit SHAs, counts, and durations are safe, because they identify evidence
 without reproducing it.

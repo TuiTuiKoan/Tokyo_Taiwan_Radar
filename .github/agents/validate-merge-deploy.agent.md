@@ -6,6 +6,9 @@ handoffs:
   - label: "🔧 Fix issues found"
     agent: Engineer
     prompt: "部署驗證發現問題，請修復後重新部署。"
+  - label: "🧾 Close campaign & retire worktree"
+    agent: Close Campaign & Retire Worktree
+    prompt: "本次 campaign 已推送完成，請執行結案盤點。交接四項參數：worktree registered path = <registered-path>；campaign base SHA（push 前的 origin/main tip）= <base-sha>；pushed HEAD SHA = <head-sha>；參與的 session id = <session-id>。缺任一項請標 not_checked，不要以「查無」代替「未查」。"
   - label: "📝 Update history/skill/agent"
     agent: Update History, Skill, Agent
     prompt: "根據最近的修改和所學的教訓，幫助我更新 history.md、SKILL.md 和 agent 檔案。"

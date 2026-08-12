@@ -103,6 +103,8 @@ git branch -d feat/<slug>                    # never -D
 
 If any check fails → STOP, report, do not force. `git worktree prune` is safe — it drops only stale records, never branches or commits.
 
+Two further preconditions apply before a campaign worktree is removed: the campaign's close-out record must already be on `origin/main` (a record living only inside the worktree is deleted with it), and the recovery capsule holding the six freshness values must already be written outside the worktree (after removal those values can never be observed again). The full ordered checklist — unhandled-work and session-contention gates, ignored-artifact preflight, and the post-removal residue verification — lives in [docs/evaluation/campaigns/README.md](../../docs/evaluation/campaigns/README.md) § Cleanup checklist and is not duplicated here.
+
 ## State persistence for agents
 
 Agents save in-progress work to `.copilot-tracking/` (gitignored):
