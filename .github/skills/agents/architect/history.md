@@ -2,6 +2,32 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-08-11：再次讓 handoff target 失去 runtime 可達性
+
+### Mistake
+
+2026-05-14 已從 handoff targets 移除 `user-invocable: false`，但該旗標後來又被加回
+`Update History, Skill, Agent`。Target agent 內文同時寫入與 Architect canonical SKILL
+相反的規則，誤稱 `user-invocable: false` 只會從 picker 隱藏 agent，不影響使用者從
+handoff 按鈕進入。VS Code 1.132 / Copilot 0.60 能解析這份 YAML，runtime 卻無法可靠
+進入該 target，造成 Architect 的 Update History 按鈕點擊後沒有反應。
+
+### Repair
+
+從 Update History frontmatter 移除 `user-invocable: false`，保留
+`disable-model-invocation: true`，並同步修正 target body 與 Architect 的 handoff 說明。
+Target 現在維持使用者可呼叫，模型仍不能依 description 自動委派；所有相關 handoff
+繼續省略 `send: true`。
+
+### Lesson
+
+任何被其他 agent 的 `handoffs:` 引用的 target 都不得設定
+`user-invocable: false`。`user-invocable` 控制使用者與 handoff 的可達性，
+`disable-model-invocation` 控制模型自動委派，兩者是不同控制面；不可因需求寫成
+「只允許 handoff」就混用。現行 runtime 無法同時把 target 從 picker 隱藏並保有可靠
+handoff，因此可達性必須優先。修改 target agent 自身規則時，還必須與 Architect SKILL
+的 canonical Agent Handoff Design 做 contradiction check，避免已修過的錯誤再次寫回。
+
 ## 2026-08-11：把 CSS utility 存在誤判為可見的 placeholder 變化
 
 ### Mistake

@@ -1,7 +1,6 @@
 ---
 name: Update History, Skill, Agent
 description: "Document recent changes, fixes, and lessons in history.md, SKILL.md, and agent files through an explicit handoff"
-user-invocable: false
 disable-model-invocation: true
 handoffs:
   - label: "🚀 Validate, merge & deploy"
@@ -75,7 +74,9 @@ handoffs:
    - 流程型 agent 完成後若預期有下一步，必須提供對應 `handoffs`
    - **不要設 `send: true`**：VS Code 2026-05-14 後 `send: true` 會 auto-fire（prompt 立即送出，使用者無法先審閱、編輯或先 push）。省略時 prompt 會出現在 input 欄，等待使用者確認後按 Enter。✅
    - handoff 含 `prompt:` 時照常填寫，只是不要加 `send: true`。
-   - **會寫檔或觸發後續流程的 agent 若只允許手動 handoff**：frontmatter 必須同時設定 `user-invocable: false` 與 `disable-model-invocation: true`。前者從 agent picker 隱藏，後者阻止其他 agent 依 `description` 自動委派；兩者都不影響使用者按 handoff 按鈕進入。
+   - **作為其他 agent 的 handoff target**：必須省略 `user-invocable` 或設為 `true`，維持使用者可呼叫；設為 `false` 會讓 runtime 無法可靠解析 handoff target。
+   - **只禁止模型自動委派**：設定 `disable-model-invocation: true`。這與 `user-invocable` 是不同控制面，不可因「只允許 handoff」而混用。
+   - 目前無法同時把 target 從 agent picker 隱藏，又保有可靠 handoff；需要 handoff 時應優先維持 `user-invocable` 預設值。
    - **互觸循環是維持全域移除的第二理由**：即使日後想「一鍵直達」，也絕不能在互相指向的 handoff 兩端都設 `send: true`。典型案例：V-M-D 完成後若自動呼叫 Update History，而 Update History 又自動回呼 V-M-D，每次 docs commit 都會再觸發一輪，永不停止。這是除 2026-05-14 auto-fire 外、堅持全域不設 `send: true`（commit `0aaeff6`）的另一理由。
    - handoff 目標名稱必須與目標 agent `name:` 完全一致（區分大小寫）
 
