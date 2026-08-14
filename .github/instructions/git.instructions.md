@@ -98,10 +98,38 @@ Verify: worktree clean (no uncommitted) · no unpushed commits (feature HEAD is 
 ```bash
 git worktree remove ttr-<slug>-worktree     # never --force
 git branch -d feat/<slug>                    # never -D
-# remove the ttr-<slug>-worktree/ line from .git/info/exclude
+# then reconcile .git/info/exclude — see below, never hand-delete a single line
 ```
 
 If any check fails → STOP, report, do not force. `git worktree prune` is safe — it drops only stale records, never branches or commits.
+
+#### Reconciling `.git/info/exclude` (never blind-delete a line)
+
+Every available editor rewrites the whole file: `grep -v … > tmp && mv`, and `sed -i` too — on macOS `sed -i` replaces the inode, so it is not in-place. `flock` is not installed by default. There is therefore **no race-free single-line delete**, and a blind rewrite silently drops entries another session appended between your read and your write.
+
+So do not delete a line. Reconcile the whole `ttr-*-worktree/` block against live worktrees — that is idempotent and convergent, so concurrent sessions heal each other instead of clobbering:
+
+```bash
+root=$(git rev-parse --show-toplevel) && cd "$root" || exit 1
+want=$(git worktree list --porcelain | sed -n 's|^worktree ||p' | while IFS= read -r p; do
+  phys=$(cd "$p" 2>/dev/null && pwd -P) || continue
+  case "$phys" in "$root"/*) basename "$phys" | sed 's|$|/|' ;; esac
+done | sort -u)
+{ grep -vE '^ttr-.*-worktree/$' .git/info/exclude; printf '%s\n' "$want"; } > .git/info/exclude.tmp \
+  && mv .git/info/exclude.tmp .git/info/exclude
+```
+
+Then **verify after writing** — the race cannot be eliminated, only detected:
+
+```bash
+comm -23 <(printf '%s\n' "$want") <(grep -E '^ttr-.*-worktree/$' .git/info/exclude | sort -u)
+```
+
+Empty output = converged. Any output = another session clobbered you; just re-run the reconcile.
+
+Worktrees registered outside the repository root (for example `<repo>.worktrees/<slug>`) never appear in the main tree's untracked list, so they need no entry and must not be added.
+
+Incident 2026-08-14: a cleanup session ran `grep -vxF 'ttr-auth-smoke-worktree/' .git/info/exclude > tmp && mv tmp …`; a parallel session had appended a different entry seconds earlier, and that entry was silently lost, re-exposing a live worktree as untracked.
 
 Two further preconditions apply before a campaign worktree is removed: the campaign's close-out record must already be on `origin/main` (a record living only inside the worktree is deleted with it), and the recovery capsule holding the six freshness values must already be written outside the worktree (after removal those values can never be observed again). The full ordered checklist — unhandled-work and session-contention gates, ignored-artifact preflight, and the post-removal residue verification — lives in [docs/evaluation/campaigns/README.md](../../docs/evaluation/campaigns/README.md) § Cleanup checklist and is not duplicated here.
 
