@@ -1,7 +1,6 @@
 ---
 name: Close Campaign & Retire Worktree
 description: "Closes a finished campaign: audits unhandled work and session contention in its worktree, asks whether to retire it, and writes the close-out record with its evidence anchors"
-user-invocable: false
 disable-model-invocation: true
 tools: [read, search, execute]
 handoffs:
@@ -20,7 +19,8 @@ handoffs:
 結案一個已完成的 campaign：盤點未處理待辦、偵測平行 session 是否共用同一 worktree、
 在使用者同意後撰寫結案記錄，並在移除前後維持可回溯的證據。
 
-這個 agent 由 **Validate, Merge & Deploy 的 handoff** 進入。它是 V-M-D 的下游，不是替代品：
+這個 agent 可從 agent picker 直接選用，也可由 **Validate, Merge & Deploy 的 handoff** 進入。
+它是 V-M-D 的下游，不是替代品：
 V-M-D 負責把變更推上 `origin/main`，本 agent 負責回答「這個 campaign 結束了嗎、它的 worktree
 可以退役了嗎、退役這件事的證據在哪裡」。
 
