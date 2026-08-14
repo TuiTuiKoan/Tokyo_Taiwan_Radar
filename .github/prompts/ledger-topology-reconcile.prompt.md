@@ -13,25 +13,34 @@ agent: Architect
 
 ## 授權邊界
 
-啟動本 prompt 即授權：唯讀 git 查詢、讀取 spec 與 prompt 檔案、對 `.git/info/exclude` 做
-idempotent append、更新 `docs/specs/active/workstream-tracking/` 內的兩份檔案、更新 session memory。
+啟動本 prompt 即授權：唯讀 git 查詢、讀取 spec 與 prompt 檔案、**建立本 prompt 專屬的隔離
+worktree 與其 branch**、對 `.git/info/exclude` 做 idempotent append、更新
+`docs/specs/active/workstream-tracking/` 內的兩份檔案、更新 session memory。
 
-**不授權**：程式實作、建立或刪除 worktree/branch、`--force`／`-D`／`git clean`／無 `--autostash`
-的 `git stash`、remote ref 變更、production DB write、deploy、workflow dispatch、移動或刪除其他 spec。
+**不授權**：程式實作、建立或刪除**本 prompt 專屬以外**的 worktree/branch、`--force`／`-D`／
+`git clean`／無 `--autostash` 的 `git stash`、remote ref 變更、production DB write、deploy、
+workflow dispatch、移動或刪除其他 spec。
 
 commit 與 push 各需使用者明確批准，不得自行執行。
 
+**主工作樹一律唯讀**。主工作樹經常有其他 session 的未提交 WIP；本 prompt 只以 `git -C` 讀取它的
+狀態作為 ledger 事實，不得在其中編輯、stage、stash、clean 或還原任何東西。
+
 ## 固定識別
 
-* Spec slug：`workstream-tracking`（governance-only，落在 `origin/main`）
-* Main repository root：`/Users/flyingship/Development/Tokyo Taiwan Radar`
-* 唯二可編輯的 ledger 檔（**必須用絕對路徑**）：
-  * `/Users/flyingship/Development/Tokyo Taiwan Radar/docs/specs/active/workstream-tracking/tasks.md`
-  * `/Users/flyingship/Development/Tokyo Taiwan Radar/docs/specs/active/workstream-tracking/proposal.md`
+* Spec slug：`workstream-tracking`（governance-only，最終落在 `origin/main`）
+* Main repository root（**唯讀**）：`/Users/flyingship/Development/Tokyo Taiwan Radar`
+* 本 prompt 專屬 worktree：
+  `/Users/flyingship/Development/Tokyo Taiwan Radar.worktrees/ledger-topology-reconcile`
+* 本 prompt 專屬 branch：`agents/ledger-topology-reconcile`
+* 唯二可編輯的 ledger 檔（**在專屬 worktree 內，必須用絕對路徑**）：
+  * `…Tokyo Taiwan Radar.worktrees/ledger-topology-reconcile/docs/specs/active/workstream-tracking/tasks.md`
+  * `…Tokyo Taiwan Radar.worktrees/ledger-topology-reconcile/docs/specs/active/workstream-tracking/proposal.md`
 * 退役證據封存：`~/ttr-wip-archive/20260810-tier1-manifest`
 
-這兩個 ledger 檔在多個 linked worktree 內都有同名副本。**只能編輯上列絕對路徑**；grep 時也必須
-限定該路徑，否則會命中錯的副本並得出錯誤結論。
+`docs/specs/active/workstream-tracking/` 這兩個檔名在**每一個** worktree 內都有副本，主工作樹也有一份。
+**只能編輯上列專屬 worktree 內的路徑**；grep 時務必限定該路徑，否則會命中別的副本並得出錯誤結論。
+主工作樹那一份是唯讀參照，不得修改。
 
 ## 權威來源與已知交接
 
@@ -57,15 +66,73 @@ report-only CSP builder、baseline security headers 與 security-header smoke te
 
 ### ledger 已知漂移（需 live 重查後修正）
 
-* 註冊拓撲總數宣稱 10，2026-08-12 實測為 9。
-* `ttr-deps-security-worktree`、`ttr-publication-date-parser-worktree` 在 ledger 內 0 次提及。
-* admin-qa-cleanup spec 在三處被標為「未建立」，但該目錄實際已存在。
-* G4 有一個**已勾選卻為假**的斷言：宣稱 `.git/info/exclude` 已補 `ttr-admin-qa-cleanup-worktree/`
-  並「8 個 basename 全數排除」，實測缺 2 個。同一行還有另一個獨立的過期事實（「dirty 1」），
-  修正時不可把兩者一起整行刪掉。
-* `docs/specs/parked/` 不存在，只有 `active/` 與 `archive/`。
+> 下列只是**漂移類型範例**，不是待辦清單。具體名稱與數字必須全部以 Step 1 的 live 結果重新推導。
+> 實例：本 prompt 初版曾列 `ttr-publication-date-parser-worktree` 為「live 存在但未記載」；
+> 兩天後另一個 session 已把該工作線正常完工並關閉 worktree 與 branch，交付落在 `751c6b61`
+> （`fix(scraper): harden publication date parsing for hanmoto and ndl`）。
+> **這是正常結案，不是事故**，不需要追查，也不需要為它補結案紀錄——它整個生命週期都落在兩次
+> ledger 快照之間，從未進過 ledger。教訓在於：具名提示會過期，照舊提示執行會寫入錯的內容。
+
+漂移類型：
+
+* **拓撲總數不符**。ledger 宣稱 10；2026-08-12 實測 9；2026-08-14 實測 11。三個不同數字，
+  充分證明計數不可作驗收門檻。
+* **有 worktree 完全未被 ledger 記載**（見下方命名慣例段）。
+* **有 worktree 已消失但 ledger 仍列為存在**。
+* **spec 狀態標註與實際目錄不符**（例：admin-qa-cleanup 曾被三處標為「未建立」）。
+* **已勾選却為假的斷言**。G4 曾宣稱 `.git/info/exclude` 已補齊且「8 個 basename 全數排除」，
+  實測缺 2 個。同一行上還混有另一個獨立的過期事實（主工作樹 dirty 數），修正時不可整行刪掉。
+* `docs/specs/parked/` 不存在，只有 `active/` 與 `archive/`。不得硬編三態路徑。
+
+### 兩種 worktree 命名慣例並存（待決策）
+
+ledger 只認舊慣例，完全未記載新慣例：
+
+| 慣例 | 位置 | Branch 前綴 | 相對 repo root |
+|---|---|---|---|
+| 舊 | `<repo>/ttr-<slug>-worktree` | `feat/`、`chore/` | 巢狀，需 exclude 條目 |
+| 新 | `<repo>.worktrees/<slug>` | `agents/` | 外部 sibling，不適用 exclude |
+
+2026-08-14 實測新慣例已有三個正式註冊的 worktree：`agent-handoff-and-worktree-cleanup`、
+`anomaly-detection-workflow-integration`、`mobile-ssh-agent-remote-development`。
+
+另外 `<repo>.worktrees/agents-vscode-performance-issues` 目錄存在、內有 `.git`，但
+**未出現於 `git worktree list`**。需判定它是殘留、進行中，還是註冊已被 prune；
+在取得使用者指示前**不得刪除、不得 prune、不得 re-add**。
 
 ## Required Steps
+
+### Step 0：建立隔離 worktree（所有編輯都在其中進行）
+
+本 repo 目前有兩種 worktree 命名慣例並存：
+
+| 慣例 | 位置 | Branch | 是否會弄髒主工作樹 |
+|---|---|---|---|
+| 舊 | `<repo>/ttr-<slug>-worktree` | `feat/<slug>` | 會（巢狀，需 exclude 條目） |
+| 新 | `<repo>.worktrees/<slug>` | `agents/<slug>` | 不會（位於 repo root 外） |
+
+**本 prompt 採用新慣例**，因為它建在 repo root 之外，永遠不會出現在主工作樹的 untracked 清單，
+也不需要 exclude 條目。
+
+先取得 `git worktree list --porcelain`、目標路徑狀態、local/remote branch 與各自 SHA，再依狀態分流：
+
+| 狀態 | 動作 |
+|---|---|
+| 路徑與 branch 都不存在 | `git worktree add '<worktree path>' -b agents/ledger-topology-reconcile origin/main` |
+| branch 存在、未掛載 | `git worktree add '<worktree path>' agents/ledger-topology-reconcile`（不加 `-b`） |
+| 已是註冊 worktree 且 clean | 只驗證 path/branch/HEAD 後直接使用 |
+| 路徑存在但未註冊 | **STOP**，回報後等待指示，不得 `-f` |
+| 其他任何分歧 | **STOP** |
+
+建立後 `cd` 進去，確認 branch 與 HEAD 正確且 `git status --porcelain` 為空。
+**此後所有 ledger 編輯都在這個 worktree 內完成。**
+
+注意兩個容易踩到的點：
+
+* **建立這個 worktree 本身會改變你要記錄的拓撲**。Step 3 必須把它一併登記進 ledger，不能只記錄
+  Step 1 取證當下的狀態。
+* `.git/info/exclude` 位於 **common git dir**（`git rev-parse --git-common-dir` 指回主 `.git`），
+  因此在本 worktree 內修改它會即時對整個 repo 生效，不需要回到主工作樹。
 
 ### Step 1：以既有 audit 實作取證（不得另寫一份 inventory）
 
@@ -81,14 +148,18 @@ STOP 條件：security-hardening 的 ref／worktree／路徑重新出現；`e450
 
 ### Step 2：補回 `.git/info/exclude`（獨立前置，與 ledger 編輯分開）
 
+此檔在 common git dir，於本 worktree 內修改即對整個 repo 生效。
+**只需要處理位於 repo root 內的巢狀 worktree**；`<repo>.worktrees/` 底下的在 root 之外，
+不會出現在主工作樹 untracked 清單，不需要也不適用 exclude 條目。
+
 以 Step 1 的實測結果推導「位於 repo root 內、但不在 exclude 內」的 worktree 集合，逐一 idempotent append：
 
 ```bash
 grep -qxF 'ttr-<slug>-worktree/' .git/info/exclude || echo 'ttr-<slug>-worktree/' >> .git/info/exclude
 ```
 
-2026-08-12 實測缺 `ttr-admin-qa-cleanup-worktree/` 與 `ttr-publication-date-parser-worktree/`，
-但**必須以執行當下的實測集合為準**。
+2026-08-14 實測 repo root 內的 7 個巢狀 worktree 已全數涵蓋，因此本步驟**可能是 no-op**。
+不要預設一定有缺漏，也不要沿用任何舊清單；一律以執行當下推導出的集合為準，並回報實際補了幾行。
 
 此檔為 local-only，永不進 commit。本步驟修的是 live 曝險（平行 session 的 `git add -A` 會把未排除的
 worktree 掃進 index），與 Step 3 的文件修正是兩件事，不可合併。
@@ -99,15 +170,23 @@ worktree 掃進 index），與 Step 3 的文件修正是兩件事，不可合併
 
 1. 依 Step 1 證據刷新 Snapshot 基準、註冊路徑拓撲表、「未納入編號的工作線」表與三方對照表。
    整批刷新，不是只改一列。
-2. 補登記 live 存在但 ledger 未記載的 worktree，含 branch 與 path class。
-3. 三個已退役 worktree 合併成**一筆**結案紀錄：共用封存路徑、各自 branch 與 tip、`e450c6b4` 為
-   security 交付 commit、非強制刪除、cherry 為空。並從現行拓撲、停滯清單、缺 spec 清單、
+2. 補登記 live 存在但 ledger 未記載的 worktree，含 branch 與 path class。**包括 `<repo>.worktrees/`
+   底下的全部項目**；它們位於 repo root 外，不適用 exclude，但仍是正式註冊的 worktree，必須入帳。
+   同時移除 ledger 中已不存在的 worktree。
+3. **對兩種命名慣例作出明確記載與建議**：在 proposal 的三維度模型與路徑身分段補上
+   `<repo>.worktrees/<slug>` + `agents/<slug>` 這組慣例，並列出它相對舊慣例的差異
+   （不污染主工作樹 untracked 清單、不需 exclude）。**只提出建議，不自行改寫
+   `git.instructions.md` 的命名規則**；是否正式改規範由使用者決定。
+4. 把未註冊的 `<repo>.worktrees/` 目錄（如 `agents-vscode-performance-issues`）列入治理缺口，
+   標明待判定，不執行任何刪除或 prune。
+5. 三個已退役 worktree 合併成**一筆**結案紀錄：共用封存路徑、各自 branch 與 tip、`e450c6b4` 為
+   security 交付 commit、非強制刪除、cherry 為空。並從現行拓撲、停滞清單、缺 spec 清單、
    G2 與 G3 待辦中移除這三者。
-4. 修正 admin-qa-cleanup spec 的「未建立」（三處）。
-5. 修正 G4 那個為假的 `- [x]` 與過期的 dirty 數；保留同一行上另一個獨立事實，不得整行刪除。
-6. 把 proposal 內對 external registration 的現在式敘述改為「當時觀測 + 已退役結果」。保留
+6. 修正 spec 狀態標註與實際目錄不符之處（如 admin-qa-cleanup 的「未建立」）。
+7. 修正 G4 那個為假的 `- [x]` 與過期的 dirty 數；保留同一行上另一個獨立事實，不得整行刪除。
+8. 把 proposal 內對 external registration 的現在式敘述改為「當時觀測 + 已退役結果」。保留
    「worktree 身分需完整 registered path 證據」這條通則，它仍然有效。
-7. `docs/specs/security-hardening-plan-RECOVERED.md` 不得修改。它是歷史 Round 1／Round 2 邊界，
+9. `docs/specs/security-hardening-plan-RECOVERED.md` 不得修改。它是歷史 Round 1／Round 2 邊界，
    不是 active worktree 主張。
 
 ### Step 4：以雙向一致性驗收
@@ -126,13 +205,16 @@ worktree 掃進 index），與 Step 3 的文件修正是兩件事，不可合併
 
 ### Step 5：commit 與 push（各需明確批准）
 
-1. 只 stage 兩個核准的絕對路徑，並確認 `git diff --cached --name-only` 恰好只有這兩個檔，
-   沒有夾帶平行 session 的 WIP。
-2. 本地 `main` 通常落後 `origin/main`，無法直接 fast-forward push。二擇一並明講採用哪個：
-   * `git -c rebase.autoStash=true rebase origin/main`，事後確認他人 WIP 完整還原；或
-   * ledger「只推自己 commit」段的做法：以 `origin/main` 為起點開臨時 worktree，
-     在其中套用變更後 `git push origin HEAD:main`。
-3. push 前先 `git log origin/main..HEAD --oneline`，確認只帶自己的 commit，再請使用者批准。
+在**本 prompt 的 worktree 內**操作，不要回主工作樹提交。
+
+1. 只 stage 兩個核准的 ledger 檔，確認 `git diff --cached --name-only` 恰好只有這兩個。
+   因為在隔離 worktree 內，這裡不會有其他 session 的 WIP 可夾帶。
+2. 提交後先與最新 `origin/main` 對齊：`git fetch origin main` 然後
+   `git rebase origin/main`（本 worktree clean，不需要 autostash）。
+3. 以 `git log origin/main..HEAD --oneline` 確認**只有自己的 commit**，再請使用者批准。
+4. 批准後推送：`git push origin HEAD:main`。
+5. 推送後用 `git ls-remote origin refs/heads/main` 對照本地 SHA 驗證，不要只信 push 輸出。
+6. 全程不得碰主工作樹的 WIP；結束時確認主工作樹的 dirty 檔案與開始時相同。
 
 ### Step 6：回報但不執行的交接事項
 
