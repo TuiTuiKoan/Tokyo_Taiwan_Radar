@@ -6,9 +6,9 @@
 
 ## Snapshot 基準
 
-* 觀測日期：**2026-08-08**
-* `origin/main`：`5d6e4a43`（docs(agents): require worktree confirmation before implementation）
-* 註冊拓撲：1 main + 5 canonical child + 3 case-split registration + 1 external
+* 觀測日期：**2026-08-14**
+* `origin/main`：`3b04a6d3`（docs(git): reconcile exclude block instead of deleting a line）
+* 註冊拓撲：1 main + 5 canonical child + 8 external（共 14；計數只描述本次快照）
 * 下次更新時請一併更新本區塊，否則勾選狀態會腐化
 
 ---
@@ -67,21 +67,38 @@ Git 的 registered path 與檔案系統 physical path 是兩種不同證據。�
 | Path class | Registered path | Physical path (`pwd -P`) | Branch |
 |---|---|---|---|
 | canonical main | `/Users/flyingship/Development/Tokyo Taiwan Radar` | `/Users/flyingship/Development/Tokyo Taiwan Radar` | `main` |
+| external | `/Users/flyingship/Development/Tokyo Taiwan Radar.worktrees/agent-handoff-and-worktree-cleanup` | `/Users/flyingship/Development/Tokyo Taiwan Radar.worktrees/agent-handoff-and-worktree-cleanup` | `agents/agent-handoff-and-worktree-cleanup` |
+| external | `/Users/flyingship/Development/Tokyo Taiwan Radar.worktrees/anomaly-detection-workflow-integration` | `/Users/flyingship/Development/Tokyo Taiwan Radar.worktrees/anomaly-detection-workflow-integration` | `agents/anomaly-detection-workflow-integration` |
+| external | `/Users/flyingship/Development/Tokyo Taiwan Radar.worktrees/ledger-topology-reconcile` | `/Users/flyingship/Development/Tokyo Taiwan Radar.worktrees/ledger-topology-reconcile` | `agents/ledger-topology-reconcile` |
+| external | `/Users/flyingship/Development/Tokyo Taiwan Radar.worktrees/ledger-topology-reconciliation` | `/Users/flyingship/Development/Tokyo Taiwan Radar.worktrees/ledger-topology-reconciliation` | `agents/ledger-topology-reconciliation` |
+| external | `/Users/flyingship/Development/Tokyo Taiwan Radar.worktrees/mobile-ssh-agent-remote-development` | `/Users/flyingship/Development/Tokyo Taiwan Radar.worktrees/mobile-ssh-agent-remote-development` | `agents/mobile-ssh-agent-remote-development` |
+| external | `/Users/flyingship/Development/Tokyo Taiwan Radar.worktrees/tokyo-taiwan-radar-agents-repo` | `/Users/flyingship/Development/Tokyo Taiwan Radar.worktrees/tokyo-taiwan-radar-agents-repo` | `agents/tokyo-taiwan-radar-agents-repo` |
 | canonical child | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-admin-qa-cleanup-worktree` | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-admin-qa-cleanup-worktree` | `feat/admin-qa-cleanup` |
 | canonical child | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-authoritative-venue-repair-worktree` | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-authoritative-venue-repair-worktree` | `feat/authoritative-venue-repair` |
+| canonical child | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-deps-security-worktree` | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-deps-security-worktree` | `chore/deps-security` |
 | canonical child | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-evaluation-framework-worktree` | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-evaluation-framework-worktree` | `feat/evaluation-framework` |
-| canonical child | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-event-report-writer-safety-worktree` | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-event-report-writer-safety-worktree` | `fix/event-report-writer-safety` |
 | canonical child | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-japan-scope-gate-worktree` | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-japan-scope-gate-worktree` | `feat/japan-scope-gate` |
-| case-split registration | `/Users/flyingship/development/Tokyo Taiwan Radar/ttr-publication-policy-worktree` | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-publication-policy-worktree` | `feat/publication-policy` |
-| case-split registration | `/Users/flyingship/development/Tokyo Taiwan Radar/ttr-taiwan-expo-japan-worktree` | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-taiwan-expo-japan-worktree` | `feat/taiwan-expo-japan` |
-| case-split registration | `/Users/flyingship/development/Tokyo Taiwan Radar/ttr-v8-worktree` | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-v8-worktree` | `feat/event-intake-wizard` |
-| external | `/Users/flyingship/development/ttr-security-hardening-worktree` | `/Users/flyingship/Development/ttr-security-hardening-worktree` | `feat/security-hardening-report-only-csp` |
+| external（case-split lexical alias） | `/Users/flyingship/development/Tokyo Taiwan Radar/ttr-publication-policy-worktree` | `/Users/flyingship/development/Tokyo Taiwan Radar/ttr-publication-policy-worktree` | `feat/publication-policy` |
+| external（case-split lexical alias） | `/Users/flyingship/development/Tokyo Taiwan Radar/ttr-v8-worktree` | `/Users/flyingship/development/Tokyo Taiwan Radar/ttr-v8-worktree` | `feat/event-intake-wizard` |
 
 大小寫兩條 repo parent path 在目前檔案系統解析到相同 device/inode：
 `/Users/flyingship/Development` 與 `/Users/flyingship/development` 都是
-device `16777233`、inode `535486743`；兩條 `Tokyo Taiwan Radar` 都是 inode
-`553836739`。這證明前三筆是 Git lexical registration drift，不是重複實體目錄。
-`security-hardening` 的 physical path 則在 repo root 之外。
+device `16777229`、inode `535486743`；兩條 `Tokyo Taiwan Radar` 都是 inode
+`553836739`。2026-08-14 的 canonical `pwd -P` 保留小寫字串，因而把後兩筆分類為
+`external`；inode 證據仍證明它們是 lexical alias，不是第二套實體 repo。
+
+### 2026-08-09 Tier 1 合併結案紀錄
+
+三個目標共用封存 `~/ttr-wip-archive/20260810-tier1-manifest`；2026-08-14 現場重驗
+`tier1-post-removal-20260809T154251Z.sha256` 為 **103/103 PASS**。三者均以 plain
+`git worktree remove` 與 `git branch -d`（exit 0）退役，local／`origin/main` cherry
+皆為空，且沒有 remote branch：
+
+| 已退役 worktree | Branch | 退役時 tip | 結果 |
+|---|---|---|---|
+| `ttr-event-report-writer-safety-worktree` | `fix/event-report-writer-safety` | `18cd501b` | 非強制移除；內容已在 main |
+| `ttr-security-hardening-worktree` | `feat/security-hardening-report-only-csp` | `e450c6b4` | 非強制移除；此 tip 即 report-only CSP、baseline security headers 與 smoke test 的交付 commit，仍是 `origin/main` 祖先 |
+| `ttr-taiwan-expo-japan-worktree` | `feat/taiwan-expo-japan` | `28e6fcb6` | 非強制移除；內容已在 main |
 
 ---
 
@@ -93,7 +110,7 @@ device `16777233`、inode `535486743`；兩條 `Tokyo Taiwan Radar` 都是 inode
 - [x] 確認舊 worktree/branch 移除**非工作遺失**：`65253c74` 是 `origin/main` 祖先；
       孤兒 `df0a2bd6`／`22324418` 僅為 amend 殘留，唯一差異 2 行措辭
 - [x] Successor worktree `ttr-admin-qa-cleanup-worktree` 已建立
-- [ ] Successor spec `docs/specs/active/admin-qa-cleanup/` 建立
+- [x] Successor spec `docs/specs/active/admin-qa-cleanup/` 已建立
 - [ ] 重數 predecessor `tasks.md`（2026-08-06 觀測為 60 完成／39 未完成）
 - [ ] 查證 Lane R 是否正式取代已退休的 T-P；證據不足時標為 blocker
 - [ ] Final docs-only archive 批准後才移動 predecessor spec
@@ -168,12 +185,16 @@ Eslite identity migration、PN-3a.0（`b4cb383f`）、F-1（`831871e0`）。
 
 | Worktree | ahead/behind | dirty | 判讀 |
 |---|---|---|---|
-| `ttr-japan-scope-gate-worktree` | 11/7 | 16 | 活躍，規模不小 |
-| `ttr-evaluation-framework-worktree` | 0/12 | 0 | 待同步 |
-| `ttr-event-report-writer-safety-worktree` | 0/66 | 0 | 停滯 |
-| `ttr-taiwan-expo-japan-worktree` | 0/40 | 0 | 停滯；case-split registration |
-| `ttr-v8-worktree` | 0/127 | 3 | 嚴重停滯；case-split registration |
-| `ttr-security-hardening-worktree` | 0/74 | 0 | 停滯；external registration |
+| `agent-handoff-and-worktree-cleanup` | 0/6 | 0 | external；待決定治理歸屬 |
+| `anomaly-detection-workflow-integration` | 0/8 | 0 | external；待決定治理歸屬 |
+| `ledger-topology-reconcile` | 0/0 | 0 | external；本次治理對帳 |
+| `ledger-topology-reconciliation` | 0/0 | 0 | external；待判定與本次治理線的關係 |
+| `mobile-ssh-agent-remote-development` | 0/8 | 0 | external；待決定治理歸屬 |
+| `tokyo-taiwan-radar-agents-repo` | 0/0 | 0 | external；待決定治理歸屬 |
+| `ttr-deps-security-worktree` | 4/21 | 0 | G4 依賴維護 |
+| `ttr-evaluation-framework-worktree` | 0/10 | 0 | 待同步 |
+| `ttr-japan-scope-gate-worktree` | 11/69 | 16 | 活躍且 dirty，規模不小 |
+| `ttr-v8-worktree` | 0/189 | 3 | 嚴重停滯；case-split lexical alias |
 
 ---
 
@@ -181,27 +202,41 @@ Eslite identity migration、PN-3a.0（`b4cb383f`）、F-1（`831871e0`）。
 
 | 工作線 | Worktree | ahead/behind | dirty | Spec |
 |---|---|---|---|---|
-| A（successor） | `ttr-admin-qa-cleanup-worktree` | 0/0 | 0 | **未建立** |
+| A（successor） | `ttr-admin-qa-cleanup-worktree` | 0/2 | 0 | `active/admin-qa-cleanup` |
 | A（predecessor） | 已移除 | — | — | `admin-reports-204-cleanup`（保留 active） |
-| B | `ttr-publication-policy-worktree`（case-split） | 3/0 | 0 | `publication-policy` |
+| B | `ttr-publication-policy-worktree`（case-split lexical alias） | 0/9 | 0 | `active/publication-policy` |
 | C | **無** | — | — | **無** |
 | D | publication worktree + 無歸屬 backlog | — | — | **無** |
-| E（venue repair） | `ttr-authoritative-venue-repair-worktree` | 11/12 | 0 | **未建立** |
-| 未編號 | japan-scope-gate | 11/7 | 16 | 無 |
-| 未編號 | evaluation-framework | 0/12 | 0 | `evaluation-framework` |
-| 未編號 | event-report-writer-safety | 0/66 | 0 | 無 |
-| 未編號 | taiwan-expo-japan（case-split） | 0/40 | 0 | 無 |
-| 未編號 | v8 / event-intake-wizard（case-split） | 0/127 | 3 | 無 |
-| 未編號 | security-hardening（external） | 0/74 | 0 | 無 |
-| —（主工作樹） | `Tokyo Taiwan Radar` | 0/0 | 1 | `workstream-tracking`（governance-only） |
+| E（venue repair） | `ttr-authoritative-venue-repair-worktree` | 1/43 | 0 | `active/authoritative-venue-repair` |
+| 未編號 | `ttr-evaluation-framework-worktree` | 0/10 | 0 | `active/evaluation-framework` |
+| 未編號 | `ttr-japan-scope-gate-worktree` | 11/69 | 16 | 無 matching spec |
+| 未編號 | `ttr-v8-worktree` | 0/189 | 3 | 無 matching spec |
+| G4 | `ttr-deps-security-worktree` | 4/21 | 0 | 無 matching spec |
+| 未編號 | `agent-handoff-and-worktree-cleanup` | 0/6 | 0 | 無 matching spec |
+| 未編號 | `anomaly-detection-workflow-integration` | 0/8 | 0 | 無 matching spec |
+| 治理 | `ledger-topology-reconcile` | 0/0 | 0 | `active/workstream-tracking`（本次明確指定） |
+| 未編號 | `ledger-topology-reconciliation` | 0/0 | 0 | 無 matching spec |
+| 未編號 | `mobile-ssh-agent-remote-development` | 0/8 | 0 | 無 matching spec |
+| 未編號 | `tokyo-taiwan-radar-agents-repo` | 0/0 | 0 | 無 matching spec |
+| —（主工作樹） | `Tokyo Taiwan Radar` | 0/0 | 0 | `active/workstream-tracking`（governance-only） |
 
-位於 `docs/specs/active/`、但無 dedicated linked worktree 的 spec 目錄（14，含
-grandfathered、frontmatter status 漂移與 governance-only）：
-`admin-report-workflow`、`admin-reports-204-cleanup`、`autoresearch-auto-scraper`、
-`bauhaus-design-system`、`japan-open-data-integration`、`market-positioning-strategy`、
-`merger-multi-signal-pass4`、`product-c-opportunity-radar`、`report-prototype-gap-fix`、
-`seo-polish`、`spec-architecture-dashboard`、`tier1-data-completion`、
-`works-entity-for-films-and-tours`、`workstream-tracking`。
+### Spec 狀態 inventory（2026-08-14）
+
+實際存在的狀態目錄只有 `docs/specs/active/`（18 個 spec）與
+`docs/specs/archive/`（1 個 spec）；不存在 `docs/specs/parked/`。目錄位置與 frontmatter
+`status` 不一致者如下：
+
+| Spec 目錄 | Frontmatter `status` |
+|---|---|
+| `active/japan-open-data-integration` | `done` |
+| `active/merger-multi-signal-pass4` | `parked` |
+| `active/report-prototype-gap-fix` | `done` |
+| `active/tier1-data-completion` | `done` |
+| `active/works-entity-for-films-and-tours` | `done` |
+| `archive/feedback-loop` | `active` |
+
+其餘 13 個 spec 的目錄位置與 frontmatter 相符。這是雙向 inventory，不把 frontmatter
+狀態硬編成不存在的第三個實體目錄。
 
 ---
 
@@ -213,23 +248,21 @@ grandfathered、frontmatter status 漂移與 governance-only）：
 
 ### G2: Linked worktree 缺 matching spec 目錄
 
-9 個 linked worktree 中有 7 個沒有 `docs/specs/active/` 下的同 branch spec 目錄。
-依狀態分流，不把 grandfathered 停滯 branch 一律判成新規則違規。
+13 個 linked worktree 中有 9 個沒有同 branch slug 的 active spec；本次治理 worktree
+已明確指定 `workstream-tracking`，其餘 8 個仍需依規則生效時間與工作狀態分流：
 
-- [ ] `ttr-authoritative-venue-repair-worktree`（ahead 11）補建 spec
-- [ ] `ttr-japan-scope-gate-worktree`（ahead 11）補建 spec 或明確指定既有 spec
-- [ ] `ttr-admin-qa-cleanup-worktree` 的 successor spec 待其 prompt 執行時建立
-- [ ] event-report-writer-safety、taiwan-expo-japan、v8、security-hardening 先走 G3
-      去留判定；未決定繼續前不追建 spec
+- [ ] `ttr-japan-scope-gate-worktree` 補建 spec 或明確指定既有 spec
+- [ ] `ttr-deps-security-worktree` 決定是否以 G4 ledger 取代 dedicated spec
+- [ ] `ttr-v8-worktree` 先走 G3；未決定繼續前不追建 spec
+- [ ] `agent-handoff-and-worktree-cleanup`、`anomaly-detection-workflow-integration`、
+      `ledger-topology-reconciliation`、`mobile-ssh-agent-remote-development`、
+      `tokyo-taiwan-radar-agents-repo` 分別確認 spec 或 grandfathered 身分
 
 ### G3: 停滯 worktree 去留
 
-落後幅度持續擴大（2026-08-06 → 08-08 各 +2），rebase 成本只會更高。
+2026-08-14 仍有一筆既有停滯工作線待決定：
 
-- [ ] `ttr-v8-worktree`（behind 127，dirty 3；case-split registration）
-- [ ] `ttr-security-hardening-worktree`（behind 74；external registration）
-- [ ] `ttr-event-report-writer-safety-worktree`（behind 66）
-- [ ] `ttr-taiwan-expo-japan-worktree`（behind 40；case-split registration）
+- [ ] `ttr-v8-worktree`（behind 189，dirty 3；case-split lexical alias）
 
 決定前必須查證各分支是否有未推送且未合併的 commit：
 
@@ -240,12 +273,10 @@ git --no-pager cherry origin/main <branch>   # '-' 前綴 = 內容已在上游
 
 ### G4: 其他
 
-- [x] `.git/info/exclude` 補上 `ttr-admin-qa-cleanup-worktree/`，並清除兩個已不存在的
-      殘留項目（`ttr-admin-reports-204-cleanup-worktree/`、`ttr-organizer-authority-wave2-worktree/`）。
-      刪除前已驗證兩者皆無目錄、無 worktree 註冊、無對應分支。
-      目前實體位於 project root 內的 8 個 linked worktree basename 全數排除。
-      `security-hardening` 位於 project root 外，不適用該 exclude；主工作樹目前 dirty 1
-      是使用者的 tracked `README.md`，不是 linked worktree untracked noise
+- [x] 2026-08-14 重新以 live registered path、physical containment 與 inode alias 對帳：
+      repo root 內 7 個 linked worktree basename 均已在 `.git/info/exclude`，本次 append 0 行；
+      `<repo>.worktrees/` 的 external worktree 不適用 exclude。先前清除兩個已不存在殘留項目的
+      結果仍保留；本次主工作樹 dirty 0。
 - [ ] Dependabot 回報 9 個依賴漏洞（8 high、1 moderate），與本專案工作無關但需處理。
       **性質上不屬於工作線盤點**，僅暫置於此；建議另立資安維護歸屬
 
@@ -315,13 +346,17 @@ push 觸發）作為繞道，讓驗證改在可連公開 npm 的 runner 上執�
       裝置裝有 Microsoft Defender。因此**修改 npmrc 無效**，
       必須由裝置政策端處置
 
-### G5: Worktree 註冊路徑漂移
+### G5: Worktree 註冊路徑與外部 sibling 治理
 
-- [x] 保存 10 個 worktree 的完整 registered path、physical path 與 path class 證據
+- [x] 保存 14 個 worktree 的完整 registered path、physical path 與 path class 證據
 - [x] 證明 `Development`／`development` 解析為相同 inode，不是兩套實體 repo
-- [ ] 另案決定是否將 publication-policy、taiwan-expo-japan、v8 的 Git lexical
-      registration 正規化為 canonical `Development` 路徑
-- [ ] 另案決定 security-hardening 應搬回 project root，或正式 grandfather 為 external
+- [ ] 另案決定是否將 publication-policy、v8 的 Git lexical registration 正規化為
+      canonical `Development` 路徑
+- [ ] 決定是否把 `<repo>.worktrees/<slug>` + `agents/<slug>` 正式納入命名規則；
+      此慣例不污染主工作樹 untracked 清單，也不需要 exclude
+- [ ] `/Users/flyingship/Development/Tokyo Taiwan Radar.worktrees/agents-vscode-performance-issues`
+      目錄存在且含 `.git`，但未註冊；其 gitdir 指標目前不可用。待判定是殘留、進行中或
+      registration 已失效；未經批准不得 delete、prune 或 re-add
 
 本次只更新證據，不授權 `git worktree move`、remove/re-add、repair 或手改 `.git/worktrees`。
 
@@ -396,4 +431,4 @@ git worktree remove "$TMPDIR/ttr-<slug>-push"
 - [x] 三方對照表與 live 狀態一致
 - [x] 完整 registered path、physical path 與 path class 已保留
 - [x] 治理缺口各有明確建議與所需批准
-- [x] 未執行任何 worktree/branch/spec 變更或 production 寫入
+- [x] 未執行任何其他 worktree/branch/spec 變更或 production 寫入；本次只更新本治理 spec

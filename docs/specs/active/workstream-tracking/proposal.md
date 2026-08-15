@@ -25,13 +25,12 @@ tags: [governance, tracking, meta]
    session memory。
 
 2. **三個維度已經漂移**。A–E 是任務分類、worktree 是 git 隔離機制、spec 是文件單位，
-   三者從未設計成一對一。2026-08-08 live snapshot 有 16 個 spec 目錄位於
-   `docs/specs/active/`，以及 10 個註冊 worktree（1 個 main + 9 個 linked）。9 個 linked
-   worktree 中只有 2 個有同 branch 的 spec 目錄（`publication-policy`、
-   `evaluation-framework`）；7 個沒有。16 個目錄中有 14 個沒有 dedicated linked
-   worktree，其中包含 grandfathered spec 與刻意留在 main 的本治理 spec，不能把
-   「無 dedicated worktree」一律判成違規。目錄位置與 frontmatter `status` 是兩份
-   證據；本計數不宣稱 16 份 frontmatter 都是 `active`。
+   三者從未設計成一對一。2026-08-14 live snapshot 有 18 個目錄位於
+   `docs/specs/active/`、1 個位於 `docs/specs/archive/`，以及 14 個註冊 worktree
+   （1 個 main + 13 個 linked）。其中 9 個 linked worktree 沒有同 branch slug 的 active
+   spec；本次治理 worktree 另有明確指定的 `workstream-tracking` spec。不能把「無 dedicated
+   worktree」或「無同名 spec」一律判成違規，必須辨識 grandfathered 與明確指定關係。
+   目錄位置與 frontmatter `status` 是兩份證據；目前 6 個 spec 的兩者不一致。
 
 3. **治理缺口沒有歸屬**。停滯 worktree、未納版控的 prompt、違反 spec ⟺ worktree
    規則的分支——這些問題不屬於任何單一功能 spec，因此一直沒有被追蹤。
@@ -51,7 +50,8 @@ tags: [governance, tracking, meta]
 | 維度 | 性質 | 命名 |
 |---|---|---|
 | 工作線 A–E | 任務追蹤分類（人為編號） | 字母 |
-| Worktree | git 隔離機制 | 完整註冊路徑 + branch；basename 僅供顯示 |
+| Worktree（舊慣例） | git 隔離機制；repo root 內巢狀 | `<repo>/ttr-<slug>-worktree` + `feat/`、`fix/` 或 `chore/` branch |
+| Worktree（新慣例） | git 隔離機制；repo root 外 sibling | `<repo>.worktrees/<slug>` + `agents/<slug>` branch |
 | Spec | 文件單位 | `docs/specs/active/<slug>/` |
 
 Architect 規則要求 spec ⟺ worktree 一對一，但**未要求**工作線與兩者對齊。
@@ -65,20 +65,32 @@ A–E 可以跨多個 worktree，也可以完全沒有 worktree。這是設計�
 Worktree 身分不得只用 basename。權威證據是 `git worktree list --porcelain` 的完整
 `worktree` 註冊字串，加上 branch 與實體路徑（`cd "$path" && pwd -P`）。
 
-2026-08-08 查證發現三種拓撲：
+2026-08-14 查證發現三種 live 拓撲：
 
 1. 5 個 linked worktree 以 canonical
-   `/Users/flyingship/Development/Tokyo Taiwan Radar/...` 註冊。
-2. `publication-policy`、`taiwan-expo-japan`、`v8` 以小寫
+   `/Users/flyingship/Development/Tokyo Taiwan Radar/...` 註冊。它們位於 repo root 內，
+   必須以 `.git/info/exclude` 防止主工作樹的 `git add -A` 誤掃。
+2. `publication-policy`、`v8` 以小寫
    `/Users/flyingship/development/Tokyo Taiwan Radar/...` 註冊。現行 macOS 檔案系統上，
-   大小寫兩條 parent path 解析為相同 device/inode，因此不是兩套實體目錄；但 Git
-   保留不同 lexical registration，字串式 root containment 與自動化仍會分裂。
-3. `ttr-security-hardening-worktree` 註冊在
-   `/Users/flyingship/development/ttr-security-hardening-worktree`，實體上是 repo root
-   的 sibling，不是 project child。主 repo 的 `.git/info/exclude` 不適用於它。
+   大小寫兩條 parent path 解析為相同 device/inode，因此不是兩套實體目錄；但 Git 與
+   `pwd -P` 均保留小寫 lexical path，canonical 字串 classifier 會將其列為 external。
+3. 6 個 linked worktree 使用新慣例，位於
+   `/Users/flyingship/Development/Tokyo Taiwan Radar.worktrees/<slug>`，branch 為
+   `agents/<slug>`。它們在 repo root 外，不污染主工作樹 untracked 清單，也不需要 exclude。
+
+另有一個同層目錄含 `.git`、但不在 `git worktree list`；它的 gitdir 指標目前不可用。
+這是待判定的治理缺口，不是可自行 prune、re-add 或刪除的授權。
+
+2026-08-08 曾另觀測到一個 repo-root sibling 的 external registration；該工作線已於
+2026-08-09 以非強制移除與安全 branch deletion 正常退役，封存與交付結果見
+[tasks.md](./tasks.md) 的單一 Tier 1 結案紀錄。這段只保留「external placement 可能存在」
+的歷史證據，不主張該 registration 現在仍存活。
 
 因此，basename-only inventory 會靜默吃掉 case-split 與 external placement；
 `pwd -P`-only inventory 又會吃掉 Git 保存的小寫註冊字串。兩者必須並列。
+
+建議後續把新慣例正式寫入 git 規則，並明確界定何時用 `agents/`、何時沿用舊慣例；本次只提出
+建議，不改寫 `.github/instructions/git.instructions.md`。
 
 ### Snapshot 紀律
 
