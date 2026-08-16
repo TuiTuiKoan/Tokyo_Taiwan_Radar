@@ -17,6 +17,7 @@ import {
   runSetAdminEventsForceRescrape,
   type EventCategoryResult,
 } from "@/lib/adminEventMutationsCore";
+import { alignParallelOrganizerTypes } from "@/lib/parallelOrganizerTypes";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyo-taiwan-radar.vercel.app";
 
@@ -32,16 +33,33 @@ function genSourceId(): string {
 
 type EventInsert = Record<string, unknown>;
 
-function sanitizeForm(form: FormState): EventInsert {
+type OrganizerArraySnapshot = Pick<
+  Event,
+  "co_organizers" | "co_organizer_types" | "sponsors" | "sponsor_types"
+>;
+
+function sanitizeForm(form: FormState, existing?: OrganizerArraySnapshot): EventInsert {
   const f = form as unknown as Record<string, unknown>;
   const empty = (v: unknown) => (typeof v === "string" && v.trim() === "" ? null : v);
+  const coOrganizers = alignParallelOrganizerTypes(
+    f.co_organizers,
+    existing?.co_organizers,
+    existing?.co_organizer_types,
+  );
+  const sponsors = alignParallelOrganizerTypes(
+    f.sponsors,
+    existing?.sponsors,
+    existing?.sponsor_types,
+  );
   return {
     ...form,
     start_date: empty(f.start_date),
     end_date: empty(f.end_date),
     parent_event_id: empty(f.parent_event_id),
-    co_organizers: f.co_organizers ?? null,
-    sponsors: f.sponsors ?? null,
+    co_organizers: coOrganizers.names,
+    co_organizer_types: coOrganizers.types,
+    sponsors: sponsors.names,
+    sponsor_types: sponsors.types,
     official_url: empty(f.official_url),
     submission_url: empty(f.submission_url),
     // provenance: explicit source_url wins, else fall back to the announcement URL, else the site URL
@@ -211,13 +229,13 @@ export async function updateAdminEvent(
 
   const { data: existing, error: loadError } = await auth.supabase
     .from("events")
-    .select("id")
+    .select("id,co_organizers,co_organizer_types,sponsors,sponsor_types")
     .eq("id", eventId)
     .single();
 
   if (loadError || !existing) return { ok: false, error: "eventNotFound" };
 
-  const payload = sanitizeForm(form);
+  const payload = sanitizeForm(form, existing as OrganizerArraySnapshot);
   delete payload.source_id;
   delete payload.source_name;
 
@@ -274,7 +292,7 @@ export async function publishAdminWizardEvent(
 
   const { data: existing, error: loadError } = await auth.supabase
     .from("events")
-    .select("id")
+    .select("id,co_organizers,co_organizer_types,sponsors,sponsor_types")
     .eq("id", eventId)
     .single();
   if (loadError || !existing) return { ok: false, error: "eventNotFound" };
@@ -289,7 +307,7 @@ export async function publishAdminWizardEvent(
   });
   if (missing.length > 0) return { ok: false, error: "requiredFieldsMissing" };
 
-  const payload = sanitizeForm(form);
+  const payload = sanitizeForm(form, existing as OrganizerArraySnapshot);
   delete payload.source_id;
   delete payload.source_name;
 

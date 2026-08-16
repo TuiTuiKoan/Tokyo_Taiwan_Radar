@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-08-16 - admin event save violated organizer parallel-array cardinality
+
+**Error**: The unified event intake form exposed `co_organizers` and `sponsors` as comma-separated text but did not expose their parallel classification fields. Migration 095 requires `co_organizers` / `co_organizer_types` and `sponsors` / `sponsor_types` to have identical cardinality. Adding one co-organizer therefore sent one name while leaving its type array empty, and PostgreSQL rejected the write with `events_co_org_cardinality_check`.
+
+**Fix**: Added a shared server-safe normalizer that splits comma variants, aligns both parallel arrays, preserves an existing type by exact organization name, and assigns `unknown` to new names. Applied it to admin create/update/publish, owner create/update/publish, and the standalone admin edit mutation core. Added regression coverage for new entries and reordered existing entries.
+
+**Lesson**: A hidden parallel array is still part of the form write contract. Every write boundary that changes the visible name array must atomically write an equal-length type array; create paths use `unknown`, while update paths reconcile by stable name rather than array position so reordering does not destroy classifications.
+
+---
+
 ## 2026-08-12 - a metric denominator that was never produced (feedback-loop A2 = 0)
 
 **Error**: `docs/evaluation/feedback_loop/` reported `Annotated Events = 0` and hit rate `n/a` for two consecutive months (2026-07, 2026-08). The pipeline was running and the numerator was real, so nothing failed loudly — the metric was simply meaningless. Root cause was a broken string contract between producer and consumer: `scraper/annotator.py` writes the run summary into `scraper_runs.notes` as a flat `key=value` string containing `total={len(events)}`, while `scraper/monthly_health_check.py::_protect_hit_trend()` searched for `annotated=(\d+)` — **a token that was never written by anything, at any point in the history of that string**. `field_protect_hits=` matched (numerator populated), `annotated=` never matched (denominator pinned to 0), and division-guard logic dutifully emitted `n/a`.

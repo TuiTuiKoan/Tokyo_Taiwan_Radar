@@ -454,13 +454,49 @@ test("AdminEdit accepts legal empty and client boundary values", async () => {
   assert.deepEqual(payload.category, []);
   assert.deepEqual(payload.event_form, []);
   assert.deepEqual(payload.co_organizers, ["A機構", "B機構"]);
+  assert.deepEqual(payload.co_organizer_types, ["unknown", "unknown"]);
   assert.deepEqual(payload.sponsors, ["C企業", "D企業"]);
+  assert.deepEqual(payload.sponsor_types, ["unknown", "unknown"]);
   assert.equal(payload.parent_event_id, null);
   assert.deepEqual(payload.record_links, [
     { title: "Official", url: "https://example.test/official", recommended: false },
   ]);
   assert.equal(payload.is_paid, false);
   assert.equal(payload.is_active, true);
+});
+
+test("AdminEdit preserves organizer types by name and fills new entries as unknown", async () => {
+  const { client, calls } = makeClient((call) => {
+    if (call.table === "events" && call.op === "select") {
+      return {
+        data: beforeEvent({
+          co_organizers: ["既存団体"],
+          co_organizer_types: ["civic_group"],
+          sponsors: ["既存企業"],
+          sponsor_types: ["commercial_brand"],
+        }),
+        error: null,
+      };
+    }
+    if (call.table === "events" && call.op === "update") {
+      return { data: { ...beforeEvent(), id: EVENT_1 }, error: null };
+    }
+    return { data: null, error: null };
+  });
+  const form = {
+    ...BASE_FORM,
+    co_organizers: "新規団体、既存団体",
+    sponsors: "既存企業、新規企業",
+  };
+
+  const result = await runSaveAdminEditedEvent(client, EVENT_1, form, ADMIN_1);
+
+  assert.equal(result.ok, true);
+  const payload = callsOf(calls, "events", "update")[0].payload as Record<string, unknown>;
+  assert.deepEqual(payload.co_organizers, ["新規団体", "既存団体"]);
+  assert.deepEqual(payload.co_organizer_types, ["unknown", "civic_group"]);
+  assert.deepEqual(payload.sponsors, ["既存企業", "新規企業"]);
+  assert.deepEqual(payload.sponsor_types, ["commercial_brand", "unknown"]);
 });
 
 test("single reannotation requires exactly the requested event", async () => {

@@ -12,6 +12,10 @@ import {
   runDeactivateOwnerEventExact,
   runDeleteOwnerEventExact,
 } from "@/lib/adminEventMutationsCore";
+import {
+  alignParallelOrganizerTypes,
+  normalizeCommaSeparatedArray,
+} from "@/lib/parallelOrganizerTypes";
 
 export type ActionResult<T> =
   | { ok: true; data: T }
@@ -75,16 +79,14 @@ const VALID_PRIMARY_LANGUAGES = new Set(["ja", "zh", "en", "mixed"]);
 const COMMA_SEPARATED_ARRAY_FIELDS = new Set<string>(["co_organizers", "sponsors"]);
 
 function parseCommaArray(val: unknown): string[] | null {
-  const parts = Array.isArray(val)
-    ? val.map((s) => String(s).trim())
-    : typeof val === "string"
-      ? val.split(/[,，、]/).map((s) => s.trim())
-      : [];
-  const cleaned = parts.filter(Boolean);
-  return cleaned.length > 0 ? cleaned : null;
+  return normalizeCommaSeparatedArray(val);
 }
 
-function sanitizeOwnerForm(form: FormState, ownerUserId: string): Record<string, any> {
+function sanitizeOwnerForm(
+  form: FormState,
+  ownerUserId: string,
+  existing?: Pick<Event, "co_organizers" | "co_organizer_types" | "sponsors" | "sponsor_types">,
+): Record<string, any> {
   const payload: Record<string, any> = {};
   
   // Extract only white-listed content fields
@@ -99,8 +101,24 @@ function sanitizeOwnerForm(form: FormState, ownerUserId: string): Record<string,
       } else {
         payload[field] = val;
       }
+
     }
   }
+
+  const coOrganizers = alignParallelOrganizerTypes(
+    payload.co_organizers,
+    existing?.co_organizers,
+    existing?.co_organizer_types,
+  );
+  const sponsors = alignParallelOrganizerTypes(
+    payload.sponsors,
+    existing?.sponsors,
+    existing?.sponsor_types,
+  );
+  payload.co_organizers = coOrganizers.names;
+  payload.co_organizer_types = coOrganizers.types;
+  payload.sponsors = sponsors.names;
+  payload.sponsor_types = sponsors.types;
 
   // Force overrides - OWASP A01 Guard
   payload.source_name = "user_submission";
@@ -426,7 +444,7 @@ export async function updateOwnerEvent(
   }
 
   // 6. Sanitize and update (sanitizeOwnerForm forces is_active=true / annotated).
-  const payload = sanitizeOwnerForm(form, user.id);
+  const payload = sanitizeOwnerForm(form, user.id, existing as Event);
   // Keep original source_id & source_name
   delete payload.source_name;
   delete payload.source_id;
@@ -483,7 +501,7 @@ export async function updateOwnerDraft(
   // Load existing event
   const { data: existing, error: loadError } = await serviceClient
     .from("events")
-    .select("owner_user_id")
+    .select("owner_user_id,co_organizers,co_organizer_types,sponsors,sponsor_types")
     .eq("id", eventId)
     .single();
 
@@ -501,7 +519,7 @@ export async function updateOwnerDraft(
     form.name_ja = form.name_zh?.trim() || form.name_en?.trim() || "Draft Event";
   }
 
-  const payload = sanitizeOwnerForm(form, user.id);
+  const payload = sanitizeOwnerForm(form, user.id, existing as Event);
   payload.is_active = false;
   payload.annotation_status = "pending";
   // Keep original source_id & source_name

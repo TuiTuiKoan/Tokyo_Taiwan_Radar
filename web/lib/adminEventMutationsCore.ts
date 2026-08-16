@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { toFieldCorrectionValue } from "./fieldCorrections.server";
 import { CATEGORIES, EVENT_FORMS, type Event } from "./types";
+import { alignParallelOrganizerTypes } from "./parallelOrganizerTypes";
 
 export type CoreMutationResult<T> =
   | { ok: true; data: T }
@@ -66,7 +67,9 @@ const ADMIN_EDIT_BEFORE_COLUMNS = [
   "category",
   "event_form",
   "co_organizers",
+  "co_organizer_types",
   "sponsors",
+  "sponsor_types",
   "primary_language",
   "has_japanese_support",
   "has_english_support",
@@ -328,7 +331,18 @@ function formCommaText(value: unknown): string {
 function sanitizeAdminEditForm(
   formRecord: ValidatedAdminEditForm,
   rawTitle: string | null,
+  before: AdminEditBefore,
 ): CoreMutationResult<Record<string, unknown>> {
+  const coOrganizers = alignParallelOrganizerTypes(
+    formRecord.co_organizers,
+    before.co_organizers,
+    before.co_organizer_types,
+  );
+  const sponsors = alignParallelOrganizerTypes(
+    formRecord.sponsors,
+    before.sponsors,
+    before.sponsor_types,
+  );
   const payload: Record<string, unknown> = {
     name_ja: nullify(formRecord.name_ja) ?? rawTitle,
     name_zh: nullify(formRecord.name_zh),
@@ -347,8 +361,10 @@ function sanitizeAdminEditForm(
     organizer: nullify(formRecord.organizer),
     organizer_url: nullify(formRecord.organizer_url),
     event_form: formRecord.event_form,
-    co_organizers: formRecord.co_organizers,
-    sponsors: formRecord.sponsors,
+    co_organizers: coOrganizers.names,
+    co_organizer_types: coOrganizers.types,
+    sponsors: sponsors.names,
+    sponsor_types: sponsors.types,
     primary_language: nullify(formRecord.primary_language),
     has_japanese_support: formRecord.has_japanese_support ? true : null,
     has_english_support: formRecord.has_english_support ? true : null,
@@ -550,7 +566,7 @@ export async function runSaveAdminEditedEvent(
   }
 
   const formRecord = formResult.data;
-  const payloadResult = sanitizeAdminEditForm(formRecord, before.raw_title);
+  const payloadResult = sanitizeAdminEditForm(formRecord, before.raw_title, before);
   if (!payloadResult.ok) return payloadResult;
   const payload = payloadResult.data;
   const resolvedPayload = Object.fromEntries(
