@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { CATEGORIES, EVENT_FORMS } from "@/lib/types";
 import {
+  buildDescriptionPromptLines,
   sanitizeCategoryValues,
   sanitizeEventFormValues,
   shouldApplyAnnotatedLocationField,
@@ -188,9 +189,11 @@ export async function POST(req: NextRequest) {
     event.name_ja && `活動名（日文）: ${event.name_ja}`,
     event.name_zh && `活動名（中文）: ${event.name_zh}`,
     event.name_en && `活動名（英文）: ${event.name_en}`,
-    event.description_ja && `説明（日文）: ${String(event.description_ja).slice(0, 400)}`,
-    event.description_zh && `説明（中文）: ${String(event.description_zh).slice(0, 400)}`,
-    event.description_en && `説明（英文）: ${String(event.description_en).slice(0, 400)}`,
+    ...buildDescriptionPromptLines({
+      ja: event.description_ja,
+      zh: event.description_zh,
+      en: event.description_en,
+    }),
     foundUrl && `参考ウェブページのURL: ${foundUrl}`,
     webText && `参考ウェブページ全文（最重要・主催/会場/料金等を抜き出すこと）:\n${webText.slice(0, 4000)}`,
     event.location_name && `現在の場地: ${event.location_name}`,
@@ -205,7 +208,8 @@ export async function POST(req: NextRequest) {
 
   const payload = {
     model: "gpt-4o-mini",
-    max_tokens: 2500,
+    // Full three-language bodies are far larger than the old summary output.
+    max_tokens: 8000,
     response_format: { type: "json_object" },
     messages: [
       {
@@ -232,10 +236,12 @@ Name translations (always required — fill ALL three languages):
 - The event name may be provided in ANY one of the three languages. Translate from whichever language is present into the other two. If only the Chinese name is given, produce the Japanese and English names from it; if only Japanese is given, produce Chinese and English. NEVER leave a name field empty when any language version is provided.
 
 Description text (always required — fill ALL three languages):
-- description_ja: 2–4 sentence description in natural Japanese (丁寧体)
-- description_zh: 2–4 sentence description in Traditional Chinese (繁體中文)
-- description_en: 2–4 sentence description in natural English
-- The description may be provided in ANY one of the three languages. Translate from whichever language is present into the other two, basing the content on the provided description and any web page info. NEVER leave a description field empty when any language version is provided.
+- description_ja: full Japanese description (丁寧体)
+- description_zh: full Traditional Chinese (繁體中文) description
+- description_en: full English description
+- When a description is provided in ANY language, translate it COMPLETELY into the other two. Translate the whole text from the first line to the last — every paragraph, list item, menu line, schedule row, venue line, price line and organizer line. Never summarise, never condense it into a few sentences, and never stop partway.
+- Preserve the source layout: keep line breaks, bullet markers, emoji, headings, dates, times, prices and numbers in the same positions. Keep proper nouns, venue names and personal names accurate.
+- NEVER leave a description field empty when any language version is provided. Text that merely repeats the source language is NOT a translation — always output real target-language text.
 - If ALL three description languages are empty, generate a coherent, factual 2–4 sentence description in each language from the event name and any available info (dates, venue, organizer, category); the three languages must convey the same content. Never leave the descriptions blank.
 
 Extraction fields (omit if not visible in the web page):
@@ -268,7 +274,7 @@ Rules:
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(25000), // 25s — prevents OpenAI slow response from exceeding Vercel maxDuration
+    signal: AbortSignal.timeout(40000), // 40s — full-body translation is slower than the old summary; page fetch (10s) + this stays under maxDuration 60
   });
 
   if (!openaiRes.ok) {

@@ -184,7 +184,17 @@ export default function EventIntakeWizard({ context, locale }: Props) {
   function updateField(k: string, v: unknown) {
     if (!isFormFieldKey(k)) return;
     if (isAnnotateLocationField(k)) manualEditedFieldsRef.current.add(k);
-    if (isTranslationField(k)) translationEditedFieldsRef.current.add(k);
+    if (isTranslationField(k)) {
+      // The lock protects human-confirmed text. Clearing the box leaves nothing
+      // to protect, so release it — otherwise a field the user emptied (e.g. a
+      // Chinese box that held untranslated source text) stays locked for the
+      // rest of the session and annotation can never refill it.
+      if (typeof v === "string" && v.trim() === "") {
+        translationEditedFieldsRef.current.delete(k);
+      } else {
+        translationEditedFieldsRef.current.add(k);
+      }
+    }
     setForm((prev) => ({ ...prev, [k]: v as FormState[typeof k] }));
   }
 

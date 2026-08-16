@@ -10,6 +10,49 @@ export const EVENT_FORM_ALIASES: Record<string, string> = {
 
 export const VALID_PRIMARY_LANGUAGES = new Set(["ja", "zh", "en", "mixed"]);
 
+// Descriptions are the translation source. Truncating them here silently caps
+// how much of the event the model can translate, so keep the budget large
+// enough to carry a full poster/press body (menu, schedule, fees, organizers).
+export const DESCRIPTION_PROMPT_MAX_CHARS = 4000;
+
+const DESCRIPTION_PROMPT_LABELS = {
+  ja: "説明（日文）",
+  zh: "説明（中文）",
+  en: "説明（英文）",
+} as const;
+
+export type DescriptionPromptInput = {
+  ja?: unknown;
+  zh?: unknown;
+  en?: unknown;
+};
+
+/**
+ * Build the localized description lines handed to the annotator.
+ *
+ * A locale field that merely repeats another locale's text is NOT a
+ * translation. Labelling it (e.g. "説明（中文）: <Japanese text>") tells the
+ * model that the Chinese version already exists and suppresses the real
+ * translation, so duplicates are dropped instead of mislabelled.
+ */
+export function buildDescriptionPromptLines(descriptions: DescriptionPromptInput): string[] {
+  const seen = new Set<string>();
+  const lines: string[] = [];
+  for (const locale of ["ja", "zh", "en"] as const) {
+    const raw = descriptions[locale];
+    if (typeof raw !== "string") continue;
+    const text = raw.trim();
+    if (!text) continue;
+    const fingerprint = text.replace(/\s+/g, "");
+    if (seen.has(fingerprint)) continue;
+    seen.add(fingerprint);
+    lines.push(
+      `${DESCRIPTION_PROMPT_LABELS[locale]}: ${text.slice(0, DESCRIPTION_PROMPT_MAX_CHARS)}`,
+    );
+  }
+  return lines;
+}
+
 const FILL_SCORE_THRESHOLD = 3;
 const OVERWRITE_SCORE_THRESHOLD = 6;
 const POSTAL_RE = /〒\s*\d{3}-\d{4}|\d{3}-\d{4}/;

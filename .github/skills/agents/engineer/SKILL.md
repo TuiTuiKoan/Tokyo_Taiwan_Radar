@@ -440,6 +440,21 @@ function withClientTimeout<T>(p: PromiseLike<T>, ms: number, label: string): Pro
 }
 ```
 
+## annotate-event 翻譯完整性（input budget = output completeness）
+
+自動翻譯輸出不完整時，**先量輸入預算，再懷疑模型**。`slice(0, N)` 套在 prompt 輸入上等於對輸出完整度設了看不見的上限——模型無法翻譯它沒收到的文字，症狀卻表現為「翻譯品質差」。
+
+**規則：**
+
+1. **描述類輸入不得用小額 slice**：`description_ja/zh/en` 一律經 `buildDescriptionPromptLines()`（`web/lib/eventFieldMerge.ts`，budget `DESCRIPTION_PROMPT_MAX_CHARS = 4000`）。禁止在 route 內直接 `String(event.description_xx).slice(0, 400)`。
+2. **prompt 措辭即契約**：要全文翻譯就不能寫 `2–4 sentence description`——那是摘要契約，周圍散文寫 "translate" 也蓋不掉。全文翻譯需明寫 `translate it COMPLETELY`、`Never summarise`、`never stop partway` 與保留排版（換行、項目符號、時程、金額）。`2–4 sentence` 只保留給「三語皆空、從零生成」的分支。
+3. **尺寸是同一個工作單位**：input budget、`max_tokens`、request timeout 必須一起調。只調其一只是把截斷點搬到下游（輸入夠了但 `max_tokens` 砍掉尾段，或兩者夠了但 abort timeout 先觸發）。現值：input 4000 chars、`max_tokens: 8000`、OpenAI abort 40s（page fetch 10s + 40s < `maxDuration = 60`）。
+4. **同語系重複值不可標成已翻譯**：若 `description_zh` 內容其實是日文，餵成 `説明（中文）: <日文>` 等於告訴模型中文已存在 → 抑制真正的翻譯。`buildDescriptionPromptLines()` 以 whitespace-normalized fingerprint 去重，重複者直接丟棄而非改標籤。
+5. **兩條 route 必須逐字同步**：`admin/annotate-event` 與 `account/annotate-event` 的 description prompt 區塊與 `max_tokens` 由 `tests/annotate-description-translation.test.ts` 強制一致。
+6. **翻譯鎖必須可釋放**：client 端 `translationEditedFieldsRef` 不可只增不減。欄位被清空代表沒有東西需要保護，必須 `delete` 解鎖；否則使用者清空後該欄永遠無法由標註重新填入。
+
+Reference incident: 2026-08-16 — 日文全文約 700 字，英文只翻到第 400 字處（第1部講演），中文欄殘留日文原文。
+
 ## annotate-event SELECT 紀律（ユーザー入力欄を守る）
 
 `web/app/api/admin/annotate-event/route.ts` は **「OCR 已填值は保持、空欄のみ GPT 補完」** パターン：

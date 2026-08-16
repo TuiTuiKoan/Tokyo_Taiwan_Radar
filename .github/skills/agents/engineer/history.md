@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-08-16 - auto-translation truncated because the input was capped at 400 chars
+
+**Error**: The intake wizard's 保存して自動翻訳 produced an English description covering only the opening paragraph, and left a Chinese box holding the untranslated Japanese source. It looked like a model-capability limit, but every cause was ours. Both annotate routes sliced each description to `slice(0, 400)` before building the prompt, so for a ~700-char event body the model never saw the menu, schedule, venue, fees or organizers — the English output stopped exactly at the 400-char boundary. The prompt then asked for a "2–4 sentence description", a summary spec that cannot yield a full translation even with complete input. The routes also labelled `description_zh` as 説明（中文） even when it held Japanese, telling the model the Chinese version already existed, and the client's translation lock was add-only, so a box the user cleared stayed locked and annotation could never refill it.
+
+**Fix**: Added shared `buildDescriptionPromptLines()` in `eventFieldMerge.ts` with a 4000-char budget that drops a locale whose text merely repeats another locale instead of mislabelling it. Rewrote the description prompt in both routes to demand a complete, layout-preserving translation with explicit no-summarise / no-stop-partway wording, keeping the 2–4 sentence rule only for the all-empty generate-from-scratch case. Raised `max_tokens` 2500 → 8000 and the OpenAI abort 25s → 40s (page fetch 10s + 40s stays under `maxDuration = 60`). Made the client release a translation lock when its field is cleared. Added tests asserting post-400-char content survives, duplicates are not labelled as translations, and both routes keep identical prompt and budget settings.
+
+**Lesson**: When output looks truncated, measure the input budget before blaming the model. A `slice(0, N)` on prompt input is an invisible ceiling on output completeness — the model cannot translate text it was never given, so the failure presents as a quality problem rather than a configuration one. A prompt saying "2–4 sentence" is a summarisation contract; the word "translate" in surrounding prose does not override it. Sizing is one unit of work: input budget, output `max_tokens`, and request timeout must move together, or the fix just relocates the truncation.
+
+---
+
 ## 2026-08-16 - admin event save violated organizer parallel-array cardinality
 
 **Error**: The unified event intake form exposed `co_organizers` and `sponsors` as comma-separated text but did not expose their parallel classification fields. Migration 095 requires `co_organizers` / `co_organizer_types` and `sponsors` / `sponsor_types` to have identical cardinality. Adding one co-organizer therefore sent one name while leaving its type array empty, and PostgreSQL rejected the write with `events_co_org_cardinality_check`.
