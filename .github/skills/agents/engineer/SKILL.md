@@ -96,6 +96,25 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - Let the destination page handle conditional redirects (e.g. profile-required check). The nav only pushes the canonical URL; the page reads its own state and redirects if needed.
 - Remove any `loading` state that was only there to cover the pre-flight gap — users should see an immediate page transition, not a loading spinner inside the nav dropdown.
 
+## Cancel / leave handlers — 附帶儲存一律 best-effort（2026-08-17 教訓）
+
+**使用者意圖是「離開」時，附帶的儲存失敗不得阻擋離開。**
+
+- Cancel／返回／關閉這類 handler，若順手做草稿儲存（`createDraft`／`updateDraft`），該儲存是**附加服務**不是前置條件。失敗只能 `console.error`，**禁止** `setActionError` + `return` —— 那會讓使用者被永久困在頁面上，除了手動重新整理沒有任何出路。
+- **`router.push()` 必須放在 try/catch/finally 之後無條件執行**，不可放在 `try` 成功分支內。判斷方式：push 的位置必須晚於 catch 與 finally。
+- 反例辨識：「按取消卻跳出錯誤且留在原地」＝ 意圖與錯誤處理不匹配。錯誤本身可能只是暫時性（version skew、網路抖動），但被錯誤地升級成無法脫身的死路。
+- 回歸測試見 `web/tests/intake-cancel-navigation.test.ts`（以 brace-walk 取出 `handleCancel` 函式體後斷言）。
+
+## Version skew — `deploymentId` 未設定是潛在缺陷，不是中性預設（2026-08-17 教訓）
+
+Vercel 這類滾動部署平台上，部署前開啟的分頁仍持有舊的 Server Action ID；新部署不再提供該 ID，呼叫即拋 `Failed to find Server Action "<id>"`（Next.js E974／E975）。
+
+- **`next.config.ts` 必須設 `deploymentId: process.env.VERCEL_DEPLOYMENT_ID`**。設定後 Next.js 偵測到 client／server deployment ID 不符會改走 hard navigation（整頁重載），而不是讓過期的 action 呼叫失敗。本機無此環境變數（`undefined`），行為不變。
+- **診斷特徵**：錯誤字串含 `This request might be from an older or newer deployment`。這是部署交界現象，**不是程式 bug**；重新整理即可解除。排查時不要往 action 實作找原因。
+- **防護是兩層**：`deploymentId` 降低發生率，但無法完全消除（使用者仍可能在部署當下正好送出）。因此離開類 handler 的無條件 escape path（見上一節）是必要的第二層，兩者不可互相取代。
+
+Reference incident: 2026-08-17 — intake wizard step 2 按取消顯示 E974 且無法離開；根因是 `deploymentId` 未設 + cancel 把 best-effort 儲存當成阻擋條件。
+
 ## Client-only tab/filter switching（避免 RSC round-trip；2026-07-04 教訓）
 
 - 頁面資料已全在 client props 時，tab/filter 這類**純顯示切換**別用 URL param + `router.replace()` 驅動。App Router 中任何 URL 變更（即使只改 `?tab=` query）都會重跑該 route 的 server component、重發其全部 Supabase 查詢、重序列化整個 RSC payload —— 即使資料沒變。account 頁切換「收藏」/「我的活動」曾因此每次 round-trip 重跑 5 個查詢（auth／creators／saved_events join／owned events／parents，`54bb040`, 2026-07-04）。

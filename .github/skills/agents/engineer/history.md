@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-08-17 - Cancel trapped the user because a best-effort save was treated as blocking
+
+**Error**: In the intake wizard step 2, Cancel showed `Failed to find Server Action "40ead839…" was not found on the server` and refused to navigate. The Server Action error itself was ordinary version skew — the tab was loaded before deploy `eb4819b4`, so its bundle held action IDs the new deployment no longer exposes (Next.js E974). Two of our own decisions turned a transient deploy-boundary condition into a dead end. `handleCancel` saves a draft before leaving, and on failure it called `setActionError` and `return`ed, so navigation never ran; the user could not leave the page by any route except a manual reload. `next.config.ts` also had no `deploymentId`, so Next.js could not detect the skew and hard-navigate — it just let the stale action call fail.
+
+**Fix**: Made the cancel-time draft save best-effort: failures and throws are logged to the console, and `router.push(cfg.returnPath)` now runs unconditionally after the try/catch/finally, so every path leaves. Set `deploymentId: process.env.VERCEL_DEPLOYMENT_ID` so a stale tab triggers a full reload instead of an orphaned action call. Added `tests/intake-cancel-navigation.test.ts` asserting the cancel body contains no `setActionError`, no early return, and places the push after the catch/finally; verified the guard by re-injecting the blocking branch and confirming the test failed, then restoring.
+
+**Lesson**: An action's error handling must match the user's intent, not the operation's outcome. Cancel means "leave"; a save attached to it is a courtesy, so its failure may be logged but must never gate the exit. Any handler whose sole purpose is to navigate away needs an unconditional escape path — otherwise a transient backend condition becomes an inescapable UI. Separately, on a rolling-deploy platform, missing `deploymentId` is a latent defect and not a neutral default: without it every deploy leaves already-open tabs able to call action IDs that no longer exist.
+
+---
+
 ## 2026-08-16 - auto-translation truncated because the input was capped at 400 chars
 
 **Error**: The intake wizard's 保存して自動翻訳 produced an English description covering only the opening paragraph, and left a Chinese box holding the untranslated Japanese source. It looked like a model-capability limit, but every cause was ours. Both annotate routes sliced each description to `slice(0, 400)` before building the prompt, so for a ~700-char event body the model never saw the menu, schedule, venue, fees or organizers — the English output stopped exactly at the 400-char boundary. The prompt then asked for a "2–4 sentence description", a summary spec that cannot yield a full translation even with complete input. The routes also labelled `description_zh` as 説明（中文） even when it held Japanese, telling the model the Chinese version already existed, and the client's translation lock was add-only, so a box the user cleared stayed locked and annotation could never refill it.

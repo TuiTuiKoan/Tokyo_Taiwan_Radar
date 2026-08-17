@@ -456,6 +456,11 @@ export default function EventIntakeWizard({ context, locale }: Props) {
     }
   }
 
+  // Cancel means "leave this wizard". We still try to preserve work as a draft,
+  // but that save is best-effort only: a failed or unavailable save must never
+  // trap the user on the page. Version skew after a deploy is the common case —
+  // the stale bundle calls a Server Action ID the new deployment no longer has,
+  // which throws and previously left Cancel permanently unusable until reload.
   async function handleCancel() {
     const noSave =
       mode === "choice" ||
@@ -472,15 +477,14 @@ export default function EventIntakeWizard({ context, locale }: Props) {
         ? await cfg.updateDraft(savedEventId, form)
         : await cfg.createDraft(form);
       if (!res.ok) {
-        setActionError(describeServerError(res.error));
-        return;
+        console.error("[intake] cancel draft save failed:", res.error);
       }
-      startTransition(() => router.push(cfg.returnPath));
     } catch (error: unknown) {
-      setActionError(getActionErrorMessage(error, tIntake("requiredFieldsMissing")));
+      console.error("[intake] cancel draft save threw:", error);
     } finally {
       finishBusy("saving");
     }
+    startTransition(() => router.push(cfg.returnPath));
   }
 
   // Plain string labels only — never pass a translation function across the

@@ -19,6 +19,13 @@ const privateRouteSegments = ["admin", "auth", "account", "saved"] as const;
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Version skew protection. Without this, a tab loaded before a deploy keeps
+  // calling Server Action IDs that no longer exist on the new deployment and
+  // fails with "Failed to find Server Action" (E974). With a deployment ID,
+  // Next.js detects the mismatch and performs a hard navigation instead.
+  // VERCEL_DEPLOYMENT_ID is injected by Vercel; locally it is undefined, which
+  // leaves the behaviour unchanged.
+  deploymentId: process.env.VERCEL_DEPLOYMENT_ID,
   turbopack: {
     root: projectRoot,
   },
