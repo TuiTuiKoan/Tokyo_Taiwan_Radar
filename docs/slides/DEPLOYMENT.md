@@ -31,19 +31,50 @@ git log origin/main -1  # Should show your commit
 
 ```
 docs/slides/
-├── agentic-design-workflow.zh.html    (Source: 2-space indentation)
-├── agentic-design-workflow.en.html    (Source: 1-space indentation)
-├── history.md                         (This file)
-├── DEPLOYMENT.md                      (This guide)
-└── TTR sharing/                       (Shared assets: PNGs, QR codes, diagrams)
+├── agentic-design-workflow.zh.html      (Source: 2-space indentation)
+├── agentic-design-workflow.en.html      (Source: 1-space indentation)
+├── financial-normativity-workshop.zh.html  (Source: workshop deck, zh only)
+├── history.md                           (This file)
+├── DEPLOYMENT.md                        (This guide)
+└── TTR sharing/                         (Shared assets: PNGs, QR codes, diagrams)
 
 web/public/202606/normativity-design/
 ├── index.zh.html                      (Copy of agentic-design-workflow.zh.html)
 ├── index.en.html                      (Copy of agentic-design-workflow.en.html)
 └── TTR sharing/                       (Shared assets symlink or copy)
+
+web/public/202609/financial-normativity-workshop/
+├── index.zh.html                      (Copy of financial-normativity-workshop.zh.html)
+└── TTR sharing/                       (Screenshots as .jpg + QR codes as .png)
+```
+
+**Image format rule (workshop deck):** slide screenshots are stored as **JPEG quality 88**
+(~200 KB each instead of ~1 MB as PNG); QR codes stay **PNG** so their edges remain crisp and
+scannable. When adding a new screenshot, convert it before committing:
+
+```bash
+python3 -c "from PIL import Image; Image.open('in.png').convert('RGB').save('out.jpg','JPEG',quality=88,optimize=True,progressive=True)"
 ```
 
 **Important:** Production URL uses lowercase `normativity-design`, NOT `NormativityDesign`.
+
+## Decks
+
+| Deck | Source | Production path | Locales |
+|------|--------|-----------------|---------|
+| Agentic AI 時代的設計工作流 | `agentic-design-workflow.*.html` | `/202606/normativity-design/index.*.html` | zh, en |
+| 金融服務規範設計工作坊 | `financial-normativity-workshop.zh.html` | `/202609/financial-normativity-workshop/index.zh.html` | zh |
+
+The workshop deck reuses the same design tokens, mascot symbol, floating-shape engine and
+navigation script as the `agentic-design-workflow` deck; only the slide bodies, the `<title>`
+and the cover `.cover .meta` presenter style differ. Fixes to the shared CSS/JS should be
+applied to both sources.
+
+```bash
+# Copy the workshop deck to its deployment path
+cp docs/slides/financial-normativity-workshop.zh.html \
+   web/public/202609/financial-normativity-workshop/index.zh.html
+```
 
 ## Bilingual Maintenance Rules
 

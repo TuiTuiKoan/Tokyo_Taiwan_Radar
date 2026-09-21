@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>金融服務規範設計工作坊 — Normativity Design Workshop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700;900&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;700&family=Bagel+Fat+One&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+ * Tokyo Taiwan Radar — Design tokens (mirrored from web/lib/design/tokens.ts)
+ * ============================================================ */
+:root{
+  --paper:#FFFDF5; --blush:#FFF1EE; --matcha:#F7FFE8;
+  --mocha:#3A261F; --coal:#1A1818;
+  --red:#E84860; --pink:#FF7AA0; --pink-deep:#D85862;
+  --forest:#1F5E2B; --green:#78B94E; --leaf:#C4E86F;
+  --gold:#C9A227;
+  --line:#e8e2d4;
+  --font-display:"Zen Maru Gothic","Noto Sans TC",sans-serif;
+  --font-body:"Noto Sans TC","Noto Sans JP",sans-serif;
+  --font-mono:"JetBrains Mono",monospace;
+  --font-accent:"Bagel Fat One","Zen Maru Gothic",cursive;
+}
+
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:var(--paper);}
+body{
+  background:var(--paper);
+  font-family:var(--font-body);
+  color:var(--mocha);
+  overflow:hidden;
+  display:flex;align-items:center;justify-content:center;
+}
+
+/* ---------- Deck / slide scaling ---------- */
+#deck{
+  position:relative;
+  width:1280px;height:720px;
+  transform-origin:center center;
+  box-shadow:0 20px 80px rgba(0,0,0,0.15); /* added subtle shadow to define slide area */
+}
+.slide{
+  position:absolute;inset:0;
+  display:none;
+  flex-direction:column;
+  padding:64px 80px;
+  /* layered gradient — paper base + leaf bloom (top-right) + pink bloom (bottom-left), mirrors SiteBackground depth */
+  background:
+    radial-gradient(125% 90% at 80% 8%, rgba(196,232,111,.30) 0%, transparent 48%),
+    radial-gradient(90% 85% at 8% 100%, rgba(255,122,160,.40) 0%, transparent 52%),
+    linear-gradient(135deg,var(--paper) 0%,var(--blush) 58%,var(--matcha) 100%);
+  overflow:hidden;
+}
+.slide.active{display:flex;}
+
+/* paper grid texture — 蓮霧粉紅 grid lines, matches site SiteBackground #gridPink (#F56A82, 20px) */
+.slide::before{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  background-image:
+    linear-gradient(rgba(245,106,130,.17) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(245,106,130,.17) 1px,transparent 1px);
+  background-size:20px 20px;
+  mask-image:radial-gradient(ellipse 120% 120% at 50% 42%,#000 80%,transparent 100%);
+}
+/* keep gradient + grid at the bottom, lift every real element above them */
+.slide>*{position:relative;z-index:1;}
+
+/* ---------- Decorative floating shapes ---------- */
+.shape{position:absolute;opacity:.85;pointer-events:none;}
+
+/* ---------- Typography ---------- */
+h1,h2,h3{font-family:var(--font-display);color:var(--mocha);line-height:1.15;}
+.eyebrow{
+  font-family:var(--font-mono);font-size:15px;letter-spacing:.18em;
+  text-transform:uppercase;color:#06C755;font-weight:700;
+  display:flex;align-items:center;gap:10px;margin-bottom:18px;
+}
+.eyebrow::before{content:"";width:28px;height:3px;background:#06C755;border-radius:2px;}
+.slide[data-accent="forest"] .eyebrow{color:#06C755;}
+.slide[data-accent="forest"] .eyebrow::before{background:#06C755;}
+.slide[data-accent="gold"] .eyebrow{color:#06C755;}
+.slide[data-accent="gold"] .eyebrow::before{background:#06C755;}
+
+.title-xl{font-size:64px;font-weight:900;letter-spacing:-.01em;}
+.title-lg{font-size:46px;font-weight:900;}
+.title-md{font-size:34px;font-weight:700;}
+.lead{font-size:21px;line-height:1.7;color:#5b4a40;max-width:60ch;}
+.fineprint{font-size:16px;color:#8a7a6e;font-family:var(--font-mono);}
+
+/* page number — LINE bright green */
+.pageno{
+  position:absolute;right:34px;bottom:26px;
+  font-family:var(--font-accent);font-size:40px;color:#06C755;
+  line-height:1;
+}
+.brandfoot{
+  position:absolute;left:80px;bottom:30px;
+  font-family:var(--font-mono);font-size:13px;letter-spacing:.1em;
+  color:#a99a8c;
+}
+
+/* ---------- Reusable blocks ---------- */
+.grid2{display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:22px;}
+.grid2>*{min-width:0;}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+.card{
+  background:rgba(255,255,255,.72);
+  border:1.5px solid var(--line);
+  border-radius:16px;
+  padding:24px 26px;
+  box-shadow:0 4px 12px rgba(58,38,31,.06);
+  position:relative;overflow:hidden;
+  transition:border-color .2s ease, box-shadow .2s ease;
+}
+/* mirror site card hover: green-400 highlight border + shadow lift */
+.card:hover,.card.glass:hover{border-color:#4ade80!important;box-shadow:0 10px 28px rgba(58,38,31,.14);}
+.card::after{content:"";position:absolute;top:0;right:0;width:54px;height:30px;opacity:.25;pointer-events:none;}
+.card:nth-child(3n+1)::after{background-image:radial-gradient(circle,#F56A82 1.4px,transparent 1.6px);background-size:8px 8px;background-position:4px 4px;}
+.card:nth-child(3n+2)::after{background-image:repeating-linear-gradient(-45deg,var(--red) 0,var(--red) 0.8px,transparent 0.8px,transparent 4px);opacity:.2;}
+.card:nth-child(3n+3)::after{background-image:linear-gradient(var(--forest) 0.8px,transparent 0.8px),linear-gradient(90deg,var(--forest) 0.8px,transparent 0.8px);background-size:8px 8px;opacity:.25;}
+.card h3{font-size:22px;margin-bottom:10px;}
+.card p,.card li{font-size:16.5px;line-height:1.62;color:#5b4a40;}
+.card ul{padding-left:18px;}
+.card .tag{
+  display:inline-block;font-family:var(--font-mono);font-size:13px;font-weight:700;
+  padding:3px 10px;border-radius:999px;margin-bottom:10px;
+}
+/* unified light grass-green chip (mirrors site success badge #C4E86F/40 + forest text) */
+.tag.red,.tag.forest,.tag.gold,.tag.coal{background:rgba(196,232,111,.42);color:var(--forest);}
+
+.kbd{font-family:var(--font-mono);background:#ece8e3;border:1px solid var(--line);
+  border-radius:6px;padding:2px 7px;font-size:13px;color:var(--mocha);}
+
+/* pill list */
+.pills{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;}
+.pill{
+  font-family:var(--font-mono);font-size:14px;
+  background:rgba(255,255,255,.8);border:1.5px solid var(--line);
+  border-radius:999px;padding:7px 15px;color:var(--mocha);
+}
+
+/* layer stack */
+.stack{display:flex;flex-direction:column;gap:12px;margin-top:6px;}
+.layer{
+  display:flex;align-items:center;gap:18px;
+  background:rgba(255,255,255,.72);border:1.5px solid var(--line);
+  border-radius:12px;padding:14px 20px;
+  transition:border-color .2s ease, box-shadow .2s ease;
+}
+/* mirror site card hover: green-400 highlight border + shadow lift */
+.layer:hover{border-color:#4ade80!important;box-shadow:0 10px 28px rgba(58,38,31,.14);}
+.layer .lv{font-family:var(--font-display);font-weight:900;font-size:28px;color:var(--red);
+  min-width:46px;}
+.layer h3{font-size:19px;margin:0;}
+.layer p{font-size:15px;color:#6b5a4e;margin-top:2px;}
+.layer[data-c="1"] .lv{color:var(--red);}
+.layer[data-c="2"] .lv{color:var(--pink-deep);}
+.layer[data-c="3"] .lv{color:var(--forest);}
+.layer[data-c="4"] .lv{color:var(--gold);}
+.layer .motif{width:46px;height:46px;flex-shrink:0;margin:0 2px;}
+.layer .lv{min-width:34px;}
+
+/* flow arrow */
+.flow{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:8px;}
+.flow .node{background:rgba(255,255,255,.8);border:1.5px solid var(--line);
+  border-radius:12px;padding:12px 18px;font-size:16px;font-weight:600;}
+.flow .arr{color:var(--red);font-size:24px;font-weight:900;}
+
+.callout{
+  background:rgba(255,122,160,0.32);
+  border-radius:14px;padding:18px 22px;margin-top:16px;
+}
+.callout.forest{background:rgba(31,94,43,.07);}
+.callout strong{color:var(--mocha);}
+
+.two-col-list{columns:2;column-gap:42px;}
+.two-col-list li{font-size:16.5px;line-height:1.7;color:#5b4a40;margin-bottom:6px;
+  break-inside:avoid;list-style:none;padding-left:20px;position:relative;}
+.two-col-list li::before{content:"●";position:absolute;left:0;color:var(--red);font-size:10px;top:6px;}
+
+ul.clean{list-style:none;}
+ul.clean li{position:relative;padding-left:22px;font-size:17px;line-height:1.7;color:#5b4a40;margin-bottom:8px;}
+ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font-weight:900;}
+
+/* ---------- Cover ---------- */
+/* presenter line on cover — name, role and contact in one uniform size */
+.cover .meta{margin-top:26px;display:flex;flex-direction:column;gap:6px;
+  font-size:16px;font-weight:500;color:#6b5a4e;line-height:1.6;}
+.cover .meta .who{font-size:16px;font-weight:500;color:#6b5a4e;}
+.cover .meta .mail{font-family:var(--font-mono);font-size:16px;color:#6b5a4e;}
+
+/* hover-fill cards — whole card floods with LINE bright green, text knocks out to paper */
+.hover-fill .card{transition:background-color .22s ease,border-color .22s ease,
+  box-shadow .22s ease,color .22s ease;}
+.hover-fill .card:hover,.hover-fill .card.glass:hover{
+  background:#06C755!important;border-color:#06C755!important;
+  box-shadow:0 12px 30px rgba(6,199,85,.30);
+}
+.hover-fill .card:hover h3,
+.hover-fill .card:hover p,
+.hover-fill .card:hover li,
+.hover-fill .card:hover strong{color:var(--paper)!important;}
+/* bullet markers and inline code chips also knock out to paper */
+.hover-fill .card:hover ul.clean li::before{color:var(--paper)!important;}
+.hover-fill .card:hover .kbd{background:rgba(255,253,245,.18)!important;
+  border-color:rgba(255,253,245,.45)!important;color:var(--paper)!important;}
+.hover-fill .card:hover .tag{background:rgba(255,253,245,.22)!important;color:var(--paper)!important;}
+/* mute the corner motif so it does not fight the flooded fill */
+.hover-fill .card:hover::after{opacity:.14;}
+
+/* ---------- Full-bleed screenshot pages (keep background, no title) ---------- */
+.slide.shot{align-items:center;justify-content:center;padding:30px 40px;}
+.slide.shot img{max-width:100%;max-height:100%;object-fit:contain;border-radius:14px;
+  border:1.5px solid rgba(58,38,31,.15);box-shadow:0 10px 34px rgba(58,38,31,.18);}
+
+
+.cover{justify-content:center;padding-left:440px;}
+.cover .kicker{font-family:var(--font-mono);font-size:18px;letter-spacing:.22em;
+  color:var(--red);font-weight:700;text-transform:uppercase;margin-bottom:22px;}
+.cover h1{font-size:41px;font-weight:900;line-height:1.22;max-width:20ch;}
+.cover .sub{font-size:24px;color:#5b4a40;margin-top:24px;font-weight:500;}
+
+
+
+/* global floating background — ported from homepage Design Library */
+.floaters{position:absolute;inset:0;overflow:hidden;pointer-events:none;}
+.slide > .floaters{position:absolute;inset:0;z-index:1;}
+.mermaid{width:100%;min-width:0;display:flex;align-items:center;justify-content:center;}
+.mermaid svg{max-width:100%!important;max-height:58vh!important;height:auto!important;width:auto!important;}
+.mini-mermaid .mermaid svg{max-height:34vh!important;}
+.big-mermaid .mermaid svg{max-height:60vh!important;}
+/* compact body text — unify inner font size, used on p.11 right column */
+.compact-text .callout{font-size:15px;padding:13px 16px;margin-top:12px;}
+.compact-text ul.clean li{font-size:14.5px;line-height:1.6;margin-bottom:6px;}
+.compact-text .callout.forest{padding:11px 15px;}
+/* p.8 agent-layer columns — labels aligned in a top row, English in round font */
+.agflow{display:flex;align-items:stretch;justify-content:center;gap:8px;margin-top:26px;}
+.agcol{flex:1;display:flex;flex-direction:column;gap:10px;}
+.agcol-hl{flex:1.35;}
+.agcol-head{font-family:var(--font-display);font-weight:800;font-size:18px;color:var(--mocha);
+  text-align:center;background:rgba(255,255,255,.7);border:1.5px solid var(--line);
+  border-radius:12px;padding:12px 8px;}
+.agcol-head-hl{background:rgba(196,232,111,.42);border-color:var(--forest);color:var(--forest);}
+.agcol-body{flex:1;display:flex;flex-direction:column;gap:7px;background:rgba(255,255,255,.5);
+  border:1.5px solid var(--line);border-radius:12px;padding:14px 12px;}
+.agcol-hl .agcol-body{background:rgba(196,232,111,.22);border-color:var(--forest);border-style:solid;}
+.agcol-body .en{font-family:var(--font-display);font-weight:500;font-size:15px;color:#5b4a40;text-align:center;}
+.agdesc{font-size:14px;line-height:1.55;color:var(--forest);margin-top:6px;font-weight:600;}
+.agarr{align-self:center;color:var(--forest);font-size:26px;font-weight:900;}
+/* p.8 left red frames + signal card */
+.agleft{flex:2;display:flex;flex-direction:column;gap:8px;}
+.agleft-row{display:flex;gap:8px;}
+.agleft-row .agcol{flex:1;}
+.agcol-red .agcol-head{border-color:var(--red);color:var(--red);background:rgba(255,122,160,0.32);}
+.agcol-red .agcol-body{border-color:var(--red);}
+.agsignal{font-family:var(--font-display);font-weight:800;font-size:18px;color:var(--red);
+  text-align:center;background:rgba(255,122,160,0.32);border:1.5px solid var(--red);
+  border-radius:12px;padding:14px 8px;}
+/* compact agflow for p.9 */
+.agflow.compact{margin-top:8px;gap:6px;}
+.agflow.compact .agcol-head{font-size:14px;padding:8px 6px;}
+.agflow.compact .agcol-body{padding:8px 8px;gap:4px;}
+.agflow.compact .agcol-body .en{font-size:12.5px;}
+.agflow.compact .agdesc{font-size:11.5px;margin-top:4px;}
+.agflow.compact .agsignal{font-size:14px;padding:8px 6px;}
+.agflow.compact .agarr{font-size:20px;}
+/* all-red layer numbers (p.9 / p.17 / p.18) */
+.lv-red .layer .lv{color:var(--red)!important;}
+/* note-paper yellow + decorated header (p.10 / p.12) — wax-apple pink dots + grid corner, matcha wave underline */
+.np-head th{background:linear-gradient(135deg,#FFF6D1 0%,#FFE9A8 100%)!important;color:var(--mocha)!important;position:relative;overflow:hidden;}
+.np-head th::after{content:"";position:absolute;top:0;right:0;width:62px;height:34px;opacity:0.6;pointer-events:none;}
+.np-head th:nth-child(3n+1)::after{background-image:radial-gradient(circle,#F56A82 1.6px,transparent 1.8px);background-size:10px 10px;background-position:5px 5px;}
+.np-head th:nth-child(3n+2)::after{background-image:repeating-linear-gradient(-45deg,var(--red) 0,var(--red) 1px,transparent 1px,transparent 4.5px);opacity:.4;}
+.np-head th:nth-child(3n+3)::after{background-image:linear-gradient(var(--forest) 0.8px,transparent 0.8px),linear-gradient(90deg,var(--forest) 0.8px,transparent 0.8px);background-size:10px 10px;opacity:.45;}
+.floaters .fl{position:absolute;opacity:0;will-change:transform;
+  animation-timing-function:linear;animation-iteration-count:infinite;}
+
+/* Diverse drift directions — edge-to-edge sweep */
+@keyframes drift-tl-br {
+  0%   { transform: translate(-760px, -460px) rotate(0deg); opacity: 0; }
+  6%   { opacity: var(--op, 0.22); }
+  94%  { opacity: var(--op, 0.22); }
+  100% { transform: translate(760px, 460px) rotate(var(--dr, 240deg)); opacity: 0; }
+}
+@keyframes drift-tr-bl {
+  0%   { transform: translate(760px, -460px) rotate(0deg); opacity: 0; }
+  6%   { opacity: var(--op, 0.22); }
+  94%  { opacity: var(--op, 0.22); }
+  100% { transform: translate(-760px, 460px) rotate(var(--dr, -300deg)); opacity: 0; }
+}
+@keyframes drift-bl-tr {
+  0%   { transform: translate(-760px, 460px) rotate(0deg); opacity: 0; }
+  6%   { opacity: var(--op, 0.22); }
+  94%  { opacity: var(--op, 0.22); }
+  100% { transform: translate(760px, -460px) rotate(var(--dr, 180deg)); opacity: 0; }
+}
+@keyframes drift-br-tl {
+  0%   { transform: translate(760px, 460px) rotate(0deg); opacity: 0; }
+  6%   { opacity: var(--op, 0.22); }
+  94%  { opacity: var(--op, 0.22); }
+  100% { transform: translate(-760px, -460px) rotate(var(--dr, -200deg)); opacity: 0; }
+}
+@keyframes drift-l-r {
+  0%   { transform: translate(-820px, 0) rotate(0deg); opacity: 0; }
+  6%   { opacity: var(--op, 0.22); }
+  94%  { opacity: var(--op, 0.22); }
+  100% { transform: translate(820px, 0) rotate(var(--dr, 360deg)); opacity: 0; }
+}
+@keyframes drift-r-l {
+  0%   { transform: translate(820px, 0) rotate(0deg); opacity: 0; }
+  6%   { opacity: var(--op, 0.22); }
+  94%  { opacity: var(--op, 0.22); }
+  100% { transform: translate(-820px, 0) rotate(var(--dr, -360deg)); opacity: 0; }
+}
+@keyframes drift-t-b {
+  0%   { transform: translate(0, -500px) rotate(0deg); opacity: 0; }
+  6%   { opacity: var(--op, 0.22); }
+  94%  { opacity: var(--op, 0.22); }
+  100% { transform: translate(0, 500px) rotate(var(--dr, 120deg)); opacity: 0; }
+}
+@keyframes drift-b-t {
+  0%   { transform: translate(0, 500px) rotate(0deg); opacity: 0; }
+  6%   { opacity: var(--op, 0.22); }
+  94%  { opacity: var(--op, 0.22); }
+  100% { transform: translate(0, -500px) rotate(var(--dr, -150deg)); opacity: 0; }
+}
+
+/* cover — large mascot 小霧, on the left, bottom kept at/above the title's last line */
+.cover .cover-mascot{position:absolute;left:110px;right:auto;top:50%;transform:translateY(-74%);
+  width:300px;height:360px;z-index:5;}
+.cover .cover-mascot .m{width:100%;height:100%;overflow:visible;
+  filter:drop-shadow(0 20px 48px rgba(232,72,96,.18));}
+
+/* Antenna Flow Animations — faster leaf-vein pulse */
+.lianbu-antenna-flow-line {
+  animation: lianbu-antenna-flow-line 8s linear infinite;
+}
+@keyframes lianbu-antenna-flow-line {
+  0%, 22% { stroke-dashoffset: 0; opacity: 0; visibility: hidden; }
+  24% { stroke-dashoffset: 0; opacity: 0.96; visibility: visible; }
+  29% { stroke-dashoffset: -147; opacity: 0.96; visibility: visible; }
+  30%, 100% { stroke-dashoffset: -171; opacity: 0; visibility: hidden; }
+}
+
+@keyframes lianbu-tip-core-flash {
+  0%, 100% { fill: #1F5E2B; }
+  10% { fill: #FFD700; }
+  24% { fill: #1F5E2B; }
+}
+.lianbu-tip-core {
+  animation: lianbu-tip-core-flash 8s linear infinite;
+}
+
+@keyframes lianbu-tip-spark-flash {
+  0%, 24%, 100% { fill: #C4E86F; opacity: 1; }
+  10%, 18% { fill: #C4E86F; opacity: 0; }
+}
+.lianbu-tip-spark {
+  animation: lianbu-tip-spark-flash 8s linear infinite;
+}
+
+@media (prefers-reduced-motion:reduce){
+  .floaters .fl,.cover .cover-mascot .m,.lianbu-antenna-flow-line{animation:none;}
+  .floaters .fl{opacity:var(--op,.4);}
+}
+\n\n/* ---------- Section divider ---------- */
+.divider{justify-content:center;align-items:flex-start;}
+.divider .big-num{font-family:var(--font-accent);font-size:200px;color:var(--leaf);
+  -webkit-text-stroke:4px var(--forest);line-height:.8;opacity:.9;}
+.divider h2{font-size:66px;font-weight:900;margin-top:6px;}
+.divider .pillar-key{font-family:var(--font-accent);font-size:30px;color:var(--red);margin-bottom:8px;}
+.divider[data-accent="forest"] .pillar-key{color:var(--forest);}
+.divider[data-accent="gold"] .pillar-key{color:var(--gold);}
+/* giant pillar word — wax-apple red, super-bold round, replaces key+number */
+.divider .pillar-word{font-family:var(--font-display);font-weight:900;font-size:120px;
+  color:var(--red);line-height:.92;letter-spacing:-.02em;margin-bottom:4px;}
+
+/* ---------- Controls / progress ---------- */
+#progress{position:fixed;top:0;left:0;height:4px;background:var(--red);z-index:50;
+  transition:width .25s ease;}
+#hud{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);
+  font-family:var(--font-mono);font-size:12px;color:#d9cbbd;letter-spacing:.12em;
+  background:rgba(0,0,0,.28);padding:5px 14px;border-radius:999px;z-index:50;}
+#hud b{color:#fff;}
+
+@media print{
+  @page{size:1280px 720px;margin:0;}
+  body{display:block;background:#fff;overflow:visible;}
+  #deck{width:1280px;height:auto;transform:none!important;}
+  .slide{display:flex!important;position:relative;page-break-after:always;}
+  #progress,#hud{display:none;}
+}
+
+.card.glass{background:rgba(255, 253, 245, 0.72)!important;border-color:rgba(58,38,31,.1)!important;}
+.card.no-decor::after{display:none!important;}
+.no-decor::after{display:none!important;}
+
+/* Mascot 分身 (Clone) Animation - Slide 20 */
+.mascot-clones {
+  position: relative;
+  height: 240px;
+  margin-top: -60px;
+}
+.mascot-clones svg {
+  position: absolute;
+  opacity: 0;
+  animation: mascot-flash-fade 12s linear infinite;
+}
+.mascot-clones svg:nth-child(1) { animation-delay: 0s;  }
+.mascot-clones svg:nth-child(2) { animation-delay: 4s;  }
+.mascot-clones svg:nth-child(3) { animation-delay: 8s;  }
+
+@keyframes mascot-flash-fade {
+  0%   { opacity: 0; transform: scale(0.92) rotate(-14deg); }
+  10%  { opacity: 0.8; transform: scale(1.02) rotate(-8deg); } /* ease in */
+  20%  { opacity: 0.6; transform: scale(1) rotate(-2deg); }
+  30%  { opacity: 0.3; transform: scale(1) rotate(4deg); }
+  38%  { opacity: 0; transform: scale(0.96) rotate(10deg); }   /* smooth fade out */
+  100% { opacity: 0; transform: scale(0.92) rotate(10deg); }
+}
+
+/* Floating & Glowing Mascot for p.8 Persona */
+.persona-mascot {
+  position: absolute;
+  top: -20px;
+  right: -40px;
+  width: 160px; /* 32px * 5 = 160px */
+  height: 160px;
+  z-index: 10;
+  pointer-events: none;
+  filter: drop-shadow(0 0 15px rgba(255, 122, 160, 0.6)) drop-shadow(0 0 30px rgba(232, 72, 96, 0.4));
+  animation: persona-float 6s ease-in-out infinite, persona-glow 4s ease-in-out infinite alternate;
+}
+
+@keyframes persona-float {
+  0%, 100% { transform: translateY(0) rotate(5deg); }
+  50% { transform: translateY(-15px) rotate(-5deg); }
+}
+
+@keyframes persona-glow {
+  0% { filter: drop-shadow(0 0 10px rgba(255, 122, 160, 0.4)) drop-shadow(0 0 20px rgba(232, 72, 96, 0.2)); }
+  100% { filter: drop-shadow(0 0 20px rgba(255, 122, 160, 0.8)) drop-shadow(0 0-40px rgba(232, 72, 96, 0.6)); }
+}
+
+/* Fix Mermaid Responsive Overflow — constrain by HEIGHT so card stays above brandfoot */
+.big-mermaid{min-width:0!important;align-self:stretch!important;}
+.big-mermaid .mermaid svg{
+  width:auto!important;
+  height:auto!important;
+  max-width:100%!important;
+  max-height:455px!important;
+}
+/* Mermaid measures foreignObject label width narrower than the painted font,
+   so the default overflow:hidden clips the last chars. The node rects are wide
+   enough — let labels overflow the foreignObject to render in full. */
+.big-mermaid .mermaid svg foreignObject{overflow:visible!important;}
+.big-mermaid .mermaid svg foreignObject .nodeLabel,
+.big-mermaid .mermaid svg foreignObject div,
+.big-mermaid .mermaid svg foreignObject span{overflow:visible!important;white-space:nowrap!important;}
+</style>
+</head>
+<body>
+<div id="progress"></div>
+<div id="hud">← → 翻頁 ・ <b id="hud-cur">1</b>/<b id="hud-tot">21</b> ・ F 全螢幕</div>
+
+<!-- Mascot symbol (wax-apple 小霧) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs id="floater-defs">
+    <linearGradient id="flow-grad" x1="160" y1="30" x2="100" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FAEAB0" />
+      <stop offset="50%" stop-color="#C4E86F" />
+      <stop offset="100%" stop-color="#FFFFFF" />
+    </linearGradient>
+    <radialGradient id="tip-ring-grad" cx="164" cy="26" r="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFD700" stop-opacity="0.95" />
+      <stop offset="50%" stop-color="#FFED4D" stop-opacity="0.7" />
+      <stop offset="100%" stop-color="#A8D840" stop-opacity="0" />
+    </radialGradient>
+    <mask id="tip-ring-mask" maskUnits="userSpaceOnUse" x="100" y="-38" width="128" height="128">
+      <circle cx="164" cy="26" r="64" fill="white" />
+      <circle cx="164" cy="26" r="0" fill="black">
+        <animate attributeName="r" values="0;0;64;64;0;0" keyTimes="0;0.075;0.24;0.25;0.251;1" dur="8s" repeatCount="indefinite" calcMode="linear" />
+      </circle>
+    </mask>
+    <filter id="flow-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3.4" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+  <symbol id="lianbu" viewBox="0 -50 250 320">
+    <g transform="translate(20 0) rotate(3 100 150)">
+      <path d="M100,80 C110,30 60,0 80,20 C100,40 140,50 160,30" fill="none" stroke="#1F5E2B" stroke-width="4.5" stroke-linecap="round"/>
+      <path class="lianbu-antenna-flow-line" d="M160,30 C140,50 100,40 80,20 C60,0 110,30 100,80" fill="none" stroke="url(#flow-grad)" stroke-width="3.6" stroke-linecap="round" opacity="0" visibility="hidden" stroke-dasharray="171 171" />
+      <circle class="lianbu-antenna-flow-dot" cx="100" cy="80" r="4.2" fill="#FFFFFF" filter="url(#flow-glow)" opacity="0" visibility="hidden">
+        <animateMotion dur="12s" repeatCount="indefinite" rotate="auto" path="M160,30 C140,50 100,40 80,20 C60,0 110,30 100,80" keyTimes="0;0.24;0.29;1" keyPoints="0;0;1;1" calcMode="linear" />
+      </circle>
+      <g>
+        <circle cx="164" cy="26" r="11" fill="none" stroke="#1F5E2B" stroke-width="1.4" opacity="0.4" />
+        <circle class="lianbu-tip-ring" cx="164" cy="26" r="11" fill="url(#tip-ring-grad)" opacity="0" mask="url(#tip-ring-mask)">
+          <animate attributeName="r" values="11;64;64;11;11" keyTimes="0;0.10;0.24;0.25;1" dur="8s" repeatCount="indefinite" calcMode="linear" />
+          <animate attributeName="opacity" values="0;0.95;0.95;0;0" keyTimes="0;0.10;0.24;0.25;1" dur="8s" repeatCount="indefinite" calcMode="linear" />
+        </circle>
+        <circle class="lianbu-tip-core" cx="164" cy="26" r="6" fill="#1F5E2B" />
+        <circle class="lianbu-tip-spark" cx="164" cy="26" r="2.2" fill="#C4E86F" />
+      </g>
+      <path d="M100,80 C 86,80 78,88 74,98 C 72,108 66,116 60,128 C 46,146 30,166 36,190 C 44,210 72,216 102,216 C 132,216 160,210 164,190 C 170,166 154,146 140,128 C 134,116 128,108 126,98 C 122,88 114,80 100,80 Z" fill="#E84860"/>
+      <ellipse cx="58" cy="142" rx="13.3" ry="8" fill="#FF7AA0" opacity="0.65" transform="rotate(-10 58 142)"/>
+      <ellipse cx="146" cy="150" rx="12" ry="6.5" fill="#FF7AA0" opacity="0.75" transform="rotate(12 146 150)"/>
+      <ellipse cx="80" cy="116" rx="13" ry="14" fill="white"/>
+      <circle cx="78" cy="118" r="7" fill="#1A1818"/>
+      <circle cx="75" cy="115" r="2.6" fill="white"/>
+      <path d="M116,128 Q124,118 132,128" fill="none" stroke="#1A1818" stroke-width="4.5" stroke-linecap="round"/>
+    </g>
+  </symbol>
+
+</svg>
+
+
+<div id="deck">
+  <!-- 1 ▸ COVER -->
+  <section class="slide cover active" data-accent="red">
+    <div class="cover-mascot" aria-hidden="true">
+      <svg class="m" viewBox="0 -50 250 270"><use href="#lianbu"></use></svg>
+    </div>
+    <div class="kicker">Normativity Design ・ 規範設計</div>
+
+    <h1>金融服務<br>規範設計工作坊</h1>
+    <div class="sub">Agentic AI 時代的設計趨勢與實戰練習</div>
+    <div class="meta">
+      <span class="who">鄭衍偉（微軟亞太區　資深客戶體驗經理）</span>
+      <span class="mail">uxbackpacker@gmail.com</span>
+    </div>
+  </section>
+
+  <!-- 2 ▸ 今天的 90 分鐘 -->
+  <section class="slide" data-accent="red">
+    <svg class="shape" style="top:-50px;left:-40px;width:200px" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#FF7AA0" opacity=".4"/></svg>
+    <div class="eyebrow">00 ・ 今天怎麼走</div>
+    <h2 class="title-lg">90 分鐘 ・ 三個區塊</h2>
+    <div class="grid3 hover-fill" style="margin-top:30px">
+      <div class="card glass">
+        <span class="tag red">30 min ・ 00:00–30:00</span>
+        <h3>引言</h3>
+        <p>定義「AI」的討論範圍建立思考框架。透過案例分享，串接到後續三組分組練習。</p>
+      </div>
+      <div class="card glass">
+        <span class="tag forest">40 min ・ 30:00–70:00</span>
+        <h3>工作坊</h3>
+        <p>將規範設計的連續工作拆分成三組並行的練習活動，最終串連成一個完整的專案執行框架。</p>
+      </div>
+      <div class="card glass">
+        <span class="tag coal">20 min ・ 70:00–90:00</span>
+        <h3>總結回顧</h3>
+        <p>三組分享練習中的觀察與發現。回顧最初分享的整體框架做總結。</p>
+      </div>
+    </div>
+    <div class="callout">三組<strong>並行</strong>：活動二與活動三的起始條件都已經先給好，不必等活動一的產出。三份產出在總結時，回扣到引言給的三個主題。</div>
+    <span class="brandfoot">RUNDOWN</span><span class="pageno">02</span>
+  </section>
+
+  <!-- 3 ▸ Block 1 divider -->
+  <section class="slide divider" data-accent="red">
+    <div class="pillar-word">Opening</div>
+    <h2>引言 ・ 30 分鐘</h2>
+    <p class="lead" style="margin-top:18px">在動手之前，先把大家拉到同一個起點：我們在談哪一種 AI、它為什麼會跳過介面、以及設計的新位置在哪裡。</p>
+    <span class="pageno">03</span>
+  </section>
+
+  <!-- 4 ▸ Conceptual Hints -->
+  <section class="slide" data-accent="red">
+    <div class="eyebrow">01 ・ 四件事 ① ・ 界定範圍</div>
+    <h2 class="title-md">當我們用「AI」這個詞，我們指的是什麼？</h2>
+    <div class="grid3 hover-fill" style="margin-top:24px">
+      <div class="card glass">
+        <span class="tag coal">像電腦的五感</span>
+        <h3>接收與感知外界</h3>
+        <ul class="clean">
+          <li>Natural language processing</li>
+          <li>Computer vision</li>
+        </ul>
+      </div>
+      <div class="card glass">
+        <span class="tag red">像電腦的記憶與思考</span>
+        <h3>整理 ・ 分類 ・ 提出解法</h3>
+        <ul class="clean">
+          <li>Knowledge representation</li>
+          <li>Automated reasoning</li>
+          <li>Machine learning</li>
+        </ul>
+      </div>
+      <div class="card glass">
+        <span class="tag forest">與物理世界互動</span>
+        <h3>用機械結構動起來</h3>
+        <ul class="clean">
+          <li>Robotics</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:22px">
+      今天談的，是<strong>以大語言模型為核心</strong>的那一種 —— 輸入是自然語言，輸出是<strong>機率性的語言</strong>。<br>
+      先框住範圍，後面的討論才不會各說各話。
+    </div>
+    <div class="fineprint" style="color:#9a8a7e;margin-top:10px">📎 Artificial Intelligence: A Modern Approach — Stuart J. Russell &amp; Peter Norvig</div>
+    <span class="brandfoot">FOUR THINGS ①</span><span class="pageno">04</span>
+  </section>
+
+  <!-- 8 ▸ ② UX is skipping the interface now -->
+    <section class="slide shot" data-accent="red">
+    <img src="TTR%20sharing/fig13-google-olympics.jpg" alt="Google 搜尋 olympics：答案直接長在搜尋頁上"/>
+    <span class="pageno">05</span>
+  </section>
+
+  <section class="slide shot" data-accent="red">
+    <img src="TTR%20sharing/fig14-google-hou-hsiao-hsien.jpg" alt="Google 搜尋 hou hsiao hsien：人物知識面板"/>
+    <span class="pageno">06</span>
+  </section>
+
+  <section class="slide shot" data-accent="red">
+    <img src="TTR%20sharing/fig15-google-juicer.jpg" alt="Google 搜尋 果汁機：廣告、商品卡與百科混合"/>
+    <span class="pageno">07</span>
+  </section>
+
+  <section class="slide shot" data-accent="red">
+    <img src="TTR%20sharing/fig16-google-tokyo.jpg" alt="Google 搜尋 東京：地圖、機票、天氣與百科整合"/>
+    <span class="pageno">08</span>
+  </section>
+
+<section class="slide" data-accent="red">
+    <div class="eyebrow">01 ・ 四件事 ②</div>
+    <h2 class="title-md">UX is skipping the interface now</h2>
+    <p class="lead" style="margin-top:8px;font-size:19px">不用等到 agentic AI，Google 搜尋早就開始這件事：答案直接長在搜尋頁上，使用者不再點進任何一個網站。</p>
+    <div class="grid3 hover-fill" style="margin-top:18px;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px">
+      <div class="card glass" style="padding:16px"><span class="tag coal">olympics</span><p style="font-size:14.5px">直接給日期、主辦城市、參賽國數、格言，還附上「相關問題」。</p></div>
+      <div class="card glass" style="padding:16px"><span class="tag coal">hou hsiao hsien</span><p style="font-size:14.5px">人物卡：作品年表、獲獎紀錄、著作、影片，一頁看完。</p></div>
+      <div class="card glass" style="padding:16px"><span class="tag coal">果汁機</span><p style="font-size:14.5px">廣告、商品卡、百科、比較影片混在一起 —— 決策在搜尋頁就完成。</p></div>
+      <div class="card glass" style="padding:16px"><span class="tag coal">東京</span><p style="font-size:14.5px">地圖、機票價格、天氣、行政資料、新聞，整合成同一頁。</p></div>
+    </div>
+    <div class="callout" style="margin-top:20px">
+      <strong>Language penetrates inter“face” or “touch”point.</strong><br>
+      介面被跳過，<strong>流量與選擇發生的地點也跟著改變</strong> —— 原本由畫面承擔的「限縮選項、消除歧異」，現在沒有地方做。
+    </div>
+    <span class="brandfoot">FOUR THINGS ②</span><span class="pageno">09</span>
+  </section>
+
+  <!-- 9 ▸ ③ Language is NOT a neutral mean -->
+  <section class="slide shot" data-accent="red">
+    <img src="TTR%20sharing/fig19-ambient-interface.jpg" alt="車載圓形介面：語言之外的情境介面"/>
+    <span class="pageno">10</span>
+  </section>
+
+  <section class="slide" data-accent="red">
+    <div class="eyebrow">01 ・ 四件事 ③</div>
+    <h2 class="title-md">Language is NOT a neutral mean</h2>
+    <p class="lead" style="margin-top:8px;font-size:19px">語言不精準，而且有歧異。這是 agentic AI 最不穩的地方，也是規範設計要處理的第一個現場。</p>
+    <div class="grid2 hover-fill" style="margin-top:20px">
+      <div class="card glass">
+        <span class="tag red">同一句話，兩種意思</span>
+        <h3>使用者說的，不等於系統懂的</h3>
+        <ul class="clean" style="margin-top:6px">
+          <li>「幫我設個提醒」— 到價提醒？還是損益提醒？</li>
+          <li>「這檔有賺嗎」— 問標的的 EPS？還是我自己持股的損益？</li>
+        </ul>
+        <p style="margin-top:10px;color:var(--pink-deep);font-weight:600">介面用選單消除歧異；對話把歧異原封不動丟給系統。</p>
+      </div>
+      <div class="card glass">
+        <span class="tag forest">同一個意圖，換個說法就變了</span>
+        <h3>措辭直接塑造輸出</h3>
+        <ul class="clean" style="margin-top:6px">
+          <li><span class="kbd">6 buddhas are playing basketball</span></li>
+          <li><span class="kbd">6 players dressed like buddha…</span></li>
+          <li><span class="kbd">…dressed housewives aprons, --no multiple balls</span></li>
+        </ul>
+        <p style="margin-top:10px;font-size:15px">同一個畫面需求，換三種說法就出現三種結果 —— 連宗教意味與禁忌都跟著變。</p>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:18px">
+      所以「<strong>先問清楚，還是先猜？猜錯了怎麼收？</strong>」變成設計題，而不是工程題。
+    </div>
+    <span class="brandfoot">FOUR THINGS ③</span><span class="pageno">11</span>
+  </section>
+
+  <!-- 10 ▸ ④ Norm(ativity) design -->
+    <section class="slide shot" data-accent="red">
+    <img src="TTR%20sharing/fig34-mj-buddha-basketball.jpg" alt="Midjourney：6 buddhas are playing basketball"/>
+    <span class="pageno">12</span>
+  </section>
+
+  <section class="slide shot" data-accent="red">
+    <img src="TTR%20sharing/fig35-mj-dressed-like-buddha.jpg" alt="Midjourney：6 players dressed like buddha，改寫措辭後結果完全不同"/>
+    <span class="pageno">13</span>
+  </section>
+
+  <section class="slide shot" data-accent="red">
+    <img src="TTR%20sharing/fig36-mj-housewives-aprons.jpg" alt="Midjourney：加入 housewives aprons 與 --no multiple balls 等約束"/>
+    <span class="pageno">14</span>
+  </section>
+
+  <section class="slide shot" data-accent="red">
+    <img src="TTR%20sharing/chatgpt-ghibli-buddha.jpg" alt="ChatGPT：先追問釐清宗教與風格需求，再生成吉卜力風格畫面"/>
+    <span class="pageno">15</span>
+  </section>
+
+<section class="slide" data-accent="red">
+    <svg class="shape" style="bottom:-40px;right:-30px;width:240px" viewBox="0 0 100 100"><polygon points="50,0 100,100 0,100" fill="#C4E86F" opacity=".45"/></svg>
+    <div class="eyebrow">01 ・ 四件事 ④</div>
+    <h2 class="title-lg">Norm(ativity) Design ・ 規範設計</h2>
+    <p class="lead" style="margin-top:14px">介面被跳過之後，設計要處理的不再只是畫面，而是<strong>資料與規範</strong>。</p>
+    <div class="flow" style="margin-top:22px">
+      <div class="node">AI 拿得到什麼</div><span class="arr">→</span>
+      <div class="node">能說到哪裡</div><span class="arr">→</span>
+      <div class="node">說錯了怎麼收</div><span class="arr">→</span>
+      <div class="node" style="border:1.5px solid #16a34a;color:#15803d;background:var(--paper)">可審計的規範</div>
+    </div>
+    <div class="pills" style="margin-top:22px">
+      <span class="pill">Agentic Workflow &amp; Agent</span>
+      <span class="pill">Generative UI</span>
+      <span class="pill">Responsible AI</span>
+      <span class="pill">Appropriate Reliance</span>
+      <span class="pill">Explainable AI</span>
+      <span class="pill">Rules as Code</span>
+    </div>
+    <div class="callout" style="margin-top:20px">
+      核心命題：<strong>規範設計 = 把「機率行為」逐步收斂成「可審計的規範」。</strong><br>
+      這是接下來三個主題的共同底，也是今天三組練習在做的同一件事。
+    </div>
+    <span class="brandfoot">NORMATIVITY DESIGN</span><span class="pageno">16</span>
+  </section>
+
+  <!-- 11 ▸ 三個主題 總覽 -->
+    <section class="slide shot" data-accent="red">
+    <img src="TTR%20sharing/norm-design-trend.jpg" alt="A New Trend of Norm(ativity) Design：Persona of VUI、Generative UI、Rules as Code"/>
+    <span class="pageno">17</span>
+  </section>
+
+<section class="slide" data-accent="red">
+    <div class="eyebrow">01 ・ 00:12 ・ 14 分</div>
+    <h2 class="title-lg">三個主題，各接一組</h2>
+    <p class="lead" style="margin-top:12px">每個主題約 4 分半：先講觀點，再用<strong>東京台灣雷達</strong>的實例佐證，最後一句話接到某一組。</p>
+    <div class="grid3 hover-fill" style="margin-top:28px">
+      <div class="card glass">
+        <span class="tag red">主題 1 → 第 1 組</span>
+        <h3>什麼時候其實不需要 AI</h3>
+        <p>分辨規則型與判斷型。分辨在前，選技術在後。</p>
+      </div>
+      <div class="card glass">
+        <span class="tag gold">主題 2 → 第 2 組</span>
+        <h3>把機率行為收斂成可審計的規範</h3>
+        <p>先訂邊界，再訂流程，最後把穩定下來的部分寫死。</p>
+      </div>
+      <div class="card glass">
+        <span class="tag forest">主題 3 → 第 3 組</span>
+        <h3>設計師開始設計「人與資料的互動」</h3>
+        <p>資料從哪來、多細、多新、可不可信。</p>
+      </div>
+    </div>
+    <div class="callout">動手之前，你已經知道自己那一組<strong>在整條線的哪個位置</strong>。</div>
+    <span class="brandfoot">THREE THEMES</span><span class="pageno">18</span>
+  </section>
+
+  <!-- 12 ▸ 主題 1 -->
+  <section class="slide" data-accent="red">
+    <div class="eyebrow">01 ・ 00:26 ・ 4 分</div>
+    <h2 class="title-lg">今天的產出 ・ 分組與任務</h2>
+    <p class="lead" style="margin-top:12px">先說清楚結束時桌上會有什麼：<strong>三張填好的工作板</strong>，以及一份<strong>待跟客戶確認的清單</strong>。</p>
+    <div class="grid3 hover-fill" style="margin-top:26px">
+      <div class="card glass">
+        <span class="tag red">第 1 組</span><h3>情境分析</h3>
+        <p>把題目分類、排成旅程、評分，挑出值得先做的類別。</p>
+      </div>
+      <div class="card glass">
+        <span class="tag gold">第 2 組</span><h3>HAX 互動探索</h3>
+        <p>決定判斷條件與回應模式，寫出 AI 的第一句話。</p>
+      </div>
+      <div class="card glass">
+        <span class="tag forest">第 3 組</span><h3>訊息架構設計</h3>
+        <p>選泳道、填資料顆粒度、畫線框，圈出資料缺口。</p>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:22px">
+      三組<strong>並行</strong>，起始條件都已經給好。各組的時間分配與步驟，<strong>寫在自己的引導頁上</strong> —— 等一下拿到頁面後，先看「活動流程」那一段。
+    </div>
+    <span class="brandfoot">OPENING</span><span class="pageno">19</span>
+  </section>
+
+  <!-- 21 ▸ Block 2 過場 -->
+  <section class="slide divider" data-accent="forest">
+    <div class="pillar-word">Workshop</div>
+    <h2>三組並行 ・ 40 分鐘</h2>
+    <p class="lead" style="margin-top:18px">細節在各組的引導頁上。這裡只留三個報時點。</p>
+    <div class="pills" style="margin-top:20px">
+      <span class="pill">剩 20 分</span>
+      <span class="pill">剩 10 分</span>
+      <span class="pill">剩 5 分</span>
+      <span class="pill">最後 7 分：整理產出、準備分享</span>
+    </div>
+    <div class="callout" style="margin-top:22px;max-width:70ch">
+      提醒：待會<strong>不是成果發表，是經驗分享</strong>。請準備兩件事 ——<br>
+      ① 討論時卡在哪裡　② 這讓你想到工作中的什麼經驗。
+    </div>
+    <span class="pageno">20</span>
+  </section>
+
+  <!-- 22 ▸ Block 3 divider -->
+  <section class="slide divider" data-accent="red">
+    <div class="pillar-word">Wrap-up</div>
+    <h2>總結回顧 ・ 20 分鐘</h2>
+    <p class="lead" style="margin-top:18px">重點是<strong>練習本身</strong>，不是操作細節的分析。<br>三組分享卡點，再把三條線串回開場給的框架。</p>
+    <span class="pageno">21</span>
+  </section>
+
+  <!-- 23 ▸ 三組分享 ・ 兩個固定問題 -->
+  <section class="slide" data-accent="red">
+    <div class="eyebrow">03 ・ 01:10 ・ 12 分</div>
+    <h2 class="title-lg">三組分享 ・ 各 4 分鐘</h2>
+    <p class="lead" style="margin-top:12px">不必解釋金融或股票的領域細節 —— 在座不一定有前備領域知識。<br>每組固定回答兩個問題就好。</p>
+    <div class="grid2 hover-fill" style="margin-top:28px">
+      <div class="card glass">
+        <span class="tag red">問題 ①</span>
+        <h3>討論時卡在哪裡？</h3>
+        <p>哪一步最難決定、哪一張卡吵最久、為什麼停在那裡。<strong>卡點本身就是產出。</strong></p>
+      </div>
+      <div class="card glass">
+        <span class="tag forest">問題 ②</span>
+        <h3>這讓你想到工作中的什麼經驗？</h3>
+        <p>有沒有呼應到你真實遇過的情境？如果有，是哪一種？</p>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:24px">
+      順序照旅程走：<strong>第 1 組 → 第 2 組 → 第 3 組</strong>。<br>
+      有人開始解釋領域細節就拉回來：「這個部分我們課後再談，先說你們卡在哪。」
+    </div>
+    <span class="brandfoot">WRAP-UP</span><span class="pageno">22</span>
+  </section>
+
+  <!-- 24 ▸ 各組分享的引導問題 -->
+  <section class="slide cover" data-accent="red">
+    <svg class="shape" style="top:-40px;left:-40px;width:240px" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#C4E86F" opacity=".5"/></svg>
+    <div class="kicker">Thank You ・ 謝謝</div>
+    <h1>把機率，<br>收斂成規範。</h1>
+    <div class="sub">今天的三張工作板，接下來會變成規範文件與 ground truth 評測集。</div>
+    <div class="meta">
+      <span class="who">鄭衍偉（微軟亞太區　資深客戶體驗經理）</span>
+      <span class="mail">uxbackpacker@gmail.com</span>
+    </div>
+    <div style="position:absolute;bottom:42px;left:64px;display:flex;align-items:center;gap:36px">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div style="background:#fff;padding:10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.12)">
+          <img src="TTR%20sharing/linkedin-qr.png" alt="LinkedIn QR" style="display:block;width:112px;height:112px;object-fit:contain"/>
+        </div>
+        <div style="font-size:14px;line-height:1.6;color:var(--mocha)">
+          <strong>在 LinkedIn 上聯絡我</strong><br>
+          linkedin.com/in/yenweizheng<br>
+          <span style="font-family:var(--font-mono);font-size:13px">uxbackpacker@gmail.com</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px">
+        <div style="background:#fff;padding:10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.12)">
+          <img src="TTR%20sharing/TTR%20site.png" alt="Tokyo Taiwan Radar site QR" style="display:block;width:112px;height:112px;object-fit:contain"/>
+        </div>
+        <div style="font-size:14px;line-height:1.6;color:var(--mocha)">
+          <strong>今天的案例</strong><br>Tokyo Taiwan Radar<br>
+          <span style="font-family:var(--font-mono);font-size:13px">tokyotaiwanradar.com</span>
+        </div>
+      </div>
+    </div>
+    <span class="pageno">23</span>
+  </section>
+
+</div>
+
+
+
+<script>
+/* Floating Shapes Engine — ported from web/lib/design/FloatingShapes.tsx */
+(function() {
+  const COLORS = ["#E84860", "#C4E86F"];
+  const DRIFTS = [
+    "drift-tl-br", "drift-tr-bl", "drift-bl-tr", "drift-br-tl",
+    "drift-l-r", "drift-r-l", "drift-t-b", "drift-b-t",
+  ];
+  const TIERS = [
+    [40, 75, 12, 18],
+    [110, 150, 24, 32],
+    [200, 290, 40, 60],
+    [380, 460, 70, 95],
+    [560, 700, 100, 140],
+  ];
+  const SHAPES = ["triangle", "pentagon", "hexagon", "star8", "star10", "sector", "halfCircle", "circle", "diamond"];
+  const FILLS = ["solid", "outlineThin", "outlineThick", "dashed", "dotsDense", "dotsSparse", "stripes", "hatch", "grid"];
+
+  function getShapePath(kind) {
+    switch (kind) {
+      case "triangle":   return { tag: "polygon", attrs: { points: "50,8 92,92 8,92" } };
+      case "pentagon":   return { tag: "polygon", attrs: { points: "50,6 95,38 78,93 22,93 5,38" } };
+      case "hexagon":    return { tag: "polygon", attrs: { points: "50,5 90,27 90,73 50,95 10,73 10,27" } };
+      case "star8":      return { tag: "polygon", attrs: { points: "50,8 60,40 92,50 60,60 50,92 40,60 8,50 40,40" } };
+      case "star10":     return { tag: "polygon", attrs: { points: "50,4 58,36 92,40 66,58 76,92 50,72 24,92 34,58 8,40 42,36" } };
+      case "sector":     return { tag: "path", attrs: { d: "M 50 50 L 50 5 A 45 45 0 0 1 88 70 Z" } };
+      case "halfCircle": return { tag: "path", attrs: { d: "M 50 0 A 50 50 0 0 1 50 100 Z" } };
+      case "diamond":    return { tag: "polygon", attrs: { points: "50,5 92,50 50,95 8,50" } };
+      case "circle":
+      default:           return { tag: "circle", attrs: { cx: 50, cy: 50, r: 46 } };
+    }
+  }
+
+  function createPattern(defId, fill, color, rotation) {
+    const t = `rotate(${rotation})`;
+    let content = "";
+    switch (fill) {
+      case "dotsDense":
+        content = `<circle cx="3" cy="3" r="1.6" fill="${color}" />`;
+        return `<pattern id="${defId}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="${t}">${content}</pattern>`;
+      case "dotsSparse":
+        content = `<circle cx="5.5" cy="5.5" r="1.4" fill="${color}" />`;
+        return `<pattern id="${defId}" width="11" height="11" patternUnits="userSpaceOnUse" patternTransform="${t}">${content}</pattern>`;
+      case "stripes":
+        content = `<line x1="0" y1="0" x2="0" y2="7" stroke="${color}" stroke-width="2.4" />`;
+        return `<pattern id="${defId}" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="${t}">${content}</pattern>`;
+      case "hatch":
+        content = `<line x1="0" y1="0" x2="0" y2="9" stroke="${color}" stroke-width="2" />`;
+        return `<pattern id="${defId}" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(${rotation + 45})">${content}</pattern>`;
+      case "grid":
+        content = `<path d="M 10 0 L 0 0 0 10" fill="none" stroke="${color}" stroke-width="1.2" />`;
+        return `<pattern id="${defId}" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="${t}">${content}</pattern>`;
+    }
+    return "";
+  }
+
+  function initFloaters(container, tiers) {
+    const svgDefs = document.getElementById("floater-defs");
+    tiers.forEach((tierIdx, slot) => {
+      createFloater(container, svgDefs, tierIdx, slot);
+    });
+  }
+
+  function createFloater(container, svgDefs, tierIdx, slotIdx) {
+    const tier = TIERS[tierIdx];
+    const [minPx, maxPx, minSec, maxSec] = tier;
+    const size = Math.round(minPx + Math.random() * (maxPx - minPx));
+    const duration = Math.round(minSec + Math.random() * (maxSec - minSec));
+    const delay = -Math.random() * duration;
+    const drift = DRIFTS[Math.floor(Math.random() * DRIFTS.length)];
+    const shape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+    const fill = FILLS[Math.floor(Math.random() * FILLS.length)];
+    const color = (fill === "solid" && tierIdx > 1) ? "#C4E86F" : COLORS[Math.floor(Math.random() * COLORS.length)];
+    const opacity = 0.12 + Math.random() * 0.18;
+    const rotation = Math.round(Math.random() * 360);
+    const patternRotation = Math.round(Math.random() * 90) - 45;
+
+    const id = `f-${tierIdx}-${slotIdx}`;
+    const patId = `pat-${id}`;
+
+    const isPat = ["dotsDense", "dotsSparse", "stripes", "hatch", "grid"].includes(fill);
+    if (isPat) {
+       svgDefs.insertAdjacentHTML('beforeend', createPattern(patId, fill, color, patternRotation));
+    }
+
+    const { tag, attrs } = getShapePath(shape);
+    let attrStr = "";
+    Object.keys(attrs).forEach(k => attrStr += ` ${k}="${attrs[k]}"`);
+
+    let fillAttr = color;
+    let strokeAttr = "none";
+    let dashAttr = "";
+    if (isPat) {
+      fillAttr = `url(#${patId})`;
+    } else if (fill !== "solid") {
+      fillAttr = "none";
+      strokeAttr = color;
+      const sw = fill === "outlineThin" ? 1.6 : fill === "dashed" ? 2.8 : 4;
+      attrStr += ` stroke-width="${sw}"`;
+      if (fill === "dashed") dashAttr = ` stroke-dasharray="6 4"`;
+    }
+
+    const floater = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    floater.setAttribute("class", "fl");
+    floater.setAttribute("viewBox", "0 0 100 100");
+    floater.style.width = size + "px";
+    /* anchor every floater on the screen centre so its drift path passes through it */
+    floater.style.left = "50%";
+    floater.style.top = "50%";
+    floater.style.marginLeft = (-size / 2) + "px";
+    floater.style.marginTop = (-size / 2) + "px";
+    floater.style.setProperty('--op', opacity);
+    floater.style.animationName = drift;
+    floater.style.animationDuration = duration + "s";
+    floater.style.animationDelay = delay + "s";
+    floater.style.setProperty("--dr", (Math.random() > 0.5 ? "" : "-") + (360 + Math.random() * 360) + "deg");
+
+    floater.innerHTML = `<${tag}${attrStr} fill="${fillAttr}" stroke="${strokeAttr}"${dashAttr} transform="rotate(${rotation} 50 50)" />`;
+    container.appendChild(floater);
+  }
+
+  window.initFloatingShapes = initFloaters;
+})();
+
+const slides = document.querySelectorAll(".slide");
+slides.forEach((slide, idx) => {
+  const fl = document.createElement("div");
+  fl.className = "floaters";
+  slide.insertBefore(fl, slide.firstChild);
+  const isCover = !!slide.querySelector(".cover-mascot");
+  /* cover: 5 sizes — three smallest appear twice, two largest once; inner: three smallest */
+  const tiers = isCover ? [0, 0, 1, 1, 2, 2, 3, 4] : [0, 1, 2];
+  window.initFloatingShapes(fl, tiers);
+});
+
+/* ---- navigation ---- */
+(function () {
+  const all = Array.from(document.querySelectorAll(".slide"));
+  const tot = all.length;
+  const hudTot = document.getElementById("hud-tot");
+  const hudCur = document.getElementById("hud-cur");
+  const prog = document.getElementById("progress");
+  if (hudTot) hudTot.textContent = tot;
+  all.forEach((s, i) => {
+    const pn = s.querySelector(".pageno");
+    if (pn) pn.textContent = String(i + 1).padStart(2, "0");
+  });
+  let cur = 0;
+  const clamp = n => Math.max(0, Math.min(tot - 1, n));
+  function show(n) {
+    cur = clamp(n);
+    all.forEach((s, i) => s.classList.toggle("active", i === cur));
+    if (hudCur) hudCur.textContent = cur + 1;
+    if (prog) prog.style.width = (tot > 1 ? (cur / (tot - 1)) * 100 : 0) + "%";
+    const want = "#" + (cur + 1);
+    if (location.hash !== want) history.replaceState(null, "", want);
+    if (window.__renderMermaid) window.__renderMermaid(all[cur]);
+  }
+  window.__navShowCurrent = () => show(cur);
+  function fromHash() {
+    const n = parseInt((location.hash || "").replace("#", ""), 10);
+    show(isNaN(n) ? 0 : n - 1);
+  }
+  window.addEventListener("keydown", e => {
+    if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") { show(cur + 1); e.preventDefault(); }
+    else if (e.key === "ArrowLeft" || e.key === "PageUp") { show(cur - 1); e.preventDefault(); }
+    else if (e.key === "Home") { show(0); e.preventDefault(); }
+    else if (e.key === "End") { show(tot - 1); e.preventDefault(); }
+    else if (e.key === "f" || e.key === "F") {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+    }
+  });
+  window.addEventListener("hashchange", fromHash);
+  fromHash();
+
+  /* ---- scaling ---- */
+  function scaleDeck() {
+    const deck = document.getElementById("deck");
+    if (!deck) return;
+    const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+    deck.style.transform = `scale(${scale})`;
+  }
+  window.addEventListener("resize", scaleDeck);
+  scaleDeck();
+})();
+</script>
+
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: "base",
+    flowchart: { htmlLabels: false, padding: 8, nodeSpacing: 34, rankSpacing: 40, useMaxWidth: true },
+    themeVariables: {
+      primaryColor: "#FFFFFF",
+      primaryBorderColor: "#1F5E2B",
+      primaryTextColor: "#2b2b2b",
+      lineColor: "#1F5E2B",
+      fontFamily: "system-ui, -apple-system, 'Noto Sans TC', 'PingFang TC', sans-serif",
+      fontSize: "15px"
+    }
+  });
+  // Render lazily: mermaid in a display:none slide measures 0, so only
+  // run it once the slide becomes active (called from nav show()).
+  window.__renderMermaid = (root) => {
+    if (!root) return;
+    const nodes = root.querySelectorAll(".mermaid:not([data-processed])");
+    if (nodes.length) mermaid.run({ nodes: Array.from(nodes) });
+  };
+  // Render whichever slide is currently active on first load.
+  if (window.__navShowCurrent) window.__navShowCurrent();
+</script>
+
+</body>
+</html>
+
+
