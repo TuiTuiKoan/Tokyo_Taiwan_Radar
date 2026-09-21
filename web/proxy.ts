@@ -194,8 +194,8 @@ export const config = {
   matcher: [
     // Apply to all paths except /auth/*, static files, api routes, next internals,
     // and /r/* (short redirect handler — must bypass i18n locale-prefix redirect)
-    // and /r/* (short redirect handler — must bypass i18n locale-prefix redirect)
-    // plus /202606/* static slide exports, which must be served without locale prefixes.
-    "/((?!api|auth|r/|202606/|_next/static|_next/image|favicon.ico|robots\\.txt|sitemap\\.xml|llms\\.txt|.*[0-9a-f]{32,}\\.txt|google[0-9a-f]+\\.html|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // plus /<YYYYMM>/* static slide exports (e.g. /202606/, /202609/), which must be
+    // served without locale prefixes.
+    "/((?!api|auth|r/|[0-9]{6}/|_next/static|_next/image|favicon.ico|robots\\.txt|sitemap\\.xml|llms\\.txt|.*[0-9a-f]{32,}\\.txt|google[0-9a-f]+\\.html|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
