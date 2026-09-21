@@ -151,6 +151,60 @@ h1,h2,h3{font-family:var(--font-display);color:var(--mocha);line-height:1.15;}
 }
 /* mirror site card hover: green-400 highlight border + shadow lift */
 .layer:hover{border-color:#4ade80!important;box-shadow:0 10px 28px rgba(58,38,31,.14);}
+
+/* ---------- Flood-fill hover (LINE green, paper-white knockout) ----------
+   Scoped per-slide via .slide.hover-fill so it works for cards in grid2/grid3,
+   layers in .stack, and cards in inline-flex rows alike. */
+.slide.hover-fill .card,
+.slide.hover-fill .layer{
+  transition:background-color .22s ease,border-color .22s ease,box-shadow .22s ease,color .22s ease;
+}
+.slide.hover-fill .card:hover,
+.slide.hover-fill .card.glass:hover,
+.slide.hover-fill .layer:hover{
+  background:#06C755!important;border-color:#06C755!important;
+  box-shadow:0 12px 30px rgba(6,199,85,.30);
+}
+.slide.hover-fill .card:hover h3,
+.slide.hover-fill .card:hover p,
+.slide.hover-fill .card:hover li,
+.slide.hover-fill .card:hover strong,
+.slide.hover-fill .layer:hover h3,
+.slide.hover-fill .layer:hover p,
+.slide.hover-fill .layer:hover li,
+.slide.hover-fill .layer:hover strong,
+.slide.hover-fill .layer:hover .lv{color:var(--paper)!important;}
+.slide.hover-fill .card:hover ul.clean li::before,
+.slide.hover-fill .layer:hover ul.clean li::before{color:var(--paper)!important;}
+.slide.hover-fill .card:hover .tag{background:rgba(255,253,245,.22)!important;color:var(--paper)!important;}
+.slide.hover-fill .card:hover .kbd,
+.slide.hover-fill .layer:hover .kbd,
+.slide.hover-fill .card:hover code,
+.slide.hover-fill .layer:hover code{background:rgba(255,253,245,.18)!important;
+  border-color:rgba(255,253,245,.45)!important;color:var(--paper)!important;}
+.slide.hover-fill .card:hover a,
+.slide.hover-fill .layer:hover a,
+.slide.hover-fill .card:hover .fineprint,
+.slide.hover-fill .layer:hover .fineprint{color:var(--paper)!important;}
+.slide.hover-fill .card:hover .node{background:rgba(255,253,245,.16)!important;
+  border-color:rgba(255,253,245,.45)!important;color:var(--paper)!important;}
+.slide.hover-fill .card:hover .arr{color:var(--paper)!important;}
+/* keep the corner motif from fighting the flooded fill */
+.slide.hover-fill .card:hover::after{opacity:.14;}
+
+/* ---------- Mermaid architecture slides (p.10 / p.20) ----------
+   The diagram card itself must stay inert; only the four subgraph clusters
+   highlight, so the speaker can point at one lane at a time. */
+.card.big-mermaid:hover{border-color:var(--line)!important;box-shadow:0 4px 12px rgba(58,38,31,.06)!important;}
+.big-mermaid .mermaid svg g.cluster{cursor:pointer;}
+.big-mermaid .mermaid svg g.cluster > rect{transition:fill .2s ease,stroke .2s ease;}
+.big-mermaid .mermaid svg g.cluster:hover > rect{fill:#06C755!important;stroke:#06C755!important;}
+.big-mermaid .mermaid svg g.cluster:hover .cluster-label text,
+.big-mermaid .mermaid svg g.cluster:hover .cluster-label tspan{fill:var(--paper)!important;}
+/* mermaid paints an opaque white plate behind the subgraph title — it would
+   swallow the knocked-out label once the cluster floods green */
+.big-mermaid .mermaid svg g.cluster:hover .cluster-label rect.background{fill:transparent!important;}
+
 .layer .lv{font-family:var(--font-display);font-weight:900;font-size:28px;color:var(--red);
   min-width:46px;}
 .layer h3{font-size:19px;margin:0;}
@@ -505,7 +559,7 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
   </section>
 
   <!-- 2 ▸ §1 先秀網站 -->
-  <section class="slide" data-accent="red">
+  <section class="slide hover-fill" data-accent="red">
     <svg class="shape" style="top:-50px;left:-40px;width:200px" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#FF7AA0" opacity=".4"/></svg>
     <div class="eyebrow">01 ・ 開場</div>
     <h2 class="title-lg">先秀網站</h2>
@@ -520,7 +574,7 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
   </section>
 
   <!-- 3 ▸ §2 大綱 -->
-  <section class="slide" data-accent="red">
+  <section class="slide hover-fill" data-accent="red">
     <div class="eyebrow">02 ・ 今天的大綱</div>
     <h2 class="title-lg">三條主線：F ・ B ・ S</h2>
     <div class="grid3" style="margin-top:36px">
@@ -555,7 +609,7 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
   </section>
 
   <!-- 5 ▸ F-1/2/3 -->
-  <section class="slide" data-accent="red">
+  <section class="slide hover-fill" data-accent="red">
     <div class="eyebrow">03 ・ F — 三種工作型態</div>
     <h2 class="title-md">F1 穩定可審計 ・ F2 彈性判斷 ・ F3 分辨架構</h2>
     <div class="grid3" style="margin-top:26px">
@@ -756,7 +810,7 @@ graph LR
   </section>
 
   <!-- 9 ▸ S-1 4 layers -->
-  <section class="slide" data-accent="forest">
+  <section class="slide hover-fill" data-accent="forest">
     <div class="eyebrow">04 ・ S-2</div>
     <h2 class="title-md">Where is the agent? — 四個層次</h2>
     <div class="agflow compact">
@@ -805,7 +859,7 @@ graph LR
   </section>
 
   <!-- S-5 agent 協作的三種形態 -->
-  <section class="slide" data-accent="forest">
+  <section class="slide hover-fill" data-accent="forest">
     <div class="eyebrow">04 ・ S-2</div>
     <h2 class="title-md">Agent 的多種架構組合</h2>
     <div class="stack" style="margin-top:22px">
@@ -846,7 +900,7 @@ graph LR
   </section>
 
   <!-- S-4c 規範設計的實際應用角度 -->
-  <section class="slide" data-accent="forest">
+  <section class="slide hover-fill" data-accent="forest">
     <div class="eyebrow">04 ・ S-4c</div>
     <h2 class="title-md">規範設計的實際應用角度</h2>
     <div class="stack" style="margin-top:18px">
@@ -859,7 +913,7 @@ graph LR
   </section>
 
   <!-- S-4 DevOps (moved after unification) -->
-  <section class="slide" data-accent="forest">
+  <section class="slide hover-fill" data-accent="forest">
     <div class="eyebrow">04 ・ S-4</div>
     <h2 class="title-md">DevOps 的進化 ・ 從 code 到 skill</h2>
     <div class="grid2" style="margin-top:auto;margin-bottom:auto">
@@ -975,7 +1029,7 @@ graph LR
   </section>
 
   <!-- 13 ▸ B-2 四個 level -->
-  <section class="slide" data-accent="gold">
+  <section class="slide hover-fill" data-accent="gold">
     <div class="eyebrow">05 ・ B-2</div>
     <h2 class="title-md">AI 時代的產品開發 = 同時設計四個東西</h2>
     <div class="stack lv-red" style="margin-top:14px">
@@ -988,7 +1042,7 @@ graph LR
   </section>
 
   <!-- NEW-A ▸ 四個領域 設計可以做什麼 -->
-  <section class="slide" data-accent="gold">
+  <section class="slide hover-fill" data-accent="gold">
     <div class="eyebrow">05 ・ B-3</div>
     <h2 class="title-md">對應這四個領域 ・ 設計可以做什麼</h2>
     <div class="stack lv-red" style="margin-top:14px">
@@ -1069,7 +1123,7 @@ graph LR
   </section>
 
   <!-- NEW-B ▸ dd1 從發現新資料到 HCI 設計 -->
-  <section class="slide" data-accent="gold">
+  <section class="slide hover-fill" data-accent="gold">
     <div class="eyebrow">05 ・ B-4</div>
     <h2 class="title-md">從「發現新資料」到「人—資料／AI 互動設計」</h2>
     <div style="display:flex;gap:12px;margin-top:20px;align-items:stretch">
@@ -1086,7 +1140,7 @@ graph LR
   </section>
 
   <!-- NEW-C ▸ dd2 Data Scientist x Designer 關鍵活動 -->
-  <section class="slide" data-accent="gold">
+  <section class="slide hover-fill" data-accent="gold">
     <div class="eyebrow">05 ・ B-5</div>
     <h2 class="title-md">Data Scientist × Designer ・ 各階段的關鍵活動</h2>
     <div style="display:flex;gap:10px;margin-top:16px;align-items:stretch">
@@ -1517,10 +1571,29 @@ slides.forEach((slide, idx) => {
   });
   // Render lazily: mermaid in a display:none slide measures 0, so only
   // run it once the slide becomes active (called from nav show()).
-  window.__renderMermaid = (root) => {
+  window.__renderMermaid = async (root) => {
     if (!root) return;
-    const nodes = root.querySelectorAll(".mermaid:not([data-processed])");
-    if (nodes.length) mermaid.run({ nodes: Array.from(nodes) });
+    // mermaid.run() is async: if it ever rejects, the node keeps its
+    // data-processed flag and would never render again. Keep a pristine copy of
+    // the source and re-arm any diagram that ended up without an <svg>.
+    root.querySelectorAll(".mermaid").forEach((el) => {
+      if (el.dataset.src === undefined) el.dataset.src = el.textContent;
+      if (el.hasAttribute("data-processed") && !el.querySelector("svg")) {
+        el.removeAttribute("data-processed");
+        el.textContent = el.dataset.src;
+      }
+    });
+    const nodes = Array.from(root.querySelectorAll(".mermaid:not([data-processed])"));
+    if (!nodes.length) return;
+    try {
+      await mermaid.run({ nodes });
+    } catch (err) {
+      console.error("mermaid render failed, will retry on next visit", err);
+      nodes.forEach((el) => {
+        el.removeAttribute("data-processed");
+        el.textContent = el.dataset.src;
+      });
+    }
   };
   // Render whichever slide is currently active on first load.
   if (window.__navShowCurrent) window.__navShowCurrent();
