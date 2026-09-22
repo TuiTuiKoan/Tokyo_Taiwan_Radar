@@ -214,6 +214,11 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
 .slide.shot{align-items:center;justify-content:center;padding:30px 40px;}
 .slide.shot img{max-width:100%;max-height:100%;object-fit:contain;border-radius:14px;
   border:1.5px solid rgba(58,38,31,.15);box-shadow:0 10px 34px rgba(58,38,31,.18);}
+/* two portrait shots side by side — height is the binding constraint, so cap
+   the height and let each image keep its own aspect ratio */
+.slide.shot .pair{display:flex;align-items:center;justify-content:center;gap:26px;
+  width:100%;height:100%;min-height:0;}
+.slide.shot .pair img{width:auto;height:100%;max-width:calc(50% - 13px);max-height:100%;}
 
 
 .cover{justify-content:center;padding-left:440px;}
@@ -667,7 +672,7 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
         <p style="margin-top:10px;color:var(--pink-deep);font-weight:600">介面用選單消除歧異；對話把歧異原封不動丟給系統。</p>
       </div>
       <div class="card glass">
-        <span class="tag forest">同一個意圖，換個說法就變了</span>
+        <span class="tag forest">你的意圖，不一定是AI被訓練的模樣</span>
         <h3>措辭直接塑造輸出</h3>
         <ul class="clean" style="margin-top:6px">
           <li><span class="kbd">6 buddhas are playing basketball</span></li>
@@ -700,7 +705,10 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
   </section>
 
   <section class="slide shot" data-accent="red">
-    <img src="TTR%20sharing/chatgpt-ghibli-buddha.jpg" alt="ChatGPT：先追問釐清宗教與風格需求，再生成吉卜力風格畫面"/>
+    <div class="pair">
+      <img src="TTR%20sharing/chatgpt-ghibli-prompt.jpg" alt="ChatGPT：先追問釐清佛祖形象、畫面風格與場景設定，再動手生成"/>
+      <img src="TTR%20sharing/chatgpt-ghibli-result.jpg" alt="ChatGPT 依照補充後的條件生成的吉卜力風格畫面"/>
+    </div>
     <span class="pageno">15</span>
   </section>
 
