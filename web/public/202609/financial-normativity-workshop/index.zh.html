@@ -335,13 +335,21 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
 /* cover — large mascot 小霧, on the left, bottom kept at/above the title's last line */
 .cover .cover-mascot{position:absolute;left:110px;right:auto;top:50%;transform:translateY(-74%);
   width:300px;height:360px;z-index:5;}
-.cover .cover-mascot .m{width:100%;height:100%;overflow:visible;
-  filter:drop-shadow(0 20px 48px rgba(232,72,96,.18));}
+/* Shadow is a static gradient, NOT filter:drop-shadow() on .m — the mascot's SVG
+  children animate non-stop, so a filter there makes WebKit re-blur the whole
+  300x360 mascot every frame (the Safari lag). A gradient paints once. */
+.cover .cover-mascot::before{content:"";position:absolute;left:6%;right:6%;top:32%;bottom:0;
+  background:radial-gradient(ellipse at 50% 62%,rgba(232,72,96,.20) 0%,rgba(232,72,96,.09) 46%,transparent 72%);
+  pointer-events:none;}
+.cover .cover-mascot .m{position:relative;z-index:1;width:100%;height:100%;overflow:visible;}
 
 /* Antenna Flow Animations — faster leaf-vein pulse */
 .lianbu-antenna-flow-line {
   animation: lianbu-antenna-flow-line 8s linear infinite;
 }
+/* Disabled: this dot pairs an feGaussianBlur filter with animateMotion, which
+  WebKit re-rasterises every frame. The main site disables it for the same reason. */
+.lianbu-antenna-flow-dot { display: none; }
 @keyframes lianbu-antenna-flow-line {
   0%, 22% { stroke-dashoffset: 0; opacity: 0; visibility: hidden; }
   24% { stroke-dashoffset: 0; opacity: 0.96; visibility: visible; }
