@@ -491,7 +491,10 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
       <stop offset="50%" stop-color="#FFED4D" stop-opacity="0.7" />
       <stop offset="100%" stop-color="#A8D840" stop-opacity="0" />
     </radialGradient>
-    <mask id="tip-ring-mask" maskUnits="userSpaceOnUse" x="100" y="-38" width="128" height="128">
+    <!-- Box padded to r=80 around (164,26). At exactly r=64 it clipped the halo
+         with a hard edge in WebKit; the gradient is already transparent by r=64,
+         so the extra margin changes nothing visually. -->
+    <mask id="tip-ring-mask" maskUnits="userSpaceOnUse" x="84" y="-54" width="160" height="160">
       <circle cx="164" cy="26" r="64" fill="white" />
       <circle cx="164" cy="26" r="0" fill="black">
         <animate attributeName="r" values="0;0;64;64;0;0" keyTimes="0;0.075;0.24;0.25;0.251;1" dur="8s" repeatCount="indefinite" calcMode="linear" />

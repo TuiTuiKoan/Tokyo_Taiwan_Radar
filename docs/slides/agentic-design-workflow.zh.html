@@ -461,19 +461,25 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
   height: 160px;
   z-index: 10;
   pointer-events: none;
-  filter: drop-shadow(0 0 15px rgba(255, 122, 160, 0.6)) drop-shadow(0 0 30px rgba(232, 72, 96, 0.4));
-  animation: persona-float 6s ease-in-out infinite, persona-glow 4s ease-in-out infinite alternate;
+  animation: persona-float 6s ease-in-out infinite;
 }
+/* Static gradient glow instead of an animated drop-shadow: the SVG inside animates
+  non-stop, so a filter here makes WebKit re-blur it every frame. */
+.persona-mascot::before {
+  content: "";
+  position: absolute;
+  inset: -18%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 52%, rgba(255,122,160,.45) 0%, rgba(232,72,96,.22) 42%, transparent 70%);
+  pointer-events: none;
+}
+.persona-mascot svg { position: relative; z-index: 1; }
 
 @keyframes persona-float {
   0%, 100% { transform: translateY(0) rotate(5deg); }
   50% { transform: translateY(-15px) rotate(-5deg); }
 }
 
-@keyframes persona-glow {
-  0% { filter: drop-shadow(0 0 10px rgba(255, 122, 160, 0.4)) drop-shadow(0 0 20px rgba(232, 72, 96, 0.2)); }
-  100% { filter: drop-shadow(0 0 20px rgba(255, 122, 160, 0.8)) drop-shadow(0 0-40px rgba(232, 72, 96, 0.6)); }
-}
 
 /* Fix Mermaid Responsive Overflow — constrain by HEIGHT so card stays above brandfoot */
 .big-mermaid{min-width:0!important;align-self:stretch!important;}
@@ -509,7 +515,10 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
       <stop offset="50%" stop-color="#FFED4D" stop-opacity="0.7" />
       <stop offset="100%" stop-color="#A8D840" stop-opacity="0" />
     </radialGradient>
-    <mask id="tip-ring-mask" maskUnits="userSpaceOnUse" x="100" y="-38" width="128" height="128">
+    <!-- Box padded to r=80 around (164,26). At exactly r=64 it clipped the halo
+         with a hard edge in WebKit; the gradient is already transparent by r=64,
+         so the extra margin changes nothing visually. -->
+    <mask id="tip-ring-mask" maskUnits="userSpaceOnUse" x="84" y="-54" width="160" height="160">
       <circle cx="164" cy="26" r="64" fill="white" />
       <circle cx="164" cy="26" r="0" fill="black">
         <animate attributeName="r" values="0;0;64;64;0;0" keyTimes="0;0.075;0.24;0.25;0.251;1" dur="8s" repeatCount="indefinite" calcMode="linear" />
