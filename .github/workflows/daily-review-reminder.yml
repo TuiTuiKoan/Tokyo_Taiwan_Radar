@@ -47,8 +47,8 @@ jobs:
 
           ## 如何執行復盤
 
-          1. 開啟 VS Code Copilot Chat
-          2. 叫出 \`daily-skills-review\` prompt
+          1. 開啟 Claude Code、Codex 或 VS Code Copilot Chat
+          2. Claude Code：執行 \`/daily-skills-review\`；Codex：請它完整讀取並執行 \`.github/prompts/daily-skills-review.prompt.md\`；VS Code Copilot Chat：叫出 \`daily-skills-review\` prompt
           3. 將上方 commits 貼入作為 \`today_work\` 上下文
           4. 完成後關閉此 Issue ✅
 

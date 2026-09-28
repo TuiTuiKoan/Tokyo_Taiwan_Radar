@@ -36,10 +36,10 @@ supabase/.temp/
 
 # Agent scratch space (local only, not committed)
 .copilot-tracking/
+.claude/settings.local.json
 
 # Layer B auto-scraper run artifacts (large HTML samples / per-source meta)
 scraper/auto_scraper/runs/*/
 
 # Generated monthly reports (local output, not committed)
 scraper/reports/
-

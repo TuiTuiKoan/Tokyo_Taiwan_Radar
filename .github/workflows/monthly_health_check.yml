@@ -61,13 +61,12 @@ jobs:
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "## 📌 下一步：月度治理復盤" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "收到 LINE 報告後，請在 VS Code 中呼叫 **Reviewer agent** 進行深度分析：" >> $GITHUB_STEP_SUMMARY
+          echo "收到 LINE 報告後，請開啟 Claude Code、Codex 或 VS Code Copilot Chat，使用 **Reviewer** 角色進行深度分析：" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "1. 開啟 VS Code Copilot Chat" >> $GITHUB_STEP_SUMMARY
-          echo '2. 選擇 Agent: "Reviewer"' >> $GITHUB_STEP_SUMMARY
+          echo "1. Claude Code：呼叫 .claude/agents/reviewer.md subagent；Codex：完整讀取 .github/agents/reviewer.agent.md；VS Code Copilot Chat：選擇 Agent: \"Reviewer\"" >> $GITHUB_STEP_SUMMARY
           PREV_MONTH=$(TZ=Asia/Tokyo date -d "$(TZ=Asia/Tokyo date +%Y-%m-01) -1 day" +%Y-%m)
-          echo "3. 輸入：請進行本月治理復盤，分析爬蟲健康、Skills 新鮮度與 Agent scope overlap。上月（${PREV_MONTH}）數據型月報已由 docs_report.py 自動生成於 docs/monthly_review/${PREV_MONTH}.md，請在其基礎上補充深度治理分析。" >> $GITHUB_STEP_SUMMARY
+          echo "2. 輸入：請進行本月治理復盤，分析爬蟲健康、Skills 新鮮度與 Agent scope overlap。上月（${PREV_MONTH}）數據型月報已由 docs_report.py 自動生成於 docs/monthly_review/${PREV_MONTH}.md，請在其基礎上補充深度治理分析。" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Generate monthly docs report
@@ -136,7 +135,7 @@ jobs:
             echo "No scan report changes to commit (or not on main)"
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "> Reviewer agent 為唯讀分析，不修改程式碼。詳見 \`.github/agents/reviewer.agent.md\`" >> $GITHUB_STEP_SUMMARY
+          echo "> Reviewer agent / subagent 為唯讀分析，不修改程式碼。詳見 \`.github/agents/reviewer.agent.md\` 與 \`.claude/agents/reviewer.md\`" >> $GITHUB_STEP_SUMMARY
 
       - name: Run monthly annotator baseline
         working-directory: scraper
@@ -170,4 +169,3 @@ jobs:
           else
             echo "No evaluation changes to commit (or not on main)"
           fi
-
