@@ -1,7 +1,6 @@
 ---
 name: Scraper Expert
 description: "Builds, debugs, and validates scrapers for Tokyo Taiwan Radar — dispatches to per-source subagents (scope: all of Japan)"
-model: claude-sonnet-4-5
 agents:
   - TCC Scraper
   - Peatix Scraper

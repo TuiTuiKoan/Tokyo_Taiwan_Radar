@@ -1,7 +1,6 @@
 ---
 name: Researcher
 description: "Discovers and evaluates new Taiwan-related event sources for the Tokyo Taiwan Radar scraper pipeline (scope: all of Japan)"
-model: claude-sonnet-4-5
 handoffs:
   - label: "🏗️ Design the pipeline"
     agent: Architect

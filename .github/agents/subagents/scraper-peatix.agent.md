@@ -2,7 +2,6 @@
 name: Peatix Scraper
 description: "Scrapes Peatix Taiwan-related events anywhere in Japan — subagent of Scraper Expert"
 user-invocable: false
-model: claude-sonnet-4-5
 ---
 
 # Peatix Scraper

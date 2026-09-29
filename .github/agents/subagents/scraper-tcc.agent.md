@@ -2,7 +2,6 @@
 name: TCC Scraper
 description: "Scrapes Taiwan Cultural Center (tcc.go.jp) events — subagent of Scraper Expert"
 user-invocable: false
-model: claude-sonnet-4-5
 ---
 
 # TCC Scraper

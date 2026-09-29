@@ -1759,8 +1759,9 @@ handoffs:
     agent: AgentNameFromFile        # Must match .agent.md name exactly
     prompt: "Chinese instruction"    # Pre-filled when user clicks
     send: false                       # Optional, default false
-    model: "Claude Sonnet 4.5 (copilot)"  # Optional, inherits agent default if omitted
 ```
+
+> **Model policy**: never pin `model:` in agent frontmatter or in handoffs. Model names go stale and pinned values break agents when a model is retired (2026-09-29: every agent pinned to `claude-sonnet-4-5` became unlaunchable). Let the host tool / user choice decide; see root `AGENTS.md` § 模型政策. `scripts/sync_ai_adapters.py --check` fails on any pinned model.
 
 ### Subagent Configuration for Handoff Targets
 

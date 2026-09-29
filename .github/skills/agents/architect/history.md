@@ -2,6 +2,27 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-09-29：agent frontmatter 寫死模型，模型下架後全體 agent 無法啟動
+
+### Mistake
+
+12 個 agent 的 frontmatter 寫死 `model: claude-sonnet-4-5`，Plan Critic 寫死
+`gpt-5`，Architect SKILL 的 handoff 範例也示範 `model:`。該模型在工具端下架後，
+Engineer、Tester 等 agent 一呼叫就失敗；使用者同時要從 Copilot 遷移到 Claude Code /
+Codex，並預期未來會使用本機模型，寫死的名稱在每個工具都會失效。
+
+### Repair
+
+移除所有 agent frontmatter 的 `model:`；Plan Critic 改寫為只描述「盡量用不同家族的
+模型，做不到就在報告中註明同一模型」的意圖；Architect SKILL 範例改為 Model policy
+說明。`AGENTS.md` 新增「模型政策」，`scripts/sync_ai_adapters.py` 對任何來源
+frontmatter（含 handoffs）的 `model:` 回報錯誤，`--check` 會失敗。
+
+### Lesson
+
+Agent 規則描述「需要什麼能力或視角」，不描述「用哪個型號」。模型選擇屬於執行環境
+與使用者，不屬於 repo；需要區隔視角時寫意圖與降級行為，不寫型號。
+
 ## 2026-08-11：再次讓 handoff target 失去 runtime 可達性
 
 ### Mistake

@@ -1,7 +1,6 @@
 ---
 name: Tester
 description: "Runs scrapers, validates output, and detects broken selectors or logic for Tokyo Taiwan Radar"
-model: claude-sonnet-4-5
 tools:
   - read
   - search

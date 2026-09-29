@@ -1,7 +1,6 @@
 ---
 name: Engineer
 description: "Full-stack implementation, CI/CD, and deployment for Tokyo Taiwan Radar"
-model: claude-sonnet-4-5
 handoffs:
   - label: "🏗️ Plan this first"
     agent: Architect

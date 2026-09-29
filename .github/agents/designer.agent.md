@@ -1,7 +1,6 @@
 ---
 name: Designer
 description: "UI / visual design specialist for Tokyo Taiwan Radar — owns components, theming, motion, i18n consistency, and Recraft image pipeline"
-model: claude-sonnet-4-5
 handoffs:
   - label: "🔧 Implement this design"
     agent: Engineer

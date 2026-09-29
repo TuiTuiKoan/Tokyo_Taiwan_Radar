@@ -231,7 +231,7 @@ def agent_outputs(root: Path) -> dict[Path, str]:
             "",
             MARKER,
             "",
-            f"你是 {original_name} agent。開始前完整讀取並遵循 `{source}`；其中 Copilot 專屬工具與機制依 repo root `AGENTS.md` 的『Copilot 對照表』轉換；忽略該檔 frontmatter 的 model/handoffs。",
+            f"你是 {original_name} agent。開始前完整讀取並遵循 `{source}`；其中 Copilot 專屬工具與機制依 repo root `AGENTS.md` 的『Copilot 對照表』轉換；忽略該檔 frontmatter 的 handoffs；模型由目前工具 / 使用者選擇（見 `AGENTS.md` 模型政策）。",
         ]
         handoffs = meta.get("handoffs")
         if isinstance(handoffs, list) and handoffs:
@@ -361,17 +361,45 @@ def write_outputs(root: Path, expected: dict[Path, str]) -> None:
         full.write_text(content, encoding="utf-8")
 
 
+def pinned_models(root: Path) -> list[str]:
+    """Report `model:` keys in source frontmatter (top level or inside handoffs).
+
+    Pinned model names go stale and break agents when the model is retired;
+    the host tool / user should choose the model instead.
+    """
+    found: list[str] = []
+    for path in agent_sources(root) + prompt_sources(root) + skill_sources(root):
+        text = path.read_text(encoding="utf-8")
+        if not text.startswith("---\n"):
+            continue
+        end = text.find("\n---", 4)
+        if end == -1:
+            continue
+        for offset, line in enumerate(text[4:end].splitlines(), start=2):
+            if re.match(r"^\s*(?:-\s+)?model\s*:", line):
+                found.append(f"pinned model {rel(path, root)}:{offset}: {line.strip()}")
+    return found
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
+    parser.add_argument(
+        "--allow-pinned-models",
+        action="store_true",
+        help="do not fail when source frontmatter pins a model",
+    )
     args = parser.parse_args()
     root = repo_root()
     expected = expected_outputs(root)
+    pinned = [] if args.allow_pinned_models else pinned_models(root)
+    for line in pinned:
+        print(line, file=sys.stderr)
     if args.check:
-        return check(root, expected)
+        return 1 if check(root, expected) or pinned else 0
     write_outputs(root, expected)
     print(f"generated {len(expected)} files")
-    return 0
+    return 1 if pinned else 0
 
 
 if __name__ == "__main__":

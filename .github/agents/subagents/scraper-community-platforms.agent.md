@@ -2,7 +2,6 @@
 name: Community Platforms Scraper
 description: "Scrapes Taiwan-related events anywhere in Japan from Connpass (API v2) and Doorkeeper (public API) — subagent of Scraper Expert"
 user-invocable: false
-model: claude-sonnet-4-5
 ---
 
 # Community Platforms Scraper
