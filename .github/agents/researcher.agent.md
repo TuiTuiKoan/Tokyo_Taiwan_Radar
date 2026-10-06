@@ -112,7 +112,8 @@ Before running `update_source.py --status researched --feasibility easy`, the Re
    **Already-implemented scrapers (partial list — always verify by reading `scraper/sources/`):**
    - `ftip` — `scraper/sources/ftip.py`（`source_name=ftip`, FTIP Japan `https://www.ftip-japan.org/`）— existed before `research_sources` tracking was introduced; `research_sources.status='recommended'` (not `implemented`) but the scraper is live.
 3. Use `fetch_webpage` to explore candidate platforms:
-   - Event ticketing sites: Connpass, Doorkeeper, Eventbrite Japan, Kokucheese
+   - Event ticketing sites: Eventbrite Japan, Kokucheese
+   - **Never propose platforms listed in `scraper/research_exclusions.py`** (currently Connpass, Doorkeeper — retired 2026-10, including their subdomains).
    - Cultural institutions: Tokyo Cultural Center, Taiwan MICE, JETRO, 台北駐日経済文化代表処各弁事処
    - Social / community: Facebook Events (via public pages), LINE EVENT, Meetup
    - News: 台湾ニュース, 日台交流, local Taiwan community newsletters

@@ -63,6 +63,17 @@ When writing a source record to the `research_sources` table, use these `status`
 
 > **`pending` and `viable` are NOT valid statuses** — `update_source.py` only accepts `not-viable` and `researched`.
 
+## Research Exclusion List
+
+`scraper/research_exclusions.py` (`RESEARCH_EXCLUDED_DOMAINS`) holds platforms that were tried and retired — never propose them again. `researcher.py` puts the list into every search prompt **and** drops matching URLs in code (domain or any subdomain, e.g. `<group>.connpass.com`); `auto_research.py` refuses to assess them.
+
+To exclude a platform after it proves low-value:
+1. Add one line `"<domain>": "<YYYY-MM> retired: <reason>"` to `RESEARCH_EXCLUDED_DOMAINS`.
+2. Set its `research_sources` rows to `not-viable` with the same reason (`update_source.py --status not-viable` or SQL).
+3. Remove the platform name from any `SEARCH_CATEGORIES` prompt/query text in `researcher.py`.
+
+A `not-viable` row alone only blocks the exact host; use the exclusion list when the platform has per-organizer subdomains or when a whole platform (not one page) is rejected.
+
 **Mandatory fields for every insert:**
 ```python
 {
