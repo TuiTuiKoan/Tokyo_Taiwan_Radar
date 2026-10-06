@@ -32,6 +32,7 @@ from openai import OpenAI
 from supabase import create_client
 
 from line_notify import send_line_message
+from research_exclusions import excluded_reason, prompt_block
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +155,7 @@ SEARCH_CATEGORIES = [
             "Taiwan-related tech, startup, or business events in Japan. "
             "Check JETRO events, TAITRA (台湾貿易センター) Japan offices, "
             "Taiwan startup accelerators with Japan presence, "
-            "IT industry associations, and tech meetup communities (Connpass, Doorkeeper). "
+            "IT industry associations, and tech meetup communities. "
             "Prioritize sources with a public and regularly updated event calendar."
         ),
     },
@@ -212,14 +213,14 @@ SEARCH_CATEGORIES = [
         "id": "community_social",
         "label": "💬 コミュニティ・交流",
         "site_categories": ["taiwan_japan", "competition", "workshop"],
-        "query_ja": "台湾 コミュニティ 交流会 ワークショップ 体験 在日台湾人 日本 2026 connpass doorkeeper peatix",
-        "query_en": "Taiwan community meetup workshop experience Japan 2026 connpass doorkeeper",
+        "query_ja": "台湾 コミュニティ 交流会 ワークショップ 体験 在日台湾人 日本 2026 peatix",
+        "query_en": "Taiwan community meetup workshop experience Japan 2026",
         "system_prompt": (
             "You are a research analyst specializing in grassroots Taiwan communities in Japan. "
             "Search the web for community groups, meetup organizers, event series, or platforms "
             "that regularly hold Taiwan-related social events, exchange meetups, language exchanges, "
             "cooking workshops, or cultural experience events in Japan. "
-            "Check Connpass, Doorkeeper, Peatix, and dedicated community sites "
+            "Check Peatix and dedicated community sites "
             "for active organizers with a history of Taiwan-related events. "
             "Also look for Taiwan alumni associations, regional friendship groups, "
             "and Taiwan cultural workshop programs. "
@@ -239,7 +240,7 @@ SEARCH_CATEGORIES = [
             "Kyoto, Kobe, or other Kansai prefectures (Nara, Shiga, Wakayama, Mie). "
             "Include the Osaka Asian Film Festival (OAFF), Taiwan office in Osaka "
             "(台北駐大阪経済文化弁事処), Kansai Taiwan community groups, "
-            "and ticketing platforms like Peatix or Connpass for this region. "
+            "and ticketing platforms like Peatix for this region. "
             "Focus on sources with a structured and regularly updated event listing."
         ),
     },
@@ -256,7 +257,7 @@ SEARCH_CATEGORIES = [
             "other Kyushu prefectures. "
             "Include the Taipei Economic and Cultural Office Fukuoka (台北駐福岡経済文化弁事処), "
             "Fukuoka Asian Art Museum (福岡アジア美術館), local Taiwan community groups, "
-            "ticketing platforms like Peatix, Connpass, or cultural institutions in the region. "
+            "ticketing platforms like Peatix, or cultural institutions in the region. "
             "Focus on sources with a structured and regularly updated event listing."
         ),
     },
@@ -418,6 +419,7 @@ class CategoryAgent:
                             "Return only event LISTING/INDEX pages — do NOT return individual "
                             "news-release or article URLs (e.g. prtimes.jp/main/html/rd/p/..., "
                             ".../article/news/...).\n\n"
+                            + prompt_block()
                             + (f"SKIP these already-covered domains entirely — do NOT suggest any URL from them: {', '.join(sorted(block_domains))}\n\n" if block_domains else "")
                             + f"Also provide 2-3 recent Taiwan-related news bullets and top trend keywords.\n\n"
                             f"Respond ONLY as valid JSON matching this schema:\n{SOURCE_SCHEMA}"
@@ -448,6 +450,17 @@ class CategoryAgent:
                 url = src.get("url", "")
                 if url and _ARTICLE_URL_RE.search(url):
                     logger.info("Dropped article URL: %s", url)
+                    continue
+                kept_sources.append(src)
+            sources = kept_sources
+
+            # Hard filter: the prompt asks GPT to avoid excluded platforms, but it
+            # does not always comply. Subdomains (<group>.connpass.com) count too.
+            kept_sources = []
+            for src in sources:
+                reason = excluded_reason(src.get("url", ""))
+                if reason:
+                    logger.info("Dropped excluded-platform URL: %s (%s)", src.get("url"), reason)
                     continue
                 kept_sources.append(src)
             sources = kept_sources

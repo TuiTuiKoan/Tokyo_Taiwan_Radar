@@ -39,6 +39,8 @@ from dotenv import load_dotenv
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 
+from research_exclusions import excluded_reason
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -169,6 +171,9 @@ def _check_eligibility(row: dict) -> None:
         )
     if row.get("url_verified") is not True:
         raise AssessError("ineligible", "url_verified is not True")
+    reason = excluded_reason(row.get("url") or "")
+    if reason:
+        raise AssessError("ineligible", f"excluded platform: {reason}")
 
 
 def _within_cooldown(row: dict, now: datetime | None = None) -> bool:
