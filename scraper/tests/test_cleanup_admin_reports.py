@@ -349,9 +349,14 @@ class _NestedMutator:
 
 def _replace_staging_with_competitor(output: Path, content: bytes) -> Path:
     staging = next(output.parent.glob(f".{output.name}.*.tmp"))
-    staging.unlink()
-    staging.write_bytes(content)
-    staging.chmod(0o400)
+    # Create the competitor while the staging inode is still linked, then swap
+    # it in. Unlink-then-recreate lets the filesystem reuse the freed inode, so
+    # the competitor would share the staging (st_dev, st_ino) identity and be
+    # removed as "owned" depending on test order.
+    competitor = staging.with_name(f"{staging.name}.competitor")
+    competitor.write_bytes(content)
+    competitor.chmod(0o400)
+    os.replace(competitor, staging)
     return staging
 
 
