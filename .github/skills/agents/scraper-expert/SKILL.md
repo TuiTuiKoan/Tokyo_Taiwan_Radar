@@ -2237,7 +2237,6 @@ These rules apply to any manual or scripted DB operation. Violating them has cau
 |-----------------|--------------------------|
 | `peatix.py` | `.github/skills/peatix/SKILL.md` |
 | `taiwan_cultural_center.py` | `.github/skills/taiwan_cultural_center/SKILL.md` |
-| `connpass.py` or `doorkeeper.py` | `.github/skills/community-platforms/SKILL.md` |
 | Other sources | No dedicated SKILL yet — add rule here instead |
 
 ### 4. dry-run validation — always run before finishing

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import audit_post_build
 from audit_post_build import find_unregistered_scrapers
 
 
@@ -9,8 +10,13 @@ def _write(path: Path, content: str) -> None:
 
 
 def test_registration_audit_ignores_bases_and_intentionally_disabled_sources(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch
 ):
+    monkeypatch.setattr(
+        audit_post_build,
+        "INTENTIONALLY_DISABLED_SCRAPERS",
+        frozenset({"ParkedScraper"}),
+    )
     _write(
         tmp_path / "scraper/main.py",
         "SCRAPERS = [RegisteredScraper()]\n",
@@ -25,8 +31,8 @@ def test_registration_audit_ignores_bases_and_intentionally_disabled_sources(
         "class CinemaScraper: pass\n",
     )
     _write(
-        tmp_path / "scraper/sources/connpass.py",
-        "class ConnpassScraper: pass\n",
+        tmp_path / "scraper/sources/parked.py",
+        "class ParkedScraper: pass\n",
     )
 
     assert find_unregistered_scrapers(tmp_path) == [

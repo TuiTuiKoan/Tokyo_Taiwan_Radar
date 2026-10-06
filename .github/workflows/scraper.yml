@@ -46,7 +46,6 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-          CONNPASS_API_KEY: ${{ secrets.CONNPASS_API_KEY }}
           CONTENTFUL_TOKEN: ${{ secrets.CONTENTFUL_TOKEN }}
           DEEPL_API_KEY: ${{ secrets.DEEPL_API_KEY }}
           INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}

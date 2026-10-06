@@ -14,8 +14,9 @@ from dotenv import load_dotenv
 SCRAPER_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRAPER_DIR.parent
 
-# Connpass was removed from production as a low-value source in commit 31e1493d.
-INTENTIONALLY_DISABLED_SCRAPERS = frozenset({"ConnpassScraper"})
+# Scraper classes kept in sources/ on purpose but not registered in main.py.
+# Connpass / Doorkeeper were deleted outright, so nothing is parked here now.
+INTENTIONALLY_DISABLED_SCRAPERS: frozenset[str] = frozenset()
 
 
 def _registered_scraper_classes(main_path: Path) -> set[str]:

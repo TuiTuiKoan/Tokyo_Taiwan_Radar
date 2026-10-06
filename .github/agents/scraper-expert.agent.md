@@ -4,7 +4,6 @@ description: "Builds, debugs, and validates scrapers for Tokyo Taiwan Radar — 
 agents:
   - TCC Scraper
   - Peatix Scraper
-  - Community Platforms Scraper
 handoffs:
   - label: "🧪 Run tests"
     agent: Tester
@@ -85,11 +84,9 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 3. Dispatch to the appropriate subagent if one exists:
    - **TCC Scraper** → `taiwan_cultural_center`
    - **Peatix Scraper** → `peatix`
-   - **Community Platforms Scraper** → `connpass` or `doorkeeper`
 4. **If a listed subagent cannot be resolved in the current runtime, do NOT stop and do NOT report it as a failure.** These subagents carry `user-invocable: false`, so some runtimes (e.g. the Copilot CLI agent host) never load them. Their authoritative rules live in the skills, which load in every runtime — read `.github/skills/sources/<source_name>/SKILL.md` and proceed directly in Phase 2:
    - `taiwan_cultural_center` → `.github/skills/sources/taiwan_cultural_center/SKILL.md`
    - `peatix` → `.github/skills/sources/peatix/SKILL.md`
-   - `connpass` / `doorkeeper` → `.github/skills/sources/community-platforms/SKILL.md`
 5. Otherwise proceed directly in Phase 2.
 
 ### Phase 2: Develop / Debug
