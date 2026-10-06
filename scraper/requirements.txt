@@ -5,7 +5,7 @@ deepl==1.30.0
 openai>=1.30.0
 sentry-sdk>=2.0.0
 requests>=2.34.2
-httpx>=0.27
+httpx>=0.28.1
 beautifulsoup4>=4.12.0
 # 0.2.x removed new_decoderv1; selectolax 1.0 removed the Modest backend
 # (selectolax.parser) that googlenewsdecoder imports. Both broke CI on 2026-09-21.
