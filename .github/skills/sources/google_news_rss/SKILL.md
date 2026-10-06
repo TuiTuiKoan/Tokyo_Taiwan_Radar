@@ -51,6 +51,7 @@ Google RSS `<link>` tags are Google redirect URLs. Prefer `<guid>` when it start
 
 ## Known Quirks
 
+- **依賴必須鎖版本**：`googlenewsdecoder==0.1.7` + `selectolax>=0.3,<1.0`（`requirements.txt`）。0.2.x 移除 `new_decoderv1`，selectolax 1.0 移除 `selectolax.parser`，任一升級都會在 import 階段讓整個 `main.py` 崩潰（2026-09-21 起停擺 15 天）。升級前先在乾淨 venv 驗證 `from googlenewsdecoder import new_decoderv1`。import 已有 guard：失敗時退回 Google News 轉址 URL 並記警告，不可移除這層保護。
 - `source_id` uses the article URL (guid or link), so the same article across different queries deduplicates correctly via `dedup_events()`.
 - 1.5s sleep between queries to avoid rate-limiting.
 - Items older than 60 days (by pubDate) are silently skipped.
