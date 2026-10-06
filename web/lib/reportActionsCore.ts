@@ -7,8 +7,6 @@ const HISTORY_PATH = ".github/skills/scraper-expert/history.md";
 const SOURCE_SKILL_PATHS: Record<string, string> = {
   peatix: ".github/skills/peatix/SKILL.md",
   taiwan_cultural_center: ".github/skills/taiwan_cultural_center/SKILL.md",
-  connpass: ".github/skills/community-platforms/SKILL.md",
-  doorkeeper: ".github/skills/community-platforms/SKILL.md",
 };
 
 const ANNOTATOR_FIELDS: Record<string, string[]> = {

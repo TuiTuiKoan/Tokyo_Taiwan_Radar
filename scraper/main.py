@@ -45,7 +45,6 @@ from sources.taiwan_festival_tokyo import TaiwanFestivalTokyoScraper
 from sources.taiwan_expo_japan import TaiwanExpoJapanScraper
 from sources.koryu import KoryuScraper
 from sources.taiwan_kyokai import TaiwanKyokaiScraper
-from sources.doorkeeper import DoorkeeperScraper
 from sources.arukikata import ArukikataScraper
 from sources.ide_jetro import IdeJetroScraper
 from sources.taiwan_matsuri import TaiwanMatsuriScraper
@@ -188,7 +187,6 @@ SCRAPERS = [
     TaiwanExpoJapanScraper(),
     KoryuScraper(),
     TaiwanKyokaiScraper(),
-    DoorkeeperScraper(),
     ArukikataScraper(),
     IdeJetroScraper(),
     TaiwanMatsuriScraper(),

@@ -41,7 +41,7 @@ Tokyo Taiwan Radar automatically aggregates and curates Taiwan-related cultural 
 
 ## Data Sources
 
-Events are scraped from 50+ sources including Peatix, Connpass, Doorkeeper, Taiwan Cultural Centers (Tokyo/Osaka), cinema websites, museum sites, and cultural organizations across Japan.
+Events are scraped from 50+ sources including Peatix, Taiwan Cultural Centers (Tokyo/Osaka), cinema websites, museum sites, and cultural organizations across Japan.
 
 ## Event Detail Fields
 
