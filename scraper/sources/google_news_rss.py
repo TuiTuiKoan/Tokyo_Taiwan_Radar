@@ -34,7 +34,13 @@ from typing import Optional
 
 import requests
 from bs4 import BeautifulSoup
-from googlenewsdecoder import new_decoderv1
+try:
+    from googlenewsdecoder import new_decoderv1
+except ImportError as _exc:  # keep one broken dependency from aborting main.py
+    logging.getLogger(__name__).warning(
+        "google_news_rss: googlenewsdecoder unavailable (%s); using Google News URLs", _exc
+    )
+    new_decoderv1 = None
 
 from .base import BaseScraper, Event, dedup_events
 
@@ -97,6 +103,8 @@ def _decode_gnews_url(gnews_url: str) -> Optional[str]:
     are also Google News URLs, so we decode from the <link> element URL.
     Returns None if decoding fails (network error, unsupported format, etc.).
     """
+    if new_decoderv1 is None:
+        return None
     try:
         result = new_decoderv1(gnews_url, interval=0)
         if result and result.get("status") and result.get("decoded_url"):
