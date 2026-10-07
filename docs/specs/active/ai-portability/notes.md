@@ -343,3 +343,85 @@ L102「`create_file` 例外只限寫入批評報告」沒有 legacy 路徑，所
 **`scripts/campaign-closeout-audit.sh`**：`shellcheck` 0.11.0 無輸出、exit 0；`bash -n` exit 0。scratchpad disposable fixture（路徑含空格）：有 `.copilot-tracking/plans/p.md`（2 個未勾選）→ `legacy_tracking_plans=2  (legacy .copilot-tracking/plans/*.md unchecked items; read-only)`；無目錄 → `legacy_tracking_plans=0  (no legacy .copilot-tracking/plans directory)`。計數邏輯未變。repo 內沒有其他程式解析舊標籤 `tracking_plans=`。
 
 **R1**：前測已取證（§4.3）；後測 NOT TESTED（待 Phase A commit 後使用者執行 `/context`）。資訊性，不阻擋 B。
+
+### 4.7 Phase B session（2026-10-07）
+
+| 項目 | 值 |
+|---|---|
+| 執行者 | Engineer（Claude Code `2.1.292`，模型 Claude Opus 5.5 `claude-opus-5-5`）；session 以 `--agent engineer` 啟動（system prompt 為 `.claude/agents/engineer.md` wrapper） |
+| 工作目錄 | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-ai-portability-worktree` |
+| 依據 | `~/.ai-notes/ttr/phaseB-engineer-prompt.md`、`plan.md` §1、§2、§3、§6、§8、§8.1、§8.2 |
+| `plan.md` SHA-256 | `6943c073620e29530581988a79c47e8da84ee34f6ce3edecf2e7511695487bbc`（與指定值相符，未 STOP） |
+| Claude Code 版本 | Phase A 為 `2.1.291`，本次 `2.1.292`。B-0／C-0 尚未執行，沒有需要重跑的 fixture |
+
+#### R1 後測（`/context`，資訊性）
+
+使用者在本 session 開頭、尚未給任何指示前執行 `/context`（Phase A commit `ecfb7347` 之後的新 session，位於 worktree）。Memory files 段：
+
+| Type | Path | Tokens |
+|---|---|---|
+| Project | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-ai-portability-worktree/CLAUDE.md` | 189 |
+| Project | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-ai-portability-worktree/AGENTS.md` | 3.3k |
+
+同一輸出：模型 `claude-opus-5-5`；Custom agents 來源 `.claude/agents/`，16 個。
+
+佐證（唯讀）：worktree 與主工作樹的 `CLAUDE.md` 位元組相同（403 bytes）；`AGENTS.md` 不同（worktree 7276 bytes，主工作樹 7158 bytes），只有 worktree 版含 Phase A 加的「legacy 路徑」字樣（`grep -c` 1 對 0）。前測 3.2k → 後測 3.3k 與 Phase A 對 `AGENTS.md` L54 的增補一致。
+
+**結果**：前測與後測都載入 **worktree 版**，一致；plan §3 R1 所述「載入主工作樹版本」在兩次實測都未出現。資訊性項目，已勾選 `tasks.md`。
+
+#### Worktree 閘門（Phase B）
+
+| 檢查 | 結果 |
+|---|---|
+| `git worktree list --porcelain` 中的本 worktree | `worktree …/ttr-ai-portability-worktree`、`HEAD ecfb73472e718785a64e6c505a4915fd2e8f08b5`、`branch refs/heads/feat/ai-portability` |
+| `pwd -P`／`git branch --show-current` | 與上列路徑、`feat/ai-portability` 相符 |
+| 本 worktree `git status --porcelain` | 無輸出（乾淨） |
+| 主工作樹 `git -C "<主工作樹>" --no-pager status --short` | 無輸出（無他人 WIP）；branch `main`，HEAD `4e5f1f13dac393a5eccd790e5d2181b4adc84d44` |
+| `.git/info/exclude` | 第 15 行有 `ttr-ai-portability-worktree/` |
+
+#### Step 0 漂移檢查（Phase B）— **STOP：非預期漂移**
+
+| 項目 | 值 |
+|---|---|
+| HEAD | `ecfb73472e718785a64e6c505a4915fd2e8f08b5`（chore(ai): remove legacy Copilot state paths）＝ 預期值 |
+| 工作樹 | 乾淨 |
+| fetch 前本機快取的 origin/main | `2c142c2464b428e3785007952808d725110e709e`（＝ Phase A remote baseline） |
+| `git fetch origin` | 成功；worktree FETCH_HEAD mtime `2026-10-07T14:41:40+09:00`（`05:41:40Z`）；`2c142c24..67846c18 main -> origin/main`（另更新 `origin/claude/remove-connpass-doorkeeper`） |
+| fetch 後 origin/main（Phase B remote baseline） | `67846c183c761350687081774f3435df5e5003aa`（docs(researcher): document research exclusion list and migration 097） |
+| `git merge-base HEAD origin/main` | `ed09beceb5004bc8025958c0b752075ed92dd448` |
+| `ed09bece`、`2c142c24` 是 origin/main 的祖先 | 是（`git merge-base --is-ancestor` 皆 exit 0）；origin/main reflog 最新四筆皆為 `fetch origin: fast-forward` |
+| `git rev-list --left-right --count HEAD...origin/main` | `3	8`（ahead 3／behind 8） |
+| `2c142c24..origin/main` | `67846c18`、`d391915e feat(researcher): add research exclusion list; retire Doorkeeper events`、`c23b27ac chore(scraper): remove Connpass and Doorkeeper sources`（作者 `Claude`，2026-10-06） |
+
+**與 Phase B 路徑的重疊**（`git diff --name-only 2c142c24 origin/main -- scripts/sync_ai_adapters.py .github/agents .claude .agents AGENTS.md CLAUDE.md scripts/tests`）：
+
+| 檔案 | 上游變更 | 對 Phase B 的影響 |
+|---|---|---|
+| `.github/agents/subagents/scraper-community-platforms.agent.md` | **刪除**（`c23b27ac`，78 行） | 這是 plan §6 角色表 full 列「3 個 scraper subagent」之一，屬 12 個受管 agent。Phase B 預定在此檔加 `claude-role`，rebase 時會成為 modify/delete 衝突 |
+| `.claude/agents/community-platforms-scraper.md` | **刪除**（generated wrapper） | wrapper 數 16 → 15 |
+| `.github/agents/scraper-expert.agent.md`（UNDECIDED） | frontmatter `agents:` 移除 `Community Platforms Scraper`（L7）；本文 L88、L92 移除對應分派行 | `agents:` 屬 plan §1 表列的權限 metadata。B-R5 擴充以 A commit `ecfb7347` 為零 diff 基準；rebase 後此檔必然與 `ecfb7347` 不同（差異來自上游，不是 B） |
+| `.github/agents/researcher.agent.md`（UNDECIDED） | 本文 L115（origin/main 版 L115–116）：移除 Connpass、Doorkeeper，新增「不得提案 `scraper/research_exclusions.py` 所列平台」（`67846c18`） | 同上：rebase 後與 `ecfb7347` 不同 |
+| `AGENTS.md` | 角色路由表刪除 Community Platforms Scraper 列 | Phase B 也要改 `AGENTS.md`（角色權限說明） |
+| `.claude/skills/community-platforms/SKILL.md`、`.agents/skills/community-platforms/SKILL.md` | 刪除（對應 `.github/skills/sources/community-platforms/SKILL.md` 刪除） | B-R5 的 skills 零 diff 以 HEAD 為基準，本身不受影響 |
+
+數量（`git ls-tree`）：HEAD 有 agent source 16、wrapper 16；origin/main 為 15、15。
+
+衝突模擬（只在記憶體內，未改 ref、index 或工作樹）：`git merge-tree --write-tree --name-only --messages origin/main HEAD` exit 0，tree `63b59a09…`，自動合併 `researcher.agent.md`、`scraper-expert.agent.md`、`researcher/SKILL.md`、`AGENTS.md`，**目前沒有文字衝突**；合併後 agent source 15、wrapper 15。執行後 `git status --porcelain` 仍為空、HEAD 仍為 `ecfb7347`。
+
+**判定：非預期漂移，STOP**。與 Phase 0、Phase A 的判定不同，這次上游 commit 直接改到 Phase B 的目標：
+
+1. 受管 agent 少一個：plan 與 prompt 寫死的「16 個 wrapper」「12 個受管 agent」「3 個 scraper subagent」「B-R3：數量 = 16」「測試 6：`== 16`」在 origin/main 上不成立（應為 15／11／2）。
+2. 四個 UNDECIDED 中的 `scraper-expert`、`researcher` 被上游修改，其中 `scraper-expert` 改的是權限 metadata（`agents:`）。B-R5 擴充「相較 A commit 零 diff」的基準在 rebase 後需要重新定義。
+3. 若照現行 base 做 B，merge-back rebase 時 `scraper-community-platforms.agent.md` 會出現 modify/delete 衝突，且寫死 16 的測試會失敗。
+
+plan §8.2 原則 2：分流沒涵蓋的情況一律 STOP 回報，不臨場加新設計。本 session 未 rebase、未改 base，未進入 H-B1、B-0 或任何實作；除本段與 `tasks.md` 的 R1 勾選外，沒有修改任何 repo 檔案。
+
+**使用者決定（2026-10-07，STOP 後）：選項 1**。內容：
+
+1. 先把本段證據（`notes.md` §4.7、`tasks.md` R1 勾選）做成只含文件的 commit（rebase 需要乾淨工作樹，且禁用 `git stash`）。
+2. 在乾淨工作樹上 `git rebase origin/main`（`67846c18`），重跑 `sync --check`，重記 Step 0。
+3. Phase B 參數改為 15 個 wrapper／11 個受管 agent／2 個 scraper subagent；B-R5 擴充的零 diff 基準改為 rebase 後的 A commit；上游對 `scraper-expert`、`researcher` 的修改記為上游來源，不是 B。
+4. 修訂裁決 6：campaign base `ed09bece` 保留為歷史紀錄；rebase 後實際 merge-base 為 `67846c18`。
+5. 完成後進入 H-B1。
+
+另一選項（不 rebase、以 16 個 agent 做 B、merge-back 時再處理）未採用。

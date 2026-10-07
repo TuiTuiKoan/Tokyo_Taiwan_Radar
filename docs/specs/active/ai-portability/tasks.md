@@ -66,7 +66,7 @@
 - [x] A-R7（H-A1 F3 選項 2 修訂範圍：4 個 spec；`admin-reports-204-cleanup` 兩句記為 historical，交 admin-qa-cleanup final reconciliation）：4 個 active spec 的「權威計畫」句已依 plan §5 A3 表改寫（authoritative-venue-repair 依 F6 (a)）
 - [x] A-R8：`git diff --check` 通過；diff 路徑 ⊆ 已核准的 Allowed paths
 - [x] A-R9：runbook 措辭表已套用（以 `rg` 驗證舊句消失）
-- [ ] 資訊性：R1 `/context` 取證（使用者執行；缺則標 NOT TESTED，不阻擋 B）— 前測已取證（worktree 版，notes.md §4.3）；後測待 Phase A commit 後
+- [x] 資訊性：R1 `/context` 取證（使用者執行；缺則標 NOT TESTED，不阻擋 B）— 前測已取證（worktree 版，notes.md §4.3）；後測已取證（Phase B session 開頭，worktree 版，與前測一致，notes.md §4.7）
 - [x] **H-A2**：commit 前檢視 diff stat、分類帳與 negative search；核准後 commit（2026-10-07 使用者核准；`chore(ai): remove legacy Copilot state paths`，不 push）
 
 ## Phase B：角色權限轉成 Claude 工具限制（plan §6）
