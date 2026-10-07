@@ -135,18 +135,18 @@ Two further preconditions apply before a campaign worktree is removed: the campa
 
 ## State persistence for agents
 
-Agents save in-progress work to `.copilot-tracking/` (gitignored):
+| Use | Location | Committed |
+|-----|----------|-----------|
+| Large, multi-session, multi-file work (plan, design, research notes, progress) | `docs/specs/active/<slug>/` (`plan.md`, `tasks.md`, `notes.md`, …) | yes |
+| Small, local, non-committable notes or handoffs | `~/.ai-notes/ttr/` | no (outside the repo) |
+| Temporary reasoning inside a conversation | the current AI session | no — never the only authoritative state |
+| Historical Copilot scratch (`.copilot-tracking/plans/`, `/memories/session/`) | grandfathered: read-only, add nothing new | no |
 
-```
-.copilot-tracking/
-  research/
-    sources/<source-name>.md    # Researcher output
-    research-log.md
-  plans/
-    <topic>.md                  # Architect plans
-```
+When an old path is unavailable, ask the user for the spec slug or the content. Do not silently fall back to another location and do not dual-write.
 
-This directory is **not committed** — it is local scratch space for agent coordination.
+Exception: `.copilot-tracking/research/candidates/` and `.copilot-tracking/research/sources/` are the local I/O interface of `scraper/researcher.py` and `scraper/update_source.py`. The legacy directory name is kept because those scripts read and write it; it is not session state.
+
+`.copilot-tracking/` stays in `.gitignore` as legacy local scratch and is never committed.
 
 ## Commit message conventions
 

@@ -115,7 +115,8 @@ Wave 2 provider 不在本輪 live 執行。Unresolved homepage 是合法結果�
 
 ## References
 
-* Authoritative execution plan: `/memories/session/plan.md`
+* Authoritative design: this `proposal.md`; progress: [`tasks.md`](tasks.md); delivery record: [`changes-log.md`](changes-log.md)
+* Historical (Copilot session path, no longer available; not authoritative): `/memories/session/plan.md`
 * `.github/instructions/git.instructions.md`
 * `.github/instructions/scraper.instructions.md`
 * `.github/instructions/web.instructions.md`

@@ -99,7 +99,7 @@ Annual Wix pages need semantic text anchors and a year-consistency guard, not ge
 
 **待修教訓：** eslite_spectrum 需補「場館 ground truth fallback」——當詳情頁無明確場地段落時，套用固定場館「誠品生活日本橋」而非抓任意文案段落。修 scraper 時應同時驗證 `venue_registry.lookup_venue('誠品生活日本橋')` 命中，讓 annotator venue 套用自動補正 address。屬 `R-ENRICH-MISS` 鄰近類別（location enrichment miss），但本案為**抽取錯誤**非單純缺漏，建議修 scraper 抽取而非僅靠 enrichment。
 
-**來源：** 誠品 venue 清理任務（`/memories/session/plan.md`）；關聯 engineer history 2026-06-29。
+**來源：** 誠品 venue 清理任務（`/memories/session/plan.md`）（Copilot session 路徑，已不可取得；非規範）；關聯 engineer history 2026-06-29。
 
 ---
 
@@ -113,7 +113,7 @@ Annual Wix pages need semantic text anchors and a year-consistency guard, not ge
 
 **教訓：** DB-only cleanup 若把根因 guard 留著未 commit，下一輪 auto_qa detect 會用舊程式碼把同樣的假陽性重新寫回 backlog——**程式碼修復與 DB 清理必須同一 commit 出貨**。Organizer Non-Hallucination：出版社必須 verbatim 在 raw text，否則 DISMISS（安全回退），絕不幻覺寫入 `events.organizer`。
 
-**來源：** G3 plan §9.4（`/memories/session/plan.md`）；commit `fix(scraper): close G3 stale and publication organizer reports`。
+**來源：** G3 plan §9.4（`/memories/session/plan.md`）（Copilot session 路徑，已不可取得；非規範）；commit `fix(scraper): close G3 stale and publication organizer reports`。
 
 ---
 

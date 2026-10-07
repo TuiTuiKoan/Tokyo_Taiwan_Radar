@@ -1,3 +1,5 @@
+> Historical／superseded：Copilot session 路徑（本檔提到的 `/memories/session/`、`/memories/repo/`），已不可取得；以 checked-in 檔案為準。
+
 <!--
 =====================================================================
  RECOVERY / PROVENANCE HEADER  (added 2026-06-28, clean session)

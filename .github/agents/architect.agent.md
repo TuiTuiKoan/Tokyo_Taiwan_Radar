@@ -4,10 +4,10 @@ description: "Plans architecture, roadmaps, and technical design for Tokyo Taiwa
 handoffs:
   - label: "🧐 交給 Plan Critic 批評"
     agent: Plan Critic
-    prompt: "請批評 /memories/session/plan.md 中的計畫，並將批評報告寫入 /memories/session/plan-critique.md。"
+    prompt: "請批評 docs/specs/active/<slug>/plan.md 的計畫（無 slug 時為 ~/.ai-notes/ttr/plan.md；尚未存檔時請使用者貼上全文），批評報告以文字回傳，不寫檔。"
   - label: "🔧 Implement this plan"
     agent: Engineer
-    prompt: "請根據 /memories/session/plan.md 中的計畫執行實作，並回傳 Changes Log。"
+    prompt: "請先把 Architect 回傳的計畫全文存為 docs/specs/active/<slug>/plan.md（無 slug 時為 ~/.ai-notes/ttr/plan.md），再依該計畫執行實作，並回傳 Changes Log。"
   - label: "🔍 Research new sources"
     agent: Researcher
     prompt: "請研究並評估可新增的台灣相關活動來源。"
@@ -77,7 +77,7 @@ For every **Large feature** plan, include a **"Worktree & Spec Tracking"** secti
 1. Spec slug + path `docs/specs/active/<slug>/` (create from `_template/`).
 2. Derived worktree dir `ttr-<slug>-worktree` + branch `feat/<slug>`; whether NEW or CONTINUING (verify with `git worktree list --porcelain`).
 3. **Phase 0**: instruct the Engineer to read `.github/instructions/git.instructions.md` § Isolated worktree and set up per its state matrix — never assume the worktree exists.
-4. `/memories/session/plan.md` references the spec slug so a resumed session rehydrates from `tasks.md`.
+4. The plan names the spec slug and is stored as `docs/specs/active/<slug>/plan.md` (Architect returns the full text; the Engineer or the user saves it), so a resumed session rehydrates from `tasks.md`.
 
 ## Design System Guard
 
@@ -1165,14 +1165,14 @@ Reference incident: 2026-06-05 — v3-parity 合體落地，解決 OCR 遺漏/�
 2. Reference specific functions, types, and file paths — never vague descriptions.
 3. Include a Verification section with concrete commands or checks the Engineer must run.
 4. State explicit scope boundaries: what is included and what is deliberately excluded.
-5. Save the plan to `/memories/session/plan.md` via the `memory` tool.
+5. Return the full plan text and ask the receiver (the Engineer or the user) to save it as `docs/specs/active/<slug>/plan.md` (no slug → `~/.ai-notes/ttr/plan.md`). Never leave the plan only in the session.
 6. Present the plan to the user for review.
 
 ### Phase 3: Review
 
-1. On user feedback: revise the plan and update `/memories/session/plan.md`.
+1. On user feedback: revise the plan and return the full revised text, so the saved `plan.md` can be replaced with it.
 2. On approval (user says "請執行" or equivalent):
-   a. Invoke `runSubagent` with agent `Engineer`, passing the full plan from `/memories/session/plan.md` as the prompt. Instruct Engineer to return a Changes Log summary.
+   a. Invoke `runSubagent` with agent `Engineer`, passing the full text of the saved `plan.md` as the prompt. Instruct Engineer to return a Changes Log summary.
    b. **MANDATORY — do NOT skip:** Immediately after Engineer returns, invoke `runSubagent` with agent `Tester`, passing the Changes Log and asking it to validate all modified scrapers and web builds. Instruct Tester to return a Test Report with explicit PASS or FAIL verdict.
    c. Present both the Changes Log and Test Report to the user.
 3. If Tester reports FAIL:

@@ -5,8 +5,9 @@ description: publication-policy 各 phase、Wave 邊界、驗證與交付狀態
 
 ## Tracking Rules
 
-每完成一項即更新 checkbox。此檔是 worktree 跨 session 的實作進度真實來源，
-`/memories/session/plan.md` 是需求與設計的唯一 authoritative plan。
+每完成一項即更新 checkbox。此檔是 worktree 跨 session 的實作進度真實來源；
+需求與設計的權威是本 spec 的 [proposal.md](./proposal.md)，交付紀錄見 [changes-log.md](./changes-log.md)。
+舊指標 `/memories/session/plan.md` 為 historical（Copilot session 路徑，已不可取得；以 checked-in 檔案為準）。
 
 ## Phase 0: Isolation, Spec, and Drift Gates
 

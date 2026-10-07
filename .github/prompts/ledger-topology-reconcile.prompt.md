@@ -15,7 +15,7 @@ agent: Architect
 
 啟動本 prompt 即授權：唯讀 git 查詢、讀取 spec 與 prompt 檔案、**建立本 prompt 專屬的隔離
 worktree 與其 branch**、對 `.git/info/exclude` 做 idempotent append、更新
-`docs/specs/active/workstream-tracking/` 內的兩份檔案、更新 session memory。
+`docs/specs/active/workstream-tracking/` 內的兩份檔案；跨 session 交接寫入 `~/.ai-notes/ttr/`（本機、不提交），不得以 session memory 為唯一權威。
 
 **不授權**：程式實作、建立或刪除**本 prompt 專屬以外**的 worktree/branch、`--force`／`-D`／
 `git clean`／無 `--autostash` 的 `git stash`、remote ref 變更、production DB write、deploy、

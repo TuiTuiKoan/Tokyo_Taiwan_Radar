@@ -47,7 +47,7 @@ duplicate venues，分別保有 19 與 1 個 event references，無法直接刪�
 * State matrix：NEW
 * Starting SHA：`origin/main@f3884eba`
 * Cross-session truth：[`tasks.md`](tasks.md)
-* Full execution truth：`/memories/session/plan.md`
+* Full execution truth：`.github/prompts/authoritative-venue-repair.prompt.md`（完整架構、UUID allowlist、production protocol 與 STOP 條件）＋本 `proposal.md`＋[`tasks.md`](tasks.md)；舊指標 `/memories/session/plan.md` 為 historical（Copilot session 路徑，已不可取得）
 
 Phase 0 已依 Git instructions 建立 registered worktree，並把精確 worktree path 加入
 主 repository 的 `.git/info/exclude`。主工作樹仍停在 `c1183703`，九個既有 tracked
@@ -180,7 +180,7 @@ event/FC writes 與兩筆 duplicate 的 conditional deletion。新 digest 必須
 ## References
 
 * [`tasks.md`](tasks.md)
-* `/memories/session/plan.md`
+* `/memories/session/plan.md`（historical：Copilot session 路徑，已不可取得；以 prompt＋本 spec 的 `proposal.md`＋`tasks.md` 為準）
 * `.github/prompts/authoritative-venue-repair.prompt.md`
 * `.github/instructions/git.instructions.md`
 * `.github/instructions/scraper.instructions.md`

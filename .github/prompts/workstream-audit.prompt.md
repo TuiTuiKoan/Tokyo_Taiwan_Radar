@@ -18,7 +18,7 @@ agent: Architect
 ## 授權邊界
 
 啟動本 prompt 即授權：唯讀 git 查詢、唯讀 Supabase 查詢、讀取 spec 與 prompt 檔案、
-更新 `docs/specs/active/workstream-tracking/` 內的兩份檔案、更新 session memory。
+更新 `docs/specs/active/workstream-tracking/` 內的兩份檔案；跨 session 交接寫入 `~/.ai-notes/ttr/`（本機、不提交），不得以 session memory 為唯一權威。
 
 **不授權**：程式實作、commit、push、deploy、建立或刪除 worktree/branch、
 移動或刪除其他 spec、production DB write、workflow dispatch。任何變更都需先取得明確批准。

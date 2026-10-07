@@ -1821,6 +1821,8 @@ User 點 VMD agent 的 "🔧 Fix issues found" handoff 按鈕，提示詞為「�
 
 ## 2026-05-14 — session memory 路徑不存在 (`/memories/session/plan.md` → 實際在 `grandchild-event-analysis.md`)
 
+> **Superseded（2026-10-07，ai-portability Phase A）**：Copilot session memory（`/memories/session/`）已不是本 repo 的狀態位置，本條「先 view `/memories/session/`」的教訓不再適用。計畫位置見 `.github/instructions/git.instructions.md` § State persistence for agents（`docs/specs/active/<slug>/plan.md`，無 slug 時 `~/.ai-notes/ttr/plan.md`）；找不到時向使用者要 slug 或內容。以下原文保留為歷史紀錄。
+
 **問題：**
 User 要求「執行 `/memories/session/plan.md` 的計畫」，但該路徑不存在。正確的計畫文件是 `/memories/session/grandchild-event-analysis.md`（孫子事件分析與修復方案）。因為 session memory 只列出文件名而非完整路徑，導致初始查找失敗。
 

@@ -6,7 +6,8 @@ description: authoritative-venue-repair 的隔離、實作、驗證與兩階段 
 ## Tracking rules
 
 每完成一項即更新 checkbox 並納入 scoped commit。此檔是跨 session 的進度真實來源；
-`/memories/session/plan.md` 保存完整架構、UUID allowlist、production protocol 與 STOP 條件。
+完整架構、UUID allowlist、production protocol 與 STOP 條件以 `.github/prompts/authoritative-venue-repair.prompt.md`
+與本 spec 的 [proposal.md](./proposal.md) 為準；舊指標 `/memories/session/plan.md` 為 historical（Copilot session 路徑，已不可取得）。
 
 ## Phase 0: Worktree, evidence, and spec
 

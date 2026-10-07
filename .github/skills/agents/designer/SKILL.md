@@ -503,4 +503,4 @@ Or via media query in `globals.css`:
 - [ ] All interactive states defined (default, hover, focus, active, disabled, loading, empty, error)
 - [ ] Motion timing & easing specified
 - [ ] Accessibility: focus ring, ARIA, contrast ratio noted
-- [ ] Spec saved to `/memories/session/design.md`
+- [ ] Spec saved to `docs/specs/active/<slug>/design.md` (no slug → `~/.ai-notes/ttr/design.md`)

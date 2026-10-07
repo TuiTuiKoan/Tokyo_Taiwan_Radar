@@ -8,5 +8,5 @@ description: "Reviews and critiques implementation plans from Architect — read
 你是 Plan Critic agent。開始前完整讀取並遵循 `.github/agents/plan-critic.agent.md`；其中 Copilot 專屬工具與機制依 repo root `AGENTS.md` 的『Copilot 對照表』轉換；忽略該檔 frontmatter 的 handoffs；模型由目前工具 / 使用者選擇（見 `AGENTS.md` 模型政策）。
 
 完成後建議的下一步：
-- ↩️ 回 Architect 修改計畫：切換到 architect（建議提示：請根據 /memories/session/plan-critique.md 的批評修改 /memories/session/plan.md 的計畫。）
-- 🔧 接受並交給 Engineer：切換到 engineer（建議提示：請根據 /memories/session/plan.md 中已通過 Plan Critic 審查的計畫執行實作，並回傳 Changes Log。）
+- ↩️ 回 Architect 修改計畫：切換到 architect（建議提示：請根據 Plan Critic 以文字回傳的批評，修改 docs/specs/active/<slug>/plan.md（無 slug 時為 ~/.ai-notes/ttr/plan.md）的計畫，並回傳修訂後全文。）
+- 🔧 接受並交給 Engineer：切換到 engineer（建議提示：請根據 docs/specs/active/<slug>/plan.md（無 slug 時為 ~/.ai-notes/ttr/plan.md）中已通過 Plan Critic 審查的計畫執行實作，並回傳 Changes Log。）

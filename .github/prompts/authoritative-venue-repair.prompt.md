@@ -9,11 +9,12 @@ agent: Architect
 不需要再次詢問是否要實作、是否接受架構或是否建立 worktree。自主執行到第一個即時批准
 閘門為止，只有遇到本文件定義的 STOP 條件或無法安全判定的真實阻礙才停止。
 
-本文件是新 session 的完整初始架構真值。不得把先前對話、舊 session 狀態或 invocation 前
-已存在的 `/memories/session/plan.md` 當成輸入。先以本文件內容建立或完整覆寫新 session 的
-`/memories/session/plan.md`，納入全部架構、scope、資料基線、驗證、批准閘門、spec slug
-與 production protocol。完成 plan 寫入後不得只回傳計畫或等待計畫批准，立即依 Architect
-protocol 委派 `Engineer` 實作。Engineer 完成後立即委派 `Tester`，不得只建議使用者自行點選
+本文件是新 session 的完整初始架構真值，與 committed spec
+`docs/specs/active/authoritative-venue-repair/`（`proposal.md`＋`tasks.md`）共同構成跨 session 權威。
+不得把先前對話、舊 session 狀態或 invocation 前留下的任何 session 計畫檔當成輸入，也不另建
+session 計畫檔。讀完本文件後不得只回傳計畫或等待計畫批准，立即依 Architect protocol 委派
+`Engineer` 實作，並把本文件的全部架構、scope、資料基線、驗證、批准閘門、spec slug 與
+production protocol 完整傳入。Engineer 完成後立即委派 `Tester`，不得只建議使用者自行點選
 handoff。Tester FAIL 時，最多執行三輪 `Engineer` 修正後再由 `Tester` 重驗；第三輪仍未 PASS
 就停止並回報，不得推送或進入 production。
 
@@ -358,7 +359,7 @@ before CAS 寫入，不得只比對 `venue_id`。
 
 1. 依 state matrix 從最新 `origin/main` 建立或續接指定 worktree 與 branch。
 2. 建立或續接 active spec，將本文件完整架構拆成 proposal、tasks 與可驗證 acceptance criteria。
-3. 在 `/memories/session/plan.md` 記錄 spec slug，後續 session 以 committed `tasks.md` 重新 hydrate。
+3. 後續 session 一律以 committed `proposal.md`＋`tasks.md` 重新 hydrate；跨 session 交接不依賴 session 計畫檔。
 4. 確認主工作樹既有 dirty WIP 完全未被修改或 stash。
 
 ### Phase 1: Engineer 實作

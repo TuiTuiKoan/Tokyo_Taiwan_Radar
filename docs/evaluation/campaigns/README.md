@@ -283,7 +283,7 @@ retirement, and each one reports a number or reports `not_checked`:
 
 1. Unchecked items in `docs/specs/active/<slug>/tasks.md`.
 2. Deferred entries in that spec's `changes-log.md` and `proposal.md`.
-3. Unfinished items in `.copilot-tracking/plans/*.md` inside the worktree.
+3. Unfinished items in the legacy `.copilot-tracking/plans/*.md` inside the worktree (old Copilot scratch: read-only check, nothing new is written there; reported as `legacy_tracking_plans`).
 4. `TODO` and `FIXME` on lines **added** by the campaign's own commits.
 5. Open GitHub issues naming the slug.
 

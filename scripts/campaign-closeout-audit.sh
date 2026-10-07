@@ -280,7 +280,9 @@ else
   fi
 fi
 
-# 3. .copilot-tracking plans (gitignored scratch space, lives inside the worktree)
+# 3. Legacy .copilot-tracking plans: old Copilot scratch (gitignored, inside the
+#    worktree). Read-only check; nothing new is written there, and new work is
+#    tracked in the spec's tasks.md (source 1).
 PLAN_DIR="$WT/.copilot-tracking/plans"
 if [ -d "$PLAN_DIR" ]; then
   n2=0
@@ -290,10 +292,10 @@ if [ -d "$PLAN_DIR" ]; then
   done <<EOF
 $( grep -rhcE '^[[:space:]]*[-*] \[ \]' "$PLAN_DIR" 2>/dev/null )
 EOF
-  echo "tracking_plans=$n2  (.copilot-tracking/plans/*.md unchecked items)"
+  echo "legacy_tracking_plans=$n2  (legacy .copilot-tracking/plans/*.md unchecked items; read-only)"
   UNHANDLED_TOTAL=$(( UNHANDLED_TOTAL + n2 ))
 else
-  echo "tracking_plans=0  (no .copilot-tracking/plans directory)"
+  echo "legacy_tracking_plans=0  (no legacy .copilot-tracking/plans directory)"
 fi
 
 # 4. TODO / FIXME introduced by the campaign's own commits.

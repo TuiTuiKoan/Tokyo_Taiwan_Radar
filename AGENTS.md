@@ -50,7 +50,7 @@ Claude Code 可直接叫用 `.claude/agents` 下的 subagent wrapper。Codex 沒
 | --- | --- |
 | `runSubagent` | Claude Code：呼叫對應 `.claude/agents/<kebab>.md` subagent（Task）。Codex：若有 subagent 能力則使用對應 subagent，否則讀原始 agent 檔後依序自行執行。 |
 | `vscode_askQuestions` / `ask_user` | 在對話中直接向使用者提問並等待回答。 |
-| `/memories/session/plan.md` | 優先寫到 `docs/specs/active/<slug>/`；沒有 slug 時寫到本機 `~/.ai-notes/ttr/plan.md` 並告知使用者。 |
+| `/memories/session/plan.md`（legacy 路徑，僅供閱讀舊檔） | 優先寫到 `docs/specs/active/<slug>/`；沒有 slug 時寫到本機 `~/.ai-notes/ttr/plan.md` 並告知使用者。舊檔讀不到時，向使用者要 slug 或內容，不改讀其他位置。 |
 | `semantic_search` / `grep_search` / `read_file` / `fetch_webpage` / `get_errors` | 使用 Claude Code / Codex 內建的對應搜尋、讀檔、網頁抓取與診斷工具。 |
 | handoff 按鈕 | 在回覆結尾列出建議下一步 agent 與建議提示。 |
 | instructions 的 `applyTo` 自動注入 | 依上方「路徑規則表」手動讀取相關 instruction。 |

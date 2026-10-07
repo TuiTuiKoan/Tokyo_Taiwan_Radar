@@ -85,7 +85,7 @@ Exit code：`0` = RETIRE_CANDIDATE、`10` = HOLD、`20` = UNDETERMINED。
 * **A2 未處理待辦** — 五個來源，逐一輸出數字或 `not_checked`：
   1. `docs/specs/active/<slug>/tasks.md` 未勾選項
   2. `changes-log.md` / `proposal.md` 的 Deferred 段
-  3. `.copilot-tracking/plans/*.md` 未完成項
+  3. legacy `.copilot-tracking/plans/*.md` 未完成項（舊 Copilot scratch，只做唯讀檢查，不再新增；新待辦以來源 1 的 spec `tasks.md` 為準）
   4. `git log <base>..<head>` 範圍內**新增行**的 `TODO` / `FIXME`
   5. 提及該 slug 的 open GitHub issues（無 token → `not_checked`）
 

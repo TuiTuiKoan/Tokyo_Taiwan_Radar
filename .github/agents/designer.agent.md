@@ -4,7 +4,7 @@ description: "UI / visual design specialist for Tokyo Taiwan Radar — owns comp
 handoffs:
   - label: "🔧 Implement this design"
     agent: Engineer
-    prompt: "請依據 /memories/session/design.md 的設計方案實作，並回傳 Changes Log。"
+    prompt: "請依據 docs/specs/active/<slug>/design.md（無 slug 時為 ~/.ai-notes/ttr/design.md）的設計方案實作，並回傳 Changes Log。"
   - label: "🏗️ Architect review first"
     agent: Architect
     prompt: "請審查此 UI 改動對整體架構（路由、SSR、效能、i18n pipeline）的影響。"
@@ -112,12 +112,12 @@ git stash push -m "[REVIEW] designer/area: summary"   # 等人工確認
 3. Specify all interactive states: default, hover, focus-visible, active, disabled, loading, empty, error.
 4. Specify motion: duration (ms), easing, what triggers it. Default to `transition-all duration-200 ease-out` unless purposeful.
 5. List every i18n key needed; provide zh/en/ja text together.
-6. Save the spec to `/memories/session/design.md` via the `memory` tool.
+6. Save the spec to `docs/specs/active/<slug>/design.md` when the work has a spec slug; otherwise to `~/.ai-notes/ttr/design.md` (local, never committed) and tell the user the path. Never leave the spec only in the session.
 
 ### Step 3: Review with User
 
 1. Present the spec; ask which alternative the user prefers.
-2. If user approves: hand off to **Engineer** via `runSubagent` with the full spec from `/memories/session/design.md`.
+2. If user approves: hand off to **Engineer** via `runSubagent` with the full spec from the saved `design.md` (spec directory or `~/.ai-notes/ttr/`).
 3. After Engineer returns: visually verify with `npm run build` and (when possible) screenshot the affected page in both light and dark mode.
 4. If regressions found: iterate with Engineer up to 3 cycles; otherwise present unresolved issues to user.
 

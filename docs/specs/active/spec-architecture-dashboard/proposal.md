@@ -48,6 +48,6 @@ web/scripts/build-specs-snapshot.ts                ← Vercel-safe build-time sn
 
 ## References
 
-- 詳細計畫：`/memories/session/plan.md`（session 內）
+- 詳細計畫：本 spec 的 `proposal.md`＋[`tasks.md`](tasks.md)（舊指標 `/memories/session/plan.md` 為 historical：Copilot session 路徑，已不可取得）
 - 參考：`web/app/[locale]/admin/page.tsx`（auth gate 模式）
 - 參考：`web/components/AdminTabNav.tsx`（tab 新增模式）

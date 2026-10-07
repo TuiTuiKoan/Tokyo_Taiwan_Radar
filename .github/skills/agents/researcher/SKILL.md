@@ -48,7 +48,7 @@ Data point (2026-05-02 batch e2e): Phase 2 success rate is **17% (1/6)** without
 - Confirm Taiwan-related events actually appear (not just Japanese-domestic events) before profiling.
 
 ## Output
-- Save source profiles to `.copilot-tracking/research/sources/{source_name}.md`.
+- Save source profiles to `.copilot-tracking/research/sources/{source_name}.md` — the local, gitignored directory that `scraper/update_source.py --create-issue` reads. The legacy directory name is kept because the script depends on it; it is not session state.
 - Always include a scraping feasibility verdict: Easy / Medium / Hard / Blocked.
 - Include at least 2 example event URLs so the Scraper Expert can verify selectors.
 

@@ -33,7 +33,7 @@ production reset、report settlement、manual annotation dispatch、GPT run 或�
 
 ## 權威來源與已知交接
 
-新 session 不得依賴先前對話或 invocation 前的 `/memories/session/plan.md`。本次 rebaseline 的
+新 session 不得依賴先前對話或 invocation 前留下的任何 session 計畫檔。本次 rebaseline 的
 權威順序是：live repository 與 production read-only evidence、checked-in predecessor spec、
 checked-in tests。舊 session memory 只能當線索，不能當完成或 mutation 證據。
 

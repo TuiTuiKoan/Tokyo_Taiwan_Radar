@@ -16,55 +16,58 @@
 
 ### H-A1（開工前）
 
-- [ ] 使用者確認標註措辭、runbook 措辭表（plan §4）；Allowed paths 擴充已由 Q5 核准
-- [ ] （Phase 0 查證 F3）使用者決定：A3 改寫 `admin-reports-204-cleanup` 的 `tasks.md` L8、`proposal.md` L18，是否就是 `admin-qa-cleanup/proposal.md` L231–241 所要求「另行核准的 docs-only reconciliation」（只限權威指標一項），並依決定處理 `admin-qa-cleanup/proposal.md` L237（見 notes.md §3.3）
+- [x] 使用者確認標註措辭、runbook 措辭表（plan §4）；Allowed paths 擴充已由 Q5 核准（2026-10-07 H-A1：全部核准，含 F7、closer L88 保留為 legacy 來源 3、runbook L295 加「Phase B 投影目標」、Step 0 判為預期內主幹前進；見 notes.md §4.5）
+- [x] （Phase 0 查證 F3）使用者決定：A3 改寫 `admin-reports-204-cleanup` 的 `tasks.md` L8、`proposal.md` L18，是否就是 `admin-qa-cleanup/proposal.md` L231–241 所要求「另行核准的 docs-only reconciliation」（只限權威指標一項），並依決定處理 `admin-qa-cleanup/proposal.md` L237（見 notes.md §3.3）→ **選項 2**：不認定；前任兩檔與 L237 零 diff；A-R7 範圍修訂為 4 個 spec，前任兩句記為 historical（凍結的 audit history，由 admin-qa-cleanup final reconciliation、其 tasks.md L349 處理）
+- [x] （H-A1 新增 F5）`.copilot-tracking/research/` 是 `scraper/researcher.py`／`update_source.py` 的 I/O 介面 → **(a)**：candidates／sources 路徑保留並加註「腳本介面、legacy 目錄名、非 session state」；只有 `research-log.md` 移到 `~/.ai-notes/ttr/research/`；改名列後續項目
+- [x] （H-A1 新增 F6）`authoritative-venue-repair` → **(a)**：`tasks.md` L9 一併改寫；三處權威指向 `.github/prompts/authoritative-venue-repair.prompt.md`＋`proposal.md`＋`tasks.md`
+- [x] （H-A1 新增 F7）`plan-critic.agent.md` L102 一併改為「不執行檔案修改工具，批評以文字回傳」
 
 ### A1 active guidance（canonical）
 
-- [ ] `.github/agents/architect.agent.md`（UNDECIDED，僅 A 遷移）：frontmatter L7、L10 的 handoff `prompt`；本文 L80、L1168、L1173、L1175 的 state 路徑。`runSubagent` 編排與 L1160 的 `vscode_askQuestions` 不改（X1）
-- [ ] `.github/agents/plan-critic.agent.md`：frontmatter L7、L10；本文 L21、L31、L37、L101、L105（L105「允許寫入」改「不寫檔，以文字回報」）
-- [ ] `.github/agents/designer.agent.md`：frontmatter L7；本文 L115、L120
-- [ ] `.github/agents/researcher.agent.md`（UNDECIDED，僅 prose）：L19、L103、L142、L156；`update_source.py` 相關段落（X3）不改
-- [ ] `.github/agents/campaign-closer.agent.md` L88：改「spec tasks.md 未勾選項」；舊 scratch 列 legacy 唯讀檢查
-- [ ] `.github/agents/scraper-expert.agent.md`（UNDECIDED，僅 prose）L192：保留 `.copilot-tracking/` staging 排除，標 legacy
-- [ ] `.github/skills/agents/designer/SKILL.md` L506、`.github/skills/agents/researcher/SKILL.md` L51
-- [ ] `.github/instructions/git.instructions.md` L136–149：整段改為新契約表，保留一句 legacy gitignored 說明
-- [ ] `.github/prompts/authoritative-venue-repair.prompt.md` L13–14、L361；`.github/prompts/admin-qa-cleanup.prompt.md` L36（L38、L138 為限制句，不改）
-- [ ] `.github/prompts/weekly-review.prompt.md`：依裁決 4（Q1）刪除 Step 3「Session Memory」，Step 4 重新編號為 Step 3，並同步檔內交叉引用
-- [ ] `.github/prompts/workstream-audit.prompt.md` L21、`.github/prompts/ledger-topology-reconcile.prompt.md` L18（L16、L47 為限制句，不改）
-- [ ] `AGENTS.md` L54：保留對照表，補註「legacy 路徑，僅供閱讀舊檔」
-- [ ] `scripts/campaign-closeout-audit.sh` L283–296、`docs/evaluation/campaigns/README.md` L286：保留為 legacy 唯讀掃描，標籤改 `legacy_tracking_plans`
-- [ ] `docs/CLAUDE_CODE_MIGRATION_RUNBOOK.md`：套用 plan §4 措辭表
-- [ ] 確認不改：`.github/agents/reviewer.agent.md`、`.github/skills/agents/architect/SKILL.md`（Phase 0 `rg` 無命中）
+- [x] `.github/agents/architect.agent.md`（UNDECIDED，僅 A 遷移）：frontmatter L7、L10 的 handoff `prompt`；本文 L80、L1168、L1173、L1175 的 state 路徑。`runSubagent` 編排與 L1160 的 `vscode_askQuestions` 不改（X1）
+- [x] `.github/agents/plan-critic.agent.md`：frontmatter L7、L10；本文 L21、L31、L37、L101、L105（L105「允許寫入」改「不寫檔，以文字回報」）；另依 F7 改 L102
+- [x] `.github/agents/designer.agent.md`：frontmatter L7；本文 L115、L120
+- [x] `.github/agents/researcher.agent.md`（UNDECIDED，僅 prose）：L19、L103、L142、L156；`update_source.py` 相關段落（X3）不改。依 F5 (a)：L19、L103、L142 保留腳本介面路徑並加註，L156 的 `research-log.md` 改到 `~/.ai-notes/ttr/research/`
+- [x] `.github/agents/campaign-closer.agent.md` L88：改「spec tasks.md 未勾選項」；舊 scratch 列 legacy 唯讀檢查（H-A1 核准：保留為來源 3 並標 legacy 唯讀，新待辦指向來源 1 的 spec `tasks.md`）
+- [x] `.github/agents/scraper-expert.agent.md`（UNDECIDED，僅 prose）L192：保留 `.copilot-tracking/` staging 排除，標 legacy
+- [x] `.github/skills/agents/designer/SKILL.md` L506、`.github/skills/agents/researcher/SKILL.md` L51（researcher 依 F5 (a) 保留路徑並加註）
+- [x] `.github/instructions/git.instructions.md` L136–149：整段改為新契約表，保留一句 legacy gitignored 說明（另加 F5 例外句）
+- [x] `.github/prompts/authoritative-venue-repair.prompt.md` L13–14、L361；`.github/prompts/admin-qa-cleanup.prompt.md` L36（L38、L138 為限制句，不改）
+- [x] `.github/prompts/weekly-review.prompt.md`：依裁決 4（Q1）刪除 Step 3「Session Memory」，Step 4 重新編號為 Step 3，並同步檔內交叉引用（檔內與 repo 內都沒有其他步驟編號引用）
+- [x] `.github/prompts/workstream-audit.prompt.md` L21、`.github/prompts/ledger-topology-reconcile.prompt.md` L18（L16、L47 為限制句，不改）
+- [x] `AGENTS.md` L54：保留對照表，補註「legacy 路徑，僅供閱讀舊檔」
+- [x] `scripts/campaign-closeout-audit.sh` L283–296、`docs/evaluation/campaigns/README.md` L286：保留為 legacy 唯讀掃描，標籤改 `legacy_tracking_plans`（shellcheck 0.11.0 無 warning、`bash -n` exit 0、disposable fixture smoke test 通過）
+- [x] `docs/CLAUDE_CODE_MIGRATION_RUNBOOK.md`：套用 plan §4 措辭表（L295 加「Phase B 投影目標」、L299 依 F5；A-R1／A-R2 PASS 後勾選 L403）
+- [x] 確認不改：`.github/agents/reviewer.agent.md`、`.github/skills/agents/architect/SKILL.md`（Phase 0 `rg` 無命中；Phase A diff 為零）
 
 ### A2 generated
 
-- [ ] `python3 scripts/sync_ai_adapters.py`；generated 變動只在 `.claude/agents/{architect,plan-critic,designer}.md`（Phase 0 已確認集合，notes.md §3.1）
+- [x] `python3 scripts/sync_ai_adapters.py`；generated 變動只在 `.claude/agents/{architect,plan-critic,designer}.md`（Phase 0 已確認集合，notes.md §3.1）
 
 ### A3 historical 與 active spec 權威句
 
-- [ ] `publication-policy`：`tasks.md` L8–9、`proposal.md` L118
-- [ ] `authoritative-venue-repair`：`proposal.md` L50、L183
-- [ ] `admin-reports-204-cleanup`：`tasks.md` L8、`proposal.md` L18（`notes.md` bytes 不得變動；先經 H-A1 的 F3 決定）
-- [ ] `admin-qa-cleanup`：`proposal.md` L237（依 H-A1 的 F3 決定）
-- [ ] `spec-architecture-dashboard`：`proposal.md` L51
-- [ ] `docs/specs/security-hardening-plan-RECOVERED.md`、`docs/evaluation/annotator/2026-05-18-baseline-v2.md`：加 Historical／superseded 標註，原文不改
-- [ ] `.github/skills/agents/engineer/history.md` L1822–1832 旁加 superseded 註記，原文不改
-- [ ] `.github/skills/scraper-expert/history.md` L102、L116：來源括號後補「（Copilot session 路徑，已不可取得；非規範）」
+- [x] `publication-policy`：`tasks.md` L8–9、`proposal.md` L118
+- [x] `authoritative-venue-repair`：`proposal.md` L50、L183；依 F6 (a) 另改 `tasks.md` L9，權威指向 prompt＋`proposal.md`＋`tasks.md`
+- [x] `admin-reports-204-cleanup`：`tasks.md` L8、`proposal.md` L18（`notes.md` bytes 不得變動；先經 H-A1 的 F3 決定）→ F3 選項 2：**不改**（三檔 SHA-256 與 Phase A 前相同，見 notes.md §4.6）
+- [x] `admin-qa-cleanup`：`proposal.md` L237（依 H-A1 的 F3 決定）→ F3 選項 2：**不改**
+- [x] `spec-architecture-dashboard`：`proposal.md` L51
+- [x] `docs/specs/security-hardening-plan-RECOVERED.md`、`docs/evaluation/annotator/2026-05-18-baseline-v2.md`：加 Historical／superseded 標註，原文不改
+- [x] `.github/skills/agents/engineer/history.md` L1822–1832 旁加 superseded 註記，原文不改
+- [x] `.github/skills/scraper-expert/history.md` L102、L116：來源括號後補「（Copilot session 路徑，已不可取得；非規範）」
 
 ### 驗證（A-R1～A-R9）
 
-- [ ] A-R1：三條 negative search＋語意同義詞補查的每個命中都分類為 active 或 historical；分類帳寫入 notes.md
-- [ ] A-R2：active guidance 目標檔無「要求寫入 Copilot-only state」的命中
-- [ ] A-R3：frontmatter-diff，每個被改動的 `.agent.md` 除 `handoffs[*].prompt` 外逐 key 相等；結果記入 notes.md
-- [ ] A-R4：`.claude/agents/*.md` 的「建議提示」不含 legacy path
-- [ ] A-R5：`sync` 後 `--check` exit 0；兩次生成的完整 `{路徑: sha256}` 字典相等
-- [ ] A-R6：generated 變動的路徑集合 ⊆ 預期集合
-- [ ] A-R7：5 個 active spec 的「權威計畫」句已依 plan §5 A3 表改寫
-- [ ] A-R8：`git diff --check` 通過；diff 路徑 ⊆ 已核准的 Allowed paths
-- [ ] A-R9：runbook 措辭表已套用（以 `rg` 驗證舊句消失）
-- [ ] 資訊性：R1 `/context` 取證（使用者執行；缺則標 NOT TESTED，不阻擋 B）
-- [ ] **H-A2**：commit 前檢視 diff stat、分類帳與 negative search；核准後 commit
+- [x] A-R1：三條 negative search＋語意同義詞補查的每個命中都分類為 active 或 historical；分類帳寫入 notes.md（§4.6，37 檔 99 行）
+- [x] A-R2：active guidance 目標檔無「要求寫入 Copilot-only state」的命中
+- [x] A-R3：frontmatter-diff，每個被改動的 `.agent.md` 除 `handoffs[*].prompt` 外逐 key 相等；結果記入 notes.md
+- [x] A-R4：`.claude/agents/*.md` 的「建議提示」不含 legacy path
+- [x] A-R5：`sync` 後 `--check` exit 0；兩次生成的完整 `{路徑: sha256}` 字典相等
+- [x] A-R6：generated 變動的路徑集合 ⊆ 預期集合
+- [x] A-R7（H-A1 F3 選項 2 修訂範圍：4 個 spec；`admin-reports-204-cleanup` 兩句記為 historical，交 admin-qa-cleanup final reconciliation）：4 個 active spec 的「權威計畫」句已依 plan §5 A3 表改寫（authoritative-venue-repair 依 F6 (a)）
+- [x] A-R8：`git diff --check` 通過；diff 路徑 ⊆ 已核准的 Allowed paths
+- [x] A-R9：runbook 措辭表已套用（以 `rg` 驗證舊句消失）
+- [ ] 資訊性：R1 `/context` 取證（使用者執行；缺則標 NOT TESTED，不阻擋 B）— 前測已取證（worktree 版，notes.md §4.3）；後測待 Phase A commit 後
+- [x] **H-A2**：commit 前檢視 diff stat、分類帳與 negative search；核准後 commit（2026-10-07 使用者核准；`chore(ai): remove legacy Copilot state paths`，不 push）
 
 ## Phase B：角色權限轉成 Claude 工具限制（plan §6）
 
@@ -166,6 +169,7 @@
 - [ ] reviewer 改投影為 readonly（plan §6 X2）
 - [ ] SQL 函式副作用偵測（plan §7 規則 9 殘餘風險）
 - [ ] 升級 Claude Code 後重跑 B-0／C-0 的 fixture（本 campaign 不做自動化）
+- [ ] （H-A1 F5）把 `scraper/researcher.py`／`scraper/update_source.py` 的研究資料目錄移出 legacy 名稱 `.copilot-tracking/research/`，並同步 researcher agent／SKILL、`git.instructions.md` 例外句與 runbook L299 註記。理由：目錄名看似可清除的 legacy scratch；路徑以腳本位置推算，每個 worktree 各有一份（主工作樹的 profile 在其他 worktree 看不到）。需改 `scraper/**`，另案處理
 
 直接寫的 `source .env`／`. .env` 由規則 7 層 3 拒絕，`Edit`／`Write` 寫 `.env*` 由規則 7 工具層拒絕，皆已在第一批範圍內，不列後續項。
 

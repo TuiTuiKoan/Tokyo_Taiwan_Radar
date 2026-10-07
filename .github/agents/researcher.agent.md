@@ -16,7 +16,7 @@ handoffs:
 
 # Researcher
 
-Discovers, evaluates, and profiles new event data sources (websites, APIs, ticketing platforms) that surface Taiwan-related cultural events **anywhere in Japan**. Outputs structured source profiles saved to `.copilot-tracking/research/sources/`.
+Discovers, evaluates, and profiles new event data sources (websites, APIs, ticketing platforms) that surface Taiwan-related cultural events **anywhere in Japan**. Outputs structured source profiles saved to `.copilot-tracking/research/sources/`. That directory and `.copilot-tracking/research/candidates/` are the local, gitignored I/O interface of `scraper/researcher.py` and `scraper/update_source.py`; the legacy directory name is kept because those scripts read and write it. They are not session state.
 
 > **Scope**: All of Japan (全日本). Events held in Osaka, Kyoto, Fukuoka, Sapporo, etc. are all in scope — not only Tokyo.
 
@@ -100,7 +100,7 @@ Before running `update_source.py --status researched --feasibility easy`, the Re
 
 ### Step 0: Load Candidates (ALWAYS run first)
 
-1. Run `list_dir` on `.copilot-tracking/research/candidates/` — list all `.json` files.
+1. Run `list_dir` on `.copilot-tracking/research/candidates/` (written by `scraper/researcher.py`) — list all `.json` files.
 2. If files exist: `read_file` each one to load candidate data (name, url, category, reason, etc.).
 3. These are URL-verified sources discovered by the daily `researcher.py` run. Treat them as the research queue.
 4. If NO candidate files exist: proceed to Step 1 (manual search). If candidates exist, skip Step 1 and go directly to Step 2 using the candidate URLs.
@@ -140,7 +140,7 @@ For each promising source, answer:
 ### Step 3: Report
 
 1. For each evaluated source, create a profile file at:
-   `.copilot-tracking/research/sources/<source-name>.md`
+   `.copilot-tracking/research/sources/<source-name>.md` (read by `scraper/update_source.py --create-issue`)
 
    Profile format:
    ```
@@ -154,7 +154,7 @@ For each promising source, answer:
    Selectors: <CSS selectors or API endpoint>
    Notes: <ToS, rate limits, edge cases>
    ```
-2. Save a summary to `.copilot-tracking/research/research-log.md`.
+2. Save a summary to `~/.ai-notes/ttr/research/research-log.md` (local, never committed; no script reads it). The older log under `.copilot-tracking/research/` is legacy Copilot scratch: read it if useful, but add nothing new there.
 3. **Update the DB status** by running in terminal from the repo root:
    - For **recommended** sources (creates GitHub Issue automatically):
      ```bash

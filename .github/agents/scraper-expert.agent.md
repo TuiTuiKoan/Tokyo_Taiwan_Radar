@@ -186,7 +186,7 @@ For **bug fixes**, verify:
 - [ ] `scraper-expert/SKILL.md` updated if lesson is universal
 - [ ] ⚡ **Combined Post-Build Audit printed `🎉 ALL CLEAR`** (even bug fixes can accidentally unregister scrapers)
 
-1. Stage files (exclude temp scripts like `scan_loc.py`, `fix_*.py`, `.copilot-tracking/`).
+1. Stage files (exclude temp scripts like `scan_loc.py`, `fix_*.py`, and the legacy gitignored `.copilot-tracking/` directory).
    - New source: `scraper/sources/<source_name>.py`, `scraper/main.py`, `.github/skills/sources/<source_name>/`, `.github/skills/agents/scraper-expert/history.md`, `.github/skills/agents/scraper-expert/SKILL.md`
    - Bug fix: `scraper/sources/<source_name>.py`, `.github/skills/agents/scraper-expert/history.md`, `.github/skills/agents/scraper-expert/SKILL.md` (+ per-source skill if updated)
 2. Commit on `main` branch:

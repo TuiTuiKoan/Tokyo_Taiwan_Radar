@@ -124,7 +124,7 @@ Architect 應先交付以下內容，不能直接開始實作：
 4. 每個 phase 的測試、negative test 與 rollback。
 5. Implementation Phase 0 建立
    `docs/specs/active/ai-portability/{proposal,tasks}.md`，
-   並以本 runbook 作為操作基準。
+   並以本 runbook 作為操作基準；plan／critique 由 Engineer 或使用者落檔。
 
 ## 一、哪些東西不會因 Copilot Enterprise 被撤銷而消失
 
@@ -242,6 +242,8 @@ python3 scripts/sync_ai_adapters.py --check
 * `/memories/session/plan-critique.md`
 * 新增 durable state 到 `.copilot-tracking/`
 
+（此為被移除對象清單，非現行規範。）
+
 新的持久化契約：
 
 | 使用情境                         | Canonical location                         |
@@ -269,6 +271,8 @@ rg -n \
   AGENTS.md .github .claude .agents docs
 ```
 
+（pattern 中的路徑是被移除對象清單，非現行規範。）
+
 驗收結果必須能解釋每一個剩餘命中：
 
 * active guidance 不再要求寫入 Copilot-only state
@@ -290,15 +294,17 @@ rg -n \
 
 #### 建議角色矩陣
 
-| 角色類型              | 讀取／搜尋 | 執行測試 | 修改檔案 | Git mutation | Push／部署 |
+| 角色類型              | 讀取／搜尋 | 執行測試 | repo 寫入（角色規則） | Git mutation | Push／部署 |
 |-----------------------|-------------|----------|----------|--------------|------------|
-| Architect／Plan Critic | 允許        | 僅唯讀診斷 | 禁止     | 禁止         | 禁止       |
-| Reviewer              | 允許        | 允許唯讀檢查 | 禁止   | 禁止         | 禁止       |
+| Architect／Plan Critic | 允許        | 僅唯讀診斷 | 禁止（角色規則，裁決 1；plan mode 工具私有的 `~/.claude/plans/` 不計；產出以文字回傳，由 Engineer 或使用者落檔）。工具層（Phase B 投影目標）：Plan Critic 禁用 Edit／Write／NotebookEdit；Architect 未投影（X1） | 禁止         | 禁止       |
+| Reviewer              | 允許        | 允許唯讀檢查 | 禁止（角色規則）；本 campaign 未投影工具限制（X2） | 禁止         | 禁止       |
 | Tester                | 允許        | 允許       | 預設禁止 | 禁止         | 禁止       |
 | Engineer              | 允許        | 允許       | 允許     | worktree 內受控 | 禁止       |
-| Researcher            | 允許        | 有限       | 只寫研究輸出 | 禁止      | 禁止       |
+| Researcher            | 允許        | 有限       | 只寫研究輸出（source profile 寫入 `.copilot-tracking/research/sources/`，是 `scraper/update_source.py` 讀取的本機介面；其他研究筆記寫入 `docs/specs/active/<slug>/research/` 或 `~/.ai-notes/ttr/research/`；是否可寫 production `research_sources` 待使用者裁決（X3）） | 禁止      | 禁止       |
 | V-M-D                 | 允許        | 允許       | 有限     | 允許且需 gate | 明確核准後 |
 | Campaign Closer       | 允許        | 允許診斷   | 有限     | 只在 STOP gate 通過後 | 禁止 |
+
+「repo 寫入（角色規則）」欄是角色行為規則。工具層實際限制以 Phase B 投影為準；保留 Bash 的角色不宣稱沒有寫入能力（C-R11）。
 
 #### 設計約束
 
@@ -312,9 +318,9 @@ rg -n \
 
 #### 驗收
 
-* Architect agent 無法使用 Edit／Write 類工具。
-* Tester 可執行測試，但不能修改產品程式碼。
-* Engineer 可修改 worktree，但不能自行 push。
+* planner 角色在工具層無法使用 Edit／Write／NotebookEdit（Bash 重導寫入為已接受殘餘風險，C-R11）；Architect 因 X1 暫列 UNDECIDED，此項標「部分達成／待裁決」。
+* Tester 可執行測試；工具層無 Edit／Write／NotebookEdit（Bash 寫入為已接受殘餘風險，C-R11）。
+* Engineer 可修改 worktree，但不能自行 push。（B 階段為部分（純 `git push` 提示）；變體由 C 驗證。）
 * V-M-D 在 push 前仍要求明確人工核准。
 * 16 個 Claude agent wrappers 可正常載入。
 * adapter generation idempotent。
@@ -330,8 +336,8 @@ claude doctor
 
 在 disposable fixture 或無副作用測試中確認：
 
-* Architect 嘗試建立檔案時被拒絕。
-* Tester 嘗試編輯 source file 時被拒絕。
+* planner 角色以 Write／Edit 在 repo 內建立檔案時被拒絕（plan mode 私有 plan 檔不計；Bash 重導不在此負向測試範圍，列殘餘風險）。
+* Tester 以 Edit／Write 編輯 source file 時被拒絕（Bash 寫入同上，列殘餘風險）。
 * Engineer 嘗試 push 時仍需人工批准。
 * generated wrapper 被手動修改後，`--check` 會偵測 drift。
 
@@ -400,7 +406,7 @@ hook 發生 false positive 時，先回退該 hook commit 或停用該單一 hoo
 
 ### 三個 phase 的完成定義
 
-- [ ] Phase A legacy active guidance negative search 通過
+- [x] Phase A legacy active guidance negative search 通過
 - [ ] Phase B agent permission matrix 已投影並有 negative tests
 - [ ] Phase C destructive command hooks 有 positive／negative tests
 - [ ] adapter generation 與 `--check` 均通過

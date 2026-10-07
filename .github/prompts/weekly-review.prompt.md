@@ -120,13 +120,7 @@ git log --since="7 days ago" --oneline --no-merges | wc -l
 
 ---
 
-## Step 3：Session Memory
-
-讀取 `/memories/session/` 目錄，若有本週工作問題則列出；否則略過。
-
----
-
-## Step 4：撰寫週報並存檔
+## Step 3：撰寫週報並存檔
 
 > **自動化說明**：常態週報已由 `.github/workflows/weekly-docs-report.yml` 於每週一 00:10 JST 自動產出 — 它呼叫 `python scraper/docs_report.py --mode weekly`，以「上一個完整 Mon–Sun 週」的週末星期日日期為 file key，冪等寫入 `docs/weekly_review/<YYYY-MM-DD>.md`，並由 `github-actions[bot]` 提交。重跑只會更新同一檔案，不會產生重複檔。
 >
