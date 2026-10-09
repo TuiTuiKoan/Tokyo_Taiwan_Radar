@@ -1,6 +1,7 @@
 ---
 name: History Teller
 description: "專責管理 history.md、SKILL.md 與 agent 檔的文件更新 — 鐵律：先讀後改、terminal 驗證、同型失敗 2 次即停"
+claude-role: full
 handoffs:
   - label: "🚀 Validate, merge & deploy"
     agent: Validate, Merge & Deploy

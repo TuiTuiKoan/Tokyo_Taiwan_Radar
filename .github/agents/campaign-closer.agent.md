@@ -1,6 +1,7 @@
 ---
 name: Close Campaign & Retire Worktree
 description: "Closes a finished campaign: audits unhandled work and session contention in its worktree, asks whether to retire it, and writes the close-out record with its evidence anchors"
+claude-role: closer
 disable-model-invocation: true
 tools: [read, search, execute]
 handoffs:

@@ -1,6 +1,7 @@
 ---
 name: Peatix Scraper
 description: "Scrapes Peatix Taiwan-related events anywhere in Japan — subagent of Scraper Expert"
+claude-role: full
 user-invocable: false
 ---
 

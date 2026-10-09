@@ -71,43 +71,56 @@
 
 ## Phase B：角色權限轉成 Claude 工具限制（plan §6）
 
+### Step 0 漂移（Phase B）
+
+- [x] Step 0 發現 origin/main（`67846c18`）刪除 Community Platforms Scraper、修改 scraper-expert／researcher → STOP；使用者選項 1：證據 commit 後 rebase 到 origin/main，參數改為 15 個 wrapper／11 個受管 agent，B-R5 擴充基準改為 rebase 後 A commit `223d8b4e`，裁決 6 的 base 修訂（notes.md §4.7、§4.8）
+
 ### H-B1（開工前）
 
-- [ ] 使用者確認角色表；決定是否提前處理 X2（reviewer 改投影為 readonly）
+- [x] 使用者確認角色表；決定是否提前處理 X2（reviewer 改投影為 readonly）（2026-10-07：a 核准、X2 選項 1 延期、c 核准、d 核准、e 核准、f1 採建議；新增後續項目「reviewer 重新定位」；notes.md §4.10、§4.12）
 
 ### B-0 spike（disposable tmp 專案，無副作用；先記 `claude --version`；結果入 notes.md）
 
-- [ ] (1) subagent frontmatter 支援欄位（`tools`、`disallowedTools`、`permissionMode`、`hooks`）
-- [ ] (2) `tools:` 是否生效，分 (a) `claude --agent` 主執行緒、(b) subagent 記錄
-- [ ] (3) hook stdin 的 agent 識別欄位，分 (a)(b) 記錄
-- [ ] (4) planner 的 plan mode 相容性：`tools:` 不含 Write 時能否寫 `~/.claude/plans/*.md`、`ExitPlanMode` 是否需明列
-- [ ] (5) Copilot 對未知欄位 `claude-role` 的反應
-- [ ] (6) `permissions.ask` 語法、deny／ask／allow 優先序、subagent 內 Bash 是否受專案 permissions 約束
-- [ ] (7) 無法證實者標 NOT TESTED，改用「settings permissions＋hooks」保守方案
-- [ ] (8) `/agents` 列表中每個 wrapper 的來源路徑為 worktree 內檔案
+- [x] (1) subagent frontmatter 支援欄位（`tools`、`disallowedTools`、`permissionMode`、`hooks`）（PASS：`tools`、`disallowedTools` 實測，其餘依文件；notes.md §4.11）
+- [x] (2) `tools:` 是否生效，分 (a) `claude --agent` 主執行緒、(b) subagent 記錄（(a) PASS、(b) PASS；notes.md §4.11）
+- [x] (3) hook stdin 的 agent 識別欄位，分 (a)(b) 記錄（(a) `agent_type`、(b) `agent_type`＋`agent_id`；notes.md §4.11）
+- [x] (4) planner 的 plan mode 相容性：`tools:` 不含 Write 時能否寫 `~/.claude/plans/*.md`、`ExitPlanMode` 是否需明列（U1：**不相容**，提交需要 Write＋ExitPlanMode；使用者選項 2：plan-critic 不在 plan mode 使用、白名單不變，不採 fallback-P；notes.md §4.14、§4.15）
+- [x] (5) Copilot 對未知欄位 `claude-role` 的反應（U2：PASS，可載入、可執行；角色表維持在 frontmatter；notes.md §4.16）
+- [x] (6) `permissions.ask` 語法、deny／ask／allow 優先序、subagent 內 Bash 是否受專案 permissions 約束（`:*` 與空白形式皆有效；deny > ask > allow；subagent、`--agent`、auto mode 皆受 ask 約束；`git -C`、`bash -c` 變體不受約束 → C-R5；notes.md §4.11）
+- [x] (7) 無法證實者標 NOT TESTED，改用「settings permissions＋hooks」保守方案（無 NOT TESTED 項；(4) 不相容由使用者選項 2 處理，見 notes.md §4.15）
+- [x] (8) `/agents` 列表中每個 wrapper 的來源路徑為 worktree 內檔案（U4：`/agents` 精靈已移除，以 init 事件等價列表 PASS；notes.md §4.18）
+
+### 使用者實測（H-B1 e 核准；使用者貼上輸出後由 Engineer 判定）
+
+fixture（U1–U3）：`cd "/private/tmp/claude-501/-Users-flyingship-Development-3-TTR-Tokyo-Taiwan-Radar-ttr-ai-portability-worktree/0e42332b-31bd-41ae-98e3-6d025acd6349/scratchpad/b0 user fixture/proj"`。第一次互動啟動時會出現 trust 對話框，選信任（拋棄式目錄）。`.claude/settings.json` 與 B 預定提交的內容相同。
+
+- [x] **U1｜B-0(4) plan mode**（2026-10-09 完成：兩輪皆無法提交，見 notes.md §4.14）：`env -u ANTHROPIC_API_KEY claude --agent fixture-planner --permission-mode plan`，輸入「請規劃在 hello.txt 加一行 world 的修改，規劃完成後提交計畫給我核准」。**預期**：出現計畫核准提示、沒有 Write 錯誤；**不要核准**，`/exit` 後執行 `ls -lt ~/.claude/plans | head -3` 應看到新檔。再以 `fixture-planner-exit` 重做一次。**回報**：兩次是否出現核准提示、錯誤原文、`ls` 輸出。**分流**：不含 ExitPlanMode 也能完成 → planner 白名單不變；只有含 ExitPlanMode 才能完成 → planner 白名單加 ExitPlanMode；需要 Write → fallback-P（白名單加 Write）＋B-R7 P2 carry-over 到 C-R9／C-R10 planner 分支
+- [x] **U2｜B-0(5) Copilot**（2026-10-09 完成：信任＋重新載入後可選取並回覆，見 notes.md §4.16）：以 VS Code 開啟 fixture 的 `proj` 資料夾，在 Copilot Chat 的 agent 選單選「Fixture Tester」，輸入「你好」；打開 `.github/agents/fixture-tester.agent.md` 看 `claude-role` 行是否有警告。**預期**：可選取、會回覆；`claude-role` 最多只有警告。**回報**：能否選取、是否回覆、警告或錯誤原文。**分流**：只有警告 → 照計畫；報錯或無法選取 → 角色表改放 sync script（既有 fallback）
+- [x] **U3｜B-R6 push 閘門**（2026-10-09 完成：(a)(b) 皆出現提示並拒絕，見 notes.md §4.17）：`env -u ANTHROPIC_API_KEY claude --agent fixture-full --permission-mode auto`。(a) 輸入「請執行 git push --dry-run origin main」；(b) 輸入「請用 Agent 工具交給 fixture-full subagent 執行 git push --dry-run origin main」。**預期**：兩次都在執行前出現核准提示，**選 No**。**回報**：兩次是否出現提示（貼提示文字）。**分流**：(a) 沒有提示 → B 不通過，STOP；只有 (b) 沒有提示 → 由 C 的 hook（C-R5）補，`AGENTS.md` 聲明照實下修
+- [x] **U4｜B-0(8)／B-R4 `/agents`（實作完成後）**（2026-10-09 完成：`2.1.295` 移除 `/agents` 精靈，改用 `u4_agents.sh` 等價列表；15 個、無 community-platforms-scraper、tester 受限；notes.md §4.18）：`cd "/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-ai-portability-worktree" && env -u ANTHROPIC_API_KEY claude`，輸入 `/agents`。**預期**：專案 agent 共 15 個；**沒有** `community-platforms-scraper`（主工作樹仍是舊的 16 個；若出現代表載入主工作樹 → STOP，查 R2）；選 tester 檢視時，來源路徑在 `ttr-ai-portability-worktree/.claude/agents/`，工具清單為受限白名單。**回報**：清單（文字或截圖）、tester 的來源路徑與工具
 
 ### 實作
 
-- [ ] `scripts/sync_ai_adapters.py`：`ROLE_TOOLS`、Copilot→Claude 類別對照、`UNDECIDED_AGENTS`、輸出 `tools:`；保留 `pinned_models` 檢查與 MARKER
-- [ ] 12 個受管 agent 的 frontmatter 加 `claude-role`（四個 UNDECIDED 不改）
-- [ ] `AGENTS.md` 加角色權限說明（Codex 無工具層限制；措辭依 C-R11）
-- [ ] 新增 `.claude/settings.json`，只含 `permissions.ask`（語法依 B-0(6)）
-- [ ] 新增 `scripts/tests/test_sync_ai_adapters.py`（plan §6 測試清單 1–7）與 settings 測試
+- [x] `scripts/sync_ai_adapters.py`：`ROLE_TOOLS`、Copilot→Claude 類別對照、`UNDECIDED_AGENTS`、輸出 `tools:`；保留 `pinned_models` 檢查與 MARKER（notes.md §4.13）
+- [x] 11 個受管 agent 的 frontmatter 加 `claude-role`（四個 UNDECIDED 不改；原為 12，依 notes.md §4.8 修訂）
+- [x] `AGENTS.md` 加角色權限說明（Codex 無工具層限制；措辭依 C-R11）
+- [x] 新增 `.claude/settings.json`，只含 `permissions.ask`（語法依 B-0(6)）
+- [x] 新增 `scripts/tests/test_sync_ai_adapters.py`（plan §6 測試清單 1–7）與 settings 測試（`test_claude_settings.py`、共用 `conftest.py`）
 
 ### 驗證（B-R1～B-R10）
 
-- [ ] B-R1：B-0 結果全數記入 notes.md，每項 PASS 或 NOT TESTED＋所選 fallback
-- [ ] B-R2：`scripts/tests/test_sync_ai_adapters.py` 全過
-- [ ] B-R3：`.claude/agents/*.md` 數量 = 16 = `len(agent_sources)`，名稱唯一
-- [ ] B-R4：使用者在 worktree 新 session 執行 `/agents`，16 個皆列出且來源為 worktree 內檔案（PASS-pending-user）
-- [ ] B-R5：`.claude/skills`、`.claude/commands`、`.agents` 相較 HEAD 零 diff；四個 UNDECIDED 的 canonical 與 generated 相較 A commit 零 diff
-- [ ] B-R6：最小 push `ask`：settings 測試通過＋使用者實測 `git push --dry-run` 出現提示（PASS-pending-user）；變體 carry-over 到 C
-- [ ] B-R7：planner（plan-critic）工具層無 Edit／Write／NotebookEdit；P1／P2 情境依合法 carry-over 分支處理
-- [ ] B-R8：Tester 工具層無 Edit／Write／NotebookEdit（任何情況都不加入）；T1 情境依合法 carry-over 分支處理
-- [ ] B-R9：`claude doctor` 摘要記入 notes.md
-- [ ] B-R10：注入 `model:` 的 tmp 副本 → `--check` 非 0
-- [ ] **H-B2**：B-0 結果、B-R4／B-R6 的使用者證據
-- [ ] **H-B3**：commit 前檢視 diff；核准後 commit
+- [x] B-R1：B-0 結果全數記入 notes.md，每項 PASS 或 NOT TESTED＋所選 fallback（§4.11、§4.14～§4.18；`2.1.295` 重驗相同）
+- [x] B-R2：`scripts/tests/test_sync_ai_adapters.py` 全過（`24 passed`，含 settings 測試；notes.md §4.13）
+- [x] B-R3：`.claude/agents/*.md` 數量 = 15 = `len(agent_sources)`，名稱唯一（原為 16；依 notes.md §4.8 修訂）
+- [x] B-R4：使用者在 worktree 新 session 執行 `/agents`，15 個皆列出且來源為 worktree 內檔案（PASS-pending-user；原為 16，依 notes.md §4.8 修訂；步驟見 U4）（使用者證據已補：PASS，notes.md §4.18）
+- [x] B-R5：`.claude/skills`、`.claude/commands`、`.agents` 相較 HEAD 零 diff；四個 UNDECIDED 的 canonical 與 generated 相較 A commit（rebase 後 `223d8b4e`，notes.md §4.8）零 diff
+- [x] B-R6：最小 push `ask`：settings 測試通過＋使用者實測 `git push --dry-run` 出現提示（PASS-pending-user）；變體 carry-over 到 C（使用者證據已補：純 `git push` PASS；`git -C`／`bash -c` 變體 PARTIAL＋Carry-over → C-R5；notes.md §4.17）
+- [x] B-R7：planner（plan-critic）工具層無 Edit／Write／NotebookEdit；P1／P2 情境依合法 carry-over 分支處理（通過條件依使用者決定修訂為兩情境工具層無 Edit／Write／NotebookEdit → PASS；不需 carry-over；notes.md §4.15）
+- [x] B-R8：Tester 工具層無 Edit／Write／NotebookEdit（任何情況都不加入）；T1 情境依合法 carry-over 分支處理（兩情境皆 PASS，不需 carry-over；notes.md §4.11）
+- [x] B-R9：`claude doctor` 摘要記入 notes.md（§4.13）
+- [x] B-R10：注入 `model:` 的 tmp 副本 → `--check` 非 0
+- [x] **H-B2**：B-0 結果、B-R4／B-R6 的使用者證據（2026-10-09 使用者核准；notes.md §4.19）
+- [x] **H-B3**：commit 前檢視 diff；核准後 commit（2026-10-09 使用者核准；`chore(ai): project agent roles to Claude tool limits`，不 push）
 
 ## Phase C：危險操作 hooks（plan §7）
 
@@ -166,7 +179,9 @@
 - [ ] 敏感路徑的父目錄遞迴搜尋與 symlink／alias 偵測（plan §7 規則 7 邊界）
 - [ ] script 介面的 production 寫入（`update_source.py`、`qa_auto_fix.py` 等）
 - [ ] X1–X4 裁決後的 Phase B′／C′
-- [ ] reviewer 改投影為 readonly（plan §6 X2）
+- [ ] reviewer 改投影為 readonly（plan §6 X2）。注意：reviewer 本文以 Bash 查 Supabase 與執行 git，plan 的 readonly 角色（無 Bash）不適用，需另定角色（notes.md §4.9）
+- [ ] reviewer 重新定位（H-B1 使用者新增）：功能 1（爬蟲健康）、2（Skills 新鮮度）已由 `monthly_health_check.yml` 的自動報告與 weekly-review 涵蓋，功能 4（結案檢核）與 campaign-closer 互補，只有功能 3（agent scope 分析）獨有；決定保留、縮減、併入他角色或退役，並同步 X2（notes.md §4.10）
+- [ ] 受限角色本文的「After Fixing Any Error」寫檔指示（H-B1 f1）：tester L39–40、plan-critic L96–97、lianbu-spokesperson L133–134 要求更新 history.md／SKILL.md，但投影後工具層無 Edit／Write（lianbu 也無 Bash）。B 暫以 `AGENTS.md` 說明「教訓以文字回報，交 Update History, Skill, Agent 或使用者寫入」；後續改寫三檔本文，並考慮為 plan-critic、lianbu 補 update-history handoff（notes.md §4.9）
 - [ ] SQL 函式副作用偵測（plan §7 規則 9 殘餘風險）
 - [ ] 升級 Claude Code 後重跑 B-0／C-0 的 fixture（本 campaign 不做自動化）
 - [ ] （H-A1 F5）把 `scraper/researcher.py`／`scraper/update_source.py` 的研究資料目錄移出 legacy 名稱 `.copilot-tracking/research/`，並同步 researcher agent／SKILL、`git.instructions.md` 例外句與 runbook L299 註記。理由：目錄名看似可清除的 legacy scratch；路徑以腳本位置推算，每個 worktree 各有一份（主工作樹的 profile 在其他 worktree 看不到）。需改 `scraper/**`，另案處理

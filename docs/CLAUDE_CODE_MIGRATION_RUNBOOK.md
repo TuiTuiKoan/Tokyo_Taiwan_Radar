@@ -407,7 +407,7 @@ hook 發生 false positive 時，先回退該 hook commit 或停用該單一 hoo
 ### 三個 phase 的完成定義
 
 - [x] Phase A legacy active guidance negative search 通過
-- [ ] Phase B agent permission matrix 已投影並有 negative tests
+- [ ] Phase B agent permission matrix 已投影並有 negative tests（部分（X1–X4 延期）：11 個受管 agent 已投影；architect、reviewer、researcher、scraper-expert 未投影）
 - [ ] Phase C destructive command hooks 有 positive／negative tests
 - [ ] adapter generation 與 `--check` 均通過
 - [ ] 所有修改都在 `feat/ai-portability` worktree

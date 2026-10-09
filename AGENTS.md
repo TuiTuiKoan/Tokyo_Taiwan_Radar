@@ -68,6 +68,29 @@ Claude Code 可直接叫用 `.claude/agents` 下的 subagent wrapper。Codex 沒
 - 本機模型的能力可能較弱。涉及正式資料庫寫入、推送到 main、部署這類高風險步驟時，若目前模型無法可靠遵循 agent 規則中的驗證閘門，應停下來請使用者改用較強模型或親自確認。
 - 本政策只涵蓋開發用 agents；網站與爬蟲程式內呼叫的 LLM（`scraper/`、`web/` 中的 `gpt-4o*`）另案規劃，不在此範圍。
 
+## 角色工具限制（Claude Code）
+
+`.github/agents/*.agent.md` frontmatter 的 `claude-role` 是 Claude Code 工具限制的唯一權威。`python3 scripts/sync_ai_adapters.py` 依角色在 `.claude/agents/<kebab>.md` 寫入 `tools:` 白名單；`full` 不寫，繼承全部工具。agent 檔的 Copilot `tools:` 不受影響，只用來做一致性檢查：Claude 白名單的能力類別不得超出 Copilot 宣告的類別。
+
+| `claude-role` | Agent | Claude Code 工具層 |
+| --- | --- | --- |
+| `full` | engineer、designer、history-teller、update-history-skill-agent、peatix-scraper、tcc-scraper | 不限制（繼承全部工具） |
+| `planner` | plan-critic | 禁用 Edit／Write／NotebookEdit；保留 Bash 做唯讀診斷 |
+| `tester` | tester | 禁用 Edit／Write／NotebookEdit；保留 Bash 執行測試 |
+| `vmd` | validate-merge-deploy | 禁用 Edit／Write／NotebookEdit；保留 Bash 執行 git 與驗證 |
+| `closer` | close-campaign-retire-worktree | 禁用 Edit／Write／NotebookEdit，沒有 web 工具；保留 Bash |
+| `readonly` | lianbu-spokesperson | 只有 Read、Grep、Glob、WebFetch |
+| 未投影 | architect、reviewer、researcher、scraper-expert | 權限衝突待裁決（`docs/specs/active/ai-portability/proposal.md` X1–X4），繼承全部工具 |
+
+- 保留 Bash 的角色仍能經 Bash 重導寫入檔案。這是已接受的殘餘風險；上表只表示工具層禁用 Edit／Write／NotebookEdit，不代表沒有寫入能力。
+- 白名單在 `claude --agent <name>` 主執行緒與 subagent 兩種情境都已實測生效（Claude Code `2.1.292`、`2.1.295`，證據見 `docs/specs/active/ai-portability/notes.md`）。升級 Claude Code 後應重跑該實測。
+- macOS 上 Claude Code 預設不提供 Grep／Glob，保留 Bash 的角色改用 Bash 搜尋；白名單中的 Grep、Glob 只對沒有 Bash 的角色生效。
+- tester、plan-critic、lianbu-spokesperson 本文中「修正錯誤後更新 history.md／SKILL.md」的步驟無法以工具層寫檔完成：教訓以文字回報，交 Update History, Skill, Agent 或使用者寫入。
+- plan-critic 不在 Claude Code 的 plan mode 使用：plan mode 送出計畫需要 Write 與 ExitPlanMode，planner 白名單刻意不含這兩者。以一般模式啟動（`claude --agent plan-critic`），讀計畫檔後以文字回傳批評。
+- Codex 沒有依角色的工具限制，只靠各 agent 檔內文的角色規則；需要唯讀時（例如請 Codex 評審計畫），由使用者以 `codex -s read-only` 啟動。VS Code Copilot 依 agent 檔自己的 `tools:` 運作，不讀 `claude-role`。
+- `.claude/settings.json` 的 `permissions.ask`（`Bash(git push:*)`）讓 `git push` 執行前要求核准。這是全專案設定，對所有角色生效（含未投影的四個），在主執行緒、subagent 與 auto mode 下都已實測會觸發；`git -C … push`、`bash -c 'git push …'` 等變體不在涵蓋範圍內。
+- 新增 agent 時必須加 `claude-role`，或列入 `scripts/sync_ai_adapters.py` 的 `UNDECIDED_AGENTS`，否則 `--check` 失敗。
+
 ## Skills wrappers
 
 `.claude/skills`（Claude）與 `.agents/skills`（Codex）都是指向 `.github/skills` 的 pointer wrapper；真正規則仍以 `.github/skills/**/SKILL.md` 與同資料夾補充檔為準。

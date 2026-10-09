@@ -425,3 +425,301 @@ plan §8.2 原則 2：分流沒涵蓋的情況一律 STOP 回報，不臨場加�
 5. 完成後進入 H-B1。
 
 另一選項（不 rebase、以 16 個 agent 做 B、merge-back 時再處理）未採用。
+
+### 4.8 依決定 rebase 與重記 Step 0（2026-10-07，Claude Code `2.1.292`）
+
+| 步驟 | 結果 |
+|---|---|
+| 證據 commit | `3981ee21` docs(ai): record Phase B drift stop and R1 post-test（只含 `notes.md`、`tasks.md`；pre-commit gitleaks `no leaks found`） |
+| rebase 前再 fetch | `git fetch origin` exit 0（`06:25:12Z`）；origin/main 仍為 `67846c183c761350687081774f3435df5e5003aa` |
+| rebase 前工作樹 | `git status --porcelain` 為空 |
+| `git rebase origin/main` | exit 0，4/4 無衝突；之後 `git status --porcelain` 為空 |
+| `git range-diff ed09bece..3981ee21 67846c18..HEAD` | 四個 commit 全為 `=`（patch 內容不變） |
+
+**rebase 後的 SHA 對照**
+
+| commit | 原 SHA | rebase 後 SHA |
+|---|---|---|
+| docs(ai): add Claude Code migration runbook | `565c1479` | `bbcbdf4f4278a3d4d1934ff2d0ffe48411b4b0fd` |
+| docs(ai): add ai-portability spec skeleton | `256e8b9b` | `0eaeef65862eac52dfb8574cbcdb7bd111802635` |
+| chore(ai): remove legacy Copilot state paths（**A commit**） | `ecfb7347` | `223d8b4e4cebd4b829f682ad02857b40a5616d57` |
+| docs(ai): record Phase B drift stop and R1 post-test | `3981ee21` | `15b81475d971b4c1df8bd2ac9e0dad5db3aac539` |
+
+**重記 Step 0（rebase 後）**
+
+| 項目 | 值 |
+|---|---|
+| HEAD | `15b81475d971b4c1df8bd2ac9e0dad5db3aac539` |
+| origin/main（Phase B remote baseline） | `67846c183c761350687081774f3435df5e5003aa` |
+| `git merge-base HEAD origin/main` | `67846c18…`（修訂後的實際 base；`ed09bece` 為歷史 campaign base，依使用者決定修訂裁決 6） |
+| ahead／behind | `4	0` |
+| agent source／wrapper 數 | 15／15 |
+| `plan.md` SHA-256 | `6943c073…7bbc`（不變） |
+
+**rebase 後的一致性檢查**
+
+| 檢查 | 結果 |
+|---|---|
+| `python3 scripts/sync_ai_adapters.py --check`（sync 前） | exit 0 |
+| `python3 scripts/sync_ai_adapters.py` | `generated 160 files`，exit 0；之後 `git status --porcelain` 為空（sync 對 committed 內容為 no-op）。160 = Phase A 的 163 − 1 個 agent wrapper − 2 個 community-platforms skill pointer |
+| 四個 UNDECIDED（canonical＋wrapper）的 A diff | `git diff ecfb7347^ ecfb7347` 與 `git diff 223d8b4e^ 223d8b4e` 的 `git patch-id --stable` 相同（`223c2c16…`）：A 的修改原封不動 |
+| `ecfb7347` → `223d8b4e` 在四檔上的差異 | 只有 `researcher.agent.md`（+2／−1）與 `scraper-expert.agent.md`（−3）；patch-id 與上游 `git diff 2c142c24 origin/main` 在同四檔上的 patch-id 相同（`2492d350…`）：**差異完全來自上游，不是 A 或 B** |
+| `223d8b4e` → HEAD 在四檔上的差異 | 空 |
+| Phase A negative search 對上游變更檔的回歸 | 以 `rg -n -i '/memories\|copilot-tracking\|session memory\|memory tool'` 掃 `2c142c24..origin/main` 新增或修改的 20 檔：命中只有 Phase A 已分類的行（行號位移：`AGENTS.md` 54→53、`researcher.agent.md` 142→143、156→157、`scraper-expert.agent.md` 192→189、`scraper/researcher.py` 339→340），無新命中 |
+
+**Phase B 參數修訂（依使用者決定）**：wrapper 16 → **15**；受管 agent 12 → **11**；full 列的 scraper subagent 3 → **2**（peatix、tcc）；B-R3 為「數量 = 15 = `len(agent_sources)`」；B-R5 擴充的零 diff 基準由 `ecfb7347` 改為 rebase 後的 A commit **`223d8b4e`**。`plan.md` 不改（原樣存檔、SHA 固定），以本段為修訂紀錄。
+
+### 4.9 H-B1 前查證（只查、只記錄，2026-10-07；HEAD `15b81475`）
+
+**角色表與 Copilot 類別子集檢查**（依 plan §6，套用 §4.8 的參數修訂；`claude-role` 尚未加入）
+
+| agent（wrapper 名） | claude-role | 預計 Claude `tools:` | Copilot `tools:` | 類別子集 |
+|---|---|---|---|---|
+| plan-critic | planner | Read, Grep, Glob, WebFetch, WebSearch, Bash, AskUserQuestion（ExitPlanMode 依 B-0(4)） | 未宣告 | 不受判準約束 |
+| tester | tester | Read, Grep, Glob, Bash, WebFetch, WebSearch, AskUserQuestion | `[read, search, execute, web]` | {read, search, execute, web} ⊆ 同集合：PASS |
+| validate-merge-deploy | vmd | Read, Grep, Glob, Bash, WebFetch, WebSearch, AskUserQuestion | `[read, search, execute, web]` | PASS |
+| close-campaign-retire-worktree | closer | Read, Grep, Glob, Bash, AskUserQuestion | `[read, search, execute]` | {read, search, execute} ⊆ 同集合：PASS |
+| lianbu-spokesperson | readonly | Read, Grep, Glob, WebFetch | `read_file, semantic_search, grep_search, fetch_webpage`（舊名） | {read, search, web} ⊆ {read, search, web}：PASS |
+| engineer、designer、history-teller、update-history-skill-agent、peatix-scraper、tcc-scraper | full | 省略（繼承全部） | 未宣告 | 不受判準約束 |
+| architect、reviewer、researcher、scraper-expert | （UNDECIDED，不加） | 不輸出 | 未宣告 | — |
+
+受管 11（planner 1＋tester 1＋vmd 1＋closer 1＋readonly 1＋full 6）＋UNDECIDED 4 = 15。
+
+**消費者查證（F5 型檢查：誰讀 `.github/agents` frontmatter 或 `.claude/agents`）**
+
+`rg -l` 掃 repo（排除 `docs/`、`*.md`）找 `.github/agents`、`agent.md`、`.claude/agents`、`claude-role`、`.claude/settings`：
+
+| 命中 | 用途 | 對 B 的影響 |
+|---|---|---|
+| `scripts/sync_ai_adapters.py` | generator 本身 | B 的修改對象 |
+| `.githooks/pre-commit` (a) | 對 staged `.agent.md`，只在檔內出現 `vscode/getProjectSetupInfo`、`vscode/installExtension`、`execute/runInTerminal` 時，以 regex 移除 frontmatter 的 `tools:` 區塊 | 16 檔目前都沒有這些字樣，不會觸發；不碰 `claude-role`。觸發時的 `\ntools: \[.*?\]\n` 會連 vmd、closer 的 inline `tools:` 一起刪，這是既有行為，與 B 無關 |
+| `web/lib/lianbu-persona.ts` L1 | 註解「規格來源：lianbu agent 檔（兩份需同步更新）」 | 指人格本文同步；只加 frontmatter `claude-role` 不需同步 |
+| `.github/workflows/monthly_health_check.yml` L67、L138 | step summary 文字提到 reviewer 的兩個路徑 | reviewer 不改 |
+| `web/public/202606/normativity-design/index.{zh,en}.html` | 指向 `scraper-expert.agent.md#L20-L24` 的靜態 GitHub 連結 | scraper-expert 不改 |
+| `.gitignore` L39 | `.claude/settings.local.json` | B 新增的 `.claude/settings.json` 不在忽略清單內，可提交 |
+
+`scraper/skill_scanner.py` 只掃 `.github/skills/agents/*/SKILL.md`，不讀 agent 檔。其他 `scraper/*.py`、`scripts/*.py` 對 `.github` 的引用都與 agent frontmatter 無關。沒有其他程式讀 `.claude/agents`。
+
+**受限角色本文的寫檔指示（plan 未涵蓋）**
+
+| agent | 位置 | 內容 | 投影後 |
+|---|---|---|---|
+| tester | L39–40 | 「After Fixing Any Error」：在 `tester/history.md` 頂部加條目、必要時改 `SKILL.md` | 工具層無 Edit／Write；只能經 Bash 重導（C-R11 殘餘風險，且違反 L24「Does NOT write code」的角色意圖） |
+| plan-critic | L96–97 | 同上（`plan-critic/history.md`、`SKILL.md`） | 同上；與 L102「不執行檔案修改工具」本來就衝突 |
+| lianbu-spokesperson | L133–134 | 同上（`lianbu-spokesperson/history.md`、`SKILL.md`） | readonly 沒有 Bash，完全無法寫 |
+
+validate-merge-deploy L128 對 rebase 衝突是「指導用戶解決」，不需要 Edit。closer 的結案寫檔由 C-R7／裁決 12 處理。
+
+**reviewer（X2）工具需求**：本文 L49–57 以 Bash 執行 `python` 查 Supabase（service role），L109–124 執行 `git -C … status`、`/bin/pwd`。plan 角色表的 readonly（Read、Grep、Glob、WebFetch）會讓 reviewer 無法運作；若提前投影，需要的是 tester 型白名單（含 Bash、無 Edit／Write／NotebookEdit），plan 沒有對應的角色。
+
+**其他**
+
+- `.claude/` 在 worktree 只有 `agents`、`commands`、`skills`，沒有任何 settings 檔。主工作樹有 gitignored 的 `.claude/settings.local.json`（156 bytes，未讀內容；只影響在主工作樹啟動的 session）。使用者層 `~/.claude/settings.json` 沒有 `permissions` 鍵（僅 `enabledPlugins`、`extraKnownMarketplaces`、`model`、`modelSettings`、`theme`），沒有放行 `git push` 的 allow 規則。
+- 主工作樹 `.claude/agents` 仍是舊的 16 個 wrapper（含 `community-platforms-scraper.md`），worktree 為 15 個。B-R4 的 `/agents` 若列出 `community-platforms-scraper`，即表示載入了主工作樹的檔案（§8.2 #8：STOP，查 R2）。
+- 本 session 在 auto mode 下執行（Bash 由分類器自動核准）。`permissions.ask` 在 auto mode 下是否仍跳出提示，plan 沒有寫到；B-0(6)／B-R6 的實測需涵蓋使用者平常使用的模式。
+- runbook 的「Phase B agent permission matrix 已投影並有 negative tests」在 Phase A 後位於 **L410**（plan 寫 L404，為 Phase A 前行號）。
+- pytest：`python3 -m pytest --version` → `pytest 9.0.3`（`python3` 為 `/Users/flyingship/development/Tokyo Taiwan Radar/.venv/bin/python3`，Python 3.14.3）。`scripts/tests/` 尚不存在；repo 內 conftest 只在 `scraper/tests/` 與 `.github/skills/session-analytics/tests/`。
+
+### 4.10 H-B1 決定（使用者，2026-10-07；部分）
+
+| 項目 | 決定 |
+|---|---|
+| a. 角色表（§4.9，受管 11＋UNDECIDED 4） | 核准 |
+| b. X2（reviewer 提前投影） | **選項 1：延期**。依裁決 2 不動 reviewer；B-R5 擴充維持四檔零 diff；「reviewer 改投影為 readonly」維持為後續項目（另註：reviewer 本文需要 Bash，plan 的 readonly 角色不適用） |
+| c. `AGENTS.md` 角色工具限制段的措辭 | 核准（新段「角色工具限制（Claude Code）」置於「Skills wrappers」前；最終措辭依 B-0 結果調整，在 H-B3 再呈報） |
+| d. `.claude/settings.json` 內容與 settings 測試位置 | 待決 |
+| e. 使用者實測步驟草案 | 待決 |
+| f1. 受限角色本文的 history.md／SKILL.md 寫檔指示 | 待決 |
+| 「reviewer 去留」是否列後續項目 | 待決（Engineer 於回答使用者提問時提出） |
+
+使用者在決定前詢問了 UNDECIDED 的套用內容、reviewer 現況、B-0(6) 涉及的 agent 與 Claude 術語；Engineer 以唯讀查證回答：`docs/monthly_review/*.md`、`docs/skill_scan/*.md` 皆由 `monthly_health_check.yml` 產生，非 reviewer 輸出；reviewer 沒有 SKILL／history 資料夾；agent 檔最後實質更新 2026-08-11（`0053daa0`）。已安裝版本的 `--permission-mode` 選項為 `acceptEdits`、`auto`、`bypassPermissions`、`manual`、`dontAsk`、`plan`（`claude --help`）。
+
+B-0 spike 只在 session scratchpad 進行、不改 repo 檔案，因此在 d／e／f1 待決期間先執行；結果記入下一段。
+
+### 4.11 B-0 spike 結果（2026-10-07，Claude Code `2.1.292`，模型 `claude-opus-5-5`）
+
+**環境**：disposable fixture 在 session scratchpad `…/scratchpad/b0 spike/`（路徑含空格；不在 worktree 內）：`proj/`（`git init -b main`，一個 commit，`origin` 指向同層的本機 bare repo `remote.git`）、`proj/.claude/agents/fixture-{tester,planner,planner-exit,full,disallow,readonly}.md`、`proj/.claude/settings.json`（每個測試改寫 `permissions`；固定含一個把 PreToolUse stdin 存檔的 logging hook）。所有 `claude` 以 `env -i HOME PATH USER LOGNAME SHELL TERM LANG TMPDIR claude … < /dev/null` 啟動（本 session 會繼承 `CLAUDE_CODE_AGENT=engineer`、`CLAUDE_CODE_CHILD_SESSION=1` 等變數，`env -i` 一併清除；`ANTHROPIC_API_KEY` 亦不傳入），一律 `-p --output-format stream-json --verbose --permission-prompts none`（會跳出提示的動作自動拒絕）。push 一律 `git push --dry-run origin main` 到本機 bare remote；結束時 `git ls-remote remote.git` 為 0 筆。未對本 repo 的 origin 做任何 push。原始輸出在 `b0 spike/out/*.jsonl`、`hooklogs-{main,sub}/`（scratchpad，不進 repo）。
+
+**文件查證（WebFetch，2026-10-07）**：`code.claude.com/docs/en/sub-agents`（frontmatter 欄位）、`/permissions`（規則語法與優先序）、`/tools-reference`（工具名）。
+
+| 項目 | 結果 | 證據 |
+|---|---|---|
+| (1) subagent frontmatter 支援欄位 | **PASS**（`tools`、`disallowedTools` 實測；`permissionMode`、`hooks` 依文件） | 文件列出 `tools`、`disallowedTools`、`model`、`permissionMode`、`maxTurns`、`skills`、`mcpServers`、`hooks`、`memory`、`background`、`omitClaudeMd`、`effort`、`isolation`、`color`、`initialPrompt`、`experimental`；`tools` 可為逗號字串或 YAML list，省略時繼承全部。實測：`fixture-disallow`（`disallowedTools: Write`）的 init 工具清單少了 `Write`、其餘同 full（T0d）。`permissionMode`、`hooks` 欄位 B 不使用，未實測 |
+| (2a) `tools:` 在 `claude --agent` 主執行緒 | **PASS** | init 事件的工具清單：`fixture-tester`、`fixture-planner` 都只有 `Read, Bash, WebFetch, WebSearch`（T0、T0f）；full 有 `Write`、`Edit`、`NotebookEdit` 等（T0c）。實際嘗試（acceptEdits）：tester（T1）、planner（T3）回報 `NO_WRITE_TOOL`、沒有 Write 呼叫、檔案未建立；full 對照組（T2）Write 成功建立 `w_full_main.txt` |
+| (2b) `tools:` 在 subagent | **PASS**（證據為 subagent 自述＋無 Write 呼叫＋檔案不存在＋對照組） | 主 session 以 Agent 工具呼叫：tester（T4）、planner（T6）的 subagent 事件中沒有 Write 呼叫，自述工具為 `Read, Bash, WebFetch, WebSearch`，`w_tester_sub.txt`、`w_planner_sub.txt` 不存在；full 對照組（T5）subagent 呼叫 Write 成功。subagent 沒有 init 工具清單可看，這是本項證據的限制 |
+| (3a) hook stdin，`--agent` 主執行緒 | **可辨識** | `agent_type` = 角色名（`fixture-tester`／`fixture-full`／`fixture-planner`），**沒有** `agent_id`（hooklogs-main，4 筆） |
+| (3b) hook stdin，subagent | **可辨識** | subagent 內的呼叫有 `agent_type`（角色名）＋`agent_id`（如 `a43ead5bb2ae1f56f`）；主 session（未帶 `--agent`）的呼叫兩者皆無（hooklogs-sub，7 筆）。`CLAUDE_PROJECT_DIR` 解析為 fixture 的 `proj`（含空格路徑）。C-0(3) 仍須在 C 正式實測 |
+| (4) plan mode 相容性 | **NOT TESTED**（交使用者互動實測） | `-p --permission-mode plan` 時 init 工具清單**沒有** `ExitPlanMode`（planner、planner-exit、full 皆然：T0h–T0j），非互動模式無法驗證；依 plan §8.2 #5 交使用者 |
+| (5) Copilot 對 `claude-role` | **NOT TESTED**（交使用者） | — |
+| (6) `permissions.ask` 語法 | **PASS：兩種都有效** | 文件：`:*` 與尾端 ` *` 等價、對話框寫空白形式。實測（allow 由 `--settings` 給、ask 放 project settings）：`Bash(git push:*)`（Q2）、`Bash(git push *)`（Q3）都讓原本會執行的 push 變成「需要核准」 |
+| (6) 優先序 deny > ask > allow | **PASS** | 對照組 Q1（只有 allow）push 實際執行；Q2／Q3（allow＋ask）→ 需要核准；Q9（allow＋ask＋deny）→ `Permission to use Bash with command … has been denied.`（與 ask 的「requires approval」訊息不同）。與文件「Rules are evaluated in order: deny, then ask, then allow」一致 |
+| (6) subagent 內的 Bash 是否受專案 permissions 約束 | **PASS：受約束** | 對照組 Q5（只有 allow）subagent 的 push 實際執行；Q4（allow＋project ask）subagent 的 push → 需要核准、未執行 |
+| (6) `--agent` 主執行緒 | **PASS** | Q6（allow＋ask，`--agent fixture-full`）→ 需要核准 |
+| (6) auto mode | **ask 在 auto mode 下仍要求核准** | Q8（auto，無任何規則）與 Q8b（auto，只有 allow）：`git push --dry-run` 由分類器放行、**沒有提示**直接執行；Q7（auto＋allow＋project ask）→ 需要核准。即使用者日常的 auto mode 下，B 的 ask 規則是 push 前唯一的提示來源 |
+| (6) push 變體（auto＋project ask，V1） | **PARTIAL（如 plan 預期）** | `X=1 git push …`、`env X=1 git push …` → 需要核准（後者是 ask 規則或 auto 分類器所致，本測試無法區分）；**`git -C . push …`、`bash -c "git push …"` → 直接執行**（與文件「What a Bash rule doesn't match」一致）。依 plan 合法 carry-over 表，變體由 C-R5 處理 |
+| (7) fallback | 目前不需要 | (2)(3)(6) 皆已證實；(4)(5) 待使用者 |
+| (8) `/agents` 來源路徑 | **NOT TESTED**（交使用者，B-R4） | — |
+
+**計畫未涵蓋的觀察**
+
+1. **Grep、Glob 在 macOS 預設不存在**（文件 tools-reference：「On macOS, Linux, and WSL, Claude Code leaves Glob and Grep out of the default tool set, and Claude searches with `find` and `grep` through the Bash tool instead」）。只有在 `tools:` 列了它們**且沒有 Bash** 時才會出現。實測：保留 Bash 的 tester／planner 投影中，`Grep`、`Glob` 被靜默略過（搜尋改經 Bash）；readonly（`Read, Grep, Glob, WebFetch`，無 Bash）的 init 清單為 `Read, WebFetch, Grep, Glob`（T0g）。結論：plan 的白名單照列 `Grep`、`Glob` 無害，且對 lianbu 是必要的；Copilot「search」類別的對照仍成立。
+2. **`AskUserQuestion` 在 `-p` 模式的工具清單中不存在**（含 full）。推測是非互動模式不提供；互動模式（本 session）有此工具。白名單照列。
+3. **未信任的 workspace 會忽略 project settings 的 `allow`**（`Ignoring 1 permissions.allow entry from .claude/settings.json: this workspace has not been trusted …`），但 project 的 `ask`／`deny` 照常生效（Q2–Q4、Q9）。B 只用 `ask`，不受影響。
+4. **`.claude/settings.local.json` 從 git 主 checkout 載入**（文件：「resolved through worktrees to the main checkout」），所以主工作樹的 `.claude/settings.local.json` 也作用於本 worktree 的 session。其內容只有兩條與 push 無關的 allow（`Bash(shasum -a 256 ~/.ai-notes/ttr/plan-rev6.md)`、`Read(//Users/flyingship/.ai-notes/ttr/**)`）；且 ask 優先於 allow，不影響 B 的 push 閘門。
+5. 第一次 P1–P3（allow 放在 project settings）因第 3 點而無效，已以 Q1–Q3 重做；P1–P3 輸出保留在 scratchpad 但不作為證據。
+
+**對 B 的 Required 的影響**
+
+- B-R7（planner）：(2a)(2b) PASS；仍待 B-0(4) 才能判定 PASS 或 P2。
+- B-R8（tester）：(2a)(2b) 兩情境 PASS → 不需 T1 carry-over。
+- B-R6：ask 規則在主執行緒、`--agent`、subagent、auto mode 都會要求核准（`-p` 以自動拒絕呈現）；互動提示是否真的出現仍待使用者實測。變體 carry-over 到 C-R5。
+- C-R9 的前置（B-0(3)）：兩情境都可辨識；C-0(3) 仍為正式實測。
+
+**使用者實測用 fixture**（scratchpad `…/scratchpad/b0 user fixture/`，路徑含空格）：`proj/`（`git init -b main`、commit `37d8848`、`origin` = 同層 bare `remote.git`）；`proj/.claude/settings.json` 內容與 B 預定提交的相同（只有 `permissions.ask: ["Bash(git push:*)"]`，無 hooks）；`proj/.claude/agents/fixture-{full,planner,planner-exit}.md`；`proj/.github/agents/fixture-tester.agent.md`（含 `claude-role: tester` 與 Copilot `tools: [read, search, execute, web]`，供 B-0(5)）。
+
+### 4.12 H-B1 決定（使用者，2026-10-07；完成）
+
+接續 §4.10：
+
+| 項目 | 決定 |
+|---|---|
+| d. `.claude/settings.json` 內容與 settings 測試位置 | 核准：`{"permissions": {"ask": ["Bash(git push:*)"]}}`（B-0(6) 已證實此語法有效）；測試放 `scripts/tests/test_claude_settings.py` |
+| e. 使用者實測步驟 | 核准：寫入 `tasks.md`（B-0(4)、B-0(5)、B-R6 使用 §4.11 的使用者 fixture；B-R4 在實作後於 worktree 執行） |
+| f1. 受限角色本文的 history.md／SKILL.md 寫檔指示 | 採建議：B 不改 agent 本文；教訓以文字回報，交 Update History, Skill, Agent 或使用者寫入；`AGENTS.md` 角色工具限制段加一句說明；列入 `tasks.md` 後續項目 |
+| reviewer 去留 | 列入 `tasks.md` 後續項目（reviewer 重新定位） |
+
+H-B1 完成，開始實作。
+
+### 4.13 Phase B 實作與驗證（2026-10-07，Claude Code `2.1.292`；未 commit）
+
+**實作**
+
+| 檔案 | 變更 |
+|---|---|
+| `scripts/sync_ai_adapters.py` | 新增 `ROLE_TOOLS`、`UNDECIDED_AGENTS`、`COPILOT_TOOL_CATEGORIES`、`CLAUDE_TOOL_CATEGORIES`、`GENERIC_CLAUDE_TOOLS`、`copilot_tools()`、`role_problems()`；`agent_outputs()` 對有白名單的角色在 wrapper frontmatter 加 `tools:` 一行；`main()` 在 `--check` 時把 role 問題算入失敗，寫入模式遇到 role 問題時不寫檔、exit 1。保留 MARKER、`pinned_models()` 與既有函式，沒有第二套 generator |
+| 11 個受管 agent | frontmatter 只在 `description:` 下一行新增 `claude-role`（planner：plan-critic；tester；vmd；closer；readonly：lianbu；full：engineer、designer、history-teller、update-history、scraper-peatix、scraper-tcc） |
+| `.claude/agents/` | 5 個受限 wrapper 各多一行 `tools:`；full 與 UNDECIDED 的 wrapper 不變 |
+| `AGENTS.md` | 新段「角色工具限制（Claude Code）」（H-B1 c 核准的措辭，含 f1 的說明句；放在「Skills wrappers」前） |
+| `.claude/settings.json` | 新增，內容只有 `{"permissions": {"ask": ["Bash(git push:*)"]}}` |
+| `scripts/tests/conftest.py`、`test_sync_ai_adapters.py`、`test_claude_settings.py` | 新增 |
+| `docs/CLAUDE_CODE_MIGRATION_RUNBOOK.md` L410 | 不勾選，加註「部分（X1–X4 延期）：11 個受管 agent 已投影；…未投影」 |
+
+plan 文字以外的兩個實作細節（H-B3 呈報）：(1) 在 `UNDECIDED_AGENTS` 的 agent 若被加了 `claude-role`，`--check` 失敗（避免常數與 frontmatter 不一致）；(2) sync 寫入模式遇到 role 問題時不寫檔（避免把設定錯誤的 agent 寫成繼承全部工具的 wrapper）。
+
+**驗證**
+
+| ID | 狀態 | 證據 |
+|---|---|---|
+| 加 role 前的負向證據 | — | 只改 generator、尚未加 `claude-role` 時，`--check` exit 1，列出恰好 11 行 `missing claude-role …`，四個 UNDECIDED 不在其中 |
+| frontmatter-diff（11 檔） | PASS | 以 `parse_frontmatter` 比較 HEAD 與工作版：每檔只多 `claude-role`，其他 key 無增減、無改值，本文 bytes 相同（`fm_diff_b.py`，scratchpad） |
+| pre-commit (a) | 不會觸發 | 變更的 `.agent.md` 皆不含 `vscode/getProjectSetupInfo`、`vscode/installExtension`、`execute/runInTerminal` |
+| sync／`--check` | PASS | `generated 160 files`、`--check` exit 0；連跑兩次 sync，`.claude/{agents,commands,skills}`＋`.agents/skills` 全檔 sha256 摘要相同（`25ab2b3e…`） |
+| B-R1 | 待使用者 | (1)(2)(3)(6) 已記錄（§4.11）；(4)(5)(8) 為 NOT TESTED，分流已定（`tasks.md` U1、U2、U4） |
+| B-R2 | **PASS** | `python3 -m pytest scripts/tests -q` → `24 passed`（pytest 9.0.3）。涵蓋 plan §6 測試 1–7：角色投影、未知 role、缺 role、UNDECIDED 加 role、寫入模式拒寫；tester 投影加 Write → `--check` 失敗（R4-3 負向）、planner 加 Write（fallback-P）→ 通過；full 套在有 Copilot `tools:` 的 agent → 失敗；未知 Copilot token → 失敗並指出 token；lianbu 舊名對照；注入 `model:` → 失敗；手改 wrapper → `changed`；冪等＋stale MARKER 檔移除＋非生成檔不動；wrapper 數 15、名稱唯一；settings 測試 5 項 |
+| B-R3 | **PASS** | `agent_sources` 15、`agent_outputs` 15、磁碟上 wrapper 15、名稱唯一 |
+| B-R4 | PASS-pending-user | U4 |
+| B-R5 | **PASS** | `git diff --stat -- .agents .claude/skills .claude/commands` 為空、其下無未追蹤檔；`git diff --exit-code 223d8b4e -- `四個 UNDECIDED 的 canonical 與 wrapper → exit 0 |
+| B-R6 | PASS-pending-user | settings 測試 PASS；B-0(6) 已證實規則在主執行緒、subagent、auto mode 都會觸發（§4.11）；互動提示待 U3。變體 carry-over 到 C-R5 |
+| B-R7 | 待使用者（U1） | (2a)(2b) PASS；B-0(4) 決定 PASS 或 P2 |
+| B-R8 | **PASS** | B-0(2a)(2b) 兩情境 tester 均無 Write；投影不含 Edit／Write／NotebookEdit（測試鎖定） |
+| B-R9 | **PASS（已記錄）** | `claude doctor`（worktree，`env -i`）：`Running: native (2.1.292)`、`Search: OK (bundled)`、`No installation issues found.`。CLI doctor 不驗證 settings 內容；settings 的有效性由 B-0(6) 與 U3 佐證 |
+| B-R10 | **PASS** | scratchpad 副本 baseline `--check` exit 0；在 tester frontmatter 注入 `model: claude-sonnet-4-5` 後 `--check` 印出 `pinned model .github/agents/tester.agent.md:5: …`，exit 1 |
+| `git diff --check` | PASS | exit 0；4 個新檔以 `git diff --no-index --check` 檢查無問題 |
+| diff 路徑 ⊆ Allowed paths | PASS | 25 個路徑（21 修改＋4 新增）全部落在 proposal.md Allowed paths（含 `scripts/tests/`） |
+| gitleaks | PASS | `git diff HEAD`＋新檔內容經 `gitleaks stdin --redact -c .gitleaks.toml`（8.30.1）：`no leaks found` |
+
+### 4.14 使用者實測 U1｜B-0(4) plan mode（2026-10-09，Claude Code `2.1.292`）
+
+使用者在新終端機、使用者 fixture（`b0 user fixture/proj`）中執行，依 `tasks.md` U1。Engineer 另以唯讀方式讀取兩次的 session transcript（`~/.claude/projects/-private-tmp-…-b0-user-fixture-proj/{d19ac63c…,23d5579f…}.jsonl`）判定。
+
+| 輪次 | agent（白名單差異） | 工具呼叫 | 結果 | `ls -lt ~/.claude/plans \| head -3` |
+|---|---|---|---|---|
+| 1 | `fixture-planner`（無 Write、無 ExitPlanMode） | 只有一次 Bash（`ls -la; cat -A hello.txt`） | **無法提交**：模型回覆「這次對話沒有提供 Write 和 ExitPlanMode 工具。所以我沒辦法把計畫寫進 `/Users/flyingship/.claude/plans/hello-txt-world-typed-pnueli.md`，也沒辦法正式提交核准」，改以文字列出計畫。未出現核准提示（使用者描述「計劃成功」指的是文字計畫） | 無新檔（最新仍為 Oct 4 的兩個檔） |
+| 2 | `fixture-planner-exit`（無 Write、有 ExitPlanMode） | 只有一次 Bash | **無法提交**：「計畫模式要求先把計畫寫進 `/Users/flyingship/.claude/plans/hello-txt-world-cached-sky.md`，再呼叫 ExitPlanMode，而這次工作階段裡沒有可以寫檔的 Write 工具」。未出現核准提示 | 無新檔 |
+
+兩輪都沒有改用 Bash 寫檔，也沒有修改 fixture 的任何檔案。
+
+**判定：B-0(4) 不相容**。在此版本，plan mode 的提交流程需要 **Write**（把計畫寫入 `~/.claude/plans/<name>.md`）**與 ExitPlanMode**（兩者都必須在白名單中；未列出時 ExitPlanMode 不提供）。依 plan §6 B-0(4) 與 §8.2 #5 的分流：「不行 → fallback-P＋C-R10 planner 分支」，即 B-R7 落入 **P2**。
+
+**計畫未涵蓋的觀察**：runbook 只以 `--permission-mode plan` 啟動 Architect（L66–67、L542–543；Architect 是 UNDECIDED，繼承全部工具，不受影響）；沒有任何文件以 plan mode 啟動 plan-critic，plan-critic 的產出依裁決 1 以文字回傳。兩輪中模型仍以文字完整產出計畫，只是無法走正式核准流程。是否仍照 plan 套用 fallback-P，交使用者決定（H-B2）。
+
+### 4.15 H-B2 中途決定：plan-critic 與 plan mode（使用者，2026-10-09）
+
+使用者詢問 plan mode 是否為 Claude 專屬、以及如何用 GPT 評審計畫。Engineer 依本 campaign 實際做法回答（第 2～6 輪評審皆由 GPT／Codex 以 `codex exec -s read-only -C <worktree> -o ~/.ai-notes/ttr/critique-N-codex.md -` 讀計畫檔產出，見 `~/.ai-notes/ttr/critique-6-prompt.md`），結論是跨模型評審不使用 Claude 的 plan mode（`~/.claude/plans/` 為工具私有、非權威）。
+
+**決定**
+
+| 項目 | 決定 |
+|---|---|
+| B-0(4) 不相容的處理 | **選項 2（修訂計畫，不採 plan §6 的 fallback-P）**：plan-critic 不在 plan mode 使用；planner 白名單維持 `Read, Grep, Glob, WebFetch, WebSearch, Bash, AskUserQuestion`，不加 Write、不加 ExitPlanMode |
+| B-R7 通過條件 | 修訂為「plan-critic 在 `claude --agent` 主執行緒與 subagent 兩情境，工具層都沒有 Edit／Write／NotebookEdit」；原條件中的「B-0(4) 證實 plan mode 不含 Write 仍可寫私有 plan」移除。依 §4.11 B-0(2a)(2b) → **PASS**。不需 P1／P2 carry-over，C 的 C-R10 planner 分支不再是 Required（C-R9 仍依 plan） |
+| `AGENTS.md` | 角色工具限制段新增「plan-critic 不在 Claude Code 的 plan mode 使用…以一般模式啟動（`claude --agent plan-critic`），讀計畫檔後以文字回傳批評」 |
+| `AGENTS.md` 的 Codex 措辭 | 由「Codex 沒有工具層限制」改為「Codex 沒有依角色的工具限制，只靠各 agent 檔內文的角色規則；需要唯讀時（例如請 Codex 評審計畫），由使用者以 `codex -s read-only` 啟動」（Engineer 發現原句不精確：Codex 可在啟動時設唯讀 sandbox） |
+
+`plan.md` 不改（原樣存檔），以本段為修訂紀錄。runbook L339「planner 角色以 Write／Edit 在 repo 內建立檔案時被拒絕（plan mode 私有 plan 檔不計…）」與本決定一致，不需修改。
+
+### 4.16 使用者實測 U2｜B-0(5) Copilot 對 `claude-role` 的反應（2026-10-09，VS Code `1.139.1`）
+
+| 步驟 | 結果 |
+|---|---|
+| 以 VS Code 開啟使用者 fixture `proj` | 一開始 agent 選單看不到「Fixture Tester」 |
+| 排查 | repo、主工作樹與使用者層的 VS Code 設定都沒有改變 agent 檔探索位置的 chat 設定（預設 `.github/agents`）。Engineer 在 fixture 加入對照組 `fixture-control.agent.md`（與 Fixture Tester 相同，只少 `claude-role`） |
+| 信任資料夾（離開 Restricted Mode）＋ `Developer: Reload Window` | agent 選單**同時出現** Fixture Tester 與 Fixture Control → 一開始看不到是受限模式／未重新載入所致，與 `claude-role` 無關 |
+| 選 Fixture Tester，輸入「你好」 | **有回覆**（送出前跳出模型登入畫面，使用者處理後送出） |
+| `claude-role` 行的編輯器診斷（警告文字） | 使用者未回報（資訊性） |
+
+**判定：B-0(5) PASS**。Copilot 對未知欄位 `claude-role` 不會拒絕載入或執行 agent；依 plan §8.2 #6 分流「只警告 → 照計畫」，角色表維持在 agent frontmatter，不需改放 sync script。
+
+補記（U2）：Fixture Tester 的回覆原文為「你好，我是 Fixture Tester。」，確認是以該 agent 檔的設定執行。使用者打開 `fixture-tester.agent.md` 後貼出 `claude-role: tester`、`tools: [read, search, execute, web]` 兩行，未提及波浪線或警告訊息。
+
+### 4.17 使用者實測 U3｜B-R6 push 閘門（2026-10-09，Claude Code `2.1.292`，auto mode）
+
+使用者在終端機以 `env -u ANTHROPIC_API_KEY claude --agent fixture-full --permission-mode auto` 於使用者 fixture 執行，回報 (a)(b) 都跳出核准提示、都選 No。Engineer 讀取 session transcript 佐證（`…-b0-user-fixture-proj/26d8abb8-3a2b-479b-86f6-b759bb09c8d4.jsonl` 與 `26d8abb8…/subagents/agent-adde86ac214d84c6f.jsonl`）：
+
+| 情境 | transcript 證據 | 結果 |
+|---|---|---|
+| (a) 主執行緒（`--agent fixture-full`，auto mode） | Bash `git push --dry-run origin main` → `The user doesn't want to proceed with this tool use. The tool use was rejected …`，接著 `[Request interrupted by user for tool use]` | **出現提示，使用者拒絕**，push 未執行 |
+| (b) subagent（主 session 以 Agent 工具交給 `fixture-full`；meta：`spawnDepth: 1`、`requestShape: background`） | subagent 的 Bash 為複合指令 `cd "<fixture>" && git push --dry-run origin main; echo "EXIT_STATUS=$?"` → `Permission for this tool use was denied. The tool use was rejected …`；subagent 以 SubagentHandback 回報未執行 | **出現提示，使用者拒絕**，push 未執行；ask 規則對複合指令中的 `git push` 段同樣生效 |
+| 遠端狀態 | `git ls-remote remote.git` → 0 筆 | 沒有任何 push |
+
+**判定：B-R6 的使用者證據已補齊**。純 `git push` 的核准提示在 auto mode 下的主執行緒與 subagent 都會出現 → PASS；`git -C … push`、`bash -c 'git push …'` 等變體依 plan 合法 carry-over 表由 C-R5 處理（B-0(6) V1 已證實這兩種變體會繞過）。`AGENTS.md`「在主執行緒、subagent 與 auto mode 下都已實測會觸發」的聲明與此一致，不需下修。
+
+另：同目錄的 `db1e33fb-324c-46f3-ab64-36228d41fe06.jsonl`（11:07）是另一次 plan mode 執行（推測為 `fixture-planner` 重做），結果與 §4.14 第 1 輪相同（無 Write、無 ExitPlanMode，無法提交，未寫檔），不改變判定。
+
+### 4.18 使用者實測 U4｜B-0(8)／B-R4，與 Claude Code 升級後重驗（2026-10-09）
+
+**U4**：Claude Code `2.1.295` 已移除 `/agents` 精靈（輸入後顯示「The /agents wizard has been removed.」，並指向 `.claude/agents/` 與 `~/.claude/agents/`）；`claude agents` 子命令管理的是背景 session，不是 agent 定義。依 plan B-R4「`/agents`（或等價列表）」，改用等價列表：Engineer 提供 scratchpad 腳本 `u4/u4_agents.sh`（`bash -n`、shellcheck 通過；只讀，不改 worktree），使用者在新終端機執行。腳本在 worktree 啟動兩個新的 `-p` session，讀 init 事件：
+
+| 檢查 | 結果 |
+|---|---|
+| session cwd | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-ai-portability-worktree`（版本 `2.1.295`） |
+| 載入的專案 agent | **15 個**：architect、close-campaign-retire-worktree、designer、engineer、history-teller、lianbu-spokesperson、peatix-scraper、plan-critic、researcher、reviewer、scraper-expert、tcc-scraper、tester、update-history-skill-agent、validate-merge-deploy |
+| worktree wrapper 全數載入 | True（worktree 15 個；主工作樹 16 個） |
+| `community-platforms-scraper`（只存在主工作樹） | **未載入** |
+| `--agent tester` 的工具 | `Read, Bash, WebFetch, WebSearch`（無 Edit／Write／NotebookEdit）。主工作樹的舊 tester wrapper 沒有 `tools:`，若載入主樹會得到全部工具 → 證實載入的是 worktree 檔 |
+
+Engineer 以同一份 `u4_report.py` 重讀 scratchpad 的 `list.jsonl`、`tester.jsonl`，結果相同。**判定：B-0(8)／B-R4 PASS**（R2 風險未出現）。
+
+**版本變動**：B-0 spike（§4.11）在 `2.1.292`（2026-10-07）執行；U1～U4 的 transcript 與 init 事件皆為 `2.1.295`（2026-10-09，自動更新）。依 plan §8.2 原則 6，Engineer 在 commit 前以 `2.1.295` 重跑 B-0 的關鍵項目（scratchpad `b0 spike/out-2.1.295/`，同一套 `env -i` 啟動方式）：
+
+| 項目 | `2.1.295` 結果 | 與 `2.1.292` 比較 |
+|---|---|---|
+| (2a) 主執行緒：tester（R-T1）、planner（R-T3） | init 工具皆為 `Read, Bash, WebFetch, WebSearch`（planner 順序不同），無 Write 呼叫、檔案未建立；full 對照組（R-T2）Write 成功 | 相同 |
+| (2b) subagent：tester（R-T4）、planner（R-T6） | 無 Write 呼叫、檔案未建立；full 對照組（R-T5）subagent Write 成功 | 相同 |
+| (6) 對照組 | R-Q1（只有 allow，主執行緒）、R-Q5（只有 allow，subagent）、R-Q8（auto mode、無規則）：push 皆實際執行 | 相同 |
+| (6) project ask | R-Q2（主執行緒）、R-Q4（subagent）、R-Q7（auto mode）：皆「requires approval」，未執行 | 相同 |
+| (6) 變體（auto＋ask，R-V1） | `X=1 git push`、`env X=1 git push` → 需要核准；`git -C . push`、`bash -c "git push"` → 直接執行 | 相同 |
+| 遠端 | `git ls-remote remote.git` → 0 筆 | — |
+
+(3) hook stdin 未重跑（屬 C-0(3) 的正式實測範圍）。`AGENTS.md` 的實測版本改寫為「`2.1.292`、`2.1.295`」。
+
+### 4.19 H-B2／H-B3（使用者，2026-10-09）
+
+| 核准點 | 決定 |
+|---|---|
+| H-B2（B-0 結果、B-R4／B-R6 使用者證據） | 核准 |
+| H-B3（commit 前 diff） | 核准 commit（`chore(ai): project agent roles to Claude tool limits`，不 push） |
+
+commit 前的最終檢查（`2.1.295`）：origin/main 重新 fetch 後仍為 `67846c18`，與 Phase B 路徑無新重疊；sync 後 `--check` exit 0；`24 passed`；B-R5 指標零 diff、四個 UNDECIDED 相較 `223d8b4e` exit 0；11 檔 frontmatter-diff 0 失敗；`git diff --check` exit 0；gitleaks `no leaks found`；變更路徑全部在 Allowed paths 內。diff：21 個檔案修改（+472／−27，含本 notes 與 tasks）、4 個新檔（`.claude/settings.json`、`scripts/tests/{conftest,test_claude_settings,test_sync_ai_adapters}.py`）。
+
+**Phase B 狀態**：B-R1～B-R10 皆 PASS；B-R6 的 push 變體（`git -C … push`、`bash -c 'git push …'`）依合法 carry-over 表記為 PARTIAL＋Carry-over → C-R5。B-R7（依 §4.15 修訂條件）、B-R8 均為 PASS，不產生 C-R10 carry-over。runbook L410 不勾選，已加註「部分（X1–X4 延期）」。

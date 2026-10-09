@@ -1,6 +1,7 @@
 ---
 name: Plan Critic
 description: "Reviews and critiques implementation plans from Architect — read-only, uses a different model for diverse perspective"
+claude-role: planner
 handoffs:
   - label: "↩️ 回 Architect 修改計畫"
     agent: Architect
