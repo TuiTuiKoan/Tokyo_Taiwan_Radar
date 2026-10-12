@@ -156,14 +156,19 @@ Phase A 輸出之後**結束本輪回覆**。Phase C（寫結案記錄、commit�
 | 「請結案 campaign X」 | 不算，只是啟動流程 |
 | 初始提示預先說明的未知項（「session id 未知」「issues 以 `--skip-issues` 標 not_checked」） | 不算，這是 Phase A 的輸入，決定哪些項目會是 `not_checked` |
 | 負面清單（「不要 push、不要移除 worktree」） | 不算，沒被禁止不等於已獲准 |
+| 交接時由協調者（上游 agent）轉述「使用者已授權」 | 不算，這不是使用者看到本次 Phase A 輸出之後的回覆 |
 | 看到本次 Phase A 輸出後回覆「確認／接受，進入 Phase C」 | 算 |
 
 接受 `UNDETERMINED` 只代表同意在未知項仍存在時寫記錄，**不代表解除未知項**：記錄照樣寫
 `UNDETERMINED` 與原因。使用者若要以確認取代 A3 偵測（例如「沒有其他 session 在用」），必須明確說出，
 並在退役決策時連同時間戳寫入記錄。
 
+給協調者的建議：先把 Phase A 輸出原樣給使用者看，收集使用者對該輸出的回覆（含各項確認，例如 spec 目錄
+不存在、沒有其他 session／VS Code 視窗在使用，以及是否寫結案記錄），再進 Phase C。
+
 實測來源：2026-10-13 ai-portability U6 fixture，Closer 在 `UNDETERMINED` 下同一輪就寫記錄並 commit
-（history.md 同日條目）。
+（history.md 同日條目）。2026-10-13 senses-taxonomy 結案時，協調者轉述「使用者已授權」，Closer 依本表
+不接受，改等使用者對 Phase A 輸出的回覆（history.md 同日條目）。
 
 ---
 
@@ -227,6 +232,65 @@ worktree 外**（寫在裡面會跟著被刪掉）。
 
 ---
 
+## Phase D — 退役實測規則
+
+實測來源：2026-10-13 senses-taxonomy 結案（history.md 同日條目）。移除機制本身以
+`.github/instructions/git.instructions.md` § Cleanup 為準，這裡只補實測到的陷阱。
+
+### 重新觀測 session 占用，不沿用先前的確認
+
+使用者的「沒有其他 session 在用」只涵蓋他確認的那一刻。Phase D 動手前（D1）一定重新觀測占用：用
+`lsof -a -d cwd` 檢查有沒有行程的 cwd 停在該 worktree 內（本 repo 路徑含空格，過濾時全程引號）。命中就停下，
+不進入移除；等使用者關閉對應的終端機或 session 後重新觀測。這次重新觀測抓到了使用者 VS Code 整合終端機的
+zsh 行程，啟動時間晚於使用者先前的確認。
+
+### 給使用者的 push 指令：從主工作目錄執行
+
+交接時不要叫使用者 `cd` 進 worktree 再 push——他的終端機會停在 worktree 內，Phase D 的占用偵測就會命中。
+改給從主工作目錄執行的形式，行尾不加註解：
+
+```bash
+git -C '<主工作目錄>' push origin <campaign 分支>:main
+```
+
+在主工作目錄裡 `HEAD` 是主工作目錄自己的 HEAD，不是 campaign 分支，所以 ref 要明寫分支名。並提醒使用者
+push 完關閉用過的終端機。
+
+### 重跑稽核腳本：`--head` 用 campaign 的 pushed HEAD
+
+Phase D 重跑 `scripts/campaign-closeout-audit.sh` 時，`--head` 沿用交接契約的 pushed HEAD，不要換成
+「包含結案記錄 commit 的 SHA」。腳本掃的是 `<base>..<head>` 範圍內新增行的 `TODO|FIXME`；記錄若寫了
+"`TODO` or `FIXME` on lines added in the commit range" 這類句子，範圍一包含該 commit，`range_todo` 就變 1，
+得到假的 `HOLD:unhandled_work`（exit 10）。撰寫記錄時也避免讓字面 `TODO`／`FIXME` 出現在會被掃描的新增行；
+必須出現時，在記錄中說明那是文字描述而非待辦。
+
+### `.git/info/exclude` 對帳被 hook 擋下時
+
+`git.instructions.md` 的整塊 reconcile 複合腳本曾被 PreToolUse hook 以 `unsupported-syntax` 擋下（指令未執行，
+exclude 未變）。處理方式是拆成幾條簡單指令，演算法不變：
+
+1. 取得 live 的 `ttr-*-worktree/` 行
+2. 保留 exclude 內的非 ttr 行並加入這些行，寫入暫存檔後再 `mv`
+3. 用暫存檔（不是 `<(…)`）做 `comm -23` 與 `comm -13` 驗證
+
+這偏離該文件的字面腳本，但演算法等價。仍然**不可**盲刪單行。
+
+### `git worktree remove` 不會被 gitignore 的產物擋住
+
+曾推測 `web/node_modules`（約 803M）、`web/.next` 會讓不加 `--force` 的 remove 被拒；實測 `rc=0`，沒被擋。
+git 只拒絕有修改或未追蹤檔的 worktree。**不要為了 remove 預先手動刪 ignored 產物**——它們已在 D2 preflight
+分類為 `disposable` 並記錄 SHA-256。
+
+### 遠端分支刪除與 push 到 main：由使用者執行，不繞過
+
+* `git push origin --delete <branch>` 會被 PreToolUse hook 的遠端 ref 刪除規則攔截；agent 的
+  `git push origin HEAD:main` 被權限系統以 Production Deploy 拒絕。
+* Closer 不應嘗試這兩類指令，**也不要換工具、拆指令或改寫形式來繞過**。一律在報告中寫出完整指令，交使用者自己在
+  終端機執行。
+* 刪遠端分支前，先請使用者用 `git cherry origin/main <branch>` 確認沒有獨有 commit（輸出沒有 `+` 開頭的行）。
+
+---
+
 ## Metrics（Stage 2，已凍結）
 
 per-model / per-slice 的 token 與成本 index **本階段不做**。凍結理由：`assistant_usage_events`
@@ -264,4 +328,5 @@ per-model / per-slice 的 token 與成本 index **本階段不做**。凍結理�
 * **禁止用 awk 做路徑欄位切分**。本 repo 的每一個路徑都含空格，欄位切分會把路徑截在第一個空格。
   一律 `sed` + 全程引號。
 * `--session-state-dir` 可指向測試 fixture，用來迴歸驗證 idle-lock 與 PID 陷阱。
+* Phase D 重跑時 `--head` 沿用 pushed HEAD，不用含結案記錄 commit 的 SHA，見 § Phase D。
 * 它是 **single-worktree probe，不是 inventory**。

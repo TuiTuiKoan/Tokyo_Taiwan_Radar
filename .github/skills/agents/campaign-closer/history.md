@@ -9,6 +9,81 @@ ms.date: 2026-08-12
 
 ---
 
+## 2026-10-13 — senses-taxonomy 結案：Phase C／D 實測到的六件事
+
+**背景**：campaign `senses-taxonomy` 的 Phase A–D 實際走完一輪。以下六件事都是實際發生的：一件是假 HOLD（1）、
+一件推翻了預期（4），其餘四件讓流程停下或被擋（2、3、5、6）。對應規則已寫進 SKILL.md（§ Phase B 同意閘門、
+§ Phase D 退役實測規則、§ 腳本）。
+
+### 1. Phase D 重跑稽核腳本時把 `--head` 換成含結案記錄的 SHA，得到假 HOLD
+
+**錯誤**：Phase D 重跑 `scripts/campaign-closeout-audit.sh` 時，把 `--head` 從 campaign 的 pushed HEAD
+換成「包含結案記錄 commit 的 SHA」，輸出 `range_todo=1`、verdict `HOLD:unhandled_work`（exit 10）。
+
+**根因**：腳本掃 `<base>..<head>` 範圍內新增行（`^+`）的 `TODO|FIXME`。結案記錄本身寫了
+"`TODO` or `FIXME` on lines added in the commit range" 這句話，範圍一包含該 commit 就命中。
+
+**修正**：改用 campaign 原本交付的 pushed HEAD 重跑，`range_todo=0`。
+
+**教訓**：Phase D 的 `--head` 一律用 campaign 的 pushed HEAD，不用含記錄 commit 的 SHA。撰寫記錄時也要避免
+讓字面 `TODO`／`FIXME` 出現在會被腳本掃描的新增行；必須出現時，在記錄中說明那是文字描述而非待辦。
+（本條與同批 SKILL.md 補充含有這些字樣；它們是 main 上的獨立 docs commit，不在任何 campaign 的
+`<base>..<head>` 內。）
+
+### 2. 給使用者的 push 指令讓終端機停在 worktree 內，Phase D 偵測到占用
+
+**錯誤**：交接時給使用者的 push 指令是先 `cd` 進 worktree、再 `git push origin HEAD:main`。使用者的
+VS Code 整合終端機因此停在 worktree 內。Phase D 的 `lsof -a -d cwd` 偵測到該終端機的 zsh 行程，
+啟動時間晚於使用者先前「沒有其他 session」的確認。
+
+**處置**：Closer 依規則停下，使用者關閉終端機後才續行。偵測與停止都正確，但這個占用是交接指令造成的，可以避免。
+
+**修正**：給使用者的 push 指令改成從主工作目錄執行（`git -C '<主工作目錄>' push origin <campaign 分支>:main`），
+並提醒 push 完關閉用過的終端機。
+
+**教訓**：使用者的確認只涵蓋確認當下，Phase D 前一定重新觀測占用——這次重新觀測發揮了作用。
+
+### 3. `.git/info/exclude` 對帳腳本被 hook 擋下
+
+**錯誤**：`git.instructions.md` § Reconciling `.git/info/exclude` 的整塊 reconcile 複合腳本，被 PreToolUse hook
+以 `unsupported-syntax` 擋下。指令未執行，`.git/info/exclude` 未變。
+
+**處置**：拆成幾條簡單指令，演算法不變：取得 live 的 `ttr-*-worktree/` 行 → 保留 exclude 內的非 ttr 行並加入
+這些行 → 寫暫存檔再 `mv` → 用暫存檔（不是 `<(…)`）做 `comm -23` 與 `comm -13` 驗證。這偏離該文件的字面腳本，
+但演算法等價。
+
+**教訓**：整塊複合腳本可能被 hook 擋下，被擋時拆開執行，不要改成盲刪單行。建議之後備好拆開版
+（`git.instructions.md` 本次未改）。
+
+### 4. 預期落空：gitignore 的產物不會擋住 `git worktree remove`
+
+**預期**：先前推測 `web/node_modules`（約 803M）、`web/.next` 會讓不加 `--force` 的 remove 被拒。
+
+**實測**：`rc=0`，沒被擋。git 只拒絕有修改或未追蹤檔的 worktree。
+
+**教訓**：不要為了 remove 預先手動刪 ignored 產物。它們已在 D2 preflight 分類為 `disposable` 並記錄
+SHA-256，預先手動刪只會多出不必要的不可逆動作。
+
+### 5. 遠端分支刪除與 push 到 main 都被擋，必須由使用者執行
+
+**錯誤**：`git push origin --delete <branch>` 被 PreToolUse hook 的遠端 ref 刪除規則攔截；agent 的
+`git push origin HEAD:main` 被權限系統以 Production Deploy 拒絕。
+
+**處置**：兩者都交給使用者在終端機執行。
+
+**教訓**：closer 不應嘗試這兩類指令，也不要換工具或拆指令繞過。一律在報告中寫出完整指令；刪遠端分支前，
+先請使用者用 `git cherry` 確認沒有獨有 commit。
+
+### 6. 協調者轉述的「使用者已授權」不算 Phase B 同意
+
+**現象**：交接時由協調者轉述「使用者已授權」。Closer 依 Phase B 規則不接受，改等使用者對 Phase A 輸出的回覆。
+使用者的回覆涵蓋兩項確認（spec 目錄不存在、沒有其他 session／VS Code 視窗在使用），以及是否寫結案記錄。
+
+**教訓**：同意必須是使用者在看過本次 Phase A 輸出之後的回覆；轉述不算。對協調者的建議：先把 Phase A 輸出給
+使用者看，再收集確認，再進 Phase C。
+
+---
+
 ## 2026-10-13 — UNDETERMINED 時沒有停下，同一輪就寫結案記錄並 commit
 
 **錯誤**：ai-portability Phase C 的 U6 實測（Claude Code `2.1.296`，`--agent close-campaign-retire-worktree`，
