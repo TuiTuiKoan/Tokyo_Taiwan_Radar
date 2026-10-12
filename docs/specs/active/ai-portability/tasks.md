@@ -180,7 +180,7 @@ fixture（2026-10-13 準備；scratchpad，路徑含空格；`.claude/settings.j
 
 ## H-PUSH
 
-- [ ] 交 V-M-D：使用者明確核准、僅 linear fast-forward、驗證 pushed SHA 等於 GitHub main
+- [x] 交 V-M-D：使用者明確核准、僅 linear fast-forward、驗證 pushed SHA 等於 GitHub main（2026-10-13 完成：`7f8e75c9..86fdc143`，`ls-remote` 確認 GitHub main = `86fdc1434188c49713bc37b6c7a71a9034f3b9b8`；Production deployment `success`；證據與 rebase 前後 SHA 對照見 notes.md §4.32）
 
 ## 後續項目（不在本 campaign；plan §4 第 4 項、§8.2 原則 6）
 

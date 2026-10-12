@@ -962,3 +962,66 @@ C-R9：兩情境皆可辨識（§4.21）；C-R10 不做（B-R7／B-R8 PASS，無
 **不改**：`scripts/campaign-closeout-audit.sh`（26 的誤判只會多算、偏向 HOLD）；四個 UNDECIDED agent 與其 wrapper；`.claude/settings.json`、`scripts/claude/`、`scripts/sync_ai_adapters.py`；`plan.md`。
 
 **驗證（H-U2 前）**：`python3 scripts/sync_ai_adapters.py` 後 `--check` exit 0（wrapper 無漂移）；`python3 -m pytest scripts/tests scripts/claude/tests -q` → `437 passed`；`git diff --check` exit 0；`git diff | gitleaks stdin --redact -c .gitleaks.toml` → `no leaks found`；兩份 history 皆 `−0`，唯一刪除行是 campaign-closer SKILL 的舊 `ms.date`；變更路徑只在 `.github/skills/`、`.github/agents/campaign-closer.agent.md`、本目錄；新增內容無 C-R11 禁止的「無寫入能力」措辭。
+
+### 4.32 H-PUSH：推送證據與 rebase 前後的 SHA 對照（2026-10-13；Validate, Merge & Deploy 流程）
+
+本節是 push 之後補記。前面各節引用的是**各自撰寫當時**的 SHA；campaign 在推送前經過兩次 rebase（§4.8、本節），這些 SHA 不會出現在 origin/main。以下為對照，查證時以最右欄為準。
+
+**SHA 對照**（`git range-diff` 逐筆為 `=`，patch 內容在兩次 rebase 中都沒有變）
+
+| commit | 撰寫時 | 第一次 rebase 後（§4.8） | 推送後（origin/main） |
+|---|---|---|---|
+| `docs(ai): add Claude Code migration runbook` | `565c1479` | `bbcbdf4f` | `1d1e3d47` |
+| `docs(ai): add ai-portability spec skeleton`（H0） | `256e8b9b` | `0eaeef65` | `d2398431` |
+| `chore(ai): remove legacy Copilot state paths`（A） | `ecfb7347` | `223d8b4e` | `dfcd529e` |
+| `docs(ai): record Phase B drift stop and R1 post-test` | `3981ee21` | `15b81475` | `1c7f7600` |
+| `chore(ai): project agent roles to Claude tool limits`（B） | `1460aab2` | — | `d71543c7` |
+| `chore(ai): add Claude Code PreToolUse safety hooks`（C） | `4c406ad8` | — | `588a42b2` |
+| `docs(agents): record ai-portability phase A-C lessons` | `96f18e2e` | — | `86fdc143`（完整 `86fdc1434188c49713bc37b6c7a71a9034f3b9b8`） |
+
+B、C 與教訓 commit 是在第一次 rebase 之後才建立，所以沒有「第一次 rebase 後」欄。
+
+**推送前**
+
+| 項目 | 結果 |
+|---|---|
+| Worktree／stash | 路徑、branch `feat/ai-portability` 相符；`stash-status.sh list` 無 stash；工作樹乾淨 |
+| 上游漂移 | Phase C 時的 baseline `9cb1e11e` → 推送時 `7f8e75c9030badc96d10dd52f1f0023083e606be`（behind 8：`cb8266f5` weekly review、5 個 deps、2 個 iwafu scraper fix） |
+| 重疊檢查 | `HEAD...origin/main` 與 `origin/main...HEAD` 的檔案交集為空；`git merge-tree --write-tree` exit 0（tree `2c0b01c1…`） |
+| Rebase | `git rebase origin/main` 7/7 無衝突；`git range-diff 67846c18..96f18e2e origin/main..HEAD` 7 筆皆 `=` |
+| 範圍分類 | 不含 `web/`、`web/messages/`、`supabase/`、workflow、`scraper/main.py`；含 token 高風險檔 `.github/agents/researcher.agent.md` |
+
+**驗證**
+
+| 檢查 | 結果 |
+|---|---|
+| `sync_ai_adapters.py --check` | exit 0 |
+| `pytest scripts/tests scripts/claude/tests -q` | `437 passed` |
+| `check_token_permission_consistency.py` default／`--strict` | 皆 exit 0（掃描 820 檔） |
+| `gitleaks git --log-opts=origin/main..HEAD` | 7 commits，`no leaks found` |
+| `git diff --check origin/main...HEAD` | exit 2，只有 `plan-critique-2/3/4.md`（H0 方案 A 的已知例外，見 §3.5）；後續 commit 沒有新增 |
+| `pnpm run build` | 跳過：push range 不觸及 `web/`（V-M-D Step 3 docs-only 規則） |
+| Fast-forward | `HEAD...origin/main` = `7 0`；`merge-base --is-ancestor origin/main HEAD` 成立 |
+
+**推送與部署**
+
+| 項目 | 結果 |
+|---|---|
+| campaign base（push 前 origin/main tip） | `7f8e75c9030badc96d10dd52f1f0023083e606be` |
+| pushed HEAD | `86fdc1434188c49713bc37b6c7a71a9034f3b9b8`；`git push origin HEAD:main`（`7f8e75c9..86fdc143`），pre-push gitleaks `no leaks found` |
+| push 後 GitHub main | `git ls-remote origin refs/heads/main` = `86fdc1434188c49713bc37b6c7a71a9034f3b9b8` |
+| CI | GitHub Actions `gitleaks`：`completed/success` |
+| Vercel | commit status `Vercel`：`success`（"Deployment has completed"）；GitHub deployment `environment=Production`、`ref`＝推送的 SHA；URL `https://tokyo-taiwan-radar-71zjto0e5-tuituikoans-projects.vercel.app` |
+| custom-domain smoke（`https://tokyotaiwanradar.com`） | `/ja`、`/zh`、`/en`、`/robots.txt`、`/sitemap.xml`、`/llms.txt` 皆 200；`/ja` headers 含 HSTS（`max-age=63072000`）、`x-content-type-options: nosniff`、`x-frame-options: DENY`、`referrer-policy: strict-origin-when-cross-origin`、`content-security-policy-report-only`；`set-cookie: NEXT_LOCALE=ja; Path=/; Secure; SameSite=lax`；`/ja` 有 4 個 `application/ld+json`；`robots.txt` 為 `Allow: /`、`Disallow: /api` |
+
+**觀察與未測項**
+
+- **Vercel 在 docs-only push 也建立了 Production deployment。** V-M-D 文件寫「docs-only 不觸發 Vercel」，與這次實測不符；文件修正列為後續項目，本 campaign 不改 `validate-merge-deploy.agent.md`。
+- **NOT TESTED**：OAuth、email magic link、session refresh／logout、一般使用者的 role denial、登入後 Admin CRUD（沒有安全的測試 credentials）；本次未改 web 程式碼，風險未新增。
+- **未評估**：`web` 的 lint 與 build 沒跑，原本就存在的 full-file lint debt 未重新評估；CSP 仍為 Report-Only。
+- **與本次變更無關**：push 時 GitHub 回報預設分支有 8 個 Dependabot 漏洞（3 high、2 moderate、3 low）。
+- **commit scope**：六個 commit 使用 `ai` scope，不在 `git.instructions.md` 列出的 `scraper`／`web`／`db`／`ci`／`agents` 內；各核准點已核准該訊息，未重寫。`commit-message.instructions.md`（V-M-D Step 3 引用）不存在，改依 `git.instructions.md` 判讀。
+
+**Worktree**：推送後 branch tip `86fdc143`、ahead 0／behind 0、dirty 0、無進行中的 rebase；ignored artifact 為 `.pytest_cache/`、`scripts/**/__pycache__/`、`supabase/.temp/`（`cli-latest` 8 bytes，Phase 0 `supabase --help` 的版本標記），皆可丟；`tmp/gnews_streaming_ids.txt` 是 repo 追蹤檔，不是 artifact。結案記錄尚未進 origin/main，因此**不提示移除 worktree**（V-M-D Step 0.6）。
+
+**後續**：交 Close Campaign & Retire Worktree。`tasks.md` 的後續項目（約 20 條）刻意保持未勾選，Closer 的 A2 預期判 `HOLD`。
