@@ -90,6 +90,13 @@ def test_unrelated_fuzzy_search_results_fail_phase2():
     assert not _mentions_taiwan("きらきら焼き芋パフェ", "岡田美術館の足湯カフェにて")
 
 
+def test_taiwan_macaque_is_not_a_taiwan_mention():
+    # タイワンザル = invasive Formosan macaque; the play 追熟しない果実 slipped
+    # through Phase 2 on this word alone.
+    text = "外来種タイワンザルとニホンザルの交雑問題をきっかけに、地域劇場で描く新作"
+    assert not _mentions_taiwan("追熟しない果実", text)
+
+
 def test_taiwan_events_pass_phase2():
     assert _mentions_taiwan("台湾文化祭2026秋（10月10日～12日 丸の内KITTE）", "")
     assert _mentions_taiwan("Freckles Japan Tour", "From TAIWAN indie band")
