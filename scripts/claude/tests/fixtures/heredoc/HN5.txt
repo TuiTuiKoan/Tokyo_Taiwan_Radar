@@ -1,0 +1,4 @@
+git commit -m "$(cat <<'EOF'
+x
+EOF
+)" && git push --force

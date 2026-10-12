@@ -723,3 +723,213 @@ Engineer 以同一份 `u4_report.py` 重讀 scratchpad 的 `list.jsonl`、`teste
 commit 前的最終檢查（`2.1.295`）：origin/main 重新 fetch 後仍為 `67846c18`，與 Phase B 路徑無新重疊；sync 後 `--check` exit 0；`24 passed`；B-R5 指標零 diff、四個 UNDECIDED 相較 `223d8b4e` exit 0；11 檔 frontmatter-diff 0 失敗；`git diff --check` exit 0；gitleaks `no leaks found`；變更路徑全部在 Allowed paths 內。diff：21 個檔案修改（+472／−27，含本 notes 與 tasks）、4 個新檔（`.claude/settings.json`、`scripts/tests/{conftest,test_claude_settings,test_sync_ai_adapters}.py`）。
 
 **Phase B 狀態**：B-R1～B-R10 皆 PASS；B-R6 的 push 變體（`git -C … push`、`bash -c 'git push …'`）依合法 carry-over 表記為 PARTIAL＋Carry-over → C-R5。B-R7（依 §4.15 修訂條件）、B-R8 均為 PASS，不產生 C-R10 carry-over。runbook L410 不勾選，已加註「部分（X1–X4 延期）」。
+
+### 4.20 Phase C session（2026-10-12）
+
+| 項目 | 值 |
+|---|---|
+| 執行者 | Engineer（Claude Opus 5.5 `claude-opus-5-5`）；session 以 `--agent engineer` 啟動（`CLAUDE_CODE_AGENT=engineer`） |
+| Claude Code 版本 | 本 session 執行檔 `2.1.295`（`CLAUDE_CODE_EXECPATH`）；PATH 上的 `claude --version` 為 **`2.1.296`**（session 啟動後自動更新）。C-0 spike 以 `2.1.296` 執行。B 結束時為 `2.1.295` |
+| 工作目錄 | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-ai-portability-worktree` |
+| 依據 | `~/.ai-notes/ttr/phaseC-engineer-prompt.md`、`plan.md` §2、§3、§7、§8、§8.1、§8.2 |
+| `plan.md` SHA-256 | `6943c073620e29530581988a79c47e8da84ee34f6ce3edecf2e7511695487bbc`（與指定值相符，未 STOP） |
+| 工具 | Python 3.14.3（`/Users/flyingship/development/Tokyo Taiwan Radar/.venv/bin/python3`）、pytest 9.0.3、shellcheck 0.11.0、gitleaks 8.30.1 |
+
+#### Worktree 閘門（Phase C）
+
+| 檢查 | 結果 |
+|---|---|
+| `git worktree list --porcelain` 中的本 worktree | `worktree …/ttr-ai-portability-worktree`、`HEAD 1460aab235045542f2ae9cfb7e823d84edd61ea1`、`branch refs/heads/feat/ai-portability` |
+| `/bin/pwd -P`／`git branch --show-current` | 與上列路徑、`feat/ai-portability` 相符 |
+| 本 worktree `git status --porcelain` | 無輸出（乾淨） |
+| 主工作樹 `git -C "<主工作樹>" --no-pager status --short` | 無輸出（無他人 WIP）；branch `main`，HEAD `4e5f1f13dac393a5eccd790e5d2181b4adc84d44` |
+| `.git/info/exclude` | 第 15 行有 `ttr-ai-portability-worktree/` |
+
+#### Step 0 漂移檢查（Phase C）
+
+| 項目 | 值 |
+|---|---|
+| HEAD | `1460aab2`（chore(ai): project agent roles to Claude tool limits）＝ 預期值；工作樹乾淨 |
+| fetch 前本機快取的 origin/main | `67846c183c761350687081774f3435df5e5003aa`（＝ Phase B remote baseline） |
+| `git fetch origin` | exit 0（`2026-10-12T12:44:07Z`）；`67846c18..cb8266f5 main -> origin/main`（另新增遠端分支 `fix/iwafu-taiwan-relevance-gate`） |
+| fetch 後 origin/main（Phase C remote baseline） | `cb8266f58a2c137ecf753ce8e71ddc5ae05c585d`（docs(weekly_review): 2026-10-11 weekly review） |
+| `git merge-base HEAD origin/main` | `67846c18…`；`67846c18` 是 origin/main 的祖先 |
+| ahead／behind | `5	1` |
+| `67846c18..origin/main` 改到的檔案 | 只有 `docs/weekly_review/2026-10-11.md` |
+| 與 Phase C 路徑重疊（`scripts/claude .claude AGENTS.md CLAUDE.md scripts/tests scripts/sync_ai_adapters.py .github/agents .githooks docs/CLAUDE_CODE_MIGRATION_RUNBOOK.md docs/specs/active/ai-portability .github/instructions/token-rotation.instructions.md`） | 無 |
+
+**判定**：預期內的主幹前進，不是非預期漂移。未 rebase、未改 base。
+
+### 4.21 C-0 spike 結果（2026-10-12，Claude Code `2.1.296`，模型 `claude-opus-5-5`）
+
+**環境**：disposable fixture 在 session scratchpad `…/scratchpad/c0 spike/`（路徑含空格；不在 worktree 內）：`proj/`（`git init -b main`、一個 commit、`origin` 指向同層本機 bare `remote.git`）、`proj/hooks/log.sh`（把 PreToolUse stdin 存檔，依參數回 exit 碼或輸出 JSON）、`proj/.claude/agents/fixture-{full,tester,search}.md`、`proj/.claude/settings.json`（每個測試以 `settings/<case>.json` 覆寫，皆保留 `permissions.ask: ["Bash(git push:*)"]`）。所有 `claude` 以 `env -i HOME PATH USER LOGNAME SHELL TERM LANG TMPDIR claude -p --output-format stream-json --verbose --include-hook-events … < /dev/null` 啟動；需要放行 Bash 的對照組以 `--settings '{"permissions":{"allow":["Bash"]}}'` 給 allow；`--permission-prompts none`（會提示的動作自動拒絕）。push 只對本機 bare remote 做 `--dry-run`；結束時 `git ls-remote remote.git` 為 0 筆。原始輸出在 scratchpad `c0 spike/out/<case>.{jsonl,err,logs}`（不進 repo）。
+
+**文件查證（WebFetch，2026-10-12）**：`code.claude.com/docs/en/hooks`。重點：exit 0／2／其他碼的語意；`timeout` 預設 600 秒（command）；PreToolUse decision JSON 為 `hookSpecificOutput.permissionDecision`（allow／deny／ask／defer）＋`permissionDecisionReason`；多個 hook 的優先序 deny > defer > ask > allow；「Deny and ask rules are still evaluated regardless of what the hook returns」；「A hook's "ask" also forces a permission prompt in auto mode」；command 以 `sh -c` 執行；settings hooks 在 subagent 內同樣執行；`-p` 視資料夾為已信任；**新欄位 `onFailure: "block"`（需 v2.1.295 以上）**：hook 無法啟動、exit 非 0／2、逾時、輸出無效時改為阻擋。
+
+| 項目 | 結果 | 證據（case） |
+|---|---|---|
+| (1) exit 2 | **PASS：阻擋** | E2：tool_result `PreToolUse:Bash hook error: [<command>]: <stderr>`，檔案未建立；stderr 會交給 Claude |
+| (1) exit 1 | **PASS：不阻擋** | E1：hook `outcome: error`，命令照常執行 |
+| (1) exit 127（hook 命令不存在） | **PASS：不阻擋** | E127：stderr `/bin/sh: /nonexistent/…: No such file or directory`，命令照常執行（證實 hook 經 `/bin/sh` 執行） |
+| (1) 逾時（`timeout: 3`、hook sleep 15） | **PASS：不阻擋** | ET：`outcome: cancelled`、`exit_code: 1`，命令照常執行 |
+| (1) exit 0＋無效 JSON（`{"hookSpecificOutput":`） | **PASS：不阻擋**（與文件一致） | EJ：命令照常執行 |
+| (1) 結論 | 與文件一致，未 STOP | — |
+| (2) matcher | **PASS**：`Bash`、`Read`、`Write`、`Edit`、`NotebookEdit`、`Grep`、`Glob` 精確名稱與 `Read\|Grep\|Glob\|Write\|Edit\|NotebookEdit` 組合皆命中；`*` 命中全部（含 `ToolSearch`、`Agent`、`Monitor`） | M1、M2、M3 |
+| (2) stdin 頂層鍵 | `cwd`、`effort`、`hook_event_name`、`permission_mode`、`prompt_id`、`session_id`、`tool_input`、`tool_name`、`tool_use_id`、`transcript_path`；`--agent` 或 subagent 另有 `agent_type`（subagent 再加 `agent_id`）。文件列的 `scratchpad_dir` **未出現** | M1–M3、A2、A3 |
+| (2) `tool_input` 欄位 | Bash：`command`、`description`；Read：`file_path`（另可有 `offset`、`limit`）；Write：`file_path`、`content`；Edit：`file_path`、`old_string`、`new_string`、`replace_all`；NotebookEdit：`notebook_path`、`cell_id`、`new_source`、`edit_mode`；Grep：`pattern`、`path`、`output_mode`、`glob`（有指定時）；Glob：`pattern`、`path`；Monitor：`command`、`description`、`timeout_ms` | 同上 |
+| (2) 備註 | NotebookEdit 為 deferred 工具（需先 ToolSearch）；工具自身的前置驗證失敗（如「File has not been read yet」）時 **PreToolUse 不觸發** | M1、M3 |
+| (3a) `claude --agent` 主執行緒 | **可辨識**：`agent_type` = 角色名，**無** `agent_id` | M2（`fixture-search`）、A3 的 Agent 呼叫（`fixture-full`） |
+| (3b) subagent | **可辨識**：`agent_type` = subagent 名＋`agent_id` | A2（主 session 無 `--agent`）、A3（主執行緒為 `--agent fixture-full`）皆為 `fixture-tester`＋`agent_id` |
+| (3) 主 session 未帶 `--agent` | 兩欄皆無 | M1、A2 的 Agent 呼叫 |
+| (4) `Grep` 遍歷 gitignored dotfile | **會遍歷**：`fixture-search`（`tools: Read, Grep, Glob`，無 Bash）以父目錄為 `path` 搜尋，結果同時列出 `sub_ign/.env`（gitignored＋隱藏）與 `sub_hid/.env`（隱藏、未忽略）；`Glob` 的 `.*`、`**/.env` 也列出兩者 | M2 → 依 plan 記入規則 7 邊界（工具層 `Grep` 父目錄遞迴不涵蓋） |
+| (5) `ask` JSON | **PASS：形狀生效** `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"…"}}`（exit 0）。即使 `--settings` 給了 `allow: Bash`，default（K1）、auto（K2）、`--agent`（K3）、subagent（K4）皆變成「requires approval」→ `-p` 自動拒絕、檔案未建立。互動提示是否出現：**NOT TESTED（交使用者）** | K1–K4 |
+| (5) `deny` JSON | 生效：`PreToolUse:Bash hook error: <reason>` | K5 |
+| (6) | 沿用 B-0(6)（§4.11、§4.18；`2.1.295` 重驗） | — |
+| (7) 熱重載 | **會即時生效**：session 進行中由外部程序覆寫 `.claude/settings.json`，下一個 Bash 呼叫就改用新 hooks（舊 hook 不再觸發） | VR |
+| (7) 模型以 Bash 改 `.claude/settings.json` | 即使 `allow: Bash`，Claude Code 仍要求核准（`-p` 自動拒絕） | V |
+| (7) 未信任 workspace 的 `-p` | project hooks **會執行**（fixture 從未信任，所有 case 的 hook 都有觸發；與文件「`-p` treats the folder as trusted」一致） | 全部 |
+| (8) `CLAUDE_PROJECT_DIR` 含空格 | **PASS**：解析為 `…/scratchpad/c0 spike/proj`；hook 的 PWD 同為專案根目錄 | E0、P1 |
+| (8) plan §7 的 fail-closed 外殼字串 | launcher 存在 → 以 `bash` 執行、`$1 = probe`、`$0` 為含空格的完整路徑、命令照常（P1）；launcher 不存在 → exit 2、阻擋（tool_result `… No stderr output`）（P2） | P1、P2 |
+
+**計畫未涵蓋的觀察（H-C1 呈報）**
+
+1. **`onFailure: "block"`**（`2.1.296` 實測）：hook 命令不存在（F127）、exit 1（F1）、逾時（FT）→ **阻擋**（`failed／timed out; blocking because onFailure is "block"`）；但 **exit 0＋不完整 JSON（FJ）仍放行**（host 視為純文字），所以 launcher 的 output protocol 仍然必要。舊版 `2.1.292` 遇到此欄位：**整份 settings 仍有效**（hook 照常執行、`permissions.ask` 照常要求核准），只是忽略 `onFailure`（exit 1 不阻擋）（OLD_2.1.292 對照 OLD_2.1.296）。
+2. **`Monitor` 工具可執行 shell 命令**：PreToolUse 以 `tool_name: "Monitor"`、`tool_input.command` 觸發，`Bash` matcher 不會命中。`-p` default 下需要核准（MON1、MON2）；**auto mode 下 `touch` 經 Monitor 直接執行**（MON4），`git push --dry-run` 經 Monitor 在 auto mode 則要求核准（MON3；是 ask 規則或分類器所致無法區分）。
+3. **從子目錄啟動 session 時，repo root 的 `.claude/settings.json` 不載入**：在 `proj/sub_hid` 啟動，logging hook 未觸發（S1），`git push --dry-run origin main` 直接執行、沒有要求核准（S2）。B 的 push ask 與 C 的 hooks 都只在「從 repo（worktree）根目錄啟動」的 session 生效。
+4. `Bash` 工具在 hook 之前有自己的檢查（例：`sleep 25 && …` 被 Claude Code 以 Monitor 建議擋下，hook 未觸發）。不影響本設計。
+
+### 4.22 H-C1 前查證（只查、只記錄，2026-10-12；HEAD `1460aab2`）
+
+| # | 項目 | 證據 | 影響 |
+|---|---|---|---|
+| 1 | masked awk 模板 | `token-rotation.instructions.md` L125 = `cd scraper && ` ＋模板、L196 = 兩個空白＋模板（`od -c` 確認為一般空白），模板本體與 plan §7 規則 7 2b 逐字相同（結尾 `' .env`）。**另有** canonical 來源 `docs/GITHUB_TOKEN_SYNC_CHECKLIST.md` L41：同一 awk 程式，路徑為 `scraper/.env`（engineer SKILL「Secret Scanning」要求兩檔同 commit 一致）。`docs/specs/security-hardening-plan-RECOVERED.md` L417 也有 `scraper/.env` 版（historical） | plan 的 2b 只收 `.env` 版；checklist 的 `scraper/.env` 版會被層 3 拒絕 |
+| 2 | F4 `supabase db pull` | 官方 CLI 文件（`supabase.com/docs/reference/cli/supabase-db-pull`，2026-10-12）：「Optionally, a new row can be inserted into the migration history table to reflect the current state of the remote database」，範例輸出含 `Update remote migration history table? [Y/n]`；全域 `--yes` 會自動回答 yes | `db pull` 可寫遠端 migration history，不得歸只讀 |
+| 3 | F4 其他 | 同一頁：`migration repair`「Repairs the remote migration history table」（`applied` 會插入紀錄）；`db push`「Pushes all local migrations to a remote database」，`--dry-run` 只列印；`db diff`「Diffs schema changes」，無套用旗標 | 與 notes §3.4 一致 |
+| 4 | Supabase MCP 連接器 | 本 session 與 C-0 fixture 的 `-p` session init 工具清單都含 claude.ai 帳號層的 `mcp__claude_ai_Supabase__execute_sql`、`apply_migration`、`deploy_edge_function` 等（repo 內無 `.mcp.json`，非 repo 設定）。**未實測**（會碰 production，不測） | 規則 9 只涵蓋 `psql`／`supabase` CLI／`python -c`；MCP 是另一條 production 寫入面 |
+| 5 | 版本 | spike 以 `2.1.296` 執行（B 為 `2.1.292`／`2.1.295`）；本 session 執行檔仍為 `2.1.295` | 實測版本記為 `2.1.296` |
+
+### 4.23 H-C1 決定（使用者，2026-10-12）
+
+使用者回覆「全部照建議」。逐項：
+
+| # | 項目 | 決定 |
+|---|---|---|
+| ① | 規則 1 | 依 plan，另加 `--prune`、`--force-if-includes`（`-d` 為 `--delete` 短寫，一併涵蓋） |
+| ② | 規則 3 | 沒有 `-n`／`--dry-run` 的 `git clean` 一律拒絕（涵蓋 `-c clean.requireForce=false`、`-i`） |
+| ③ | 規則 7 | 模板常數 = `token-rotation` L125／L196 的 `.env` 版＋`GITHUB_TOKEN_SYNC_CHECKLIST.md` L41 的 `scraper/.env` 版；漂移測試同時讀兩檔。工具層 guard 不含 Glob（只回檔名，與 2a `ls -l` 同級） |
+| ④ | 規則 8 | 依 plan，另加 bare `export`、`declare`／`typeset` 的列表與 `-p` 形式 |
+| ⑤ | 規則 9（F4） | `db query` 全拒；只看子命令、不分 local／linked；`--yes` 不另設規則；`db pull` 拒絕；Management APIs 列殘餘風險＋後續項目。拒絕清單：`db push`（只放行精確 `supabase db push --dry-run`）、`db reset`、`db query`、`db pull`、`migration up/down/repair/squash`、`seed`、`db` 子命令帶 `--from-backup`／`--apply`／`--reset` |
+| ⑥ | 包裝動詞 | 依 plan，另加 `timeout`、`nice`、`sudo`、`caffeinate`、`stdbuf` |
+| ⑦ | §8.2 #13 | 預先核准：U5 若證實 hook `ask` 在互動模式完全不跳提示，push 變體改為 deny 並提示改用純 `git push`（純 `git push` 仍由 `permissions.ask` 把關） |
+| ⑧ | settings 與測試 | 內容如 H-C1 e（`Bash\|Monitor`、`Read\|Grep\|Write\|Edit\|NotebookEdit`、`timeout: 30`、`onFailure: "block"`；guard watchdog 10 秒）；settings 測試只留 `scripts/tests/test_claude_settings.py`（改寫 Phase B 的「只含 permissions」測試），不建 `scripts/claude/tests/test_settings.py` |
+| ⑨ | 子目錄啟動 | `AGENTS.md` 覆蓋聲明加「只在從 repo／worktree 根目錄啟動的 session 生效」，並更正 B 段措辭 |
+| ⑩ | Supabase MCP | (i) 殘餘風險＋後續項目，`AGENTS.md` 寫明 |
+| ⑪ | heredoc 餵入的 python | 套用與 `python -c` 相同的 `create_client`＋寫入方法檢查 |
+| ⑫ | 使用者實測草案 | 核准，寫入 `tasks.md`（U5、U6） |
+
+C-R9：兩情境皆可辨識（§4.21）；C-R10 不做（B-R7／B-R8 PASS，無 carry-over）。guard 不使用 agent 身分。
+
+### 4.24 Phase C 實作與驗證（2026-10-12，Claude Code `2.1.296`；session 執行檔 `2.1.295`；未 commit）
+
+| 項目 | 狀態 | 證據 |
+|---|---|---|
+| `_tokenizer.py` 預算 | PASS | 244 行（不含註解、docstring、空行），`test_tokenizer_budget` 鎖定 ≤250 |
+| 實作細節（H-C2 呈報） | — | `git commit -am "$(cat <<'EOF' …)"` 納入 R3-1 例外（`-am` = `-a -m`）；launcher 以 `python3 -B -E -s` 執行（不寫 `__pycache__`）；guard 只輸出 `ask` JSON，deny 一律 exit 2 |
+| C-R1 | PASS | §4.21 |
+| C-R2 | PASS | `python3 -m pytest scripts/tests scripts/claude/tests -q` → `437 passed`（worktree，hooks 已加入後）；各阻擋類 ≥3 變體由測試鎖定；B-R6 三個變體回 ask |
+| C-R3 | PASS | `test_launcher.py` fail-closed 矩陣（含 output protocol 10 列）全過；host timeout 由 `onFailure: "block"` 阻擋（舊版忽略此欄位 → 殘餘）；host schema 改版為殘餘 |
+| C-R4 | PASS | 例外 → exit 2＋固定訊息；含空格路徑＋settings 內完整 command 字串；假 token 不出現在 stderr |
+| C-R5 | PASS-pending-user | 自動：測試＋`-p` e2e（scratchpad `c1 e2e`）：`git -C . push`、`bash -c "git push"`、`env X=1 git push`（auto、`--agent`）、subagent → requires approval；force → `[git-force-push]`；遠端 0 筆。互動提示待 U5 |
+| C-R6 | PASS（已記錄） | hooks 加入後 `claude doctor`：`Running: native (2.1.296)`、`Search: OK (bundled)`、`No installation issues found.` |
+| C-R7 | PASS-pending-user | U6（Closer fixture 尚未準備） |
+| C-R8 | PASS | `AGENTS.md`「Hooks 與 permissions（Claude Code 專屬防線）」：生效條件（根目錄啟動、四角色、兩情境）、規則表、未涵蓋清單（含規則 7 邊界、prod-db 啟發式、Supabase MCP、Copilot／Codex 不受保護） |
+| C-R9 | PASS | 兩情境皆可辨識（§4.21） |
+| C-R10 | 不適用 | 無 carry-over（§4.23） |
+| C-R11 | PASS | `rg` 命中只有 proposal.md L109（規則原文引用）、L169（X1 引用 runbook 要求）、runbook L307 與 AGENTS.md L85（否定句「不宣稱／不代表沒有寫入能力」） |
+| C-R12 | PASS | `git diff --exit-code 1460aab2 --` 四個 UNDECIDED canonical＋wrapper → exit 0 |
+| hooks 自我驗證 | PASS | 加入後本 session：`git status --short`、`git diff --check`、`git log`、`sync --check`、pytest、Read 放行；`printenv HOME` → `[env-dump]` 被擋 |
+| `git diff --check` | PASS | tracked 變更 exit 0；新檔逐檔 `--no-index --check` 無問題回報（HN6 的行尾空白由 `.gitattributes -whitespace` 保留，提交前再確認一次） |
+| gitleaks | PASS | `git diff HEAD`＋新檔內容 `gitleaks stdin --redact -c .gitleaks.toml` → `no leaks found` |
+| diff 路徑 ⊆ Allowed paths | PASS | `.claude/settings.json`、`AGENTS.md`、`scripts/claude/**`、`scripts/tests/test_claude_settings.py`、spec 目錄 |
+| 尚未完成 | — | runbook L411 勾選與 L323 註記、U5 使用者 fixture、Closer fixture campaign、H-C2 呈報 |
+
+### 4.25 H-C2 前補完（2026-10-13，`claude --version` `2.1.296`）
+
+| 項目 | 結果 |
+|---|---|
+| 新檔空白檢查（重做） | 逐檔 `git diff --no-index --check /dev/null <file>` 輸出全為空；以 scratchpad 探針（行尾空白）確認檢查器有效（exit 3）；HN6 在 repo 內由 `scripts/claude/tests/fixtures/heredoc/.gitattributes`（`HN6.txt -whitespace`）豁免，其副本在 repo 外會被抓到 → 只有 HN6 是刻意保留 |
+| runbook | L323 註記改為 B／C 分工與「只在根目錄啟動的 session 生效」；L411 勾選並註明覆蓋聲明（C-R2、C-R3 PASS） |
+| U5 fixture | scratchpad `c2 user fixture/proj`：settings 與 5 個 hook 檔與 worktree 逐位元組相同（`cmp`）；本機 bare remote 0 筆 |
+| Closer fixture | scratchpad `c3 closer fixture/Tokyo Taiwan Radar`：只複製 Closer 需要的檔（agent、wrapper、campaign-closer SKILL、session-analytics、git.instructions、campaigns README、audit 腳本、AGENTS.md、CLAUDE.md、`.gitignore`、settings 與 `scripts/claude/`）；campaign `demo-fixture`（tasks 全勾、Deferred 寫成單行 None）。origin 以 `git --git-dir=origin.git fetch` 更新（Engineer session 內不執行 `git push`）。試跑 audit：`unhandled_total=0`、`verdict=UNDETERMINED:issues_not_checked,self_session_unknown`。第一版 proposal 的 `## Deferred` 標題被計為 1 個 deferred marker（HOLD），改成單行後為 0 |
+
+### 4.26 H-C2（使用者，2026-10-13）
+
+使用者核准 H-C2（`settings.json` 逐行、diff 範圍、C-R 狀態、兩處 plan 以外的實作細節：`-am` 納入 R3-1 例外、launcher 以 `python3 -B` 執行）。接著進行 U5、U6（含 Closer）使用者實測。
+
+### 4.27 使用者實測 U5、U6（四角色）（2026-10-13，Claude Code `2.1.296`）
+
+使用者在 VS Code 終端機以 `~/.ai-notes/ttr/phaseC-u5.sh`、`phaseC-u6.sh <role>` 啟動（腳本只 `cd` 到 fixture／worktree 根目錄後 `exec env -u ANTHROPIC_API_KEY claude --agent …`；長路徑複製時曾被終端機換行切斷，改用腳本）。Engineer 讀 transcript 判定（`~/.claude/projects/<專案>/<session>.jsonl`）。
+
+**U5**（fixture `c2 user fixture/proj`，`--agent fixture-full --permission-mode auto`，session `4246a93c`）
+
+| 步驟 | transcript 證據 | 結果 |
+|---|---|---|
+| (a) `git -C . push --dry-run origin main` | `The user doesn't want to proceed with this tool use…`（使用者在提示中選 No） | PASS：hook `ask` 在 auto mode 互動實際跳出提示 |
+| (b) `bash -c "git push --dry-run origin main"` | 同上 | PASS |
+| (c) `env X=1 git push --dry-run origin main` | 同上 | PASS |
+| (d) subagent（模型以背景 Agent 啟動 `fixture-full`，命令為 `git -C . push --dry-run`） | subagent：`Permission for this tool use was denied…`；tool_use 17:04:34.433Z → result 17:04:38.025Z（3.6 秒） | 待使用者確認是否看到提示（訊息格式與 B 的 U3 (b) 使用者拒絕時相同，無法單憑 transcript 區分自動拒絕） |
+| (e) `git push --force --dry-run origin main` | `ttr-hook: blocked [git-force-push] …`，無提示 | PASS |
+
+另一個 session `55298b17`（02:31）只重做 (a)，同樣是使用者選 No。遠端 bare repo 未被 push（皆為 `--dry-run` 且被拒）。
+
+**U6 四角色**（worktree 根目錄）
+
+| 角色（session） | 放行類 | 被擋類 |
+|---|---|---|
+| architect（`18c2caa1`） | `git status --short` 正常輸出 | `printenv HOME` → `[env-dump]` |
+| engineer（`4b579bec`） | `git diff --check` 無輸出 | `git branch -D ttr-smoke-nonexistent` → `[git-branch-D]` |
+| tester（`22b0222a`） | `python3 -m pytest scripts/claude/tests -q` → `411 passed` | Read `docs/<smoke 用不存在的 .env 檔>` → `[env-file-access]` |
+| validate-merge-deploy（`a05723d2`） | `git log --oneline -3`、`git fetch origin main` 皆放行 | （不測 push） |
+
+四個 session 都沒有誤擋、沒有修改任何檔案。另：10-06 的舊 engineer session `55c9e60e` 檔案 mtime 在 02:22 更新，但最後一筆內容仍為 2026-10-07（無新增對話），與本次實測無關。
+
+**待完成**：U5 (d) 使用者確認；Closer 實測（尚無 `c3 closer fixture` 的 transcript）。
+
+### 4.28 U5 (d) 補證與 Closer 實測（2026-10-13，Claude Code `2.1.296`）
+
+**U5 (d)**：使用者確認 subagent 執行時跳出核准提示並選 No → **PASS**。U5 (a)～(e) 全數 PASS：hook `ask` 在 auto mode 的主執行緒與（背景）subagent 都實際跳出提示；H-C1 ⑦ 的分流（ask 不生效時變體改 deny）不需啟用。
+
+**Closer**（`~/.ai-notes/ttr/phaseC-closer.sh`，fixture `c3 closer fixture/Tokyo Taiwan Radar` 根目錄，`--agent close-campaign-retire-worktree`，session `e8b93f7d`）
+
+| 項目 | transcript 證據 |
+|---|---|
+| 使用的工具 | 只有 `Bash`、`Read`（wrapper 白名單無 Write／Edit；未嘗試 Write） |
+| Phase A | 讀 agent 檔、SKILL、campaigns README、git.instructions、audit 腳本；`git fetch origin main` 後跑 audit：`UNDETERMINED`（`issues_not_checked`、`self_session_unknown`）；以 Bash 人工核對 range diff 與 Copilot session-state（zsh glob 無命中報錯一次，改 `bash -c` 重跑，hook 放行） |
+| 結案紀錄寫入 | Bash：`cat > "docs/evaluation/campaigns/2026-10-13-demo-fixture.md" <<'EOF' …`（先檢查檔案不存在），100 行、十節齊全，`Worktree disposition` = `pending` |
+| commit | worktree 內 `3d7760b docs: add demo-fixture campaign close-out record`（`git commit -F - <<'EOF'`）；ahead 1／behind 0；dirty 0；**未 push**（fixture origin main 仍為 `b296fe9`） |
+| hook 拒絕 | 0 次（無誤擋） |
+
+**裁決 12 判定：不需 Write，不授予**。Closer 以 Bash 完成結案紀錄寫入（plan §6 判準：「若 Closer 改用 Bash 完成寫入，記為不需 Write」）。closer 的 `ROLE_TOOLS` 與 Copilot `tools:` 不變，不需要獨立 commit。
+
+**計畫未涵蓋的觀察（不影響 C-R7 判定）**：Closer 在使用者第二句核准前就進入 Phase C 寫紀錄並 commit。它在下一輪自承「照 agent 檔的規定，應該先等你同意再寫，這一步我做在你同意之前」。推測是把第一句提示中預先說明的未知項（「session id 未知；issues 以 --skip-issues 標 not_checked」）當成同意。這是 agent 行為規則的遵循問題，與 hooks／工具限制無關；列為 update-history-skill-agent 的教訓候選（campaign-closer 的 Phase B 閘門）。
+
+**C-R7 判定：PASS**（使用者證據已補）：architect、engineer、tester、validate-merge-deploy（§4.27）與 Closer 皆無誤擋，預期被擋的命令都被擋，Closer 完成實際結案寫檔。
+
+### 4.29 H-C3 前最終檢查（2026-10-13，`2.1.296`）
+
+| 檢查 | 結果 |
+|---|---|
+| `python3 scripts/sync_ai_adapters.py --check` | exit 0 |
+| `python3 -m pytest scripts/tests scripts/claude/tests -q` | `437 passed` |
+| `git diff --check`；新檔逐檔 `--no-index --check` | exit 0；無輸出（HN6 由 `.gitattributes` 豁免） |
+| gitleaks（`git diff HEAD`＋18 個新檔） | `no leaks found` |
+| C-R12 | exit 0 |
+| 上游漂移 | `git fetch origin` 後 origin/main = `9cb1e11e`；merge-base 仍為 `67846c18`；`67846c18..origin/main` 新增 5 個 deps commit（`scraper/requirements.txt`、`web/package.json`、`web/pnpm-lock.yaml`）＋ weekly review；與 Phase C 路徑無重疊（預期內主幹前進）；ahead／behind = `5	6`。H-PUSH 前由 V-M-D rebase |
+| runbook | L323 註記更新為「使用者互動實測通過」 |
+| diff 範圍 | 6 個修改＋18 個新檔，皆在 Allowed paths 內 |
+
+### 4.30 H-C3（使用者，2026-10-13）
+
+使用者核准 commit（回覆「commit」）。Closer 依裁決 12 判定不需 Write（§4.28），不另做獨立 commit。Phase C 以單一 commit `chore(ai): add Claude Code PreToolUse safety hooks` 提交於 `feat/ai-portability`，不 push；H-PUSH 前交 V-M-D 先 rebase 到最新 origin/main（目前 `9cb1e11e`）。
+
+**Phase C 狀態**：C-R1～C-R12 皆 PASS（C-R10 不適用）；runbook L411 已勾選、L323 已更新。

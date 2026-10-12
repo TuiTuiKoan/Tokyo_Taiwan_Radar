@@ -7,6 +7,40 @@ import pytest
 
 PUSH_ASK_RULE = "Bash(git push:*)"
 PUSH_COMMANDS = ("git push", "git push origin main", "git push --force origin main")
+HOOK_TIMEOUT = 30
+
+
+def hook_command(guard: str) -> str:
+    launcher = '"$CLAUDE_PROJECT_DIR/scripts/claude/run_hook.sh"'
+    return f"[ -f {launcher} ] && exec bash {launcher} {guard} || exit 2"
+
+
+EXPECTED_HOOKS = {
+    "PreToolUse": [
+        {
+            "matcher": "Bash|Monitor",
+            "hooks": [
+                {
+                    "type": "command",
+                    "command": hook_command("bash"),
+                    "timeout": HOOK_TIMEOUT,
+                    "onFailure": "block",
+                }
+            ],
+        },
+        {
+            "matcher": "Read|Grep|Write|Edit|NotebookEdit",
+            "hooks": [
+                {
+                    "type": "command",
+                    "command": hook_command("file"),
+                    "timeout": HOOK_TIMEOUT,
+                    "onFailure": "block",
+                }
+            ],
+        },
+    ]
+}
 
 
 @pytest.fixture(scope="module")
@@ -51,10 +85,27 @@ def test_no_bypass_or_hook_disabling(settings):
     assert "bypassPermissions" not in json.dumps(settings)
 
 
-def test_phase_b_settings_contain_only_push_ask(settings):
-    # Phase C adds `hooks` to this file; update this test there, keeping `permissions`.
-    assert set(settings) == {"permissions"}
+def test_settings_exact_shape(settings):
+    # Phase B's permissions stay unchanged; Phase C adds exactly these hooks (notes.md §4.23).
+    assert set(settings) == {"permissions", "hooks"}
     assert settings["permissions"] == {"ask": [PUSH_ASK_RULE]}
+    assert settings["hooks"] == EXPECTED_HOOKS
+
+
+def test_hook_commands_fail_closed(settings):
+    for entry in settings["hooks"]["PreToolUse"]:
+        (hook,) = entry["hooks"]
+        command = hook["command"]
+        assert command.startswith('[ -f "$CLAUDE_PROJECT_DIR/scripts/claude/run_hook.sh" ] && exec bash ')
+        assert command.endswith(" || exit 2")
+        assert hook["onFailure"] == "block"
+
+
+def test_guard_watchdog_below_hook_timeout(root):
+    for kind in ("bash", "file"):
+        source = (root / "scripts" / "claude" / f"pretooluse_{kind}_guard.py").read_text(encoding="utf-8")
+        watchdog = int(re.search(r"^WATCHDOG_SECONDS = (\d+)", source, re.MULTILINE).group(1))
+        assert 0 < watchdog < HOOK_TIMEOUT
 
 
 def test_settings_is_not_a_generated_file(sync, root, settings_path, tmp_repo, run_sync):

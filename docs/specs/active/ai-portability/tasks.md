@@ -126,42 +126,57 @@ fixture（U1–U3）：`cd "/private/tmp/claude-501/-Users-flyingship-Developmen
 
 ### C-0 spike（disposable 專案，無副作用；結果入 notes.md）
 
-- [ ] (1) 退出碼語意：exit 2 阻擋；exit 1、127、逾時不阻擋（結果不符 → STOP 回報）
-- [ ] (2) matcher 名稱與 stdin JSON 欄位
-- [ ] (3) agent 識別欄位，分 (a) `claude --agent` 主執行緒、(b) subagent 記錄（C-R9 依據）
-- [ ] (4) `Grep` 工具是否遍歷 gitignored 的 dotfile
-- [ ] (5) hook 回 `ask` 的 JSON 形狀與是否生效；形狀寫成 `_policy.py` 常數
-- [ ] (6) 沿用 B-0(6) 結果
+- [x] (1) 退出碼語意：exit 2 阻擋；exit 1、127、逾時不阻擋（結果不符 → STOP 回報）（PASS，`2.1.296`；notes.md §4.21）
+- [x] (2) matcher 名稱與 stdin JSON 欄位（PASS；`scratchpad_dir` 未出現；notes.md §4.21）
+- [x] (3) agent 識別欄位，分 (a) `claude --agent` 主執行緒、(b) subagent 記錄（C-R9 依據）（(a) `agent_type`、(b) `agent_type`＋`agent_id`；notes.md §4.21）
+- [x] (4) `Grep` 工具是否遍歷 gitignored 的 dotfile（會遍歷 → 規則 7 邊界；notes.md §4.21）
+- [x] (5) hook 回 `ask` 的 JSON 形狀與是否生效；形狀寫成 `_policy.py` 常數（形狀生效；互動提示待使用者；notes.md §4.21）
+- [x] (6) 沿用 B-0(6) 結果
 
 ### 實作
 
-- [ ] `scripts/claude/{run_hook.sh,pretooluse_bash_guard.py,pretooluse_file_guard.py,_policy.py,_tokenizer.py}`
-- [ ] `scripts/claude/tests/{test_bash_guard,test_file_guard,test_settings,test_launcher}.py`＋fixtures（heredoc fixture 一案一檔）
-- [ ] `.claude/settings.json` 加 `hooks`，不移除 `permissions`
-- [ ] Push 閘門：parser 找到的任何 `git push` 段回 `ask`；force 系列 deny
-- [ ] 規則矩陣 #1–#10（#7 三層、#9 啟發式、#10 stdin 餵入的 shell）
-- [ ] `_tokenizer.py` 單檔 ≤250 行；將超過預算時停下回報
-- [ ] `AGENTS.md` 加「hooks 與 permissions 為 Claude Code 專屬防線」＋覆蓋聲明
+- [x] `scripts/claude/{run_hook.sh,pretooluse_bash_guard.py,pretooluse_file_guard.py,_policy.py,_tokenizer.py}`
+- [x] `scripts/claude/tests/{test_bash_guard,test_file_guard,test_launcher}.py`＋fixtures（heredoc fixture 一案一檔）；settings 測試改寫 `scripts/tests/test_claude_settings.py`（H-C1 ⑧，不另建 `test_settings.py`）
+- [x] `.claude/settings.json` 加 `hooks`，不移除 `permissions`
+- [x] Push 閘門：parser 找到的任何 `git push` 段回 `ask`；force 系列 deny
+- [x] 規則矩陣 #1–#10（#7 三層、#9 啟發式、#10 stdin 餵入的 shell）
+- [x] `_tokenizer.py` 單檔 ≤250 行；將超過預算時停下回報
+- [x] `AGENTS.md` 加「hooks 與 permissions 為 Claude Code 專屬防線」＋覆蓋聲明
+
+### 使用者實測（H-C1 ⑫ 核准；使用者貼上輸出後由 Engineer 判定）
+
+fixture（2026-10-13 準備；scratchpad，路徑含空格；`.claude/settings.json` 與 `scripts/claude/` 與 worktree 逐位元組相同）。第一次互動啟動時會出現 trust 對話框，選信任（拋棄式目錄）：
+- U5：`cd "/private/tmp/claude-501/-Users-flyingship-Development-3-TTR-Tokyo-Taiwan-Radar-ttr-ai-portability-worktree/e629387e-2c6d-4a6c-8a7a-c992a7eca69c/scratchpad/c2 user fixture/proj"`（`origin` = 同層本機 bare `remote.git`；有 `fixture-full` agent）
+- U6 Closer：`cd "/private/tmp/claude-501/-Users-flyingship-Development-3-TTR-Tokyo-Taiwan-Radar-ttr-ai-portability-worktree/e629387e-2c6d-4a6c-8a7a-c992a7eca69c/scratchpad/c3 closer fixture/Tokyo Taiwan Radar"`（campaign `demo-fixture`；worktree `ttr-demo-fixture-worktree`；base `9eae2409e34b0034be61bae1fd3db5543fccecaa`、pushed HEAD `b296fe976f6a7fdad6760f3929109e057bef9864`；本機 bare `origin.git`；Engineer 試跑 audit 為 `UNDETERMINED:issues_not_checked,self_session_unknown`）
+
+- [x] **U5｜C-0(5)／C-R5 ask 提示**（2026-10-13：(a)～(e) 全數 PASS，(d) 使用者確認選 No；notes.md §4.27、§4.28）：`env -u ANTHROPIC_API_KEY claude --agent fixture-full --permission-mode auto`，依序請它執行 (a) `git -C . push --dry-run origin main`、(b) `bash -c "git push --dry-run origin main"`、(c) `env X=1 git push --dry-run origin main`、(d) 用 Agent 工具交給 fixture-full subagent 執行 (a)、(e) `git push --force --dry-run origin main`。**預期**：(a)～(d) 執行前出現核准提示（理由含 `ttr-hook:`），**選 No**；(e) 不出現提示、直接被擋，訊息含 `[git-force-push]`。**回報**：每次是否出現提示（貼提示文字）。**分流**：(a)～(d) 沒有提示 → H-C1 ⑦（變體改 deny）
+- [x] **U6｜C-R7 smoke test**（2026-10-13：四角色＋Closer PASS；Closer 以 Bash 寫結案紀錄 → 裁決 12 不需 Write；notes.md §4.27、§4.28）（hooks 加入 worktree 後；一律在 worktree **根目錄**開新終端機）：`cd "/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-ai-portability-worktree" && env -u ANTHROPIC_API_KEY claude --agent <name>`，每個角色各一個 session。只用「即使漏擋也無害」的命令：
+  - architect：請它用 Bash 執行 `git status --short`（預期放行）與 `printenv HOME`（預期被擋，`[env-dump]`）
+  - engineer：`git diff --check`（放行）與 `git branch -D ttr-smoke-nonexistent`（被擋，`[git-branch-D]`）
+  - tester：`python3 -m pytest scripts/claude/tests -q`（放行）與用 Read 工具讀 `docs/.env.smoke-nonexistent`（被擋，`[env-file-access]`）
+  - validate-merge-deploy：`git log --oneline -3` 與 `git fetch origin main`（放行）；**不做任何 push**
+  - close-campaign-retire-worktree：**在上列 Closer fixture 根目錄啟動**（不是 worktree），輸入「請結案 campaign `demo-fixture`。worktree：`<fixture 根目錄>/ttr-demo-fixture-worktree`；campaign base SHA：`9eae2409e34b0034be61bae1fd3db5543fccecaa`；pushed HEAD SHA：`b296fe976f6a7fdad6760f3929109e057bef9864`；session id 未知；GitHub issues 以 `--skip-issues` 標 not_checked。不要 push、不要移除 worktree。」Closer 回報 UNDETERMINED 並詢問時，回覆「確認可接受，請進入 Phase C，在 campaign worktree 內撰寫結案紀錄（disposition 填 pending）」。**預期**：寫出 `ttr-demo-fixture-worktree/docs/evaluation/campaigns/2026-10-13-demo-fixture.md`。**回報**：是否寫出、Closer 用哪個工具寫（或貼錯誤原文）。Engineer 讀 transcript 依裁決 12 判定（被拒或做不到 → 授予 Write；Bash 寫成 → 不需 Write）
+  **回報**：每個 session 的結果（貼被擋訊息）；有誤擋即停
 
 ### 驗證（C-R1～C-R12）
 
-- [ ] C-R1：C-0 結果記錄
-- [ ] C-R2：每個阻擋類 ≥3 變體、每個允許案例 ≥1 positive；must-allow 清單全過
-- [ ] C-R3：fail-closed 矩陣全過，含 output protocol 列
-- [ ] C-R4：必測三項（例外→exit 2＋固定訊息；含空格路徑；假 token 不出現在 stderr）
-- [ ] C-R5：push 閘門變體回 `ask`、force 系列 deny（含 B-R6 carry-over）
-- [ ] C-R6：settings 加入 hooks 後再跑 `claude doctor`
-- [ ] C-R7：使用者新 session smoke test：Architect、Engineer、Tester、V-M-D、Closer（含實際結案寫檔；需要 Write 時依裁決 12）
-- [ ] C-R8：AGENTS.md 覆蓋聲明（含規則 7 的敏感路徑邊界）
-- [ ] C-R9：角色辨識分兩情境實測；不可辨識時依裁決 13 標「PARTIAL－裁決 13 接受」
-- [ ] C-R10：role-conditional 寫入拒絕（只對 carry-over 情境 Required）
-- [ ] C-R11：能力聲明措辭全面檢查
-- [ ] C-R12：C commit 相較 B commit，四個 UNDECIDED 的 canonical 與 generated 零 diff
-- [ ] **H-C1**：規則矩陣（特別 #7、#9、#10）、push 閘門（含 §8.2 #13）、C-R9 辨識結果與標示的呈報
-  - [ ] （Phase 0 查證 F4）`supabase db query`，以及預設對 linked 專案動作的子命令，在規則 9 中如何處理（見 notes.md §3.4）
-- [ ] **H-C2**：`settings.json` 逐行檢視
-- [ ] **H-C3**：使用者新 session smoke test；Closer 依裁決 12 處理並呈報
-- [ ] 核准後 commit
+- [x] C-R1：C-0 結果記錄
+- [x] C-R2：每個阻擋類 ≥3 變體、每個允許案例 ≥1 positive；must-allow 清單全過
+- [x] C-R3：fail-closed 矩陣全過，含 output protocol 列
+- [x] C-R4：必測三項（例外→exit 2＋固定訊息；含空格路徑；假 token 不出現在 stderr）
+- [x] C-R5：push 閘門變體回 `ask`、force 系列 deny（含 B-R6 carry-over）
+- [x] C-R6：settings 加入 hooks 後再跑 `claude doctor`
+- [x] C-R7：使用者新 session smoke test：Architect、Engineer、Tester、V-M-D、Closer（含實際結案寫檔；需要 Write 時依裁決 12）
+- [x] C-R8：AGENTS.md 覆蓋聲明（含規則 7 的敏感路徑邊界）
+- [x] C-R9：角色辨識分兩情境實測；不可辨識時依裁決 13 標「PARTIAL－裁決 13 接受」
+- [x] C-R10：role-conditional 寫入拒絕（只對 carry-over 情境 Required）→ 不適用（無 carry-over；notes.md §4.23）
+- [x] C-R11：能力聲明措辭全面檢查
+- [x] C-R12：C commit 相較 B commit，四個 UNDECIDED 的 canonical 與 generated 零 diff
+- [x] **H-C1**：規則矩陣（特別 #7、#9、#10）、push 閘門（含 §8.2 #13）、C-R9 辨識結果與標示的呈報（2026-10-12 使用者「全部照建議」；notes.md §4.23）
+  - [x] （Phase 0 查證 F4）`supabase db query`，以及預設對 linked 專案動作的子命令，在規則 9 中如何處理（見 notes.md §3.4）→ H-C1 ⑤：`db query`、`db pull` 等全拒，不分目標；Management APIs 列後續項目
+- [x] **H-C2**：`settings.json` 逐行檢視（2026-10-13 使用者核准；notes.md §4.26）
+- [x] **H-C3**：使用者新 session smoke test；Closer 依裁決 12 處理並呈報（2026-10-13 使用者核准 commit；Closer 不需 Write；notes.md §4.28、§4.30）
+- [x] 核准後 commit（`chore(ai): add Claude Code PreToolUse safety hooks`，不 push）
 
 ## H-PUSH
 
@@ -183,6 +198,9 @@ fixture（U1–U3）：`cd "/private/tmp/claude-501/-Users-flyingship-Developmen
 - [ ] reviewer 重新定位（H-B1 使用者新增）：功能 1（爬蟲健康）、2（Skills 新鮮度）已由 `monthly_health_check.yml` 的自動報告與 weekly-review 涵蓋，功能 4（結案檢核）與 campaign-closer 互補，只有功能 3（agent scope 分析）獨有；決定保留、縮減、併入他角色或退役，並同步 X2（notes.md §4.10）
 - [ ] 受限角色本文的「After Fixing Any Error」寫檔指示（H-B1 f1）：tester L39–40、plan-critic L96–97、lianbu-spokesperson L133–134 要求更新 history.md／SKILL.md，但投影後工具層無 Edit／Write（lianbu 也無 Bash）。B 暫以 `AGENTS.md` 說明「教訓以文字回報，交 Update History, Skill, Agent 或使用者寫入」；後續改寫三檔本文，並考慮為 plan-critic、lianbu 補 update-history handoff（notes.md §4.9）
 - [ ] SQL 函式副作用偵測（plan §7 規則 9 殘餘風險）
+- [ ] （H-C1 ⑤）Supabase CLI Management APIs（`secrets`、`functions`、`storage`、`projects`、`branches`、`config` 等會改 production 設定的子命令）不在規則 9 範圍
+- [ ] （H-C1 ⑩）claude.ai 帳號層 Supabase MCP 連接器（`mcp__claude_ai_Supabase__execute_sql`、`apply_migration`、`deploy_edge_function` 等）不在規則 9 範圍；評估 `permissions.ask`／deny
+- [ ] `find -exec`、git alias（`git -c alias.x=…`、既有 alias）、`uv run`／`npx` 等未解包的包裝動詞
 - [ ] 升級 Claude Code 後重跑 B-0／C-0 的 fixture（本 campaign 不做自動化）
 - [ ] （H-A1 F5）把 `scraper/researcher.py`／`scraper/update_source.py` 的研究資料目錄移出 legacy 名稱 `.copilot-tracking/research/`，並同步 researcher agent／SKILL、`git.instructions.md` 例外句與 runbook L299 註記。理由：目錄名看似可清除的 legacy scratch；路徑以腳本位置推算，每個 worktree 各有一份（主工作樹的 profile 在其他 worktree 看不到）。需改 `scraper/**`，另案處理
 

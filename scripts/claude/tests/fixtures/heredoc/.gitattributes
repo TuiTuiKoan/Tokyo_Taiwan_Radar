@@ -1,0 +1,2 @@
+# HN6 must keep the trailing space after EOF (plan.md §7 R3-1 fixture).
+HN6.txt -whitespace

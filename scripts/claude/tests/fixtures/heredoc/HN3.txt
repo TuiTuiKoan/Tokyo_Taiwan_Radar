@@ -1,0 +1,4 @@
+git commit -m "$(cat .env <<'EOF'
+x
+EOF
+)"

@@ -1,0 +1,4 @@
+git commit -m "$(cat <<'EOF'
+docs: why git reset --hard is blocked
+EOF
+)"

@@ -320,7 +320,7 @@ rg -n \
 
 * planner 角色在工具層無法使用 Edit／Write／NotebookEdit（Bash 重導寫入為已接受殘餘風險，C-R11）；Architect 因 X1 暫列 UNDECIDED，此項標「部分達成／待裁決」。
 * Tester 可執行測試；工具層無 Edit／Write／NotebookEdit（Bash 寫入為已接受殘餘風險，C-R11）。
-* Engineer 可修改 worktree，但不能自行 push。（B 階段為部分（純 `git push` 提示）；變體由 C 驗證。）
+* Engineer 可修改 worktree，但不能自行 push。（B：純 `git push` 由 `permissions.ask` 提示；C：`git -C … push`、`env X=1 git push`、`bash -c` 變體由 hook 回 ask、force 系列阻擋；自動測試、`-p` 端到端與使用者互動實測（auto mode 主執行緒與 subagent 皆跳出提示）皆通過。只在從 repo／worktree 根目錄啟動的 session 生效。）
 * V-M-D 在 push 前仍要求明確人工核准。
 * 16 個 Claude agent wrappers 可正常載入。
 * adapter generation idempotent。
@@ -408,7 +408,7 @@ hook 發生 false positive 時，先回退該 hook commit 或停用該單一 hoo
 
 - [x] Phase A legacy active guidance negative search 通過
 - [ ] Phase B agent permission matrix 已投影並有 negative tests（部分（X1–X4 延期）：11 個受管 agent 已投影；architect、reviewer、researcher、scraper-expert 未投影）
-- [ ] Phase C destructive command hooks 有 positive／negative tests
+- [x] Phase C destructive command hooks 有 positive／negative tests（第一批 10 類；覆蓋聲明見 `AGENTS.md`「Hooks 與 permissions」：prod-db 為啟發式、`.env` 為字面路徑檢查、只在 repo／worktree 根目錄啟動的 session 生效、Copilot／Codex 不受保護）
 - [ ] adapter generation 與 `--check` 均通過
 - [ ] 所有修改都在 `feat/ai-portability` worktree
 - [ ] 沒有 production DB write

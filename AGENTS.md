@@ -88,8 +88,41 @@ Claude Code 可直接叫用 `.claude/agents` 下的 subagent wrapper。Codex 沒
 - tester、plan-critic、lianbu-spokesperson 本文中「修正錯誤後更新 history.md／SKILL.md」的步驟無法以工具層寫檔完成：教訓以文字回報，交 Update History, Skill, Agent 或使用者寫入。
 - plan-critic 不在 Claude Code 的 plan mode 使用：plan mode 送出計畫需要 Write 與 ExitPlanMode，planner 白名單刻意不含這兩者。以一般模式啟動（`claude --agent plan-critic`），讀計畫檔後以文字回傳批評。
 - Codex 沒有依角色的工具限制，只靠各 agent 檔內文的角色規則；需要唯讀時（例如請 Codex 評審計畫），由使用者以 `codex -s read-only` 啟動。VS Code Copilot 依 agent 檔自己的 `tools:` 運作，不讀 `claude-role`。
-- `.claude/settings.json` 的 `permissions.ask`（`Bash(git push:*)`）讓 `git push` 執行前要求核准。這是全專案設定，對所有角色生效（含未投影的四個），在主執行緒、subagent 與 auto mode 下都已實測會觸發；`git -C … push`、`bash -c 'git push …'` 等變體不在涵蓋範圍內。
+- `.claude/settings.json` 的 `permissions.ask`（`Bash(git push:*)`）讓 `git push` 執行前要求核准。這是全專案設定，對所有角色生效（含未投影的四個），在主執行緒、subagent 與 auto mode 下都已實測會觸發；但只在從 repo（或 worktree）根目錄啟動的 session 生效（見下一段）。`git -C … push`、`env X=1 git push`、`bash -c 'git push …'` 等變體不受這條規則約束，由下一段的 hooks 補上。
 - 新增 agent 時必須加 `claude-role`，或列入 `scripts/sync_ai_adapters.py` 的 `UNDECIDED_AGENTS`，否則 `--check` 失敗。
+
+## Hooks 與 permissions（Claude Code 專屬防線）
+
+`.claude/settings.json` 的 `permissions.ask` 與 PreToolUse hooks（`scripts/claude/`）只保護 Claude Code。VS Code Copilot 與 Codex 不讀這個檔，**不受這道防線保護**，只靠各 agent 檔內文的角色規則。
+
+**生效條件**
+
+- 只在從 repo（或 worktree）根目錄啟動的 session 生效。從子目錄啟動時，Claude Code 不載入根目錄的 `.claude/settings.json`，push 核准與 hooks 都不存在（Claude Code `2.1.296` 實測）。
+- 對所有角色生效，含未投影權限的 architect、reviewer、researcher、scraper-expert（使用者裁決 Q8）；`claude --agent` 主執行緒與 subagent 兩種情境都已實測（`2.1.296`）。hooks 不依角色區分。
+- `Bash` 與 `Monitor` 工具的命令走同一個 guard；`Read`、`Grep`、`Write`、`Edit`、`NotebookEdit` 的路徑走 file guard。
+- fail-closed：launcher 缺失、找不到 `python3`、guard 崩潰、逾時、輸出不符協定，一律阻擋。被誤擋時停下回報使用者，由使用者決定回退 hook commit 或停用單一規則（並補 positive test）；不得以 `--dangerously-skip-permissions`、`disableAllHooks` 或 `settings.local.json` 繞過。
+- 驗證：`python3 -m pytest scripts/claude/tests scripts/tests -q`。
+
+**第一批規則**
+
+| 規則 | 處理 |
+| --- | --- |
+| 任何 `git push`（含 `git -C … push`、`env X=1 git push`、`bash -c 'git push …'`） | 要求核准 |
+| `--force`、`-f`、`--force-with-lease`、`--force-if-includes`、`+refspec`、刪除遠端 ref（`--delete`、`-d`、`:ref`）、`--mirror`、`--prune` 的 push | 阻擋 |
+| `git reset --hard`；沒有 `-n`／`--dry-run` 的 `git clean`；`git branch -D`（含 `--delete --force`）；`git worktree remove --force`；`git worktree add --force` | 阻擋 |
+| `.env`、`.env.*`（`.env.example`、`.env.sample`、`.env.template` 除外）的讀取、搜尋、複製、寫入、刪除與重導 | 阻擋。例外：單一路徑的 `git check-ignore -v`、`git ls-files --error-unmatch`、`test -f`、`stat`、`ls -l`、`wc -l`，以及 `.github/instructions/token-rotation.instructions.md`、`docs/GITHUB_TOKEN_SYNC_CHECKLIST.md` 的 masked awk 模板（逐字相同、不在 pipeline 內） |
+| `env`（無命令）、`printenv`、`export -p`、`declare -p`／`-x`、無參數 `set` 等環境變數傾印 | 阻擋 |
+| `supabase db push`（只放行精確的 `supabase db push --dry-run`）、`db reset`、`db query`、`db pull`、`migration up／down／repair／squash`、`seed`；`psql` 必須帶 `-X` 且只能是單一 `SELECT`／`SHOW`／`EXPLAIN`（不含 `ANALYZE`）；`python -c` 或 heredoc 餵入的 python 同時含 `create_client` 與 `.insert(`／`.update(`／`.upsert(`／`.delete(` | 阻擋（啟發式） |
+| `eval`、stdin 餵入的 shell（`… \| sh`、`bash <<EOF`、`sh -s`）、無法檢查的 `bash -c`、動詞位置的命令替換、`git`／`psql`／`supabase` 參數中的命令替換（`git rev-parse`、`git branch --show-current`、`pwd` 與 heredoc commit 訊息除外）、guard 不支援的語法 | 阻擋 |
+
+**未涵蓋（殘餘風險）**
+
+- prod-db 規則是啟發式，**不代表 production 寫入全面受保護**。經專案腳本的寫入（`scraper/update_source.py`、`qa_auto_fix.py`、`annotator.py` 等）、Supabase CLI 的 Management APIs、claude.ai 帳號層的 Supabase MCP 連接器（`execute_sql`、`apply_migration` 等）、`SELECT` 呼叫有副作用的函式、`.rpc(`、經 pipe 餵入的 python，都不在範圍內。
+- `.env` 規則是字面路徑檢查。只給父目錄的遞迴讀取（`grep -r`、`rg -uu`、以父目錄為 `path` 的 Grep 工具、`cp -r`、`tar`）、symlink／hard link 等別名路徑、直譯器程式碼字串內的路徑（如 `python3 -c "open('.env')"`）都不涵蓋。
+- 字元層混淆（`$'\x67it'`、變數拼接）、`$VAR` 當動詞或 guarded 參數、`xargs`、`find -exec`、git alias、未解包的包裝動詞（`uv run`、`npx` 等）、經變數間接引用的 `source "$F"`、在直譯器內讀取環境變數，都不涵蓋。
+- hook 失敗與逾時以 `onFailure: "block"` 阻擋，需 Claude Code `2.1.295` 以上；舊版會忽略這個欄位，逾時時放行（launcher 缺失仍由命令本身的 `|| exit 2` 阻擋）。Claude Code 改版若不再辨識 decision JSON，`ask` 會退化為不提示。
+- `.claude/settings.local.json`、`disableAllHooks`、`--settings` 等覆蓋不在邊界內。
+- 保留 Bash 的角色仍可經 Bash 重導寫入一般檔案（見上一段）。
 
 ## Skills wrappers
 

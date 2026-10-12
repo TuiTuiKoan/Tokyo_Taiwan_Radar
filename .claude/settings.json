@@ -3,5 +3,31 @@
     "ask": [
       "Bash(git push:*)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Monitor",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/scripts/claude/run_hook.sh\" ] && exec bash \"$CLAUDE_PROJECT_DIR/scripts/claude/run_hook.sh\" bash || exit 2",
+            "timeout": 30,
+            "onFailure": "block"
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Grep|Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/scripts/claude/run_hook.sh\" ] && exec bash \"$CLAUDE_PROJECT_DIR/scripts/claude/run_hook.sh\" file || exit 2",
+            "timeout": 30,
+            "onFailure": "block"
+          }
+        ]
+      }
+    ]
   }
 }
