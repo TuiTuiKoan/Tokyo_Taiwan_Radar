@@ -210,7 +210,10 @@ def _clean_og_title(og_title: Optional[str]) -> str:
 
 
 # Any mention that ties the text to Taiwan. Used as the Phase 2 gate.
-_TAIWAN_RE = re.compile(r'台湾|臺灣|台灣|taiwan|タイワン', re.IGNORECASE)
+# Deliberately NO bare katakana タイワン: it matches タイワンザル (the invasive
+# Formosan macaque), which let a play about invasive monkeys through on
+# 2026-10-13. Japanese event text writes Taiwan as 台湾 in practice.
+_TAIWAN_RE = re.compile(r'台湾|臺灣|台灣|taiwan', re.IGNORECASE)
 
 
 def _mentions_taiwan(*texts: Optional[str]) -> bool:

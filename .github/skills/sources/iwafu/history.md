@@ -23,6 +23,10 @@
 - 新增 run-level `_title_anomaly`：同標題佔一半以上（≥5 筆）就整批丟棄並 log error。
 - Annotator 新增結構化 `taiwan_relevance {is_relevant, confidence}`；`_relevance_gate_update()` 在 confidence ≥ 0.8 且非人工審核、非 user_submission 時設 `is_active=false`，並不產生子活動。
 
+**後續（2026-10-13，dry-run 驗證時發現）：**
+- `_TAIWAN_RE` 原本含裸片假名 `タイワン`，會命中 `タイワンザル`（外來種台灣獼猴），讓舞台劇「追熟しない果実」通過 Phase 2。已移除（日文活動文案實務上寫 `台湾`）。
+- 「本物のSL運行／成田ゆめ牧場」（iwafu_1061560，4 月入庫）是**合法命中**：SL 曾在台灣煤礦服役，Phase 2 只檢查「有提到」，且 annotator 當時判定相關。這類「物件來歷帶台灣」的邊界案例兩道閘門設計上都不會擋，需人工決定（admin 下架）；不要為此收緊 prompt，會誤殺真正的台灣活動。
+
 **教訓：**
 - **黑名單只在比對字串正確時有效。** 標題解析壞掉時，所有以標題為鍵的防線一起失效；要有一道不依賴標題的防線（Phase 2 全文檢查、annotator 結構化判斷）。
 - **LLM 的判斷必須落到結構化欄位，並由程式碼執行。** 「in your mind」的指示等於沒有指示；selection_reason 的散文不是控制訊號。
