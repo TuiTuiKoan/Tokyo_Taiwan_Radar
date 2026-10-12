@@ -266,7 +266,6 @@ class FukuokaNowScraper(BaseScraper):
 
 _TAG_TO_CATEGORY: dict[str, str] = {
     "Culture": "art",
-    "Festival": "senses",
     "Food": "lifestyle_food",
     "Shopping": "retail",
     "Music": "performing_arts",
@@ -287,7 +286,6 @@ _TITLE_CATEGORY_HINTS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"映画|film|movie|cinema", re.IGNORECASE), "movie"),
     (re.compile(r"concert|音楽|music|live", re.IGNORECASE), "performing_arts"),
     (re.compile(r"展覧|exhibition|exhibit|gallery|art", re.IGNORECASE), "art"),
-    (re.compile(r"matsuri|festival|fes|祭", re.IGNORECASE), "senses"),
     (re.compile(r"food|restaurant|noodle|dish|cuisine|夜市|night market", re.IGNORECASE), "lifestyle_food"),
     (re.compile(r"lecture|seminar|talk|session|学術|研究", re.IGNORECASE), "lecture"),
     (re.compile(r"台湾|Taiwan|Taiwanese", re.IGNORECASE), "taiwan_japan"),

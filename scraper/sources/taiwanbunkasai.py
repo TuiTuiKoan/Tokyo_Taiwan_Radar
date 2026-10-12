@@ -197,6 +197,6 @@ class TaiwanbunkasaiScraper(BaseScraper):
                 location_name=location_name,
                 location_address=location_address,
                 is_paid=False,  # 入場無料 — verified on official site
-                category=["lifestyle_food", "performing_arts", "senses"],
+                category=["lifestyle_food", "performing_arts"],
             )
         ]

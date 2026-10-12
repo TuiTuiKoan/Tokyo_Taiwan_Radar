@@ -28,12 +28,21 @@ _RULES: list[tuple[str, list[str]]] = [
         "演劇", "theater", "theatre", "舞台", "stage", "オペラ", "opera",
         "舞蹈", "表演", "劇場",
     ]),
-    ("senses", [
+    # Visual art / exhibitions. These keywords used to map to "senses", which
+    # turned it into a catch-all. "senses" is now concept-only (see below and
+    # scraper/taxonomy.md).
+    ("art", [
         "展覧", "exhibition", "展示", "アート", "art", "絵", "painting",
         "写真", "photo", "gallery", "ギャラリー", "デザイン", "design",
         "漫画", "manga", "イラスト", "illustration",
-        "文化体験",
-        "展覧", "トレンド", "trend",
+    ]),
+    # Taiwanese identity / aesthetics / locality / folk culture / vernacular
+    # discussed as a concept.
+    ("senses", [
+        "アイデンティティ", "identity", "認同", "台湾人意識", "台灣人意識",
+        "美学", "美學", "aesthetic", "ローカリティ", "locality", "地方性",
+        "民俗学", "民俗學", "常民文化", "ヴァナキュラー", "vernacular",
+        "鉄窓花", "鐵窗花",
     ]),
     ("lifestyle_food", [
         "グルメ", "gourmet", "食", "food", "料理", "cuisine", "レストラン",
@@ -139,7 +148,7 @@ def classify(
 ) -> list[str]:
     """
     Return a list of category tags for an event.
-    Always returns at least ["culture"] as a fallback.
+    Returns [] when no keyword matches — there is no fallback category.
     """
     corpus = " ".join(
         filter(None, [name_ja, name_zh, name_en, description_ja, description_zh, description_en])
@@ -161,9 +170,5 @@ def classify(
         if any(kw.lower() in corpus for kw in keywords):
             if category not in found:
                 found.append(category)
-
-    # Always have at least one tag
-    if not found:
-        found = ["senses"]
 
     return found

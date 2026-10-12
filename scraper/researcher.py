@@ -64,7 +64,7 @@ SEARCH_CATEGORIES = [
     {
         "id": "art_exhibition",
         "label": "🎨 美術・展示",
-        "site_categories": ["art", "exhibition", "senses", "indigenous"],
+        "site_categories": ["art", "exhibition", "indigenous"],
         "query_ja": "台湾 アート 展覧会 展示 ギャラリー 美術館 日本 2026",
         "query_en": "Taiwan art exhibition gallery museum Japan 2026",
         "system_prompt": (

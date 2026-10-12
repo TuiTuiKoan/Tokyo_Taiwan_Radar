@@ -634,7 +634,7 @@ def _check_category_sync() -> None:
     if missing:
         logger.error(
             "VALID_CATEGORIES out of sync with types.ts! "
-            "Missing from annotator: %s  — add them to VALID_CATEGORIES and SYSTEM_PROMPT.",
+            "Missing from annotator: %s  — add them to VALID_CATEGORIES and scraper/taxonomy.md.",
             sorted(missing),
         )
         raise SystemExit(1)
@@ -643,6 +643,40 @@ def _check_category_sync() -> None:
             "VALID_CATEGORIES has entries not in types.ts (may be intentional): %s",
             sorted(extra),
         )
+
+
+# Category definitions live in scraper/taxonomy.md (single source of truth).
+# Only the text between the PROMPT markers is sent to the model.
+TAXONOMY_PATH = Path(__file__).resolve().parent / "taxonomy.md"
+_TAXONOMY_BEGIN = "<!-- PROMPT:BEGIN -->"
+_TAXONOMY_END = "<!-- PROMPT:END -->"
+_TAXONOMY_PLACEHOLDER = "<<CATEGORY_TAXONOMY>>"
+
+
+def load_taxonomy_prompt(path: Path = TAXONOMY_PATH) -> str:
+    """Return the prompt section of taxonomy.md (between the PROMPT markers)."""
+    text = path.read_text(encoding="utf-8")
+    try:
+        start = text.index(_TAXONOMY_BEGIN) + len(_TAXONOMY_BEGIN)
+        end = text.index(_TAXONOMY_END, start)
+    except ValueError as exc:
+        raise RuntimeError(
+            f"{path} must contain {_TAXONOMY_BEGIN} and {_TAXONOMY_END} markers"
+        ) from exc
+    section = text[start:end].strip("\n")
+    if not section.strip():
+        raise RuntimeError(f"{path} has an empty PROMPT section")
+    return section
+
+
+def _build_category_prompt() -> str:
+    """Rule 2 of SYSTEM_PROMPT: allowed slugs (from code) + definitions (from taxonomy.md)."""
+    return (
+        "2. Categories must be from this list: "
+        + ", ".join(VALID_CATEGORIES)
+        + "\n"
+        + load_taxonomy_prompt()
+    )
 
 
 # News-source movie title enrichment helpers
@@ -1098,42 +1132,7 @@ OTHER RULES:
    EXCEPTION — DO NOT create sub_events for a single-film cinema screening (movie category) that simply has multiple show-time slots. For example, '4/25(土)～5/1(金)10:00、5/2(土)～8(金)14:40' is ONE film with two show-time windows — use start_date = first date, end_date = last date, put the slot details in business_hours. Sub_events in this context are for DIFFERENT FILMS in a series or DIFFERENT PHYSICAL VENUES, not different show times of the same film.
    EXCEPTION — DO NOT create sub_events when the article is a report/recap. If the raw_title contains レポート, レポ, 報告, 活動記録, 開催記録, 鑑賞記録, 記録｜, 記録|, アーカイブ, or recap (case-insensitive), the article is a post-event report and describes a single completed event — return sub_events: [] always. Treat the report as one event and extract its single set of fields (date, performer, etc.) from the body.
    NOTE: For events with exactly two venues across different countries (e.g. Japan + Taiwan), do NOT create sub_events. Use the Japan venue as the single primary location (see MULTI-COUNTRY VENUE RULE above).
-2. Categories must be from this list: movie, performing_arts, senses, photography, tea_alcohol, drama, documentary, retail, nature, tech, tourism, lifestyle_food, books_media, gender, parenting, geopolitics, human_rights, art, lecture, taiwan_japan, scholarship, study_abroad, business, academic, competition, indigenous, folklore, history, urban, workshop, literature, tv_program, radio_program, exhibition, design_craft, herbal, taiwan_mandarin, healthcare, report
-   - "taiwan_japan" = Taiwan-Japan bilateral relations, diplomacy, civil exchange, friendship events between Taiwan and Japan
-   - "business" = business, investment, commerce, startups, corporate events, trade, entrepreneurship
-   - "competition" = contests, competitions, awards, championships, public calls for entries (コンテスト, 大会, 選手権, 公募, コンクール)
-   - "academic" = academic research, seminars, symposiums, papers, university events, scholarly conferences
-   - "indigenous" = events related to Taiwan's indigenous peoples (原住民族), tribal culture, indigenous arts or languages (アミ族, パイワン族, タイヤル族, etc.)
-    - "history" = historical events, exhibitions on history, cultural heritage, archives, museums, war memory, historical figures, and biographical roots/origin when a featured author, artist, creator, or performer is explicitly born in or from Taiwan. Education or work history in Taiwan alone is not enough.
-   - "workshop" = hands-on workshops, experience classes, craft workshops, cooking classes, pottery, weaving, tea ceremony, atelier sessions (体験, ワークショップ, 手作り, クラフト)
-   - "movie" = film screenings, movie events, documentary showings, film festivals. IMPORTANT: any event with 上映, 映画, film, screening, cinema in its title or description MUST include "movie" as a category, even if it also involves talks or other elements.
-   - "performing_arts" = LIVE stage performances ONLY: concerts, theater, dance, opera. NOT for film screenings. For Asia/Japan tour events (アジアツアー, 日本ツアー), only use if the Tokyo show is confirmed a live performance.
-   - "senses" = art exhibitions, photography, design shows, creative/visual experiences. NOT for film screenings or book-only events.
-   - "photography" = photograph exhibitions, photographer talks, photo workshops, photo books. Use for events where photography is the primary medium (e.g. 写真展, 写真家トーク, フォトワークショップ). Often co-occurs with art or exhibition; pair with history for archival/documentary photography of Taiwan.
-   - "lifestyle_food" = food, cooking, tea ceremony, restaurants, cafes, lifestyle events. Do NOT add taiwan_japan just because the food is Taiwanese — use taiwan_japan only when the event emphasizes bilateral exchange.
-   - "books_media" = books, literature, publishing, authors, readings, book launch events, media, journalism. FORMULA: when title contains 著者名+『書名』 (author + book in 『』) OR ブックサロン/刊行記念/出版記念 → ALWAYS add books_media + lecture + academic. Then add geopolitics if political/policy content, history if historical content, taiwan_japan ONLY if explicitly about Japan-Taiwan bilateral topic.
-   - "lecture" = talks, presentations, lectures, panels, Q&A sessions. MANDATORY when title/description contains any of: トークイベント, トークショー, 講演会, 講演, 講座, シンポジウム, 勉強会, 例会, 基調講演, 映後座談, セッション, 研究会. Also ALWAYS add lecture when movie + トーク/座談 co-occur.
-   - "geopolitics" = Taiwan political history, cross-strait relations, Taiwan identity/sovereignty, Taiwan Strait crisis, Japan-Taiwan national security strategy, government/public policy (移民政策, 給食政策, デジタル政府). Add alongside history or academic for relevant films, books, talks. Trigger keywords: 危機, 海峡, 独立, 民主化, 移民政策, インド太平洋, 日台関係 (security/policy sense), 主権, 国際フォーラム.
-    - "human_rights" = human rights, democracy, civil liberties, judicial justice, transitional justice, political persecution memory, advocacy events. Use for events centered on rights discourse (言論自由, 司法正義, 轉型正義, 人權倡議).
-    - "history" = historical events, Taiwan colonial era, war memory, cultural heritage, and roots/origin. MANDATORY for: films/docs about colonial-era or war-era Taiwan (日本統治, 戦没者, 同化, 傷痕); historical figures (李登輝, 蒋介石); photo exhibitions of historical Taiwan; featured authors/artists/creators/performers explicitly described as 台湾出身, 台湾生まれ, 台北市出身, Taiwan-born, or born in Taiwan. Do NOT use history merely because someone studied at a Taiwan university, studied abroad in Taiwan, or works in Taiwan. Keywords: 戦没, 植民地, 統治, 秘録, 同化, 傷痕, 歴史.
-   - "taiwan_japan" = Taiwan-Japan BILATERAL relations ONLY. Use for: formal diplomatic/exchange events; Taiwanese diaspora in Japan (台湾系移住民); Taiwan veteran memorials (台湾出身戦没者); academic research on bilateral topics. DO NOT USE for: Taiwan food events, Taiwan concerts/tours, Taiwan children's books, Taiwan tourism promotion seminars, general Taiwan cultural events without explicit bilateral focus.
-   - "report" = event reports/recaps (only if the text IS a report about a past event, not an upcoming event)
-   - "tv_program" = TV broadcasts, television programs. MANDATORY for any event from a TV broadcast source (look for 放送: / ジャンル: markers in raw_description). A TV drama should have BOTH tv_program AND drama. A TV movie broadcast should have BOTH tv_program AND movie.
-   - "radio_program" = radio broadcasts, radio programs, podcast-style radio content. MANDATORY for any event from a radio broadcast source (e.g. RTI / 中央廣播電台, NHK Radio, FM radio shows). Use radio_program instead of tv_program for radio-specific sources.
-   - "drama" = serialized dramatic works: TV dramas, stage drama series, web dramas. For TV drama broadcasts, always pair with tv_program.
-   - "documentary" = documentary films or TV documentary programs. For TV documentaries, pair with tv_program.
-   - "tea_alcohol" = tea culture, wine, sake, cocktail events, tasting events, tea ceremony workshops, bar/pub events featuring Taiwanese beverages
-   - "exhibition" = museum exhibitions, gallery shows, permanent/special exhibitions at a specific venue with defined dates. Distinct from "art" (which covers visual art broadly) and "senses" (creative experiences)
-   - "design_craft" = Taiwanese design, craft, handmade goods, product design, industrial design, traditional crafts (ceramics, weaving, lacquerware, metalwork, woodwork). Use for design exhibitions, craft markets, handmade workshops, product showcases. Distinct from "art" (fine art) and "folklore" (folk traditions, even if they include crafts).
-   - "herbal" = Taiwanese spices, herbs, herbal medicine, medicinal cuisine (薬膳/薬膵料理), Chinese herbal pharmacy, aromatherapy with Asian herbs, herbal tea workshops (distinct from tea_alcohol which focuses on tea ceremony/wine culture). Use for events about 中薬, 漢方, 薬膳, herbal cooking classes, spice tastings.
-   - "folklore" = folk customs, festivals, folk religion, temple events, traditional crafts rooted in folk traditions
-   - "literature" = literary events: poetry readings, literary salons, writer residencies, literary translation. Distinct from "books_media" (publishing/media industry)
-   - "parenting" = parenting, childcare, family-oriented events, children's education, parent-child workshops
-   - "scholarship" = scholarships, grants, open calls, funding opportunities (NOT study-abroad programs — use study_abroad instead)
-   - "study_abroad" = study abroad programs, exchange programs, overseas university application briefings, Taiwan-Japan cross-cultural study programs, international student exchange events
-   - "taiwan_mandarin" = Mandarin/Taiwanese language learning events, Chinese language classes, language exchange
-   - "healthcare" = health, medical, public health, wellness events
-   - An event can have multiple categories
+<<CATEGORY_TAXONOMY>>
 3. Translate the event name and a concise summary description into all three languages (ja, zh, en).
 4. The description should be a clean, concise summary (2-4 sentences), NOT a copy of the raw text.
 5. Extract location, address, business hours, and pricing from the text if available.
@@ -1320,7 +1319,7 @@ Respond with valid JSON matching this schema:
   "description_ja": "Japanese summary (2-4 sentences)",
   "description_zh": "Traditional Chinese summary (2-4 sentences)",
   "description_en": "English summary (2-4 sentences)",
-  "category": ["senses"],
+  "category": ["lecture"],
   "start_date": "2026-01-15T00:00:00" or null,
   "end_date": "2026-01-15T00:00:00" or null,
   "location_name": "venue name in Japanese (original)" or null,
@@ -1394,6 +1393,8 @@ Respond with valid JSON matching this schema:
     }
   ]
 }"""
+
+SYSTEM_PROMPT = SYSTEM_PROMPT.replace(_TAXONOMY_PLACEHOLDER, _build_category_prompt())
 
 
 def _get_supabase() -> Client:
@@ -1586,8 +1587,68 @@ def _annotate_one(client: OpenAI, raw_title: str, raw_description: str, feedback
 
 
 def _validate_categories(cats: list) -> list[str]:
-    """Filter to only valid category strings."""
-    return [c for c in cats if isinstance(c, str) and c in VALID_CATEGORIES] or ["senses"]
+    """Filter to only valid category strings.
+
+    Returns [] when nothing valid remains. There is deliberately NO fallback
+    category: an empty result is queued for human review
+    (_queue_missing_category_report) instead of being dumped into "senses".
+    """
+    if not isinstance(cats, list):
+        return []
+    seen: list[str] = []
+    for c in cats:
+        if isinstance(c, str) and c in VALID_CATEGORIES and c not in seen:
+            seen.append(c)
+    return seen
+
+
+MISSING_CATEGORY_REPORT_TYPE = "wrongCategory"
+MISSING_CATEGORY_NOTE = (
+    "Auto: annotator could not assign any valid category. "
+    "Please choose the correct categories."
+)
+
+
+def _has_pending_category_report(sb, event_id: str) -> bool:
+    try:
+        res = (
+            sb.table("event_reports")
+            .select("id")
+            .eq("event_id", event_id)
+            .eq("status", "pending")
+            .contains("report_types", [MISSING_CATEGORY_REPORT_TYPE])
+            .limit(1)
+            .execute()
+        )
+    except Exception:
+        # Fail closed: if we cannot check, do not risk duplicate queue rows.
+        return True
+    return bool(res.data)
+
+
+def _queue_missing_category_report(sb, event: dict, *, dry_run: bool) -> None:
+    """Route an event with no valid category to the admin review queue.
+
+    Reuses the existing user-report type "wrongCategory", so the admin reports
+    table already shows the category picker and "apply category" action, and
+    the confirmed choice is written to category_corrections as usual.
+    """
+    eid = event["id"]
+    if dry_run:
+        logger.info("[DRY-RUN] would queue missing-category review for %s", eid[:8])
+        return
+    if _has_pending_category_report(sb, eid):
+        return
+    try:
+        sb.table("event_reports").insert({
+            "event_id": eid,
+            "report_types": [MISSING_CATEGORY_REPORT_TYPE],
+            "status": "pending",
+            "admin_notes": MISSING_CATEGORY_NOTE,
+        }).execute()
+        logger.warning("  → No valid category for %s — queued for human review", eid[:8])
+    except Exception as _ins_err:
+        logger.warning("failed to queue missing-category review for %s: %s", eid[:8], _ins_err)
 
 
 VALID_ORGANIZER_TYPES = frozenset([
@@ -1689,12 +1750,15 @@ _GEOPOLITICS_KEYWORDS = frozenset([
     "インド太平洋", "日台関係", "主権", "国際フォーラム",
     "給食政策", "デジタル政府", "行政×AI", "公共政策",
     "安全保障", "防衛",
+    "総統選", "立法委員選", "地方選挙", "選挙",
 ])
 
 _HISTORY_KEYWORDS = frozenset([
     "戦没", "植民地", "統治", "秘録", "同化", "傷痕",
     "アーカイブ", "慰霊", "戦争", "戦前", "戦後",
     "日本統治", "総督府", "霧のごとく", "大濛",
+    "湾生", "灣生", "引揚", "国民党", "國民黨", "二二八", "228事件",
+    "白色テロ", "白色恐怖", "戒厳", "戒嚴",
 ])
 
 _TAIWAN_PLACE_RE = r"台湾|台灣|臺灣|Taiwan|台北|臺北|台中|臺中|高雄|台南|臺南|桃園|基隆|新竹|嘉義|屏東|宜蘭|花蓮|台東|臺東|澎湖|苗栗|彰化|雲林|南投"
@@ -2356,9 +2420,14 @@ def annotate_pending_events(
             cleaned = [c for c in _cc_cats if c in _valid_set]
             logger.warning(
                 "category_corrections %s has invalid categories %s — stripping (kept: %s)",
-                _cc_eid[:8], _invalid, cleaned or ["senses"],
+                _cc_eid[:8], _invalid, cleaned,
             )
-            human_category_map[_cc_eid] = cleaned or ["senses"]
+            if cleaned:
+                human_category_map[_cc_eid] = cleaned
+            else:
+                # Nothing valid left: drop the override and let the AI result
+                # (or the missing-category review queue) decide.
+                del human_category_map[_cc_eid]
             _cc_cleaned += 1
     if _cc_cleaned:
         logger.warning("Cleaned %d category_corrections entries with invalid categories", _cc_cleaned)
@@ -2631,6 +2700,10 @@ def annotate_pending_events(
                     logger.info("  → Applying human-corrected category: %s (AI predicted: %s)",
                                 human_cats, categories)
                 categories = human_cats
+
+            # No fallback category: leave it empty and route to human review.
+            if not categories:
+                _queue_missing_category_report(sb, event, dry_run=dry_run)
 
             # P0 field-protection: in normal re-annotation mode (not --all / --id),
             # preserve non-null DB values that were already set — either by a scraper
@@ -3369,7 +3442,9 @@ def annotate_pending_events(
                 # handler below, which would revert the already-committed parent
                 # back to annotation_status='error'.
                 try:
-                    sub_cats = _validate_categories(sub.get("category", categories))
+                    # Sub-events inherit the parent's categories when the model
+                    # returns none (or only invalid ones) for the sub-event.
+                    sub_cats = _validate_categories(sub.get("category", categories)) or list(categories)
                     sub_cats = _inject_keyword_categories(sub_cats, (sub.get("name_ja") or "") + " " + (sub.get("description_ja") or ""))
                     sub_start = _str(sub.get("start_date"))
                     sub_end = _str(sub.get("end_date"))
