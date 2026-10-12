@@ -1494,27 +1494,33 @@ for ev in events:
 - **沒有 THEATER section 的電影應跳過**：DVD 專售或非戲院作品不含 THEATER section → 先確認 section 存在再產生 child events；若 section 缺失則只產生 parent event。
 - **venue_key 派生規則（production contract，勿修改）**：SNS domain（x.com / twitter.com / instagram.com）→ URL path 第一段；CDN 平台 host（jimdofree.com / thebase.in 等）→ subdomain；一般域名 → 去掉 TLD 的 domain，lowercase，非英數字換為 `-`。此規則決定 `source_id` 後綴，變更會造成 duplicate 插入而非更新現有記錄。
 
-## annotator.py ↔ types.ts 同步守則（Three-Location Sync Rule + Startup Guard）
+## annotator.py ↔ types.ts 同步守則（Category Sync Rule，原 Three-Location Sync Rule + Startup Guard）
 
-每次在 `web/lib/types.ts` 新增 `Category` 型別時，**必須同時更新三個地方**：
+每次在 `web/lib/types.ts` 新增 `Category` 型別時，scraper 側**必須同時更新兩處**（2026-10 起；之前是 `annotator.py` 內三處手寫）：
 
-1. `scraper/annotator.py` → `VALID_CATEGORIES` 列表
-2. `scraper/annotator.py` → SYSTEM_PROMPT 第 2 條 categories 列表（單行逗號分隔）
-3. `scraper/annotator.py` → SYSTEM_PROMPT 分類定義清單（每個新分類需加定義行）
+1. `scraper/annotator.py` → `VALID_CATEGORIES` 列表（允許 slug 的程式碼端清單）
+2. `scraper/taxonomy.md` → `<!-- PROMPT:BEGIN -->` 與 `<!-- PROMPT:END -->` 之間新增一行 `- "<slug>" = …` 定義（分類**定義**的單一來源；只有這兩個標記之間的文字會送給模型）
 
-**違反後果**：GPT 無法選用新分類，被迫選最近似的舊分類（例如 `tv_program` 不存在時選 `movie`）。更嚴重的是，re-annotation 時 `_validate_categories()` 會靜默剝離不在 `VALID_CATEGORIES` 中的分類，造成**資料遺失**。結果為空時（2026-10 起）不再回退 `senses`，改為留空並排入人工審核（`wrongCategory` report）。分類定義見 `scraper/taxonomy.md`。
+**不要手寫 SYSTEM_PROMPT 的分類段落**：`SYSTEM_PROMPT` 裡只剩 `<<CATEGORY_TAXONOMY>>` 佔位符。`annotator.py` 載入時由 `_build_category_prompt()` 以 `VALID_CATEGORIES` 產生第 2 條「允許的 slug 清單」，接上 `taxonomy.md` 的 PROMPT 區塊，再替換佔位符。不要把 slug 清單或分類定義寫回 `annotator.py`。
+
+網站的 `web/messages/{ja,zh,en}.json` `categories.*`（顯示名稱）與 `categoryDesc.*`（分類頁介紹與 SEO）只給使用者看，**不會送給 AI**；新增分類時仍須三語同步，但那屬於 `/add-category` 流程，不影響標註結果。
+
+**違反後果**：
+- 漏改 `VALID_CATEGORIES`：slug 不會出現在 prompt 的允許清單，GPT 無法選用新分類，被迫選最近似的舊分類（例如 `tv_program` 不存在時選 `movie`）。更嚴重的是，re-annotation 時 `_validate_categories()` 會靜默剝離不在 `VALID_CATEGORIES` 中的分類，造成**資料遺失**。結果為空時（2026-10 起）不再回退 `senses`，改為留空並排入人工審核（`wrongCategory` report）。
+- 漏寫 `taxonomy.md` 定義：slug 在允許清單中，但 prompt 沒有它的定義。**執行期不會報錯**（`load_taxonomy_prompt()` 只檢查標記存在且區塊非空），只有 `tests/test_taxonomy.py::test_every_valid_category_has_exactly_one_definition` 會失敗；該測試要求每個 `VALID_CATEGORIES` slug 恰好一條定義（不多不少）。
 
 ### 自動防護機制（2026-05-05 新增）
 
-1. **`_check_category_sync()` 啟動守衛**：annotator.py 啟動時自動讀取 `web/lib/types.ts`，比對 VALID_CATEGORIES。若有遺漏，`SystemExit(1)` 終止執行。CI/standalone 環境（types.ts 不存在）靜默跳過。
+1. **`_check_category_sync()` 啟動守衛**：annotator.py 啟動時自動讀取 `web/lib/types.ts`，比對 VALID_CATEGORIES。若 types.ts 有而 `VALID_CATEGORIES` 沒有，`SystemExit(1)` 終止執行；反向（`VALID_CATEGORIES` 多出）只記 `logger.warning`。CI/standalone 環境（types.ts 不存在）靜默跳過。它**不檢查** `taxonomy.md` 的定義是否齊全，那由下方第 5 項的測試負責。
 2. **`human_category_map` 驗證**：載入 `category_corrections` 表後，每筆記錄的分類都會對 VALID_CATEGORIES 驗證。無效分類被剝離並記錄 `logger.warning`。全部無效時移除該筆人工覆寫，改由 AI 結果決定（2026-10 起不再回退 `senses`）。
 3. **`event_form` 值洩漏的別名對應（2026-10）**：GPT 偶爾把 `event_form` 的值放進 `category`（實測出現 `performance`、`tour`）。`_validate_categories()` 透過 `_EVENT_FORM_CATEGORY_ALIASES` **只對明確無歧義者**做別名對應（`performance` → `performing_arts`），結果去重且仍受 `VALID_CATEGORIES` 限制。`tour` 有歧義（可能是 `tourism`、巡演或展覽導覽），**不做對應**，維持被濾掉；濾完為空時照常排入人工審核（`wrongCategory` report）。新增別名前，必須先確認該 `event_form` 值只對應單一分類。
 4. **`taxonomy.md` 不得加入鼓勵回傳空陣列的規則（2026-10）**：單因子實驗（28 個事件，每個變體各跑 2 次）顯示，taxonomy 結尾那行「NO category fits → return an empty list []」是空分類暴增的主因；刪除該行後空分類由 25–28 降到 13–14（舊 prompt 為 17）。空結果仍由程式碼處理（`_validate_categories` 回傳 `[]` → `_queue_missing_category_report`），但 prompt 不應主動邀請模型留空。`tests/test_taxonomy.py::test_prompt_does_not_invite_empty_category` 守住此點。
+5. **`taxonomy.md` ↔ `VALID_CATEGORIES` 契約測試（2026-10）**：`tests/test_taxonomy.py` 檢查 PROMPT 區塊的定義行與 `VALID_CATEGORIES` 一一對應（`test_every_valid_category_has_exactly_one_definition`）、`SYSTEM_PROMPT` 已替換 `<<CATEGORY_TAXONOMY>>` 且含完整 slug 清單與 taxonomy 區塊（`test_system_prompt_embeds_taxonomy_and_full_slug_list`）、`taxonomy.md` 缺 PROMPT 標記時 `load_taxonomy_prompt()` 會 raise（`test_taxonomy_markers_required`）。改過 `taxonomy.md` 或 `VALID_CATEGORIES` 後必須跑（指令見下方「驗證命令」）。
 
 ### 第二資料路徑警告
-`category_corrections` 是 annotator 之外的第二條分類資料路徑。此表由 Admin UI 手動修正寫入，**不經過 VALID_CATEGORIES 驗證**（已在程式碼層修復）。新增分類時除了同步上述三處，也須確認既有 `category_corrections` 記錄不含已廢棄的分類值。
+`category_corrections` 是 annotator 之外的第二條分類資料路徑。此表由 Admin UI 手動修正寫入，**不經過 VALID_CATEGORIES 驗證**（已在程式碼層修復）。新增分類時除了同步上述兩處（`VALID_CATEGORIES`、`taxonomy.md`），也須確認既有 `category_corrections` 記錄不含已廢棄的分類值。
 
-**驗證命令**：
+**驗證命令**（types.ts ↔ `VALID_CATEGORIES`）：
 ```bash
 cd scraper && python3 -c "
 from annotator import VALID_CATEGORIES
@@ -1524,6 +1530,11 @@ ts_cats = re.findall(r'^\s*\| \"(\w+)\"', ts, re.MULTILINE)
 missing = [c for c in ts_cats if c not in VALID_CATEGORIES]
 print('Missing from VALID_CATEGORIES:', missing or 'ALL CLEAR')
 "
+```
+
+**契約測試**（`taxonomy.md` ↔ `VALID_CATEGORIES` ↔ `SYSTEM_PROMPT`）：
+```bash
+cd scraper && python -m pytest tests/test_taxonomy.py -q
 ```
 
 **已知遺漏（2026-05-04 修正）**：tv_program, drama, documentary, tea_alcohol, exhibition, folklore, literature, parenting, scholarship, taiwan_mandarin, healthcare — 這 10 個分類在 types.ts 存在多月但 annotator.py 未同步，導致 gguide_tv 電視節目被標為 movie。

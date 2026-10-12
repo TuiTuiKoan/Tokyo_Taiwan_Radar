@@ -304,7 +304,7 @@ To keep UI components clean and provide visual variety, heavy SVG path definitio
 
 Checklist for every new category:
 1. `web/lib/types.ts` — Category union + CATEGORIES array + CATEGORY_GROUPS
-2. `scraper/annotator.py` — VALID_CATEGORIES + SYSTEM_PROMPT enum + definition
+2. `scraper/annotator.py` — `VALID_CATEGORIES` **and** `scraper/taxonomy.md` — definition line between `PROMPT:BEGIN`/`PROMPT:END` (SYSTEM_PROMPT's slug list is generated from `VALID_CATEGORIES`; don't hand-write it)
 3. `web/messages/{zh,en,ja}.json` — `categories.*` + `categoryDesc.*`
 4. `web/lib/design/organicMotifs.tsx` — `case '<key>':` with 5 variants (airplane/globe/etc.) ↳ **automatically covers CategoryThumbnail + category OG image + event OG image** (all three call `getSemanticSymbol()` dynamically — no separate OG step needed)
 5. Sync Guard — `python3 -c "from annotator import _check_category_sync; _check_category_sync()"` must pass

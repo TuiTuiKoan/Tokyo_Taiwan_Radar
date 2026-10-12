@@ -512,27 +512,28 @@ Reference incident: 2026-05-04 — `878660a0 iwafu` `流山おおたかの森S.C
 
 Reference incident: 2026-05-07 — `b42977f3` / `09c26a2e`（日本台湾学会第23回関西部会 sub-events）location_name 括弧住所混入修復。
 
-## Category Sync Guard（annotator.py ↔ types.ts ↔ admin API prompts）
+## Category Sync Guard（annotator.py ↔ taxonomy.md ↔ types.ts）
 
-在審核**任何**新增 `Category` 至 `web/lib/types.ts` 的 PR，或審核任何涉及 `annotator.py` 的 PR 前，**必須**確認以下**五處**同步：
+在審核**任何**新增 `Category` 至 `web/lib/types.ts` 的 PR，或審核任何涉及 `annotator.py` 的 PR 前，**必須**確認以下**三處**同步：
 
-1. `scraper/annotator.py` → `VALID_CATEGORIES` 列表包含新分類。
-2. `scraper/annotator.py` → SYSTEM_PROMPT 第 2 條 categories 逗號分隔列表包含新分類。
-3. `scraper/annotator.py` → SYSTEM_PROMPT 分類定義清單有新分類的定義行。
-4. `web/messages/{zh,en,ja}.json` → `categories.<key>` + `categoryDesc.<key>` 三語各一。
-5. `web/app/api/admin/extract-from-image/route.ts` L59 **及** `web/app/api/admin/annotate-event/route.ts` L381 → 兩個 GPT prompt 內的 `category:` 枚舉清單。
+1. `scraper/annotator.py` → `VALID_CATEGORIES` 列表包含新分類（允許 slug 的程式碼端清單）。
+2. `scraper/taxonomy.md` → `<!-- PROMPT:BEGIN -->` 與 `<!-- PROMPT:END -->` 之間有新分類的 `- "<slug>" = …` 定義行（分類定義的單一來源）。SYSTEM_PROMPT 只留 `<<CATEGORY_TAXONOMY>>` 佔位符，第 2 條 slug 清單由 `_build_category_prompt()` 從 `VALID_CATEGORIES` 產生，**不要手寫**。
+3. `web/messages/{zh,en,ja}.json` → `categories.<key>` + `categoryDesc.<key>` 三語各一（僅供網站顯示與 SEO，不送給 AI）。
+
+> **已不是手動同步位置**：`web/app/api/{admin,account}/{extract-from-image,annotate-event}/route.ts` 的 `category:` 清單自 2026-05-30（`d0a10772`）起以 `${CATEGORIES.join(" | ")}` 從 `web/lib/types.ts` 自動帶入。審核時只需確認它沒有被改回手寫枚舉。
 
 **違反後果**：
-- GPT 無法選用新分類，被迫選最近似的舊分類（靜默失敗，不報錯）。
+- 漏改 `VALID_CATEGORIES`：GPT 無法選用新分類，被迫選最近似的舊分類（靜默失敗，不報錯）。
 - Re-annotation 時 `_validate_categories()` 靜默剝離不在 `VALID_CATEGORIES` 中的分類，被剝離的分類即**資料遺失**；結果為空時（2026-10 起）不再回退 `senses`，改為留空並排入人工審核（`wrongCategory` report）。分類定義見 `scraper/taxonomy.md`。
 - `category_corrections` 表的人工校正也會被靜默剝離（第二資料路徑）。
-- 第 5 點違反時：管理画面 OCR / annotate-event 的 GPT 看不到新值 → **自創假分類**（例：types.ts 有 `healthcare` 但 prompt 缺 → GPT 回傳 `health`）→ 前端顯示 raw i18n key（如 `categories.health`）。
+- 漏寫 `taxonomy.md` 定義：slug 在允許清單中，但 prompt 沒有它的定義。執行期不會報錯，只有 `tests/test_taxonomy.py` 會失敗。
 
 **自動防護**（2026-05-05 新增）：
-- `_check_category_sync()`：annotator.py 啟動時讀取 types.ts 並比對。不一致時 `SystemExit(1)` 終止，CI 不會處理任何事件。
+- `_check_category_sync()`：annotator.py 啟動時讀取 types.ts 並比對。types.ts 有而 `VALID_CATEGORIES` 沒有時 `SystemExit(1)` 終止，CI 不會處理任何事件；反向（`VALID_CATEGORIES` 多出）只記 warning。
 - `human_category_map` 驗證：載入 category_corrections 後逐筆驗證，無效分類被剝離並記錄 warning。
+- `tests/test_taxonomy.py`：檢查 `taxonomy.md` PROMPT 區塊的定義行與 `VALID_CATEGORIES` 一一對應（不多不少），且 `SYSTEM_PROMPT` 已替換佔位符。
 
-> **盲點**：自動防護只覆蓋 annotator ↔ types.ts。第 5 點（admin API prompts）**沒有自動防護** — 必須在 PR 審核時手動 grep `web/app/api/admin/{extract-from-image,annotate-event}/route.ts` 的 `category:` 行。
+> **盲點**：`_check_category_sync()` 只覆蓋 types.ts → `VALID_CATEGORIES`（單向）。`taxonomy.md` 漏寫定義在執行期沒有任何守衛，只靠 `tests/test_taxonomy.py` — 審核 PR 時必須確認該測試有跑且通過。
 
 **驗證命令**（在 scraper/ 目錄執行）：
 ```bash
@@ -544,14 +545,16 @@ ts_cats = re.findall(r'^\s*\| \"(\w+)\"', ts, re.MULTILINE)
 missing = [c for c in ts_cats if c not in VALID_CATEGORIES]
 print('Missing from VALID_CATEGORIES:', missing or 'ALL CLEAR')
 "
-# Plus manual check:
-grep -E '^- category:' ../web/app/api/admin/extract-from-image/route.ts ../web/app/api/admin/annotate-event/route.ts
+# taxonomy.md definitions ↔ VALID_CATEGORIES:
+python3 -m pytest tests/test_taxonomy.py -q
+# route.ts prompts still derive the list from types.ts (not a hand-written enumeration):
+grep -n 'CATEGORIES.join' ../web/app/api/admin/extract-from-image/route.ts ../web/app/api/admin/annotate-event/route.ts
 ```
 
 Reference incidents:
 - 2026-05-04 — `types.ts` 新增 10 個分類（`tv_program` 等）後 annotator 未同步，導致所有 `gguide_tv` 電視節目被標為 `movie`（commit `0047c31`）。
 - 2026-05-05 — Ghost category：`category_corrections` 含無效分類 `culture`，36 筆事件面臨 re-annotation 時分類被靜默剝離。修復：新增啟動守衛 + category_corrections 驗證 + DB 清理。
-- 2026-05-20 — types.ts 38 值、annotator.py 同步，但兩個 admin API prompt 只列 18 值；OCR 時 GPT 自創 `health`，前端顯示 `categories.health`（commit `997378c`）。教訓：新增第 5 同步位置。
+- 2026-05-20 — types.ts 38 值、annotator.py 同步，但兩個 admin API prompt 只列 18 值；OCR 時 GPT 自創 `health`，前端顯示 `categories.health`（commit `997378c`）。教訓：新增第 5 同步位置。（2026-05-30 `d0a10772` 起改為 `CATEGORIES.join` 自動帶入，此位置已不需手動同步。）
 
 ## Event Form Sync Guard（DB constraint ↔ annotator.py ↔ admin API prompts ↔ i18n）
 
