@@ -1054,7 +1054,9 @@ A direct connection means:
   - Taiwanese artist/author/performer/director is the primary subject.
   - The event explicitly features Taiwan culture/products/identity as its main theme.
   - "Wansei" (灣生 - individuals born in Taiwan during the Japanese colonial era) are featured: events involving Wansei artists, authors, or historical figures are inherently relevant.
-REJECT (set is_active=false in your mind; write selection_reason explaining why it is marginal) if:
+Record your verdict in the "taiwan_relevance" output field (is_relevant + confidence). The pipeline acts on that field: a confident is_relevant=false takes the event off the site. Also write selection_reason explaining your verdict.
+REJECT (taiwan_relevance.is_relevant = false) if:
+  - The text contains NO mention of Taiwan / 台湾 / 臺灣 / 台灣 or a Taiwanese person, place, work or organisation at all
   - The Taiwan link is only "this tour includes Taiwan" or "the author was inspired by Asia"
   - The event is a book launch where Taiwan appears only as a passing reference in the description
   - The event is a Japanese TV programme that once covered Taiwan
@@ -1354,6 +1356,10 @@ Respond with valid JSON matching this schema:
   "director": "bare personal name (no honorifics) of the director/filmmaker — in original language" or null,
   "director_zh": "Traditional Chinese name of the director. If explicitly in source: use as-is. If inferred: append「（AI翻譯）」" or null,
   "director_en": "English/romanized name of the director. If explicitly in source: use as-is. If inferred: append ' (AI Translation)'" or null,
+  "taiwan_relevance": {
+    "is_relevant": true or false — result of the TAIWAN RELEVANCE GATE above,
+    "confidence": number between 0 and 1 — how sure you are of is_relevant
+  },
   "selection_reason": {
     "ja": "1-2文の日本語で、このイベントが台灣関連である理由と詳細な選定理由（「誰の作品か」「何のトピックか」など具体的に）",
     "zh": "1-2句繁體中文，說明此活動與台灣的關聯及具體的收錄原因（避免籠統描述，需包含具體人物或主題細節）",
@@ -1880,6 +1886,45 @@ _NON_TEXT_FC_FIELDS = {
     "is_paid", "is_active",
     "selection_reason",
 }
+
+
+# Taiwan relevance gate (2026-10-12 incident: iwafu Conan escape-game events).
+# Before this, the prompt told the model to reject "in your mind" but no output
+# field existed, so the model's correct "no Taiwan connection" verdict was only
+# written as prose in selection_reason and the event stayed active.
+RELEVANCE_GATE_MIN_CONFIDENCE = 0.8
+RELEVANCE_GATE_REASON = "auto-deactivated: annotator Taiwan relevance gate"
+# Sources whose events are curated by a human before reaching the annotator.
+_RELEVANCE_GATE_EXEMPT_SOURCES = {"user_submission"}
+
+
+def _relevance_gate_update(
+    event: dict,
+    annotation: dict,
+    human_protected: dict | None,
+    fix_reviewed: bool,
+) -> dict | None:
+    """Return {is_active: False, deactivated_reason} when the annotator is
+    confident the event has no Taiwan connection, else None.
+
+    Never acts on human-reviewed events (any field_corrections lock, or a
+    fix-reviewed re-annotation) or on human-curated sources — those follow the
+    prompt's SCOPE rule and are handled manually.
+    """
+    if fix_reviewed or human_protected:
+        return None
+    if (event.get("source_name") or "") in _RELEVANCE_GATE_EXEMPT_SOURCES:
+        return None
+    verdict = annotation.get("taiwan_relevance")
+    if not isinstance(verdict, dict) or verdict.get("is_relevant") is not False:
+        return None
+    try:
+        confidence = float(verdict.get("confidence"))
+    except (TypeError, ValueError):
+        return None
+    if confidence < RELEVANCE_GATE_MIN_CONFIDENCE:
+        return None
+    return {"is_active": False, "deactivated_reason": RELEVANCE_GATE_REASON}
 
 
 def _inject_keyword_categories(categories: list[str], text: str) -> list[str]:
@@ -3096,6 +3141,15 @@ def annotate_pending_events(
                     selection_reason = json.dumps(selection_reason, ensure_ascii=False)
                 update_data["selection_reason"] = selection_reason
 
+            # Taiwan relevance gate: act on the model's structured verdict.
+            _gate = _relevance_gate_update(event, annotation, _human_protected, fix_reviewed)
+            if _gate:
+                update_data.update(_gate)
+                logger.info(
+                    "  ⚑ Relevance gate: deactivating %s (%s) — no Taiwan connection",
+                    event.get("id", "?"), (event.get("raw_title") or "")[:60],
+                )
+
             # Authoritative organizer registry: overlay verified entity types onto
             # organizer_type / co_organizer_types / sponsor_types AFTER LLM assembly
             # and BEFORE the field_corrections restore below, keeping the authority
@@ -3200,6 +3254,9 @@ def annotate_pending_events(
             # Never create grandchild events: if this event is itself a sub-event
             # (has parent_event_id), skip sub-event creation entirely.
             if event.get("parent_event_id"):
+                sub_events = []
+            # Events removed by the relevance gate must not spawn active children.
+            if update_data.get("is_active") is False:
                 sub_events = []
             # Report/recap articles must never generate sub-events.
             # The article describes a single completed event; sub-events would be

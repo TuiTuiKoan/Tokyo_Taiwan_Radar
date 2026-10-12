@@ -45,6 +45,11 @@ _NOISE_MARKERS = (
     "近くの看板",             # PR / nearby-signs section
     "近くのイベント",          # nearby events section
     "地図検索に切り替えて",   # map search section
+    # 2026-10 layout
+    "\nタグ\n",                # tag list after the access info
+    "イベントの投稿・トピック",  # user posts section
+    "近くのスポット",           # nearby POIs
+    "このイベントについて話す",  # discussion CTA
 )
 
 # Patterns that indicate a global/nationwide tour event that merely INCLUDES Taiwan
@@ -150,14 +155,81 @@ def _extract_prefecture_from_card(lines: list[str]) -> str:
     return ""
 
 
+_CARD_DATE_RE = re.compile(r'\d{4}\.\d{2}\.\d{2}')
+
+
 def _extract_title_from_card(lines: list[str]) -> str:
-    """Extract event title — second non-empty, non-date, non-description line."""
-    non_empty = [l.strip() for l in lines if l.strip() and not l.strip().startswith("-")]
-    # First non-empty line is the date range (contains digits and ～)
-    # Second non-empty line is the title
-    if len(non_empty) >= 2:
-        return non_empty[1]
-    return non_empty[0] if non_empty else ""
+    """Extract the event title from card text, independent of line order.
+
+    iwafu has shipped two card layouts:
+      - before 2026-10: date range / title / bullets …
+      - 2026-10:       title / "{prefecture}{date range}" / title / bullets …
+    Positional parsing broke on the second layout (the "title" became the
+    date line), so instead take the first line that is not a date, bullet,
+    prefecture, station or UI label.
+    """
+    for raw in lines:
+        line = raw.strip()
+        if not line or line.startswith("-") or line.startswith("・"):
+            continue
+        if _CARD_DATE_RE.search(line):
+            continue
+        if line in _PREFECTURES or line.endswith("駅"):
+            continue
+        if _is_ui_title(line):
+            continue
+        return line
+    return ""
+
+
+# UI strings that iwafu renders in heading positions. Never valid event titles.
+# 2026-10-12: the detail-page <h1> became "詳細を見る" and 16 events were saved
+# with that title.
+_UI_TITLES = frozenset({
+    "詳細を見る", "詳細", "もっと見る", "続きを読む", "イベント詳細",
+    "イベント情報", "スポンサー／PR", "スポンサー/PR",
+})
+
+
+def _is_ui_title(text: Optional[str]) -> bool:
+    return (text or "").strip() in _UI_TITLES
+
+
+# og:title format: "iwafu ワフ - {title}｜{area} {prefecture}｜日本期間限定文化旅行ガイド｜…"
+_OG_TITLE_PREFIX_RE = re.compile(r'^\s*iwafu\s*ワフ\s*-\s*')
+_OG_TITLE_SUFFIX_RE = re.compile(r'｜[^｜]*｜日本期間限定.*$')
+
+
+def _clean_og_title(og_title: Optional[str]) -> str:
+    """Strip iwafu's site branding from an og:title value."""
+    if not og_title:
+        return ""
+    title = _OG_TITLE_PREFIX_RE.sub("", og_title)
+    title = _OG_TITLE_SUFFIX_RE.sub("", title)
+    return title.strip()
+
+
+# Any mention that ties the text to Taiwan. Used as the Phase 2 gate.
+_TAIWAN_RE = re.compile(r'台湾|臺灣|台灣|taiwan|タイワン', re.IGNORECASE)
+
+
+def _mentions_taiwan(*texts: Optional[str]) -> bool:
+    return any(t and _TAIWAN_RE.search(t) for t in texts)
+
+
+def _title_anomaly(titles: list[str], min_count: int = 5) -> Optional[str]:
+    """Return the dominant title when one title covers ≥ half of a run.
+
+    A healthy iwafu run has distinct titles; a single title repeated across most
+    events means the parser is reading a page-chrome string, not the event.
+    """
+    if len(titles) < min_count:
+        return None
+    from collections import Counter
+    title, count = Counter(titles).most_common(1)[0]
+    if count >= min_count and count * 2 >= len(titles):
+        return title
+    return None
 
 
 def _extract_description_snippet(lines: list[str]) -> str:
@@ -201,8 +273,11 @@ class IwafuScraper(BaseScraper):
             all_cards = self._collect_cards(page)
             logger.info("Total event cards found: %d", len(all_cards))
 
+            # Phase 2 (Taiwan relevance) runs per event in _scrape_detail: iwafu's
+            # keyword search is fuzzy (2026-10 it expanded 台湾 to "台湾人気 イベント"
+            # and returned unrelated events), and card snippets are AI summaries
+            # that can drop the word 台湾, so the gate needs the full detail text.
             cards = all_cards
-            logger.info("Taiwan events: %d", len(cards))
 
             # Phase 3: visit detail pages for full descriptions
             seen_ids: set[str] = set()
@@ -220,6 +295,15 @@ class IwafuScraper(BaseScraper):
                     logger.error("Failed to scrape event %s: %s", card.get("url"), exc)
 
             browser.close()
+
+        dominant = _title_anomaly([e.name_ja or "" for e in events])
+        if dominant is not None:
+            logger.error(
+                "iwafu: %d events share the title %r — page layout likely changed; "
+                "returning no events from this run. Update the parser.",
+                sum(1 for e in events if (e.name_ja or "") == dominant), dominant,
+            )
+            return []
 
         return events
 
@@ -335,9 +419,20 @@ class IwafuScraper(BaseScraper):
         except PWTimeout:
             page.goto(url, wait_until="domcontentloaded", timeout=30_000)
 
-        # --- Full description from main element ---
-        main_el = page.query_selector("main")
-        main_text = main_el.inner_text() if main_el else ""
+        # --- Page metadata (stable across layout changes) ---
+        og_title = _clean_og_title(_meta_content(page, "og:title"))
+        og_description = _meta_content(page, "og:description") or ""
+
+        # --- Full description from the main content container ---
+        # 2026-10: <main> no longer carried the event body; try the content
+        # anchor that the "メインコンテンツへ" skip link targets as well.
+        main_text = ""
+        for selector in ("main", "#app-content", "[role='main']"):
+            el = page.query_selector(selector)
+            text = el.inner_text() if el else ""
+            if text and text.strip():
+                main_text = text
+                break
         main_lines = [l.strip() for l in main_text.split("\n") if l.strip()]
 
         # main_lines layout:
@@ -347,10 +442,19 @@ class IwafuScraper(BaseScraper):
         #   [3]  "{TITLE}"
         #   [4+] description paragraphs
 
-        # --- Title: h1 > card title fallback ---
-        h1_el = page.query_selector("h1")
-        h1_text = h1_el.inner_text().strip() if h1_el else ""
-        title = h1_text or card.get("title") or ""
+        # --- Title: og:title > h1 > h2 > card title, skipping UI strings ---
+        # 2026-10: <h1> became the UI label "詳細を見る" and the real title moved
+        # to <h2>. og:title is set by iwafu for sharing and survives redesigns.
+        title = ""
+        candidates = [og_title]
+        for tag in ("h1", "h2"):
+            el = page.query_selector(tag)
+            candidates.append(el.inner_text().strip() if el else "")
+        candidates.append(card.get("title") or "")
+        for cand in candidates:
+            if cand and not _is_ui_title(cand) and not _CARD_DATE_RE.search(cand):
+                title = cand
+                break
 
         if not title:
             logger.warning("No title found at %s, skipping.", url)
@@ -375,9 +479,10 @@ class IwafuScraper(BaseScraper):
         elif main_text:
             description = main_text.strip()
 
-        # Fall back to card description snippet if detail page gave nothing
+        # Fall back to og:description, then the card snippet. The card snippet is
+        # iwafu's AI summary and can omit facts such as "台湾など世界各地で開催".
         if not description:
-            description = card.get("description_snippet", "")
+            description = og_description or card.get("description_snippet", "")
 
         # Extract official URL: first standalone external URL in the raw description
         # (before noise stripping, so we don't lose URLs near the end of the content)
@@ -412,10 +517,21 @@ class IwafuScraper(BaseScraper):
 
         # Reject global/nationwide tour events that merely include Taiwan as one of
         # many stops — they are NOT Taiwan-themed (e.g. "全国各地をはじめ台湾など世界各地で開催")
-        combined_text = f"{title}\n{description}"
+        # og:description is the organiser's original lead sentence, so check it
+        # too: the 2026-10 Conan events only said "台湾など世界各地" there.
+        combined_text = f"{title}\n{description}\n{og_description}"
         if _GLOBAL_TOUR_PATTERNS.search(combined_text):
             logger.info(
                 "Skipping global-tour event (Taiwan is just one stop): %s — %s",
+                event_id, title[:60],
+            )
+            return None
+
+        # Phase 2: the event itself must mention Taiwan. iwafu's search results
+        # are not a reliable relevance signal on their own.
+        if not _mentions_taiwan(title, description, og_description):
+            logger.info(
+                "Skipping non-Taiwan event from fuzzy search: %s — %s",
                 event_id, title[:60],
             )
             return None
@@ -514,6 +630,20 @@ class IwafuScraper(BaseScraper):
 # ---------------------------------------------------------------------------
 # Utility
 # ---------------------------------------------------------------------------
+
+def _meta_content(page: Page, prop: str) -> Optional[str]:
+    """Read <meta property=...> / <meta name=...> content, or None."""
+    for sel in (f"meta[property='{prop}']", f"meta[name='{prop}']"):
+        try:
+            el = page.query_selector(sel)
+            value = el.get_attribute("content") if el else None
+        except Exception:
+            value = None
+        if value:
+            # iwafu emits &nbsp; inside og:description
+            return value.replace("\xa0", " ").replace("&nbsp;", " ").strip()
+    return None
+
 
 def _strip_iwafu_noise(text: str) -> str:
     """Truncate text at the first iwafu UI section marker (Q&A, nearby signs, etc.)."""
