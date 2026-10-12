@@ -17,6 +17,7 @@ tags: [tooling, governance, ai, hardening]
 - 19 條逐字搬入，只改位置；每條仍是未完成項目，搬移不代表任何一條已處理。
 - 下列五個分組標題是搬移時新增，不在原文；組內保持原順序。
 - 條目中的 `notes.md §…`、`plan §…` 等章節引用，指的是 `docs/specs/active/ai-portability/` 內的同名檔案；該目錄若已依 `docs/specs/README.md` 歸檔，改到 `docs/specs/archive/` 下對應子目錄查。
+- 檔末「搬移後新增」小節的項目是搬移之後才加入的，不在原 19 條內，因此全檔 `^- \[ \] ` 共 21 條。原 19 條的排序 digest 以該小節之前的內容重算：`sed '/^## 搬移後新增/,$d' docs/specs/parked/ai-portability-followups.md | grep '^- \[ \] ' | LC_ALL=C sort | shasum -a 256`，預期 `c2388828dc3d64cd5821e61ca680cd1473ffee59541a35ce50c40cb0f0c9408c`。
 
 ## ① CI 接線
 
@@ -55,3 +56,10 @@ tags: [tooling, governance, ai, hardening]
 ## 清單邊界說明
 
 直接寫的 `source .env`／`. .env` 由規則 7 層 3 拒絕，`Edit`／`Write` 寫 `.env*` 由規則 7 工具層拒絕，皆已在第一批範圍內，不列後續項。
+
+## 搬移後新增（非原有 19 條）
+
+下列兩項不是從 `tasks.md` 搬來的原文，而是 2026-10-13 在 V-M-D 推送並驗證 `f6c2dad2d7c898174504b1a58be684c0e97c9021` 時確認的文件錯誤；先前只散見於 `notes.md` §4.32，沒有任何清單追蹤。兩者都在 `.github/agents/validate-merge-deploy.agent.md`，行號為 `f6c2dad2` 當時的行號。處理時請依 `.github/instructions/git.instructions.md` 另開或指定 worktree，不要依賴 `ai-portability` 的 campaign worktree 仍然存在。
+
+- [ ] 修正「docs-only commit 不觸發 Vercel」的宣稱：L134 該半句、L174、L196、L204。實測兩次 docs-only push（`86fdc143`、`f6c2dad2`）各產生 1 個 Production deployment 且皆為 success（後者 deployment id `7025806771`），成因未調查。修正要精準：「docs-only 跳過本機 `pnpm run build`」的判斷不變，只改 Vercel 的部分，改為以 exact-SHA 實查 deployment，不再預設記為 `NOT APPLICABLE`。另在 `.github/skills/agents/engineer/history.md` 補一則更正（該檔 append-only，L174 的舊條目不改）（notes.md §4.32）
+- [ ] 同檔 L155 引用不存在的 `.github/instructions/commit-message.instructions.md`：改指向 `.github/instructions/git.instructions.md` 的 Commit message conventions，或補建該檔；同時決定 `ai` scope 是否加入 `git.instructions.md` 的 scope 清單（目前列 `scraper`／`web`／`db`／`ci`／`agents`，本 campaign 的 commit 都用 `docs(ai)`／`chore(ai)`）（notes.md §4.32）
