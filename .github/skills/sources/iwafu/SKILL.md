@@ -23,17 +23,25 @@ applyTo: scraper/sources/iwafu.py
 | Event Field | iwafu Source |
 |-------------|--------------|
 | `source_id` | `iwafu_{numeric_id}` from URL path (stable) |
-| `raw_title` | `<h1>` on detail page |
+| `raw_title` | `og:title` (branding stripped by `_clean_og_title`) → `<h1>` → `<h2>` → card title; UI strings in `_UI_TITLES` (e.g. 「詳細を見る」) and date lines are never accepted |
 | `start_date` | `_parse_date()` from card date range, confirmed on detail page |
 | `end_date` | End of date range on card; falls back to `start_date` if single-day |
 | `location_name` | `場所[：:]\s*(.+?)` from `main_text`; fallback: `card.prefecture` |
 | `location_address` | Same value as `location_name` (set both) |
-| `raw_description` | Detail page `main.inner_text()`, trimmed at first `_NOISE_MARKER` |
+| `raw_description` | First non-empty of `main` / `#app-content` / `[role=main]` inner_text, trimmed at first `_NOISE_MARKER`; fallback `og:description`, then card snippet (iwafu AI summary — may drop 台湾) |
 
 ## Taiwan Relevance Gate
 
-All events are fetched with `keyword=台湾` — iwafu applies the search server-side.
-However a second relevance check is **mandatory** because iwafu search results can include:
+All events are fetched with `keyword=台湾`, but **iwafu's search is fuzzy** (2026-10 it expanded the query to 「台湾人気 イベント」 and returned railway festivals, sweets, Conan escape games). Search membership is NOT a relevance signal.
+
+Gates, in order (all in `_scrape_detail`, after the full text is known):
+1. `_BLOCKED_TITLE_PATTERNS` / `_BLOCKED_SERIES` on card title and resolved title.
+2. `_GLOBAL_TOUR_PATTERNS` on title + description + **og:description** (the organiser's original lead; AI summaries rewrite 「台湾など世界各地」 away).
+3. **Phase 2 `_mentions_taiwan`**: title / description / og:description must mention 台湾・臺灣・台灣・Taiwan・タイワン.
+4. Run-level `_title_anomaly`: if one title covers ≥ half of a run (min 5), the whole run returns `[]` and logs an error — the parser is reading page chrome.
+5. Annotator `taiwan_relevance` verdict (all sources) deactivates confident non-Taiwan events.
+
+iwafu search results can also include:
 - Global / nationwide tour events where Taiwan is merely one stop.
 - IP entertainment series (escape rooms, anime tie-ins) that visit Taiwan venues.
 
