@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-10-13 - taxonomy.md 的「回傳空陣列」規則導致空分類暴增
+
+### Error
+
+`feat/senses-taxonomy` 拿掉 annotator 的「分類為空就回填 `senses`」fallback 並把分類定義搬到 `scraper/taxonomy.md` 後，dry-run 顯示空分類事件過多。另有兩個事件的 GPT 回傳把 `event_form` 的值（`tour`、`performance`）放進 `category`，被 `_validate_categories` 濾掉而變空。
+
+### Fix
+
+單因子實驗（28 個事件，每個變體只改一個因素，各跑 2 次）：只刪除 taxonomy.md 最後一行「If … NO category in the list fits, return an empty list [] for category …」，空分類由 25–28 降到 13–14，比舊 prompt（17）更低；schema 範例換回 `["senses"]`、類別定義區塊換回舊版都沒有可見影響。已刪除該行，並新增 `test_prompt_does_not_invite_empty_category`。`_validate_categories` 新增 `_EVENT_FORM_CATEGORY_ALIASES`，只對明確無歧義的 `performance` → `performing_arts` 做對應；`tour` 有歧義（`tourism`／巡演／展覽導覽），維持被濾掉。`categoryDesc.geopolitics` 三語改寫為涵蓋當代社會與政治，與顯示名稱「社會・政治・國際關係」一致。
+
+### Lesson
+
+prompt 裡「都不適用就回傳 []」這類逃生出口會被模型大量使用；空結果應只由程式碼層（`_validate_categories` + `_queue_missing_category_report`）處理，不要在 prompt 邀請模型留空。調整 prompt 前用單因子對照實驗（一次只改一個因素、重複跑）找主因，不要同時換多個因素。別名對應只做無歧義者；有歧義的值寧可被濾掉並交人工審核，也不要靜默猜一個分類。
+
 ## 2026-08-09 - official venue hours and subspace precedence
 
 ### Error

@@ -1508,6 +1508,8 @@ for ev in events:
 
 1. **`_check_category_sync()` 啟動守衛**：annotator.py 啟動時自動讀取 `web/lib/types.ts`，比對 VALID_CATEGORIES。若有遺漏，`SystemExit(1)` 終止執行。CI/standalone 環境（types.ts 不存在）靜默跳過。
 2. **`human_category_map` 驗證**：載入 `category_corrections` 表後，每筆記錄的分類都會對 VALID_CATEGORIES 驗證。無效分類被剝離並記錄 `logger.warning`。全部無效時移除該筆人工覆寫，改由 AI 結果決定（2026-10 起不再回退 `senses`）。
+3. **`event_form` 值洩漏的別名對應（2026-10）**：GPT 偶爾把 `event_form` 的值放進 `category`（實測出現 `performance`、`tour`）。`_validate_categories()` 透過 `_EVENT_FORM_CATEGORY_ALIASES` **只對明確無歧義者**做別名對應（`performance` → `performing_arts`），結果去重且仍受 `VALID_CATEGORIES` 限制。`tour` 有歧義（可能是 `tourism`、巡演或展覽導覽），**不做對應**，維持被濾掉；濾完為空時照常排入人工審核（`wrongCategory` report）。新增別名前，必須先確認該 `event_form` 值只對應單一分類。
+4. **`taxonomy.md` 不得加入鼓勵回傳空陣列的規則（2026-10）**：單因子實驗（28 個事件，每個變體各跑 2 次）顯示，taxonomy 結尾那行「NO category fits → return an empty list []」是空分類暴增的主因；刪除該行後空分類由 25–28 降到 13–14（舊 prompt 為 17）。空結果仍由程式碼處理（`_validate_categories` 回傳 `[]` → `_queue_missing_category_report`），但 prompt 不應主動邀請模型留空。`tests/test_taxonomy.py::test_prompt_does_not_invite_empty_category` 守住此點。
 
 ### 第二資料路徑警告
 `category_corrections` 是 annotator 之外的第二條分類資料路徑。此表由 Admin UI 手動修正寫入，**不經過 VALID_CATEGORIES 驗證**（已在程式碼層修復）。新增分類時除了同步上述三處，也須確認既有 `category_corrections` 記錄不含已廢棄的分類值。
