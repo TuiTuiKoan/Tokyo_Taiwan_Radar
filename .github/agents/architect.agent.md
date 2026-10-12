@@ -524,7 +524,7 @@ Reference incident: 2026-05-07 — `b42977f3` / `09c26a2e`（日本台湾学会�
 
 **違反後果**：
 - GPT 無法選用新分類，被迫選最近似的舊分類（靜默失敗，不報錯）。
-- Re-annotation 時 `_validate_categories()` 靜默剝離不在 `VALID_CATEGORIES` 中的分類，默認回退 `["senses"]`——**靜默資料遺失**。
+- Re-annotation 時 `_validate_categories()` 靜默剝離不在 `VALID_CATEGORIES` 中的分類，被剝離的分類即**資料遺失**；結果為空時（2026-10 起）不再回退 `senses`，改為留空並排入人工審核（`wrongCategory` report）。分類定義見 `scraper/taxonomy.md`。
 - `category_corrections` 表的人工校正也會被靜默剝離（第二資料路徑）。
 - 第 5 點違反時：管理画面 OCR / annotate-event 的 GPT 看不到新值 → **自創假分類**（例：types.ts 有 `healthcare` 但 prompt 缺 → GPT 回傳 `health`）→ 前端顯示 raw i18n key（如 `categories.health`）。
 

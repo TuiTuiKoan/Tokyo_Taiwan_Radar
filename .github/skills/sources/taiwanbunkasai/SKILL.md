@@ -30,7 +30,7 @@ applyTo: scraper/sources/taiwanbunkasai.py
 | `location_address` | Resolved from `_VENUE_MAP` keyword match |
 | `official_url` | `https://taiwanbunkasai.com/` |
 | `is_paid` | Hardcoded `False` (入場無料, verified 2026-04-26) |
-| `category` | `["lifestyle_food", "performing_arts", "senses"]` |
+| `category` | `["lifestyle_food", "performing_arts"]`（2026-10 起不再預設 `senses`；`senses` 僅限認同／美學／地方性等概念討論，見 `scraper/taxonomy.md`） |
 | `raw_description` | Text block between `出店概要` and `開催実績` headings |
 
 ## Venue Map (_VENUE_MAP)

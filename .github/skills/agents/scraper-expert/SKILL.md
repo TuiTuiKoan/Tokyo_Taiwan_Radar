@@ -1502,12 +1502,12 @@ for ev in events:
 2. `scraper/annotator.py` → SYSTEM_PROMPT 第 2 條 categories 列表（單行逗號分隔）
 3. `scraper/annotator.py` → SYSTEM_PROMPT 分類定義清單（每個新分類需加定義行）
 
-**違反後果**：GPT 無法選用新分類，被迫選最近似的舊分類（例如 `tv_program` 不存在時選 `movie`）。更嚴重的是，re-annotation 時 `_validate_categories()` 會靜默剝離不在 `VALID_CATEGORIES` 中的分類，默認回退為 `["senses"]`——造成**靜默資料遺失**。
+**違反後果**：GPT 無法選用新分類，被迫選最近似的舊分類（例如 `tv_program` 不存在時選 `movie`）。更嚴重的是，re-annotation 時 `_validate_categories()` 會靜默剝離不在 `VALID_CATEGORIES` 中的分類，造成**資料遺失**。結果為空時（2026-10 起）不再回退 `senses`，改為留空並排入人工審核（`wrongCategory` report）。分類定義見 `scraper/taxonomy.md`。
 
 ### 自動防護機制（2026-05-05 新增）
 
 1. **`_check_category_sync()` 啟動守衛**：annotator.py 啟動時自動讀取 `web/lib/types.ts`，比對 VALID_CATEGORIES。若有遺漏，`SystemExit(1)` 終止執行。CI/standalone 環境（types.ts 不存在）靜默跳過。
-2. **`human_category_map` 驗證**：載入 `category_corrections` 表後，每筆記錄的分類都會對 VALID_CATEGORIES 驗證。無效分類被剝離並記錄 `logger.warning`。全部無效時回退為 `["senses"]`。
+2. **`human_category_map` 驗證**：載入 `category_corrections` 表後，每筆記錄的分類都會對 VALID_CATEGORIES 驗證。無效分類被剝離並記錄 `logger.warning`。全部無效時移除該筆人工覆寫，改由 AI 結果決定（2026-10 起不再回退 `senses`）。
 
 ### 第二資料路徑警告
 `category_corrections` 是 annotator 之外的第二條分類資料路徑。此表由 Admin UI 手動修正寫入，**不經過 VALID_CATEGORIES 驗證**（已在程式碼層修復）。新增分類時除了同步上述三處，也須確認既有 `category_corrections` 記錄不含已廢棄的分類值。
