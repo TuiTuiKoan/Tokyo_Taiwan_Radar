@@ -29,7 +29,7 @@ Tokyo Taiwan Radar automatically aggregates and curates Taiwan-related cultural 
 - lifestyle_food（生活風格・飲食 / ライフスタイル・食）
 - books_media（書・媒體 / 書籍・メディア）
 - gender（性別議題 / ジェンダー）
-- geopolitics（社會・政治・國際關係 / 社会・政治・国際）
+- geopolitics（社會・政治・國際關係 / 社会・政治・国際関係）
 - tech（科技 / テクノロジー）
 - tourism（旅遊 / 旅行）
 - retail（品牌消費 / ブランド消費）
