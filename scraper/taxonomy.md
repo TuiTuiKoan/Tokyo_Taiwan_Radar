@@ -89,5 +89,4 @@
    - 台湾夜市マーケット → ["market", "lifestyle_food"] (no senses)
 
    - An event can have multiple categories.
-   - If, after careful reading, NO category in the list fits, return an empty list [] for category. Do not guess; empty categories are routed to human review.
 <!-- PROMPT:END -->

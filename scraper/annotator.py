@@ -1586,19 +1586,33 @@ def _annotate_one(client: OpenAI, raw_title: str, raw_description: str, feedback
         return json.loads(response.choices[0].message.content), usage
 
 
+# The model occasionally puts an event_form value into "category". Map only the
+# unambiguous ones. "tour" is deliberately NOT mapped: it could mean tourism, a
+# concert tour or a guided exhibition tour, so it is still filtered out (and, if
+# nothing else remains, routed to human review).
+_EVENT_FORM_CATEGORY_ALIASES = {
+    "performance": "performing_arts",
+}
+
+
 def _validate_categories(cats: list) -> list[str]:
     """Filter to only valid category strings.
 
     Returns [] when nothing valid remains. There is deliberately NO fallback
     category: an empty result is queued for human review
     (_queue_missing_category_report) instead of being dumped into "senses".
+    Unambiguous event_form values leaked into the list are first mapped via
+    _EVENT_FORM_CATEGORY_ALIASES; the result is de-duplicated and always
+    restricted to VALID_CATEGORIES.
     """
     if not isinstance(cats, list):
         return []
     seen: list[str] = []
     for c in cats:
-        if isinstance(c, str) and c in VALID_CATEGORIES and c not in seen:
-            seen.append(c)
+        if isinstance(c, str):
+            c = _EVENT_FORM_CATEGORY_ALIASES.get(c, c)
+            if c in VALID_CATEGORIES and c not in seen:
+                seen.append(c)
     return seen
 
 

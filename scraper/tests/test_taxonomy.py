@@ -41,6 +41,15 @@ def test_schema_example_does_not_prime_senses():
     assert '"category": ["senses"]' not in SYSTEM_PROMPT
 
 
+def test_prompt_does_not_invite_empty_category():
+    # A "return [] if nothing fits" rule roughly doubled the empty-category rate
+    # in the single-factor prompt experiment. Empty results are still handled in
+    # code (_validate_categories / _queue_missing_category_report), but the model
+    # must not be encouraged to produce them.
+    assert "empty list" not in load_taxonomy_prompt().lower()
+    assert "return an empty list" not in SYSTEM_PROMPT
+
+
 def test_taxonomy_markers_required(tmp_path):
     bad = tmp_path / "taxonomy.md"
     bad.write_text("no markers here", encoding="utf-8")
@@ -64,6 +73,43 @@ def test_taxonomy_file_is_next_to_annotator():
 )
 def test_validate_categories_has_no_senses_fallback(raw, expected):
     assert _validate_categories(raw) == expected
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        # event_form leak: performance -> performing_arts
+        (["performance"], ["performing_arts"]),
+        (["performance", "lecture"], ["performing_arts", "lecture"]),
+        # de-duplicated against an explicit performing_arts, in either order
+        (["performing_arts", "performance"], ["performing_arts"]),
+        (["performance", "performing_arts"], ["performing_arts"]),
+        (["performance", "performance"], ["performing_arts"]),
+        # "tour" is ambiguous (tourism / concert tour / guided tour): still filtered out
+        (["tour"], []),
+        (["tour", "lecture"], ["lecture"]),
+        (["tour", "performance"], ["performing_arts"]),
+        # other event_form-only values are not aliased either
+        (["screening", "broadcast"], []),
+        # non-str items are ignored, not crashed on
+        ([None, 1, ["performance"], "performance"], ["performing_arts"]),
+    ],
+)
+def test_validate_categories_aliases_only_unambiguous_event_forms(raw, expected):
+    assert _validate_categories(raw) == expected
+
+
+@pytest.mark.parametrize("raw", ["performance", ("performance",), {"performance": 1}, 7, None])
+def test_validate_categories_alias_does_not_apply_to_non_list_input(raw):
+    assert _validate_categories(raw) == []
+
+
+def test_event_form_aliases_target_valid_categories():
+    # Guard: an alias pointing at a non-category would be silently dropped.
+    assert annotator._EVENT_FORM_CATEGORY_ALIASES
+    for target in annotator._EVENT_FORM_CATEGORY_ALIASES.values():
+        assert target in VALID_CATEGORIES
+    assert "tour" not in annotator._EVENT_FORM_CATEGORY_ALIASES
 
 
 @pytest.mark.parametrize(
