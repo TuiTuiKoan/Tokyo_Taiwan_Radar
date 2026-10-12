@@ -1,7 +1,7 @@
 ---
 name: campaign-closer
 description: A3 contention detection rules, V-M-D handoff contract, anchor staging, and the recovery capsule contract for the Close Campaign & Retire Worktree agent
-ms.date: 2026-08-12
+ms.date: 2026-10-13
 ---
 
 # Campaign Closer Skill
@@ -119,6 +119,16 @@ V-M-D push 完成後 `HEAD` 等於 `origin/main`，`origin/main...HEAD` 恆為�
 `publication-polcy`（少一個 `i`）曾把 24 筆未處理待辦報成 0。目錄不存在時輸出
 `not_checked` 並計入 `not_checked_sources`。目錄存在但缺 `tasks.md` 才是真正的 `0`。
 
+### `deferred_markers` 是逐行格式比對
+
+來源 2 對 `proposal.md`／`changes-log.md` 逐行 `grep -Ei 'deferred|not executed'`，只排除**同一行**
+寫了 `none`／`n/a` 的行。獨立的 `## Deferred` 標題行會被計為 1 筆，即使下一行是 `None.`。
+
+* 數字大於 0 時，先看命中的是哪幾行再判 `HOLD`；標題行是格式命中，不是待辦。人工複核的結論
+  寫進記錄的 Known risks。
+* 沒有延後項的 spec 寫成單行 `Deferred work: None.`。
+* 這個誤判只會多算（偏向 `HOLD`），不會漏報，因此腳本暫不修。修法方向見 history.md 2026-10-13。
+
 ### 已移除的來源
 
 session todo DB。實測 `~/.copilot/session-state/<id>/session.db` 只有 `inbox_entries` 一張表，
@@ -133,6 +143,27 @@ session todo DB。實測 `~/.copilot/session-state/<id>/session.db` 只有 `inbo
 
 這個順序有兩個用途：一個讀不到的來源永遠不會被誤當成乾淨通過；而一個明確髒掉的 worktree
 也不會因為同時有未知項就被降級成「待確認」，掩蓋掉真正該修的東西。
+
+---
+
+## Phase B — 同意閘門
+
+Phase A 輸出之後**結束本輪回覆**。Phase C（寫結案記錄、commit）只在使用者回應**本次** Phase A
+輸出之後開始。`HOLD` 不進入 Phase C。
+
+| 使用者說過的話 | 算不算 Phase C 的同意 |
+|---|---|
+| 「請結案 campaign X」 | 不算，只是啟動流程 |
+| 初始提示預先說明的未知項（「session id 未知」「issues 以 `--skip-issues` 標 not_checked」） | 不算，這是 Phase A 的輸入，決定哪些項目會是 `not_checked` |
+| 負面清單（「不要 push、不要移除 worktree」） | 不算，沒被禁止不等於已獲准 |
+| 看到本次 Phase A 輸出後回覆「確認／接受，進入 Phase C」 | 算 |
+
+接受 `UNDETERMINED` 只代表同意在未知項仍存在時寫記錄，**不代表解除未知項**：記錄照樣寫
+`UNDETERMINED` 與原因。使用者若要以確認取代 A3 偵測（例如「沒有其他 session 在用」），必須明確說出，
+並在退役決策時連同時間戳寫入記錄。
+
+實測來源：2026-10-13 ai-portability U6 fixture，Closer 在 `UNDETERMINED` 下同一輪就寫記錄並 commit
+（history.md 同日條目）。
 
 ---
 

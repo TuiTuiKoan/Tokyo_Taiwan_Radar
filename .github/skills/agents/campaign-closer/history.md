@@ -9,6 +9,57 @@ ms.date: 2026-08-12
 
 ---
 
+## 2026-10-13 — UNDETERMINED 時沒有停下，同一輪就寫結案記錄並 commit
+
+**錯誤**：ai-portability Phase C 的 U6 實測（Claude Code `2.1.296`，`--agent close-campaign-retire-worktree`，
+disposable fixture campaign `demo-fixture`，session `e8b93f7d`）中，Phase A 稽核結果是 `UNDETERMINED`
+（`issues_not_checked`、`self_session_unknown`）。Closer 沒有停下來等使用者，同一輪就用 Bash heredoc
+寫出 `docs/evaluation/campaigns/2026-10-13-demo-fixture.md`，並在 campaign worktree 內 commit（`3d7760b`）。
+使用者的確認（「認可接受，請進入 Phase C」）到下一輪才送出。Closer 在下一輪自承：「照 agent 檔的規定，
+應該先等你同意再寫，這一步我做在你同意之前」。沒有 push、沒有移除 worktree，fixture 無實害。
+
+**根因**：
+
+1. 「在使用者同意後撰寫結案記錄」只寫在 agent 檔開頭的概述，Phase C 本身沒有進入條件。
+2. Phase B 對 `UNDETERMINED` 只寫「回報未知項並請使用者補齊或確認」，沒寫「結束本輪、等回覆」。
+   模型可以先「回報、請確認」，接著繼續往下做，形式上仍算遵守。
+3. 初始提示預先說明了未知項（「session id 未知；GitHub issues 以 `--skip-issues` 標 not_checked」），
+   還列了負面清單（「不要 push、不要移除 worktree」）。模型把前者當成對 Phase A 結果的確認，
+   並把負面清單以外的動作（寫記錄、commit）當成已獲准。
+
+**修正**：agent 檔 Phase B 加上「Phase A 輸出後結束本輪回覆」與「什麼算同意」；Phase C 加上進入條件。
+SKILL.md 新增 § Phase B 同意閘門（判準表）。
+
+**做對的部分（保留）**：使用者回覆「認可接受」後，Closer 把它理解成「同意進入 Phase C」，**沒有**
+當成解除兩個未知項。記錄仍標 `UNDETERMINED`，並請使用者若要確認「沒有其他 session 在用」須明確說出。
+這與 A3「使用者確認閘門是後備」一致。
+
+**教訓**：**預先告知不是確認，負面清單不是授權。** 使用者在看到結果之前說的話只能當輸入；同意必須是
+回應這次 Phase A 輸出的回覆。agent 檔裡每個「詢問使用者」的閘門都要同時寫明「結束本輪」，否則
+「問了但沒等」在形式上也算遵守。
+
+---
+
+## 2026-10-13 — `deferred_markers` 逐行比對：`## Deferred` 與 `None.` 分兩行就多算 1 筆
+
+**錯誤**：準備同一個 fixture 時（`docs/specs/active/ai-portability/notes.md` §4.25），`demo-fixture` 的
+`proposal.md` 第一版寫成 `## Deferred` 標題、下一行 `None.`。稽核把標題行計為 1 筆 deferred marker，
+verdict 變成 `HOLD`；改成單行 `Deferred work: None.` 後為 0。Closer 實測時也從 commit 歷史獨立指出這點。
+
+**根因**：`scripts/campaign-closeout-audit.sh` 來源 2 以 `grep -Ei 'deferred|not executed'` 逐行計數，
+只排除**同一行**符合 `deferred (work)? :? (none|n/a)` 的行。標題行含 `deferred` 但不含 `none`；
+下一行的 `None.` 不在同一行，抵銷不了。
+
+**本次不改腳本**：這個誤判只會多算（偏向 `HOLD`），不會把待辦漏報成 0，方向符合「結論要嚴」。
+`docs/specs/_template/` 沒有 Deferred 標題；2026-10-13 掃描現存 `docs/specs/active/*` 的
+`proposal.md`／`changes-log.md`，只有 `publication-policy/changes-log.md` 命中（14 筆，屬實際待辦）。
+
+**教訓**：`deferred_markers` 大於 0 時，先看命中的是哪幾行再判 `HOLD`；獨立的 `## Deferred` 標題行
+只是格式命中，不是待辦。沒有延後項的 spec 寫成單行 `Deferred work: None.`。日後若要修：標題行後
+緊接 `None`／`n/a` 時一併排除，並補 fixture 測試。
+
+---
+
 ## 2026-08-12 — 已知邊界（第三輪反例狩獵後**刻意不修**的四項）
 
 Tester 第三輪對 A3 的 `workspace.yaml` / lock 檔名狩獵了 9 種新輸入形狀，**沒有找到具現實性

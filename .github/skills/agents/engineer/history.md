@@ -4,6 +4,65 @@
 
 ---
 
+## 2026-10-13 - Claude Code hooks fail open in places the plan did not list
+
+**Error**: ai-portability Phase C (`4c406ad8`) added PreToolUse guards (`scripts/claude/`, `.claude/settings.json`). The plan assumed a guard either runs and decides, or is absent. The C-0 spike (Claude Code `2.1.296`, disposable fixture; `docs/specs/active/ai-portability/notes.md` §4.21) found four ways a guard is skipped or ignored without any error shown:
+
+1. **A failing hook allows by default.** Exit 1, exit 127 (hook command missing), timeout, and exit 0 with malformed JSON all let the tool run. Only exit 2 blocks.
+2. **`Monitor` runs shell commands** as `tool_name: "Monitor"`. A `Bash`-only matcher never sees them; in auto mode a `touch` sent through Monitor ran with no approval.
+3. **Project settings load only when the session starts at the repo (or worktree) root.** Started from a subdirectory, the root `.claude/settings.json` was not loaded: no hooks fired, and `git push --dry-run` ran with no `permissions.ask` prompt.
+4. **`Grep` with a parent directory as `path` returns gitignored dotfiles** such as `.env`, so a guard that checks literal paths does not cover recursive search.
+
+Two smaller findings: PreToolUse does not fire when a tool fails its own pre-validation, and the documented stdin field `scratchpad_dir` was absent.
+
+**Fix**: Every hook sets `onFailure: "block"` (Claude Code `2.1.295`+; older versions ignore the field but still apply the rest of the settings). The hook command ends in `|| exit 2` so a missing launcher blocks. `run_hook.sh` turns every guard outcome other than exit 0 or 2 into exit 2, and forwards stdout only after `_policy.py --validate-output` accepts it, so exit 0 with bad JSON cannot slip through. The shell matcher is `Bash|Monitor`. (3) and (4) are documented as residual risks in `AGENTS.md`. Verified with `python3 -m pytest scripts/claude/tests scripts/tests -q` (437 passed) and the U5/U6 interactive user tests.
+
+**Other findings in the same phase** (notes §4.21–§4.29; rules in Engineer SKILL § Claude Code harness unless noted):
+
+- Adding hooks to the repo your own session runs in takes effect on the next tool call (hot reload). The hooks were added last, with a restore command prepared, and the session immediately re-ran must-allow commands.
+- `claude -p` silently ignores a settings file that fails validation, and Bash edits to `.claude/settings.json` still need approval even with `allow: Bash`. The settings shape is locked by `scripts/tests/test_claude_settings.py`.
+- Running the guard from the repo wrote `__pycache__`; the launcher now runs `python3 -B -E -s`.
+- The masked awk template exists in two path forms (`.env` in `token-rotation.instructions.md`, `scraper/.env` in `docs/GITHUB_TOKEN_SYNC_CHECKLIST.md`). The guard exception covers both, and a drift test reads both files (SKILL § Secret Scanning).
+- The official Supabase CLI docs show `supabase db pull` can insert rows into the remote migration history, so the guard blocks it instead of treating it as read-only (SKILL § Database).
+- Self-review found two parser cases: a short-flag cluster that ends in a flag taking a value consumes the next argument (`bash -eo -c "…"` makes `-c` the value of `-o`, and bash runs nothing), and `git commit -am` is `-a -m`.
+- The upstream-overlap check must diff from the merge-base: `git diff --name-only HEAD...origin/main -- <paths>` listed 4 files where a two-dot diff listed 79. The `$(git merge-base …)` form is now blocked by the guard as `[dynamic-args]`.
+- In user test U5, a background subagent's transcript shows `Permission … denied` whether the user rejected a prompt or the call was auto-rejected, so the user had to confirm the prompt appeared.
+- Long paths copied from the VS Code terminal broke at line wraps, and Claude Code's fullscreen view captured the mouse. User tests ran from short launch scripts in `~/.ai-notes/ttr/` instead.
+
+**Lesson**: Assume a hook fails open until each failure mode is shown to block. List the modes (exit code other than 2, missing interpreter or script, timeout, malformed output, a tool name the matcher does not cover, settings that never loaded) and test each one. Matchers list tool names, so every tool that can execute a command must be on the list, and the list goes stale when Claude Code adds a tool. All of this depends on the Claude Code version: after an upgrade, rerun the B-0/C-0 fixtures (`tasks.md` follow-up item).
+
+---
+
+## 2026-10-09 - what the Phase B spike showed before Claude Code tool limits were projected
+
+**Error**: ai-portability Phase B (`1460aab2`) projected agent roles into Claude Code `tools:` allowlists and added `permissions.ask` for `git push`. Several assumptions in the plan did not hold on the installed Claude Code (`2.1.292`, then `2.1.295` after an automatic update; notes §4.7–§4.19):
+
+1. Upstream deleted a managed agent (`scraper-community-platforms`) while the branch was open, so counts hard-coded in the plan (16 wrappers, 12 managed agents) became false. The Step 0 drift check caught it before any edit.
+2. Plan mode cannot submit a plan without both `Write` and `ExitPlanMode`, so a planner allowlist without them cannot use plan mode.
+3. On macOS, `Grep` and `Glob` exist only for roles without Bash; roles with Bash search through Bash.
+4. `claude -p` in an untrusted folder ignores project `allow` entries but still applies `ask`, `deny` and project hooks.
+5. A nested `claude` inherits `CLAUDE_CODE_AGENT`, `CLAUDE_CODE_CHILD_SESSION` and the API key from the calling session.
+6. A worktree session loads `.claude/settings.local.json` from the main checkout.
+7. `permissions.ask` fires in the main thread, in subagents and in auto mode, but prefix rules miss `git -C … push` and `bash -c 'git push'`.
+8. VS Code Copilot accepts the unknown `claude-role` frontmatter key; an agent missing from the picker was Restricted Mode, not the new key.
+9. `2.1.295` removed the `/agents` wizard.
+
+**Fix**: For (1), stopped, committed the evidence, rebased onto `origin/main`, confirmed the rebased patches with `git range-diff`, and made the tests derive counts from `len(agent_sources)`. For (2), plan-critic runs in normal mode instead of plan mode. (2), (3) and (7) are recorded in `AGENTS.md`; (7) was carried over to the Phase C hooks. For (4) and (5), spikes ran under `env -i … < /dev/null` with allow given through `--settings`. For (8), trusting the folder and Reload Window made the agent appear. For (9), the loaded-agent check read the `-p` init event, and the key spike items were rerun on the updated version.
+
+**Lesson**: Tool-limit behaviour is decided by the installed Claude Code version, not by the plan or the docs alone. Derive counts from the source of truth instead of hard-coding them, isolate spikes from inherited session state, and record the version next to every result. Rules that generalise are in Engineer SKILL § Claude Code harness and § Agent Frontmatter Rules; coverage statements stay in `AGENTS.md`.
+
+---
+
+## 2026-10-07 - a "legacy" Copilot path turned out to be a script I/O interface
+
+**Error**: ai-portability Phase A planned to move every `.copilot-tracking/` reference in agent guidance to the new state locations. A consumer search before editing (notes §4.4 F5) showed that `.copilot-tracking/research/candidates/` and `sources/` are the working input and output of `scraper/researcher.py` and `scraper/update_source.py`. `update_source.py --create-issue` reads the source profile from `sources/` into the GitHub Issue body and only logs a warning when the file is missing. Rewriting the guidance literally would have pointed the Researcher at a directory the scripts never write, and Issue bodies would have degraded without any error.
+
+**Fix**: Kept `candidates/` and `sources/`, annotated as a script interface with a legacy directory name (the exception sentence in `git.instructions.md` § State persistence, plus the researcher agent and SKILL). Only `research-log.md`, which no code reads, moved to `~/.ai-notes/ttr/research/`. Renaming the directory needs a `scraper/**` change and is a `tasks.md` follow-up.
+
+**Lesson**: A path that looks like stale tool scratch can still be a live interface. Before rewriting or deleting a path in guidance, `rg` the code and `.github/workflows/` for its readers and writers. If anything consumes it, annotate it instead of moving it, and move it only together with the code.
+
+---
+
 ## 2026-08-17 - Cancel trapped the user because a best-effort save was treated as blocking
 
 **Error**: In the intake wizard step 2, Cancel showed `Failed to find Server Action "40ead839…" was not found on the server` and refused to navigate. The Server Action error itself was ordinary version skew — the tab was loaded before deploy `eb4819b4`, so its bundle held action IDs the new deployment no longer exposes (Next.js E974). Two of our own decisions turned a transient deploy-boundary condition into a dead end. `handleCancel` saves a draft before leaving, and on failure it called `setActionError` and `return`ed, so navigation never ran; the user could not leave the page by any route except a manual reload. `next.config.ts` also had no `deploymentId`, so Next.js could not detect the skew and hard-navigate — it just let the stale action call fail.

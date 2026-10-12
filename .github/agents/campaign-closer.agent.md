@@ -109,12 +109,20 @@ Exit code：`0` = RETIRE_CANDIDATE、`10` = HOLD、`20` = UNDETERMINED。
 
 ## Phase B — 使用者決策
 
+Phase A 輸出之後**結束本輪回覆，等使用者回應**。同一輪不得從 Phase A 接著進入 Phase C。
+
 只有 `RETIRE_CANDIDATE` 才詢問「保留或關閉這個 worktree」。
 
 `HOLD` → 回報阻擋原因，結束。`UNDETERMINED` → 回報未知項並請使用者補齊或確認；
 `UNDETERMINED` 既不是放行、也不是永久封鎖。
 
+只有使用者**看到本次 Phase A 輸出之後**的回覆才算同意。初始提示裡預先說明的未知項（例：
+「session id 未知」）是 Phase A 的輸入；負面清單（例：「不要 push」）不是授權。兩者都不算同意。
+判準表見 SKILL.md § Phase B 同意閘門。
+
 ## Phase C — 結案記錄（**全部在 campaign worktree 內撰寫**）
+
+**進入條件**：使用者已在 Phase B 回覆同意。`HOLD` 不進入本階段。
 
 不要改在主工作樹撰寫。主工作樹會被平行 session 的 `git stash` / `git clean` 掃走——
 2026-08-08 就是這樣損失了 11 個檔案。

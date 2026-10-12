@@ -64,6 +64,7 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - Before trusting a consumer-side regex, grep the producer for the literal token. "This metric has been 0 for months while the job clearly runs" is a producer/consumer mismatch until proven otherwise.
 - When repairing one, prefer a **consumer-side fallback to an older token** so existing historical rows become usable immediately, rather than a producer-only fix that restarts the metric from zero. Document why the fallback exists so it is not later deleted as dead defensive code.
 - Anchor every token regex with a boundary assertion — `(?<![a-z_])annotated=(\d+)` — because sibling keys sharing a suffix (`re_annotated=`, `re_annotate_all=`) are normal, not exotic.
+- **看似 legacy 的路徑也可能是程式的 I/O 介面。** 改寫或刪除 guidance 裡的路徑前，先 `rg` 程式碼與 `.github/workflows/` 找讀寫它的程式；有消費者就是介面，只加註、不搬移，要搬就連同程式一起改。實例：`.copilot-tracking/research/{candidates,sources}/` 是 `scraper/researcher.py`、`scraper/update_source.py` 的輸入輸出，照字面搬走會讓 `--create-issue` 的 Issue 內文靜默退化（2026-10-07 ai-portability Phase A）。
 
 ## CSS Selector Specificity Pitfalls
 
@@ -129,6 +130,8 @@ Reference incident: 2026-08-17 — intake wizard step 2 按取消顯示 E974 且
 - **worktree localhost = frozen base.** A linked worktree freezes its branch base at branch-creation time; main keeps advancing. Before previewing a feature in a worktree dev server, run `git fetch origin && git rebase origin/main` so localhost shows the real latest design, not a behind-by-N snapshot. A feature can't be tested on `main` until merged — after rebase the worktree equals `main + feature`, so test there to avoid two-location switching.
 - **merge commit may trip the remote secret hook when ff doesn't.** A `--no-ff` merge has two parents, so the remote pre-receive scans full-reachable history and can flag an old blob the local `.gitleaks.toml` allowlists; a linear ff push scans only the increment and passes. This is NOT a safe bypass — after the ff succeeds, run `gitleaks dir .` on the whole tree to confirm 0 real secrets. Fix path: reset main, rebase the worktree onto latest main into one linear commit, `git push origin HEAD:main`. Never use `--no-verify`.
 - **Worktree operating = canonical + tasks.md.** 大型 feature 在 `ttr-<slug>-worktree` 隔離開發；所有 `git worktree` 命令、state matrix、STOP 條件見 `.github/instructions/git.instructions.md § Isolated worktree`（單一權威）。建立後 idempotent `grep -qxF 'ttr-<slug>-worktree/' .git/info/exclude || echo 'ttr-<slug>-worktree/' >> .git/info/exclude`。rebase/preview 前 worktree 必須 clean，**絕不 `git stash`**（repo-wide stash 會重新引入並行踩踏）。`docs/specs/active/<slug>/tasks.md` 為跨 session 進度真值，逐步打勾 commit。merge-back 交 V-M-D（linear ff，見上一條 gitleaks note）。
+- **上游重疊檢查用三點 diff：** `git diff --name-only HEAD...origin/main -- <paths>` 只列 merge-base 之後上游改過的檔案；兩點 `HEAD origin/main` 會把自己分支的 commit 也算進去（2026-10-13 實測：4 檔 vs 79 檔）。不要寫成 `$(git merge-base …)`：git 參數中的命令替換會被 PreToolUse guard 以 `[dynamic-args]` 擋下。
+- **長期分支的計畫與測試不要寫死由 repo 狀態推得的數量**（agent 數、wrapper 數），改用推導值（例：`len(agent_sources)`）。Step 0 發現上游改到目標路徑時 STOP 回報；決定 rebase 後，先把證據 commit（rebase 需要乾淨工作樹，禁 stash），再 `git rebase origin/main`，並用 `git range-diff` 確認 patch 內容不變（2026-10-07 ai-portability Phase B：上游刪除一個受管 agent，計畫寫死的 16 變成 15）。
 - Fixed-width device preview frames must use responsive constraints such as `w-full max-w-[390px]`; do not set `width: 390px` inside padded mobile pages. In visual smoke tests, assert document `scrollWidth <= clientWidth` and distinguish expected horizontal carousels from real page overflow.
 
 ## Terminal Mojibake / Locale（macOS；agent 讀 terminal 亂碼；2026-07-03 教訓）
@@ -161,6 +164,7 @@ Reference incident: 2026-08-17 — intake wizard step 2 按取消顯示 E974 且
 - **regex fallback 必含 placeholder allowlist**：shell fallback **不讀** `.gitleaks.toml`。tracked docs 的具名 placeholder（`github_pat_REPLACE_WITH_YOUR_TOKEN`、`github_pat_<NEW_TOKEN_VALUE>` 等）長度超過 `{20,}`，裸 fallback 會誤判為真 secret → 命中後先 `grep -vE '<placeholder>'` 過濾再判定。三份 allowlist（`.gitleaks.toml`、pre-push fallback、Hygiene git grep）同一份語意，改一處要三處同步。
 - **Public Repo Secret Hygiene**：掃 tracked 檔用 `gitleaks git --redact --no-banner -c .gitleaks.toml`（命中數須為 0；allowlist-aware + redacted）。**禁止 repo-root `grep -rn`**——會讀進被 .gitignore 忽略的 `scraper/.env`，把真 PAT 印到 terminal / transcript / CI log。`git check-ignore -v scraper/.env` 須命中、`git ls-files --error-unmatch scraper/.env` 須失敗。
 - **token docs 存在性檢查改 masked**：任何文件不得叫人 `grep "^GITHUB_TOKEN=" .env`（會印 token 行）；改 `awk -F= '/^GITHUB_TOKEN=/{print "present, len="length($2)", prefix_ok="...}'`（length/prefix，不印值）。canonical 來源 `docs/GITHUB_TOKEN_SYNC_CHECKLIST.md` 與同步副本 `.github/instructions/token-rotation.instructions.md` 必須同 commit 保持一致。
+- **masked awk 模板有兩種路徑寫法**：`token-rotation.instructions.md` 用 `.env`（先 `cd scraper`），`docs/GITHUB_TOKEN_SYNC_CHECKLIST.md` 用 `scraper/.env`。任何逐字比對這個模板的機制（例：PreToolUse guard 的例外常數）都要收兩種寫法，並以漂移測試同時讀兩個來源檔（`scripts/claude/tests/test_bash_guard.py`）。只收其中一種，另一份文件照抄的命令就會被誤擋。
 
 ## Admin GPT routes — server-side enum whitelist intersect（2026-05-26 教訓）
 
@@ -230,6 +234,7 @@ const sanitized = (parsed.category ?? []).filter((c: string) => VALID_CATEGORIES
   Always `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` before adding GRANTs.
 - **GRANT scope を決める前に「誰が書くか」を Python コードから逆引きする。** RLS ポリシーのみ参照すると書き込み GRANT が漏れる。典型的な漏れパターン：`scraper_runs`・`research_reports` は scraper/annotator が service_role で INSERT するため `service_role INSERT` が必要。`creators` は admin UI から `authenticated` が CRUD するため `authenticated CRUD` が必要。
 - **Admin が UPDATE/DELETE するテーブルには SELECT だけでなく全 DML の RLS policy を migration 時に一括作成する。** `CREATE TABLE` 時に SELECT policy のみ追加し UPDATE policy を漏らすと、admin UI からの更新が PostgREST により 0-row silent success として返り、JS 側では `error: null` なので原因特定が困難になる。チェックリスト（admin 操作テーブル）：`SELECT` / `INSERT` / `UPDATE` / `DELETE` の 4 種 policy を全て作成したか確認すること。参照インシデント：`research_reports` が UPDATE policy なしのため「標記為已審閱」ボタンが無反応（migration `070`、2026-05-15）。
+- **`supabase db pull` 不是唯讀命令。** 官方 CLI 文件說明它可以在遠端 migration history 表插入紀錄（會問 `Update remote migration history table? [Y/n]`，全域 `--yes` 會自動同意）。不要拿它當查詢 schema 的安全手段；PreToolUse guard 也將它列為阻擋（2026-10-12 ai-portability H-C1）。
 
 ## Supabase Client UPDATE — 0-row Silent Success Guard
 
@@ -1010,6 +1015,10 @@ git add web/app/[locale]/page.tsx
 git add 'web/app/[locale]/page.tsx'
 ```
 Applies to all shell operations: `git add`, `cp`, `mv`, `cat`, etc.
+
+**zsh 的另外兩個陷阱（Claude Code 的 Bash 工具在本機跑的是 zsh；2026-10-13 實測）：**
+- 未加引號、以 `=` 開頭的字詞會被當成 `=cmd` 展開：`echo =====` 報 `==== not found`，整串命令就此中止。分隔線一律加引號：`echo '====='`。
+- 本機的 `find` 是 Claude Code 包裝的 bfs，以 `-` 開頭的目錄名（例：`~/.claude/projects/-Users-…`）會被當成運算式而報錯。改用 `./` 前綴或絕對路徑傳入。
 
 ## GITHUB_TOKEN Permission Wording Sync
 
@@ -1851,6 +1860,40 @@ Add city and category pages to `sitemap.ts` with `priority: 0.7` and `changeFreq
 - 判斷原則：**任何在其他 agent `handoffs:` 裡被引用的 agent，一律不得設 `user-invocable: false`**。
 - `user-invocable: false` 僅適用於純 subagent（只被 parent agent 透過 `agents:` list 呼叫、不出現在 Agent Picker、無人 handoff 到它）。
 - Incident：`update-history-agent.agent.md` 與 `validate-merge-deploy.agent.md` 誤設此旗標，Engineer/Designer/Scraper Expert 的 handoff 按鈕全部消失（commit `6188653` 修正）。
+- **Copilot 接受未知的 frontmatter 欄位**（例：`claude-role`），不會拒絕載入或執行 agent（VS Code `1.139.1` 實測）。agent 選單看不到新 agent 時，先信任資料夾（離開 Restricted Mode）並執行 `Developer: Reload Window`，再懷疑 frontmatter。
+
+## Claude Code harness — hooks、settings、spike 與使用者實測（2026-10 ai-portability 教訓）
+
+權威分工：哪些操作被擋、哪些不涵蓋（殘餘風險），以 `AGENTS.md` 的「角色工具限制（Claude Code）」與「Hooks 與 permissions（Claude Code 專屬防線）」為準；實測證據在 `docs/specs/active/ai-portability/notes.md`。本段只寫「怎麼改、怎麼驗」，不重複覆蓋聲明。這些行為綁定 Claude Code 版本，升級後依 `AGENTS.md` 重跑實測。
+
+### 新增或修改 PreToolUse hook
+
+- **先假設 hook 失效時會放行。** 只有 exit 2 會阻擋；exit 1、127（命令不存在）、逾時、exit 0 加不完整 JSON 都會放行。每個 hook 都要：
+  - 設 `onFailure: "block"`（`2.1.295` 以上；舊版會忽略這個欄位，但 settings 其他部分照常生效）。
+  - 命令結尾加 `|| exit 2`，launcher 缺失時阻擋。
+  - launcher 只轉發驗證過的 decision JSON：`onFailure` 擋不住 exit 0 加不完整 JSON，host 會當成純文字放行。fail-closed 矩陣由 `scripts/claude/tests/test_launcher.py` 鎖定。
+- **matcher 列的是工具名。** 凡能執行命令的工具都要列入（目前是 `Bash|Monitor`；`Monitor` 在 auto mode 下會直接執行 shell 命令）。Claude Code 新增工具時要重查 matcher。
+- **在自己 session 所在的 repo 加 hooks 會立即生效（熱重載）。** `.claude/settings.json` 一寫入，下一個工具呼叫就套用新 hook。因此加 hooks 必須是最後一步；寫入前備好還原命令（例：`git show <前一個 commit>:.claude/settings.json > .claude/settings.json`）；寫入後立刻用必須放行的命令（`git status --short`、`git diff --check`、pytest）自我驗證，誤擋就還原。
+- **在 repo 內執行的 hook Python 用 `python3 -B -E -s`。** `-B` 不寫 `__pycache__`；`-E`、`-s` 讓結果不受 `PYTHON*` 環境變數與 user site-packages 影響。
+- **解析短旗標群組要照 getopt 規則。** 需要帶值的旗標（bash 的 `-o`、git 的 `-m`）位於群組結尾時，會吃掉下一個參數。實測 `bash -eo -c "…"` 的 `-c` 被當成 `-o` 的值，bash 報 `invalid option name` 且不執行；`git commit -am` 等於 `-a -m`。parser 不照這個規則，就會認錯哪個參數才是命令。
+
+### settings
+
+- **worktree 的 session 也會載入主工作樹的 `.claude/settings.local.json`**（Claude Code 經 worktree 解析到 main checkout）。查某個 session 的實際權限時，要一併看主工作樹的 local 檔。
+- **`.claude/settings.json` 的形狀以 `scripts/tests/test_claude_settings.py` 鎖定。** `claude -p` 遇到驗證失敗的 settings 檔會靜默忽略（`claude --help`），寫壞了不會有任何錯誤訊息。即使有 `allow: Bash`，用 Bash 改 `.claude/settings.json` 仍需核准。
+
+### spike 方法（拋棄式 fixture）
+
+- spike 一律在 scratchpad 的拋棄式 fixture 進行，不在 worktree 內：路徑含空格、`origin` 指向本機 bare repo、push 只用 `--dry-run`，結束時用 `git ls-remote` 確認遠端是 0 筆。
+- **巢狀啟動 `claude` 要清環境**：`env -i HOME="$HOME" PATH="$PATH" USER="$USER" … claude -p --output-format stream-json --verbose … < /dev/null`。否則子程序會繼承 `CLAUDE_CODE_AGENT`、`CLAUDE_CODE_CHILD_SESSION` 與 `ANTHROPIC_API_KEY`，結果不代表全新 session。
+- **在未信任的資料夾跑 `claude -p`，project settings 的 `allow` 會被忽略**，但 `ask`、`deny` 與 project hooks 照常生效。需要放行的對照組改用 `--settings '<json>'` 給 allow，不要寫進 project settings。
+- **要確認 session 載入了哪些 agent 與工具，讀 `-p` 的 init 事件**（`/agents` 精靈已在 `2.1.295` 移除）。
+- **每筆實測結果都記下 `claude --version`。** Claude Code 會在 campaign 中途自動更新，session 本身的執行檔（`CLAUDE_CODE_EXECPATH`）也可能比 PATH 上的舊。
+
+### 交付使用者實測
+
+- **背景 subagent 的 `Permission … denied` 在 transcript 中與自動拒絕分不出來。** 凡是判定取決於「有沒有跳出核准提示」的項目，都要請使用者確認親眼看到提示。
+- **提供短啟動腳本與提示詞檔**（放在 `~/.ai-notes/ttr/`），不要求使用者從終端機複製長路徑：VS Code 終端機會在換行處切斷長路徑，Claude Code 的全螢幕畫面又會接管滑鼠（原生選取要用 `Shift`＋拖曳）。啟動腳本先 `cd` 到 repo（或 worktree）根目錄再啟動 `claude`（原因見 `AGENTS.md` 的生效條件）。
 
 ## GitHub Actions Workflow Rules
 

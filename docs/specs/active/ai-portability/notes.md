@@ -933,3 +933,32 @@ C-R9：兩情境皆可辨識（§4.21）；C-R10 不做（B-R7／B-R8 PASS，無
 使用者核准 commit（回覆「commit」）。Closer 依裁決 12 判定不需 Write（§4.28），不另做獨立 commit。Phase C 以單一 commit `chore(ai): add Claude Code PreToolUse safety hooks` 提交於 `feat/ai-portability`，不 push；H-PUSH 前交 V-M-D 先 rebase 到最新 origin/main（目前 `9cb1e11e`）。
 
 **Phase C 狀態**：C-R1～C-R12 皆 PASS（C-R10 不適用）；runbook L411 已勾選、L323 已更新。
+
+### 4.31 教訓寫入（Update History, Skill, Agent，2026-10-13；HEAD `4c406ad8`；未 commit）
+
+整理 Phase A／B／C 的教訓（`~/.ai-notes/ttr/update-history-BC-prompt.md` 候選 1–27），含 §4.28 指派的 Closer 教訓。證據取自本檔 §4.4、§4.7～§4.30 與 Closer fixture transcript（session `e8b93f7d`）。
+
+**閘門與核准點**
+
+| 項目 | 結果 |
+|---|---|
+| Worktree 閘門 | 路徑、branch `feat/ai-portability`、HEAD `4c406ad8` 相符；工作樹**不乾淨**（同一 session 前一輪未經 H-U1 寫入的 5 檔草稿，涵蓋候選 11–14、17、25、26）→ STOP 回報 |
+| 使用者決定（2026-10-13） | 選項 A：保留草稿併入本次；保留 `campaign-closer.agent.md` 的 Phase B／C 修改；H-U1 表全部照建議 |
+| H-U1 查證時的更正 | 候選 22 原句的 `git diff --name-only $(git merge-base HEAD origin/main) origin/main` 會被本 campaign 的 guard 以 `[dynamic-args]` 擋下（直接餵 `pretooluse_bash_guard.py` 實測）；改寫為 `git diff --name-only HEAD...origin/main -- <paths>`（guard 放行；本 worktree 三點 4 檔＝ merge-base 寫法 4 檔，兩點 79 檔） |
+| 寫入前另行實測 | 候選 21：`bash -eo -c "echo …"` → bash 報 `-c: invalid option name`、不執行（guard 解析與 bash 一致，不是漏洞）；候選 27：`zsh -c 'echo ====='` → `==== not found`，加引號正常；bfs 對 `-dashdir` 報錯，`./-dashdir` 正常；候選 19：`scripts/claude/tests/test_bash_guard.py` L451–452 同時讀兩個來源檔 |
+
+**落點**
+
+| 檔案 | diff | 內容 |
+|---|---|---|
+| `.github/skills/agents/engineer/SKILL.md` | +43/−0 | Cross-module String Contracts（1）；worktree 條目旁的三點 diff 與不寫死數量（22、8）；Secret Scanning（19）；Database（20）；zsh 段旁（27）；Agent Frontmatter Rules（9）；新段「Claude Code harness」：寫 hook（11、12、13、15、18、21）、settings（6、16）、spike 方法（4、5、10）、交付使用者實測（23、24） |
+| `.github/skills/agents/engineer/history.md` | +59/−0 | 2026-10-13 Phase C（11–14、17 與其他發現 15、16、18–24）；2026-10-09 Phase B（2–10）；2026-10-07 Phase A（1） |
+| `.github/skills/agents/campaign-closer/history.md` | +51/−0 | 25、26 |
+| `.github/skills/agents/campaign-closer/SKILL.md` | +32/−1 | 25（§ Phase B 同意閘門）、26（A2 逐行比對）；`ms.date` → 2026-10-13 |
+| `.github/agents/campaign-closer.agent.md` | +8/−0 | 25：Phase B 加「Phase A 輸出後結束本輪」與「什麼算同意」；Phase C 加進入條件 |
+
+**只寫 history、不寫 SKILL**：2、3、7、14、17（`AGENTS.md` 已有覆蓋聲明）。10 的「升級後重跑 fixture」已在 `AGENTS.md` 與 `tasks.md` 後續項目，不寫成規則；1 的目錄改名是 `tasks.md` 後續項目，SKILL 只寫「先查消費者」。
+
+**不改**：`scripts/campaign-closeout-audit.sh`（26 的誤判只會多算、偏向 HOLD）；四個 UNDECIDED agent 與其 wrapper；`.claude/settings.json`、`scripts/claude/`、`scripts/sync_ai_adapters.py`；`plan.md`。
+
+**驗證（H-U2 前）**：`python3 scripts/sync_ai_adapters.py` 後 `--check` exit 0（wrapper 無漂移）；`python3 -m pytest scripts/tests scripts/claude/tests -q` → `437 passed`；`git diff --check` exit 0；`git diff | gitleaks stdin --redact -c .gitleaks.toml` → `no leaks found`；兩份 history 皆 `−0`，唯一刪除行是 campaign-closer SKILL 的舊 `ms.date`；變更路徑只在 `.github/skills/`、`.github/agents/campaign-closer.agent.md`、本目錄；新增內容無 C-R11 禁止的「無寫入能力」措辭。
