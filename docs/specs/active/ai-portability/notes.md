@@ -1025,3 +1025,5 @@ B、C 與教訓 commit 是在第一次 rebase 之後才建立，所以沒有「�
 **Worktree**：推送後 branch tip `86fdc143`、ahead 0／behind 0、dirty 0、無進行中的 rebase；ignored artifact 為 `.pytest_cache/`、`scripts/**/__pycache__/`、`supabase/.temp/`（`cli-latest` 8 bytes，Phase 0 `supabase --help` 的版本標記），皆可丟；`tmp/gnews_streaming_ids.txt` 是 repo 追蹤檔，不是 artifact。結案記錄尚未進 origin/main，因此**不提示移除 worktree**（V-M-D Step 0.6）。
 
 **後續**：交 Close Campaign & Retire Worktree。`tasks.md` 的後續項目（約 20 條）刻意保持未勾選，Closer 的 A2 預期判 `HOLD`。
+
+**補記（2026-10-13）**：上一段所稱 `tasks.md` 的後續項目，已於 commit `f6c2dad2d7c898174504b1a58be684c0e97c9021` 逐字搬至 `docs/specs/parked/ai-portability-followups.md`（19 條與其邊界說明），`tasks.md` 該段改為指向說明，所以「A2 預期判 `HOLD`」描述的是搬移前的狀態，搬移後預期未勾選為 0。
