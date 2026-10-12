@@ -50,7 +50,7 @@ LINE_MULTICAST_URL = "https://api.line.me/v2/bot/message/multicast"
 # ---------------------------------------------------------------------------
 CATEGORY_LABELS: dict[str, dict[str, str]] = {
     "zh": {
-        "movie": "電影", "performing_arts": "音樂・表演", "senses": "台灣五感",
+        "movie": "電影", "performing_arts": "音樂・表演", "senses": "台灣感性・認同",
         "retail": "品牌消費", "lifestyle_food": "生活風格", "art": "藝術",
         "lecture": "講座", "taiwan_japan": "台日交流", "books_media": "書・媒體",
         "academic": "學術", "geopolitics": "社會・政治", "gender": "性別",
@@ -61,7 +61,7 @@ CATEGORY_LABELS: dict[str, dict[str, str]] = {
         "tv_program": "電視節目",
     },
     "ja": {
-        "movie": "映画", "performing_arts": "音楽・舞台", "senses": "台湾五感",
+        "movie": "映画", "performing_arts": "音楽・舞台", "senses": "台湾の感性・アイデンティティ",
         "retail": "ブランド・ショッピング", "lifestyle_food": "ライフスタイル・食",
         "art": "アート", "lecture": "講演", "taiwan_japan": "台日交流",
         "books_media": "本・メディア", "academic": "学術", "geopolitics": "社会・政治",
@@ -73,7 +73,7 @@ CATEGORY_LABELS: dict[str, dict[str, str]] = {
     },
     "en": {
         "movie": "Movie", "performing_arts": "Music & Performing Arts",
-        "senses": "Taiwan Senses", "retail": "Shopping", "lifestyle_food": "Lifestyle & Food",
+        "senses": "Taiwanese Identity & Sensibility", "retail": "Shopping", "lifestyle_food": "Lifestyle & Food",
         "art": "Art", "lecture": "Lecture", "taiwan_japan": "Taiwan-Japan Exchange",
         "books_media": "Books & Media", "academic": "Academic", "geopolitics": "Society & Politics",
         "gender": "Gender", "tech": "Tech", "nature": "Nature", "tourism": "Tourism",

@@ -22,7 +22,7 @@ Tokyo Taiwan Radar automatically aggregates and curates Taiwan-related cultural 
 
 - movie（電影 / 映画）
 - performing_arts（音樂・表演藝術 / 音楽・舞台芸術）
-- senses（台灣五感 / 台湾の五感）
+- senses（台灣感性・認同 / 台湾の感性・アイデンティティ：討論台灣認同、美學、地方性、民俗與 vernacular 文化的活動與出版品）
 - art（藝術 / 芸術）
 - lecture（講座）
 - taiwan_japan（台日交流 / 台日交流）
