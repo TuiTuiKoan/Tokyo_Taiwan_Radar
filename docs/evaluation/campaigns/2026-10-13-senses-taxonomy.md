@@ -156,10 +156,28 @@ specification directory exists for this campaign.
 
 ## Worktree disposition
 
-`pending`. No removal decision exists yet, so there is no decision timestamp.
-The table at the end of this section holds the values observed at the close-out
-audit (2026-10-12T22:27:56Z). The removal step replaces it with the values
-re-observed at the moment of removal, and only that table is rewritten.
+`remove`, decided at `2026-10-12T22:39:21Z`. The worktree was removed without
+`--force` at 2026-10-12T22:39:40Z, after the six values were re-observed and
+found unchanged. The table at the end of this section holds the values observed
+at the decision and replaces the earlier close-out audit observation
+(2026-10-12T22:27:56Z).
+
+Result of the retirement, observed 2026-10-12T22:38Z to 22:40Z:
+
+* The record commit `6acae937667954af2dcd1a10e9c69b18397b1be8` had landed on
+  `origin/main` before removal, and the recovery capsule was written outside the
+  worktree first.
+* An interactive shell opened at 2026-10-12T22:33:30Z held the worktree as its
+  working directory. The repository owner reported at 2026-10-12T22:38Z
+  (2026-10-13 07:38 JST) that it was their own push terminal and that it was
+  closed. `lsof` showed no process in the worktree at 22:38:36Z and 22:39:40Z.
+* The local branch `feat/senses-taxonomy` was deleted with `git branch -d`; it
+  pointed at `6acae937667954af2dcd1a10e9c69b18397b1be8`.
+* The remote branch `origin/feat/senses-taxonomy` was absent at 22:38:36Z. The
+  repository owner deleted it from their own terminal after 22:34:26Z, when it
+  still existed at `8e70c515`. The close-out agent did not delete it.
+* The post-removal check reported the worktree unregistered, the branch deleted,
+  the exclude entry removed, and the directory gone.
 
 ### Gates at the close-out audit
 
@@ -206,9 +224,9 @@ was written. The repository owner deletes it from their own terminal, because
 the agent hook blocks remote ref deletion. Its deletion is a planned step, not
 a completed one.
 
-| Freshness value | Observed at the close-out audit (2026-10-12T22:27:56Z) |
-|-----------------|--------------------------------------------------------|
-| branch tip | `e17cf4d9f996fac6f28eb27c40040e0c96b5193e` |
+| Freshness value | Observed at the decision (2026-10-12T22:39:21Z) |
+|-----------------|-------------------------------------------------|
+| branch tip | `6acae937667954af2dcd1a10e9c69b18397b1be8` |
 | ahead of `origin/main` | `0` |
 | behind `origin/main` | `0` |
 | dirty count | `0` |
