@@ -9,6 +9,52 @@ ms.date: 2026-08-12
 
 ---
 
+## 2026-10-13 — 稽核腳本補完：完整範圍偵測漏給的段落、空段落規則、可讀的未涵蓋輸出
+
+**背景**：同日稍早的 `--range`（見下一條）避開了單一跨度被上游 commit 污染，但留下三個缺口，都在
+ai-portability 結案前被指出。補完後同一組呼叫（兩段 `--range` 加上完整範圍 `--base`／`--head`）對舊
+worktree 得到 `range_todo=0`、`uncovered_commits=10`、`uncovered_hits=7`、`open_issues=0`，verdict
+`UNDETERMINED`。對應規則已寫進 SKILL.md § A2 與 agent 檔的交接契約。**本條取代下一條中三處說法：
+「`--range` 與 `--base`／`--head` 互斥」、「重疊的 commit 算兩次」、「V-M-D 的 handoff 範本目前只有一組
+base／head 欄位（本次未改）」——範本已在同批 commit 改為帶出成對 base／head 與完整範圍。**
+
+### 1. 漏給一段的 `0`，與乾淨的 `0` 看起來一樣
+
+**現象**：只傳 `--range` 時，少傳一次 push 不會有任何訊號；得到的 `range_todo=0` 只代表「有給的段落
+沒有」，卻會被讀成整個 campaign 沒有。
+
+**根因**：腳本只看得到呼叫端給的段落，沒有任何「應該涵蓋多少」的參照。
+
+**修正**：`--base`／`--head` 與 `--range` 並用時是完整範圍。腳本輸出完整範圍內沒有任何一段涵蓋的
+commit 數與其命中行數；沒給完整範圍時這兩個數字是 `not_checked`。未涵蓋的命中不計入 `unhandled_total`
+（可能是別的 campaign 的工作），但 verdict 至多 `UNDETERMINED`。
+
+**教訓**：「查過、沒有」需要一個分母。只給段落時，分母由呼叫端決定，腳本無從核對；完整範圍把分母交給
+git。重疊的段改以 commit 集合去重，一個 commit 只算一次。
+
+### 2. 兩端寫反或相等的段落回報 0
+
+**現象**：`--range <head>..<base>` 或 `X..X` 是空集合，被當成乾淨的 0。
+
+**修正**：`--range` 的段落若沒有任何 commit，回報 `not_checked`。刻意不做祖先檢查：base 不是 head 的
+祖先是合法的分叉範圍（例如 push 前以 `origin/main` 為 base、而 feature 分支落後），必須照常計數。
+單獨的 `--base`／`--head` 不套用這條，維持相容。
+
+**教訓**：一次 push 至少交付一個 commit，所以「零個 commit」本身就是錯誤訊號，不需要祖先關係來判斷。
+
+### 3. 只列 SHA 的輸出，人無從判斷歸屬
+
+**現象**：未涵蓋的 commit 如果只印短 SHA，使用者要自己 `git show` 才知道它是誰的、動了什麼。
+
+**修正**：每個新增了待辦字樣的未涵蓋 commit 都列出短 SHA、日期、作者、主旨、動到的檔案（最多 5 個，
+其餘 `+N`）、命中行原文（約 150 字，附檔案路徑），再加一行歸屬提示；每一段也列出第一個與最後一個
+commit 的短 SHA、日期、主旨。
+
+**教訓**：歸屬提示（slug 是否出現在主旨或路徑）只是提示。slug 沒出現不代表不屬於這個 campaign，所以
+它從不改變 verdict。判定歸屬的是人。
+
+---
+
 ## 2026-10-13 — ai-portability 稽核回 HOLD：兩個阻擋都是假陽性，稽核腳本改為支援多段 range
 
 **背景**：ai-portability 的稽核回 `HOLD:unhandled_work`，阻擋是 `range_todo=7` 與 `open_issues=1`。

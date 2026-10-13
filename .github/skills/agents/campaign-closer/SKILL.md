@@ -110,28 +110,41 @@ V-M-D push 完成後 `HEAD` 等於 `origin/main`，`origin/main...HEAD` 恆為�
 
 ### 多次 push 的 campaign：單一跨度會被上游 commit 污染
 
-腳本統計 `<base>..<head>` 範圍內新增行的待辦字樣。範圍是 commit 圖上的區間，不認作者：campaign
-分多次 push 時，兩次 push 之間若有別的 campaign 的 commit 進入 `origin/main`，單一跨度就把那些
-commit 的新增行一併算進來。實測（2026-10-13 ai-portability）：單一跨度 `7f8e75c9..87c2b557` 夾了
-10 個上游 commit，其中兩個的新增行含字面待辦字樣（1 筆與 6 筆，都是文字描述，不是待辦），
-`range_todo=7`；campaign 自己的兩段各自重算為 0。
+腳本統計範圍內新增行的待辦字樣。範圍是 commit 圖上的區間，不認作者：campaign 分多次 push 時，兩次
+push 之間若有別的 campaign 的 commit 進入 `origin/main`，單一跨度就把那些 commit 的新增行一併算進來。
+實測（2026-10-13 ai-portability）：單一跨度 `7f8e75c9..87c2b557` 夾了 10 個上游 commit，其中兩個的
+新增行含字面待辦字樣（1 筆與 6 筆，都是文字描述，不是待辦），`range_todo=7`；campaign 自己的兩段各自
+重算為 0。
 
-* **一次 push 一段**：`--range <base>..<head>`，可重複。腳本逐段輸出（`range_todo_segment_<n>`，附
-  `commits=`）再加總為 `range_todo`。
-* **漏給一段，腳本無從得知。** 腳本只對「有給的段落」負責；少傳一次 push 得到的 `0`，不是整個
-  campaign 的 `0`。缺任何一組 base／head 時，來源 4 在報告中標 `not_checked`，不要拿部分段落的結果
-  或較寬的單一跨度充數。V-M-D 的 handoff 範本目前只有一組 base／head 欄位，其餘各組由協調者或使用者
-  逐組補上。
-* **任一段解析不到 → `range_todo=not_checked`，不是 0。** 其餘段落已確認的行數仍計入
-  `unhandled_total`（A5 的順序：硬阻擋優先於未知）。
+**標準呼叫**：每次 push 一個 `--range <base>..<head>`，再用 `--base`／`--head` 給完整範圍（第一次 push
+的 base 到最後一次 push 的 head）。同一組實測呼叫的結果是 `range_todo=0`、`uncovered_commits=10`、
+`uncovered_hits=7`，verdict `UNDETERMINED`。
+
+* **段落。** 腳本逐段輸出（`range_todo_segment_<n>`，附 `commits=`、第一個與最後一個 commit 的短 SHA、
+  日期、主旨），`range_todo` 是各段**不同 commit** 的加總：重疊的 commit 只算一次，重疊數另行輸出
+  （`range_todo_segments_overlap`）。
+* **完整範圍是偵測「漏給一段」的唯一手段。** 腳本只對有給的段落負責；少傳一次 push 得到的 `0`，不是
+  整個 campaign 的 `0`，而單看段落腳本無從得知。有了完整範圍，腳本才能算出「完整範圍內、沒有任何一段
+  涵蓋」的 commit（`range_todo_uncovered_commits`／`_hits`）。
+* **未涵蓋的命中不計入 `unhandled_total`，但 verdict 至多 `UNDETERMINED`。** 它們可能是別的 campaign 的
+  工作，不是這個 campaign 的待辦，所以不能算進總數；也可能是漏給的一次 push，所以不能當作乾淨通過。
+  腳本逐個列出新增了待辦字樣的未涵蓋 commit：短 SHA、日期、作者、主旨、動到的檔案（最多 5 個，其餘
+  `+N`）、命中行原文（約 150 字截斷，附檔案路徑），以及一行歸屬提示（主旨或路徑是否含 slug）。
+  **歸屬提示只是提示，不是判定**：slug 沒出現不代表不屬於這個 campaign，出現也不代表屬於。歸屬由人
+  判斷：屬於別的 campaign → 寫進結案記錄的 Known risks；屬於漏給的一次 push → 補一個 `--range` 重跑。
+* **沒給完整範圍 → 未涵蓋數字是 `not_checked`**，verdict 至多 `UNDETERMINED`。只給 `--range` 得到的
+  `range_todo=0` 因此到不了 `RETIRE_CANDIDATE`。
+* **一段範圍有 commit 不在完整範圍內**，只輸出數量（`outside_full_range=`），不阻擋。
+* **任一段解析不到，或段落內沒有 commit → `range_todo=not_checked`，不是 0。** 一次 push 至少交付一個
+  commit，空段落只會是 base 與 head 寫反或相等。刻意**不做祖先檢查**：base 不是 head 的祖先是合法的
+  分叉範圍，必須照常計數。其餘段落已確認的行數仍計入 `unhandled_total`（A5 的順序：硬阻擋優先於未知）；
+  此時未涵蓋數字也算不出來，同為 `not_checked`。
 * **兩端都要是 commit。** 腳本先把兩端 peel 成 commit。tree／blob 當 base 時，`git log` 忽略它而把
   整段歷史算進去；當 head 時，`git log` 失敗卻留下看似乾淨的 0（舊版實測兩者都發生）。
-* **`--range` 與 `--base`／`--head` 互斥**（exit 2），不猜哪一個優先。三點形式 `a...b`、缺任一端、
-  缺 `..` 的值一律 exit 2。
-* **各段不得重疊**，重疊的 commit 會被算兩次。這只會偏向 HOLD、不會漏報，所以腳本不去重。
-* **輸出形狀依輸入形式決定。** `--base`／`--head` 維持原本單行
-  `range_todo=<n>  (… in <base>..<end>)`；`--range` 一律輸出彙總行加逐段行，段數為 1 也一樣，讀取端
-  不必依段數分支。
+* **`--base`／`--head` 單獨使用仍是單段相容形式**：輸出格式與原本相同，不輸出未涵蓋數字，也不套用
+  空段落規則。與 `--range` 並用時它是完整範圍，此時 `--head` 沒有 `--base` 是用法錯誤（exit 2）。
+  三點形式 `a...b`、缺任一端、缺 `..` 的 `--range` 值一律 exit 2。
+* **V-M-D handoff 範本**帶成對的 base／head 與完整範圍；多次 push 時由協調者逐次累積。
 
 ### 來源 5 排除 `daily-review` label
 
@@ -208,6 +221,9 @@ Phase A 輸出之後**結束本輪回覆**。Phase C（寫結案記錄、commit�
 
 四項參數：worktree registered path、campaign base SHA、pushed HEAD SHA、參與的 session id。
 缺任一項 → 對應檢查標 `not_checked`。
+
+多次 push 的 campaign，base／head 是**一次 push 一組**，另加完整範圍（第一次 push 的 base 到最後一次
+push 的 head）；缺任何一組，來源 4 就是 `not_checked`。細節與理由見 § A2「多次 push 的 campaign」。
 
 V-M-D 端只新增一個 handoff，**Step 0.6 的既有前置條件不動**。理由：結案記錄本身要先進
 `origin/main`，Step 0.6 原本就已經要求這件事，改寫它只會製造兩份互相漂移的規則。
@@ -361,10 +377,11 @@ per-model / per-slice 的 token 與成本 index **本階段不做**。凍結理�
   一律 `sed` + 全程引號。
 * `--session-state-dir` 可指向測試 fixture，用來迴歸驗證 idle-lock 與 PID 陷阱。
 * Phase D 重跑時 `--head` 沿用 pushed HEAD，不用含結案記錄 commit 的 SHA，見 § Phase D。多段時沿用
-  同一組 `--range`，每段的 head 都不換。
+  同一組 `--range` 與完整範圍，每段的 head 都不換。
 * 值型旗標（`--worktree`、`--slug`、`--range` 等）放在最後而沒有值時 exit 2。舊版此時
   `shift 2` 失敗、`$#` 不變，參數迴圈永遠不結束。
 * 測試：`scripts/tests/test_campaign_closeout_audit.py` 用暫存 git repo 建「campaign／含待辦字樣的上游／
-  campaign」交錯歷史，不碰網路與 `~/.copilot`；來源 5 以 PATH 上的 stub `gh` 驗證搜尋參數。測試檔
-  自己把兩個待辦字樣拆開組字，避免自己污染稽核。腳本內的 `MARKER_PATTERN` 同理。
+  campaign」交錯歷史（含一個只在分叉上的 commit），不碰網路與 `~/.copilot`；來源 5 以 PATH 上的 stub
+  `gh` 驗證搜尋參數。測試檔自己把兩個待辦字樣拆開組字，避免自己污染稽核。腳本內的
+  `MARKER_PATTERN` 同理。
 * 它是 **single-worktree probe，不是 inventory**。

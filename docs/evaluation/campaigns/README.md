@@ -285,7 +285,9 @@ retirement, and each one reports a number or reports `not_checked`:
 2. Deferred entries in that spec's `changes-log.md` and `proposal.md`.
 3. Unfinished items in the legacy `.copilot-tracking/plans/*.md` inside the worktree (old Copilot scratch: read-only check, nothing new is written there; reported as `legacy_tracking_plans`).
 4. `TODO` and `FIXME` on lines **added** by the campaign's own commits.
-5. Open GitHub issues naming the slug.
+5. Open GitHub issues naming the slug, other than the daily reminders the repository
+   generates itself (label `daily-review`). Those list commit subjects, so a slug in a
+   subject matches them, and they are not work.
 
 `not_checked` and `0` are different claims. `0` means the source was read and held nothing;
 `not_checked` means it was never read. Only the first supports retirement, so a verdict of
@@ -296,6 +298,21 @@ Source 4 needs a commit range, and the range is `<base>..<head>` where `base` is
 form is refused: after the push `HEAD` equals `origin/main`, so that form is empty for
 every campaign that actually shipped and would report a false zero. When the base SHA was
 not handed over, source 4 reports `not_checked` rather than falling back.
+
+A campaign pushed in several rounds supplies one `<base>..<head>` per push, and the range
+from its first base to its last head as the full range. Other campaigns' commits land
+between the rounds, so one span over all of them counts their added lines as the
+campaign's own. Each segment is counted and printed, and the total is taken over the
+distinct commits of all segments, so a commit inside two segments counts once. A segment
+that does not resolve, or holds no commit because its base and head are swapped or equal,
+makes source 4 `not_checked`, never `0`.
+
+The full range is also what reveals a round the caller left out. The commits it contains
+that no segment covers are counted and, when they add the marker words, listed with their
+subject, date, author, files and the added lines. Those lines are not added to the
+unhandled total, because they may belong to another campaign, but they keep the verdict at
+`UNDETERMINED` until a person has attributed them. Without a full range this figure is
+`not_checked`, because nothing can notice a round that was never supplied.
 
 ### Session contention
 

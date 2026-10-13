@@ -674,8 +674,8 @@ env -u ANTHROPIC_API_KEY claude \
 交接內容：
 
 * registered worktree path
-* campaign base SHA
-* pushed HEAD SHA
+* campaign base SHA 與 pushed HEAD SHA：一次 push 一組；多次 push 的 campaign 逐組列出，並另附完整
+  範圍（第一次 push 的 base 到最後一次 push 的 head）
 * 參與的 session IDs
 * ignored artifact inventory
 * close-out record path
