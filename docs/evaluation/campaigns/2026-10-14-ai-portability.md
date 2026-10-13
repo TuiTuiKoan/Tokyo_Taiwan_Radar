@@ -175,34 +175,53 @@ the spec sources as `not_checked` unless the directory keeps the bare slug.
 
 ## Worktree disposition
 
-`pending`, decided at `pending`.
+`remove`, decided at `2026-10-13T18:32:07Z`.
 
-The owner answered `remove` at the Phase B reply, after reading the audit output.
-That is an intention, not a disposition: no removal has happened and no decision
-time exists yet. Removal is gated on all of the following:
+The owner answered `remove` at the Phase B reply, after reading the audit output,
+on the condition that this record was on `origin/main` first. The condition held:
+the record commit `ca569d8d7e21abf85c6e0418df2393437cfc001f` is an ancestor of
+`origin/main`. The decision time above (2026-10-14 03:32 JST) is the time written
+into the recovery capsule before removal.
 
-* This record is on `origin/main`.
-* The recovery capsule is written outside the worktree.
-* The six values below are re-observed immediately before removal and match.
-* Occupancy is re-observed with `lsof`, and no process other than the close-out
-  session holds the worktree as its working directory.
-* The owner states at that time that no other session uses the worktree.
+After the Phase B reply the owner reported that the engineer session, the
+validate-merge-deploy session, and the Codex daemon processes were closed.
+Occupancy was then observed with `lsof` between 2026-10-13T18:30Z and 18:32Z: only
+the close-out session and its own child processes had the worktree as working
+directory. This is the repeated observation that the Verification table
+promises. It observes processes, not conversations; Claude Code, VS Code chat,
+and Codex sessions stay outside the audit script's reach, so the owner's
+statement remains part of the basis.
 
-At the Phase B reply the owner reported that, apart from the close-out session
-and an engineer session they will close before removal, no session of theirs uses
-the worktree; that the two Codex daemons are not conversations they use; that all
-VS Code sidebar processes run with the main working tree as their working
-directory; and that a paused conversation of the senses-taxonomy campaign stays
-paused until the push completes.
+The owner reported that they removed the worktree with `git worktree remove` and
+the branch with `git branch -d`, neither forced. The removal time itself was not
+recorded. The close-out agent observed the result at 2026-10-13T18:46Z:
+
+| Post-removal check | Result |
+|--------------------|--------|
+| Worktree registration | not registered |
+| Local branch `feat/ai-portability` | deleted |
+| Remote branch `origin/feat/ai-portability` | absent; `git ls-remote` returned no line |
+| Directory `ttr-ai-portability-worktree` | gone |
+| Administrative metadata under `.git/worktrees` | none |
+| Line in `.git/info/exclude` | removed |
+| Branch tip `ca569d8d` | ancestor of `origin/main`, so no commit was lost |
+
+The exclude line was removed by reconciling the whole block of worktree entries
+against the live worktrees, not by deleting a single line. The nine entries of
+live worktrees were kept.
+
+The six values cannot be observed again after removal. This section was
+backfilled from the recovery capsule, which holds the values recorded at the
+decision:
 
 | Freshness value | Observed at the decision |
 |-----------------|--------------------------|
-| branch tip | `pending` |
-| ahead of `origin/main` | `pending` |
-| behind `origin/main` | `pending` |
-| dirty count | `pending` |
-| ignored artifact set | `pending` |
-| path identity | `pending` |
+| branch tip | `ca569d8d7e21abf85c6e0418df2393437cfc001f` |
+| ahead of `origin/main` | `0` |
+| behind `origin/main` | `1`; `origin/main` advanced to `1c5abfb9` after the branch tip, which is not a branch change |
+| dirty count | `0` |
+| ignored artifact set | `6`, the entries listed under Ignored artifacts and handling |
+| path identity | `canonical`, directory `ttr-ai-portability-worktree`, branch `feat/ai-portability` |
 
 For reference, the observation at the close-out audit (2026-10-13T15:37Z): branch
 tip `87c2b55779377852bb0c262d95441d7c0bedba95`, ahead 0, behind 6, dirty 0,
