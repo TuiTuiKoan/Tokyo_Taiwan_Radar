@@ -323,6 +323,44 @@ exclude 未變）。處理方式是拆成幾條簡單指令，演算法不變：
 
 這偏離該文件的字面腳本，但演算法等價。仍然**不可**盲刪單行。
 
+### 在 Bash 工具裡解析路徑：包子 shell，不要裸 `cd`
+
+Bash 工具的 shell 狀態跨呼叫保留，裸 `cd` 改的是之後每一次呼叫的 cwd。2026-10-14 退役 D3 對帳時，為確認各 live
+worktree 的物理路徑，單獨下 `cd '<registered-path>' && /bin/pwd -P`，cwd 因此停在另一個 campaign 的 live
+worktree（分支 `feat/event-intake-wizard`）；同批平行送出多個，最後完成的決定落點。Claude Code 隨後把 primary
+working directory 改標為該 worktree，屬於 main 的任務因此多出一次確認（history.md 同日條目）。
+
+路徑解析只用兩種形式：
+
+```bash
+# 包子 shell：cd 不會離開括號
+PHYS=$( cd "$WT" && /bin/pwd -P )
+( cd "$WT" && /bin/pwd -P )
+
+# 完全不 cd
+git -C "$WT" rev-parse --abbrev-ref HEAD
+```
+
+* **整段抄，不要拆。** 把 `cd "$WT" && /bin/pwd -P` 拆成單獨一條就是這次的錯。`docs/evaluation/campaigns/README.md`
+  § Identity 的 `PHYS=$( cd "$WT" && /bin/pwd -P )` 已是正確形式，包含外層的 `$( … )`。
+* **平行呼叫不要各自 `cd`。** 它們共用同一份 shell 狀態，落點由完成順序決定。
+* 對 worktree 的操作用 `git -C '<絕對路徑>'`，檔案用絕對路徑。上一節對帳的第 1 步取 live 路徑時也適用。
+* cwd 已漂移（primary working directory 被改標，或 `pwd` 不是預期的目錄）時，不靠 cwd 補救：先問使用者要把
+  commit 放哪裡，之後用 `git -C '<絕對路徑>'` 明寫位置。
+
+### 驗證類檢查帶明確標籤，不靠 exit code 或結果順序
+
+同一批平行送出的 Bash 呼叫，結果的顯示順序可能對不上送出順序：2026-10-14 同批三個預期都失敗的檢查，只有一個
+顯示 `Exit code 1`（機制未查證，規則不依賴它）。每個驗證類檢查要自帶標籤，把結論寫進輸出文字：
+
+```bash
+git merge-base --is-ancestor '<sha>' origin/main && echo 'ancestor=yes' || echo 'ancestor=no'
+[ -d "$DIR" ] && echo 'directory=RESIDUE' || echo 'directory=gone'
+```
+
+標籤用 `<檢查名>=<結果>`，同一批內就不會出現兩條分不出來的 `ok`。`docs/evaluation/campaigns/README.md`
+§ Cleanup checklist 的殘留驗證區塊已是這種形式。
+
 ### `git worktree remove` 不會被 gitignore 的產物擋住
 
 曾推測 `web/node_modules`（約 803M）、`web/.next` 會讓不加 `--force` 的 remove 被拒；實測 `rc=0`，沒被擋。

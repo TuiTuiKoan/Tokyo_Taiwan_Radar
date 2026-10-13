@@ -9,6 +9,60 @@ ms.date: 2026-08-12
 
 ---
 
+## 2026-10-14 — 在 Bash 工具單獨執行 `cd <worktree> && /bin/pwd -P`：cwd 漏進別的 campaign 的 live worktree
+
+**背景**：ai-portability 退役的 D3 尾段做 `.git/info/exclude` 對帳。為確認各 live worktree 的物理路徑
+落在 repo root 之下，當時的 session 對每個已註冊路徑下 `cd '<registered-path>' && /bin/pwd -P`。對應規則
+已寫進 SKILL.md § Phase D「在 Bash 工具裡解析路徑」。本次沒有任何檔案被改到。
+
+### 1. 裸 `cd` 讓整個 session 的 cwd 落在別人的 worktree
+
+**現象**：該命令沒有包在 `( … )` 或 `$( … )` 裡。Bash 工具的 shell 狀態跨呼叫保留，cwd 因此停在另一個
+campaign 的 live worktree（`ttr-v8-worktree`，分支 `feat/event-intake-wizard`）。同一批平行送出多個這種
+`cd`，最後完成的那個決定 cwd，落點不可預期。Claude Code 隨後把 primary working directory 改標為該
+worktree，並提示「請在該目錄執行、不要 cd 回 repo root」。使用者本來的任務屬於 main，那個分支不該收
+commit。於是停下來問使用者 commit 要放哪裡，才用 `git -C` 加絕對路徑在主工作目錄的 main 上 commit。
+多了一次確認，且整個 session 之後的 cwd 都不對。
+
+**根因**：`cd` 與 `/bin/pwd -P` 被拆成兩段單獨執行。`/bin/pwd -P` 只是讀值，不會把 cwd 還原；`cd` 沒有
+子 shell 包住，改的就是持久 shell 的 cwd。平行呼叫共用同一份 shell 狀態，各自的 `cd` 互相覆蓋。
+
+**修正**：路徑解析只用兩種形式：包子 shell（`( cd "$WT" && /bin/pwd -P )` 或
+`PHYS=$( cd "$WT" && /bin/pwd -P )`），或完全不 cd（`git -C '<絕對路徑>'`、絕對路徑）。平行呼叫不要各自
+`cd`。cwd 已漂移時不靠 cwd 補救，先問使用者，之後用 `git -C '<絕對路徑>'` 明寫位置。
+
+**教訓**：
+
+* 文件已有正確形式：`docs/evaluation/campaigns/README.md` § Identity 的
+  `PHYS=$( cd "$WT" && /bin/pwd -P )`。這次不是文件缺漏，是把一個複合式拆成兩段。抄範例要整段抄，包含
+  外層的 `$( … )`。
+* 對 live worktree 的後果比一般目錄嚴重：cwd 一旦落在別的 campaign 的 worktree，工具會把它當成工作位置，
+  下一個 commit 就可能放錯分支。
+* 本次沒有誤 commit，是因為動手前停下來問了使用者。那是補救，不是防線。
+
+---
+
+## 2026-10-14 — 平行送出的 Bash 檢查，結果顯示對不上呼叫順序
+
+**背景**：同一個 D3 對帳中，同一批平行送出三個預期都會失敗的檢查。對應規則已寫進 SKILL.md § Phase D
+「驗證類檢查帶明確標籤」。
+
+### 1. 三個預期都失敗的檢查只有一個顯示 `Exit code 1`
+
+**現象**：結果的顯示順序與送出順序對不上；三個預期都失敗的檢查，只有一個顯示 `Exit code 1`。無法靠
+exit code 或結果順序判斷哪個檢查回了什麼。
+
+**根因**：平行呼叫的結果由工具回傳，顯示順序與 exit code 是否出現，都不能當成「每個檢查各自的答案」。
+確切機制本次沒有查證，規則不依賴它。
+
+**修正**：驗證類檢查一律帶明確標籤，把結論寫進輸出文字：`<檢查> && echo '<名稱>=…' || echo '<名稱>=…'`。
+`docs/evaluation/campaigns/README.md` § Cleanup checklist 的殘留驗證區塊已是這種形式
+（`branch=STILL PRESENT`／`branch=deleted` 等）。
+
+**教訓**：一個檢查的答案要自帶身份。標籤包含檢查名，同一批內就不會有兩條互相分不出來的 `ok`。
+
+---
+
 ## 2026-10-13 — 稽核腳本補完：完整範圍偵測漏給的段落、空段落規則、可讀的未涵蓋輸出
 
 **背景**：同日稍早的 `--range`（見下一條）避開了單一跨度被上游 commit 污染，但留下三個缺口，都在
