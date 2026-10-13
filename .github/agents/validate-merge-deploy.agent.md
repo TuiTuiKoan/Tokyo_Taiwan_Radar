@@ -131,7 +131,7 @@ handoffs:
 
 ### Step 3: Verify Changes
 
-> **⚡ docs-only commit 跳過 web build（2026-07-10 教訓）**：若 push range 未觸及任何 `web/` 檔（`git diff --name-only origin/main..HEAD | grep '^web/'` 為空）→ **跳過本 Step 的 `pnpm run build`/`lint` gate**。`.github/`／`docs/` 純文件 commit 不觸發 Vercel、不影響 web build；且工作樹若有**無關的 web WIP（別 session 未完成產物）**，跑 build 會因別人半成品失敗而**誤擋這個無辜的 docs push**。仍執行 `get_errors`（markdown lint）與 token/i18n gate（若 diff 觸及對應檔）。
+> **⚡ docs-only commit 跳過 web build（2026-07-10 教訓）**：若 push range 未觸及任何 `web/` 檔（`git diff --name-only origin/main..HEAD | grep '^web/'` 為空）→ **跳過本 Step 的 `pnpm run build`/`lint` gate**。`.github/`／`docs/` 純文件 commit 不影響 web build（Vercel 是否仍產生 Production deployment 是另一件事，實測會，見 Step 5，不可預設為無）；且工作樹若有**無關的 web WIP（別 session 未完成產物）**，跑 build 會因別人半成品失敗而**誤擋這個無辜的 docs push**。仍執行 `get_errors`（markdown lint）與 token/i18n gate（若 diff 觸及對應檔）。
 
 1. 運行 `get_errors` 檢查語法錯誤（所有修改的文件）
 2. **Build 前置清理（必做）**：dev server 與 `next build` 共用 `.next/`，dev server 存活時直接跑 build 會出現 ENOENT 或 lock 衝突
@@ -152,7 +152,7 @@ handoffs:
    - Gate 規則：
      - Exit code = 0：繼續 Step 4
      - Exit code ≠ 0：立即中止流程，回報 checker 輸出的違規 file:line，要求先修正後再重跑 V-M-D
-3. 簡要檢查提交消息格式（遵循 `.github/instructions/commit-message.instructions.md`）
+3. 簡要檢查提交消息格式（遵循 `.github/instructions/git.instructions.md` § Commit message conventions）
 4. 若包含 Supabase migration，確認 migration 編號與 `.github/instructions/database.instructions.md` 的 latest 標記一致
 5. **Docs staleness check**：使用 `git diff --name-only origin/main...HEAD` 確認本次 diff 是否為架構性改動。若符合以下任一條件，且 `docs/ARCHITECTURE.md` 或 `docs/SCRAPER_PIPELINE.md` 未在 diff 中，必須警告並要求補更新後才繼續 push：
    - 新增或移除整個 CI workflow（`.github/workflows/*.yml`）
@@ -170,8 +170,8 @@ handoffs:
 
 ### Step 5: Verify Deployment
 1. Push 後立即記錄 `PUSHED_SHA=$(git rev-parse HEAD)`，重新 fetch `origin/main`，確認 GitHub `main` 的 SHA 仍等於 `PUSHED_SHA`。若不相等，停止並先釐清遠端是否被並行 push 推進。
-2. 若本次 push range 觸及 `web/`，透過 GitHub commit status 與 Vercel dashboard／API 查詢綁定 `PUSHED_SHA` 的 **Production** deployment，記錄 exact-SHA deployment URL 與 status，並等待成功。不得用較舊 deployment 代替本次 SHA 的部署驗證。
-  - **Docs-only commit 不觸發 Vercel**：Vercel root directory 設為 `web/`，只有 `web/` 變更才觸發部署。`.github/`、`scraper/`、`docs/` 的 push 若沒有新 deployment，記錄 deployment 為 `NOT APPLICABLE (docs-only)`；不要把舊 web deployment 當成當前 SHA 的證據。
+2. 對每一次 push（不論是否觸及 `web/`），透過 GitHub commit status 與 Vercel dashboard／API，或 `gh api "repos/<owner>/<repo>/deployments?sha=$PUSHED_SHA"`，查詢綁定 `PUSHED_SHA` 的 **Production** deployment，記錄 exact-SHA deployment URL 與 status。觸及 `web/` 的 push 必須等到成功才算完成。不得用較舊 deployment 代替本次 SHA 的部署驗證。
+  - **沒有觸及 `web/` 的 push 也可能產生 Production deployment**（2026-10-13 實測：四次 push 都沒有觸及 `web/`，commit `86fdc143`、`f6c2dad2`、`87c2b557`、`6672b320` 各產生 1 個 Production deployment，成因未調查）。不要預設記為 `NOT APPLICABLE`：一律以 exact-SHA 實查。有 deployment 就記錄其 id、環境與狀態，並等到成功；確實查不到，才記為 `NONE FOUND (non-web push)`，並寫明查詢指令與時間。不要把舊 web deployment 當成當前 SHA 的證據。
   - 可選：以 `https://tokyo-taiwan-radar.vercel.app/` 作補充 app-level 檢查（production URL 含連字號 `tokyo-taiwan-radar`，不是 `tokyotaiwanradar`），但此 alias 不得取代 exact-SHA provenance。
 3. 若 immutable deployment URL 回傳 `302`、`_vercel_sso_nonce` 或平台 `X-Robots-Tag: noindex`，分類為 **Deployment Protection boundary**，不是 application failure。保留保護設定，以 GitHub／Vercel exact-SHA provenance 確認部署，並改用 <https://tokyotaiwanradar.com> 執行 app-level production smoke；不得為了測試而弱化 Deployment Protection。
 4. Security-sensitive web release 必須逐層回報驗證矩陣：
@@ -193,7 +193,7 @@ handoffs:
 - ✅ 無衝突或已解決
 - ✅ 所有語法檢查通過（`get_errors` + `pnpm run build`）
 - ✅ Final commit 已推送，且 GitHub `main` 仍等於 captured pushed SHA
-- ✅ 適用時，同一 SHA 的 Vercel Production deployment 已成功；docs-only 則明列 `NOT APPLICABLE`
+- ✅ 同一 SHA 的 Vercel Production deployment 已以 exact-SHA 查過：觸及 `web/` 者必須成功；未觸及 `web/` 者若有 deployment 也須成功，查無才明列 `NONE FOUND (non-web push)`
 - ✅ Production custom-domain public smoke 通過，且每個未執行的 auth flow 明列 `NOT TESTED` residual risk
 
 最終回報必須包含下列 evidence fields，不得只回傳「部署成功」摘要：
@@ -201,7 +201,7 @@ handoffs:
 1. Final commit SHA 與 message。
 2. Rebase 結果與 conflict 處理情形。
 3. Push 結果，以及 push 後 GitHub `main` 的 exact SHA。
-4. 綁定該 SHA 的 Production deployment URL 與 status，或 docs-only `NOT APPLICABLE`。
+4. 綁定該 SHA 的 Production deployment URL 與 status；未觸及 `web/` 且查無 deployment 時，明列 `NONE FOUND (non-web push)` 與查詢指令。
 5. Production custom-domain smoke results，逐項列出 public headers／routes／robots／cookie／JSON-LD。
 6. 所有 `NOT TESTED` 項目，尤其 OAuth、magic link、session refresh／logout、role denial 與登入後 Admin CRUD。
 7. Accepted residual risks，包括 Report-Only CSP、未測 auth flows 與 pre-existing full-file lint debt。

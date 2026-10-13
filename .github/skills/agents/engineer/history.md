@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-13 - Correction: a push that touches no `web/` file still produced a Production deployment
+
+**Error**: The 2026-07-10 entry ("docs-only commit ... 不觸發 Vercel") and V-M-D Step 5 recorded such pushes as `NOT APPLICABLE (docs-only)`. Four pushes made on 2026-10-13 touched nothing under `web/`, and each produced one Production deployment: `86fdc143` (deployment id `7024731927`), `f6c2dad2` (`7025806771`), `87c2b557` (`7032193512`) and `6672b320` (`7033673184`). The hand-off for the last one, written in the same session, repeated the old claim ("no new Vercel deployment") without looking it up.
+
+**Fix**: V-M-D Step 3 keeps the half that was true (a push with no `web/` file skips the local `pnpm run build`) and drops the Vercel claim. Step 5 now looks the deployment up by exact SHA for every push and records `NONE FOUND (non-web push)` only when there is none. Also in the same file, Step 3 pointed at a `commit-message.instructions.md` that never existed; it now points at `git.instructions.md` § Commit message conventions.
+
+**Lesson**: "Vercel's root directory is `web/`, so only `web/` triggers a build" was an inference that was never compared with a deployment list. The cause of the extra deployments was not investigated (a project setting, or no ignored-build-step rule). Until it is, treat "no deployment" as something to observe, not to assume. The 2026-07-10 entry stays as written because this file is append-only; this entry supersedes its Vercel clause.
+
+---
+
 ## 2026-10-13 - Claude Code hooks fail open in places the plan did not list
 
 **Error**: ai-portability Phase C (`4c406ad8`) added PreToolUse guards (`scripts/claude/`, `.claude/settings.json`). The plan assumed a guard either runs and decides, or is absent. The C-0 spike (Claude Code `2.1.296`, disposable fixture; `docs/specs/active/ai-portability/notes.md` §4.21) found four ways a guard is skipped or ignored without any error shown:
