@@ -65,17 +65,30 @@ Usage: scripts/campaign-closeout-audit.sh --worktree <registered-path> [options]
                            other campaigns' commits between its rounds, and one
                            span over all of them counts those commits' added
                            lines as this campaign's. Each segment is counted and
-                           printed, and range_todo is their sum. A segment that
-                           does not resolve here, or holds no commit (base and
-                           head swapped, or equal), makes range_todo
-                           not_checked, never 0. Segments must not overlap: a
-                           commit inside two segments is counted twice. The
-                           three-dot form a...b is refused.
-  --base <sha>             single-segment form, kept for compatibility: start of
-                           the commit range scanned for added work markers
-  --head <sha>             single-segment form: end of the range, default HEAD
-                           (--range and --base/--head are mutually exclusive;
-                           giving both exits 2 instead of guessing which wins)
+                           printed with its first and last commit, and range_todo
+                           is the total over the DISTINCT commits of all segments
+                           (a commit inside two segments counts once). A segment
+                           that does not resolve here, or holds no commit (base
+                           and head swapped, or equal), makes range_todo
+                           not_checked, never 0. The three-dot form a...b is
+                           refused.
+  --base <sha>             alone: the single-segment form, kept for
+                           compatibility, with the output it always had. With
+                           --range: the start of the campaign's FULL range,
+                           normally the first push's base.
+  --head <sha>             end of that range, default HEAD; with --range it needs
+                           --base. The full range lets the audit see the commits
+                           that no segment covers, which range_todo cannot:
+                           range_todo_uncovered_commits and _hits count them, and
+                           every uncovered commit that adds a marker line is
+                           listed (short sha, date, author, subject, files, the
+                           line itself, and a hint whether the slug appears in
+                           its subject or paths; the hint is not a verdict).
+                           They may belong to another campaign, so they are not
+                           added to unhandled_total, but they keep the verdict
+                           at UNDETERMINED until a person attributes them. With
+                           --range and no full range the figures are not_checked,
+                           because a segment left out could not be noticed.
   --self-session <id>      this session's id, excluded from contention
   --session-state-dir <d>  default ~/.copilot/session-state
   --idle-threshold <secs>  default 900; a lock older than this is UNDETERMINED,
@@ -142,8 +155,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-if [ -n "$RANGES" ] && { [ -n "$BASE" ] || [ -n "$HEAD_SHA" ]; }; then
-  echo "--range cannot be combined with --base or --head; use one form" >&2
+if [ -n "$RANGES" ] && [ -n "$HEAD_SHA" ] && [ -z "$BASE" ]; then
+  echo "--head needs --base when --range is used: together they are the full range" >&2
   usage >&2
   exit 2
 fi
@@ -382,77 +395,340 @@ fi
 #    A campaign pushed in several rounds has other campaigns' commits between its
 #    rounds. One span from the first base to the last head would count those
 #    commits' added lines as this campaign's, so the range is given per push with
-#    --range and each segment is counted on its own. --base/--head is exactly one
-#    segment, kept for compatibility, and goes through the same counter.
+#    --range. Together with --base/--head, which then names the FULL range, the
+#    audit can also list the commits that no segment covers instead of silently
+#    dropping them: another campaign's work, or a push the caller left out.
+#    --base/--head alone is exactly one segment, kept for compatibility.
+#
+#    Every figure below comes from one routine. The commits of each range are
+#    listed with rev-list and their diffs are read in a single log pass, so a
+#    commit that sits in two segments is counted once, and the lines a person is
+#    shown are the very lines the totals were made from.
 
-# count_segment <base> <end> counts the added marker lines in one commit range.
-# It sets SEG_STATUS (ok|unresolved), SEG_COUNT and SEG_COMMITS and never prints.
-# Both ends are peeled to a commit, so a tree or a blob cannot pass for a range.
-# git's own exit status is checked as well: counting through a pipe alone would
-# turn a failed log into a clean zero, which is the one answer this gate must
-# never invent.
-count_segment() {
+NL='
+'
+TAB=$( printf '\t' )
+
+# resolve_range <base> <end> sets SEG_STATUS (ok|unresolved), SEG_LIST (the full
+# SHAs of base..end, newest first, one per line) and SEG_N. Both ends are peeled
+# to a commit, so a tree or a blob cannot pass for a range. git's own exit
+# status is checked as well: counting through a pipe alone would turn a failed
+# command into a clean zero, which is the one answer this gate must never invent.
+resolve_range() {
   SEG_STATUS="unresolved"
-  SEG_COUNT=0
-  SEG_COMMITS=0
+  SEG_LIST=""
+  SEG_N=0
   git -C "$WT" rev-parse --verify --quiet "${1}^{commit}" >/dev/null 2>&1 || return 0
   git -C "$WT" rev-parse --verify --quiet "${2}^{commit}" >/dev/null 2>&1 || return 0
-  seg_log=$( git -C "$WT" log --format='' -p "$1..$2" 2>/dev/null ) || return 0
-  seg_commits=$( git -C "$WT" rev-list --count "$1..$2" 2>/dev/null ) || return 0
-  seg_n=$( printf '%s\n' "$seg_log" | grep -E '^\+' | grep -cE "$MARKER_PATTERN" )
-  SEG_COUNT=$( count_or_zero "$seg_n" )
-  SEG_COMMITS=$( count_or_zero "$seg_commits" )
+  SEG_LIST=$( git -C "$WT" rev-list --topo-order "$1..$2" -- 2>/dev/null ) || { SEG_LIST=""; return 0; }
+  SEG_N=$( printf '%s\n' "$SEG_LIST" | grep -c . )
+  SEG_N=$( count_or_zero "$SEG_N" )
   SEG_STATUS="ok"
 }
 
+# collect_hits <shas> sets HITS to one "sha<TAB>path<TAB>line" record per added
+# marker line in those commits, and HITS_OK to 0 when git could not be read. The
+# match is the one the totals have always used: a line that starts with '+' and
+# carries a marker word. --no-walk lists each commit exactly once.
+collect_hits() {
+  HITS=""
+  HITS_OK=1
+  [ -n "$1" ] || return 0
+  hits_raw=$( printf '%s\n' "$1" | git -C "$WT" -c core.quotePath=false log \
+      --no-walk=unsorted --stdin --no-ext-diff --no-textconv \
+      --src-prefix=a/ --dst-prefix=b/ --format='@@COMMIT %H' -p 2>/dev/null ) \
+    || { HITS_OK=0; return 0; }
+  hits_stream=$( printf '%s\n' "$hits_raw" \
+    | grep -E "^(@@COMMIT |\+\+\+ b/|\+.*($MARKER_PATTERN))" )
+  hits_cur_sha=""
+  hits_cur_path=""
+  while IFS= read -r hits_line; do
+    case "$hits_line" in
+      "@@COMMIT "*)
+        hits_cur_sha="${hits_line#@@COMMIT }"
+        hits_cur_path=""
+        continue ;;
+      "+++ b/"*)
+        hits_cur_path="${hits_line#+++ b/}" ;;
+    esac
+    if [[ "$hits_line" =~ $MARKER_PATTERN ]]; then
+      HITS="${HITS}${hits_cur_sha}${TAB}${hits_cur_path}${TAB}${hits_line#+}${NL}"
+    fi
+  done <<EOF
+$hits_stream
+EOF
+}
+
+# hits_in <shas> prints how many records in HITS belong to the given commits.
+hits_in() {
+  hi_n=0
+  while IFS="$TAB" read -r hi_sha _; do
+    [ -n "$hi_sha" ] || continue
+    case "${NL}${1}${NL}" in
+      *"${NL}${hi_sha}${NL}"*) hi_n=$(( hi_n + 1 )) ;;
+    esac
+  done <<EOF
+$HITS
+EOF
+  printf '%s' "$hi_n"
+}
+
+# commit_meta <sha> sets CM_SHORT, CM_DATE, CM_AUTHOR and CM_SUBJECT.
+commit_meta() {
+  cm_raw=$( git -C "$WT" -c core.quotePath=false log -1 \
+      --format='%h%x09%ad%x09%an%x09%s' --date='format:%Y-%m-%d %H:%M %z' "$1" -- 2>/dev/null ) \
+    || cm_raw=""
+  CM_SHORT="${cm_raw%%"$TAB"*}"
+  cm_rest="${cm_raw#*"$TAB"}"
+  CM_DATE="${cm_rest%%"$TAB"*}"
+  cm_rest="${cm_rest#*"$TAB"}"
+  CM_AUTHOR="${cm_rest%%"$TAB"*}"
+  CM_SUBJECT="${cm_rest#*"$TAB"}"
+  if [ -z "$CM_SHORT" ]; then
+    CM_SHORT=$( printf '%.8s' "$1" )
+    CM_DATE="date unavailable"
+    CM_AUTHOR="author unavailable"
+    CM_SUBJECT="(subject unavailable)"
+  fi
+}
+
+# commit_label <sha> prints "<short-sha>  <date>  <subject>". A bare SHA tells a
+# reader nothing, so no line of this report carries one without its subject.
+commit_label() {
+  commit_meta "$1"
+  printf '%s  %s  %s' "$CM_SHORT" "$CM_DATE" "$CM_SUBJECT"
+}
+
+# describe_uncovered <sha> prints the block a person needs to decide who a
+# commit belongs to: subject, author, date, files, the added lines themselves,
+# and a hint. The hint only says whether the slug appears in the subject or a
+# path. It is not a verdict; the decision stays with a person.
+describe_uncovered() {
+  commit_meta "$1"
+  printf 'uncovered_commit=%s  %s  %s  %s\n' "$CM_SHORT" "$CM_DATE" "$CM_AUTHOR" "$CM_SUBJECT"
+  du_subject="$CM_SUBJECT"
+  du_files=$( git -C "$WT" -c core.quotePath=false diff-tree --no-commit-id --name-only -r --root "$1" 2>/dev/null )
+  du_total=$( printf '%s\n' "$du_files" | grep -c . )
+  du_total=$( count_or_zero "$du_total" )
+  du_list=""
+  du_i=0
+  while IFS= read -r du_f; do
+    [ -n "$du_f" ] || continue
+    du_i=$(( du_i + 1 ))
+    [ "$du_i" -le 5 ] || continue
+    if [ -z "$du_list" ]; then du_list="$du_f"; else du_list="$du_list, $du_f"; fi
+  done <<EOF
+$du_files
+EOF
+  if [ "$du_total" -gt 5 ]; then du_list="$du_list, +$(( du_total - 5 ))"; fi
+  printf '  files(%s): %s\n' "$du_total" "$du_list"
+  while IFS= read -r du_rec; do
+    case "$du_rec" in
+      "$1$TAB"*) ;;
+      *) continue ;;
+    esac
+    du_rest="${du_rec#"$1$TAB"}"
+    du_path="${du_rest%%"$TAB"*}"
+    du_text="${du_rest#*"$TAB"}"
+    du_text="${du_text#"${du_text%%[![:space:]]*}"}"
+    if [ "${#du_text}" -gt 150 ]; then du_text="${du_text:0:150}..."; fi
+    [ -n "$du_path" ] || du_path="(file unknown)"
+    printf '  hit: %s: %s\n' "$du_path" "$du_text"
+  done <<EOF
+$HITS
+EOF
+  if [ -z "$SLUG" ]; then
+    echo "  attribution_hint: unavailable (--slug not supplied); a hint only, not a verdict"
+  else
+    du_in_subject="no"
+    du_in_paths="no"
+    printf '%s' "$du_subject" | grep -qiF -e "$SLUG" && du_in_subject="yes"
+    printf '%s\n' "$du_files" | grep -qiF -e "$SLUG" && du_in_paths="yes"
+    echo "  attribution_hint: slug '$SLUG' in subject=$du_in_subject, in paths=$du_in_paths; a hint only, not a verdict"
+  fi
+}
+
 if [ -n "$RANGES" ]; then
+  # 4a. The full range, when --base/--head came with --range.
+  FULL_STATUS="not_supplied"
+  FULL_LIST=""
+  FULL_N=0
+  FULL_END=""
+  if [ -n "$BASE" ]; then
+    FULL_END="$HEAD_SHA"
+    [ -n "$FULL_END" ] || FULL_END="HEAD"
+    resolve_range "$BASE" "$FULL_END"
+    if [ "$SEG_STATUS" != "ok" ]; then
+      FULL_STATUS="unresolved"
+    elif [ "$SEG_N" -eq 0 ]; then
+      FULL_STATUS="empty"
+    else
+      FULL_STATUS="ok"
+      FULL_LIST="$SEG_LIST"
+      FULL_N="$SEG_N"
+    fi
+  fi
+
+  # 4b. Which segments are usable, and the distinct commits they cover.
   RT_N=0
-  RT_SUM=0
   RT_UNRESOLVED=0
   RT_EMPTY=0
-  RT_LINES=""
+  RT_LISTED=0
+  UNION=""
+  UNION_N=0
   while IFS= read -r seg; do
     [ -n "$seg" ] || continue
     RT_N=$(( RT_N + 1 ))
-    seg_base="${seg%%..*}"
-    seg_head="${seg#*..}"
-    count_segment "$seg_base" "$seg_head"
-    if [ "$SEG_STATUS" = "ok" ] && [ "$SEG_COMMITS" -eq 0 ]; then
+    resolve_range "${seg%%..*}" "${seg#*..}"
+    if [ "$SEG_STATUS" != "ok" ]; then
+      RT_UNRESOLVED=$(( RT_UNRESOLVED + 1 ))
+      continue
+    fi
+    if [ "$SEG_N" -eq 0 ]; then
       # One push always delivers at least one commit, so a segment holding none
       # is a base and head written the wrong way round (or equal), not a clean
       # campaign. There is deliberately no ancestry test: a base that is not an
       # ancestor of head is a legitimate diverged range and must still count.
       RT_EMPTY=$(( RT_EMPTY + 1 ))
-      RT_LINES="${RT_LINES}range_todo_segment_${RT_N}=not_checked  (${seg}; reason: holds no commit, base and head may be swapped or equal)
-"
-    elif [ "$SEG_STATUS" = "ok" ]; then
-      RT_SUM=$(( RT_SUM + SEG_COUNT ))
-      RT_LINES="${RT_LINES}range_todo_segment_${RT_N}=${SEG_COUNT}  (${seg}; commits=${SEG_COMMITS})
-"
-    else
-      RT_UNRESOLVED=$(( RT_UNRESOLVED + 1 ))
-      RT_LINES="${RT_LINES}range_todo_segment_${RT_N}=not_checked  (${seg}; reason: base or head does not resolve here)
-"
+      continue
     fi
+    RT_LISTED=$(( RT_LISTED + SEG_N ))
+    while IFS= read -r sha; do
+      [ -n "$sha" ] || continue
+      case "${NL}${UNION}${NL}" in
+        *"${NL}${sha}${NL}"*) ;;
+        *) UNION="${UNION}${sha}${NL}"; UNION_N=$(( UNION_N + 1 )) ;;
+      esac
+    done <<EOF
+$SEG_LIST
+EOF
   done <<EOF
 $RANGES
 EOF
-  if [ "$RT_UNRESOLVED" -eq 0 ] && [ "$RT_EMPTY" -eq 0 ]; then
-    echo "range_todo=$RT_SUM  (added lines matching $MARKER_PATTERN, summed over $RT_N segment(s))"
-  else
-    # A known blocker is still a blocker: the lines already found in the
-    # usable segments stay in unhandled_total, so a clearly dirty campaign is
-    # not downgraded to "ask the user" by an unrelated unusable segment.
-    echo "range_todo=not_checked  (reason: $(( RT_UNRESOLVED + RT_EMPTY )) of $RT_N segment(s) cannot be used:"
-    echo "range_todo=not_checked  $RT_UNRESOLVED do not resolve here, $RT_EMPTY hold no commit;"
-    echo "range_todo=not_checked  $RT_SUM matching line(s) in the usable segments stay in"
-    echo "range_todo=not_checked  unhandled_total, but the total is incomplete)"
+  RT_BAD=$(( RT_UNRESOLVED + RT_EMPTY ))
+
+  # 4c. One pass over the diffs of every commit that matters.
+  RT_SCOPE="$UNION"
+  if [ "$FULL_STATUS" = "ok" ]; then RT_SCOPE="${RT_SCOPE}${FULL_LIST}${NL}"; fi
+  collect_hits "$RT_SCOPE"
+
+  if [ "$HITS_OK" -ne 1 ]; then
+    echo "range_todo=not_checked  (reason: git could not read the diffs of the commits in range)"
     NOT_CHECKED=$(( NOT_CHECKED + 1 ))
-    [ "$RT_UNRESOLVED" -eq 0 ] || add_undet "range_todo_unresolvable"
-    [ "$RT_EMPTY" -eq 0 ] || add_undet "range_todo_empty_segment"
+    add_undet "range_todo_unresolvable"
+  else
+    # 4d. Per-segment lines, then the total.
+    RT_LINES=""
+    RT_I=0
+    while IFS= read -r seg; do
+      [ -n "$seg" ] || continue
+      RT_I=$(( RT_I + 1 ))
+      resolve_range "${seg%%..*}" "${seg#*..}"
+      if [ "$SEG_STATUS" != "ok" ]; then
+        RT_LINES="${RT_LINES}range_todo_segment_${RT_I}=not_checked  (${seg}; reason: base or head does not resolve here)${NL}"
+      elif [ "$SEG_N" -eq 0 ]; then
+        RT_LINES="${RT_LINES}range_todo_segment_${RT_I}=not_checked  (${seg}; reason: holds no commit, base and head may be swapped or equal)${NL}"
+      else
+        seg_hits=$( hits_in "$SEG_LIST" )
+        seg_detail="commits=${SEG_N}"
+        if [ "$FULL_STATUS" = "ok" ]; then
+          seg_outside=0
+          while IFS= read -r sha; do
+            [ -n "$sha" ] || continue
+            case "${NL}${FULL_LIST}${NL}" in
+              *"${NL}${sha}${NL}"*) ;;
+              *) seg_outside=$(( seg_outside + 1 )) ;;
+            esac
+          done <<EOF
+$SEG_LIST
+EOF
+          seg_detail="${seg_detail}; outside_full_range=${seg_outside}"
+        fi
+        seg_first=$( printf '%s\n' "$SEG_LIST" | sed -n '$p' )
+        seg_last=$( printf '%s\n' "$SEG_LIST" | sed -n '1p' )
+        RT_LINES="${RT_LINES}range_todo_segment_${RT_I}=${seg_hits}  (${seg}; ${seg_detail})${NL}"
+        RT_LINES="${RT_LINES}range_todo_segment_${RT_I}_first=$( commit_label "$seg_first" )${NL}"
+        RT_LINES="${RT_LINES}range_todo_segment_${RT_I}_last=$( commit_label "$seg_last" )${NL}"
+      fi
+    done <<EOF
+$RANGES
+EOF
+    RT_SUM=$( hits_in "$UNION" )
+    if [ "$RT_BAD" -eq 0 ]; then
+      echo "range_todo=$RT_SUM  (added lines matching $MARKER_PATTERN, summed over $RT_N segment(s), $UNION_N distinct commit(s))"
+    else
+      # A known blocker is still a blocker: the lines already found in the
+      # usable segments stay in unhandled_total, so a clearly dirty campaign is
+      # not downgraded to "ask the user" by an unrelated unusable segment.
+      echo "range_todo=not_checked  (reason: $RT_BAD of $RT_N segment(s) cannot be used:"
+      echo "range_todo=not_checked  $RT_UNRESOLVED do not resolve here, $RT_EMPTY hold no commit;"
+      echo "range_todo=not_checked  $RT_SUM matching line(s) in the usable segments stay in"
+      echo "range_todo=not_checked  unhandled_total, but the total is incomplete)"
+      NOT_CHECKED=$(( NOT_CHECKED + 1 ))
+      [ "$RT_UNRESOLVED" -eq 0 ] || add_undet "range_todo_unresolvable"
+      [ "$RT_EMPTY" -eq 0 ] || add_undet "range_todo_empty_segment"
+    fi
+    printf '%s' "$RT_LINES"
+    RT_OVERLAP=$(( RT_LISTED - UNION_N ))
+    if [ "$RT_OVERLAP" -gt 0 ]; then
+      echo "range_todo_segments_overlap=$RT_OVERLAP  (commit(s) inside more than one segment, counted once)"
+    fi
+    UNHANDLED_TOTAL=$(( UNHANDLED_TOTAL + RT_SUM ))
+
+    # 4e. What the segments left uncovered. Those lines are NOT added to
+    #     unhandled_total: they may belong to another campaign. They still keep
+    #     the verdict at UNDETERMINED until a person has attributed them.
+    if [ "$FULL_STATUS" = "not_supplied" ]; then
+      echo "range_todo_uncovered_commits=not_checked  (reason: no full range; give --base/--head with --range"
+      echo "range_todo_uncovered_commits=not_checked  so that a segment left out can be detected)"
+      echo "range_todo_uncovered_hits=not_checked"
+      [ "$RT_BAD" -gt 0 ] || NOT_CHECKED=$(( NOT_CHECKED + 1 ))
+      add_undet "range_todo_uncovered_not_checked"
+    elif [ "$FULL_STATUS" != "ok" ]; then
+      echo "range_todo_full_range=$BASE..$FULL_END  (reason: $FULL_STATUS; it does not resolve here or holds no commit)"
+      echo "range_todo_uncovered_commits=not_checked  (reason: the full range cannot be used)"
+      echo "range_todo_uncovered_hits=not_checked"
+      [ "$RT_BAD" -gt 0 ] || NOT_CHECKED=$(( NOT_CHECKED + 1 ))
+      add_undet "range_todo_full_range_unusable"
+    elif [ "$RT_BAD" -gt 0 ]; then
+      echo "range_todo_full_range=$BASE..$FULL_END  (commits=$FULL_N)"
+      echo "range_todo_uncovered_commits=not_checked  (reason: $RT_BAD segment(s) cannot be used, so coverage"
+      echo "range_todo_uncovered_commits=not_checked  cannot be computed)"
+      echo "range_todo_uncovered_hits=not_checked"
+    else
+      UNCOV=""
+      UNCOV_N=0
+      while IFS= read -r sha; do
+        [ -n "$sha" ] || continue
+        case "${NL}${UNION}${NL}" in
+          *"${NL}${sha}${NL}"*) ;;
+          *) UNCOV="${sha}${NL}${UNCOV}"; UNCOV_N=$(( UNCOV_N + 1 )) ;;
+        esac
+      done <<EOF
+$FULL_LIST
+EOF
+      UNCOV_HITS=$( hits_in "$UNCOV" )
+      UNCOV_HIT_COMMITS=0
+      while IFS= read -r sha; do
+        [ -n "$sha" ] || continue
+        [ "$( hits_in "$sha" )" -gt 0 ] && UNCOV_HIT_COMMITS=$(( UNCOV_HIT_COMMITS + 1 ))
+      done <<EOF
+$UNCOV
+EOF
+      echo "range_todo_full_range=$BASE..$FULL_END  (commits=$FULL_N)"
+      echo "range_todo_uncovered_commits=$UNCOV_N  (commits in the full range that no segment covers)"
+      echo "range_todo_uncovered_hits=$UNCOV_HITS  (added marker lines in $UNCOV_HIT_COMMITS of them; not counted in unhandled_total)"
+      if [ "$UNCOV_HITS" -gt 0 ]; then
+        add_undet "range_todo_uncovered_hits"
+        while IFS= read -r sha; do
+          [ -n "$sha" ] || continue
+          if [ "$( hits_in "$sha" )" -gt 0 ]; then describe_uncovered "$sha"; fi
+        done <<EOF
+$UNCOV
+EOF
+      fi
+    fi
   fi
-  printf '%s' "$RT_LINES"
-  UNHANDLED_TOTAL=$(( UNHANDLED_TOTAL + RT_SUM ))
 elif [ -z "$BASE" ]; then
   echo "range_todo=not_checked  (reason: neither --range nor --base supplied by the V-M-D handoff;"
   echo "range_todo=not_checked  origin/main...HEAD is refused because it is empty"
@@ -462,14 +738,22 @@ elif [ -z "$BASE" ]; then
 else
   END="$HEAD_SHA"
   [ -n "$END" ] || END="HEAD"
-  count_segment "$BASE" "$END"
-  if [ "$SEG_STATUS" = "ok" ]; then
-    echo "range_todo=$SEG_COUNT  (added lines matching $MARKER_PATTERN in $BASE..$END)"
-    UNHANDLED_TOTAL=$(( UNHANDLED_TOTAL + SEG_COUNT ))
-  else
+  resolve_range "$BASE" "$END"
+  if [ "$SEG_STATUS" != "ok" ]; then
     echo "range_todo=not_checked  (reason: --base or --head does not resolve here)"
     NOT_CHECKED=$(( NOT_CHECKED + 1 ))
     add_undet "range_todo_unresolvable"
+  else
+    collect_hits "$SEG_LIST"
+    if [ "$HITS_OK" -eq 1 ]; then
+      n=$( hits_in "$SEG_LIST" )
+      echo "range_todo=$n  (added lines matching $MARKER_PATTERN in $BASE..$END)"
+      UNHANDLED_TOTAL=$(( UNHANDLED_TOTAL + n ))
+    else
+      echo "range_todo=not_checked  (reason: git could not read the diffs of the commits in range)"
+      NOT_CHECKED=$(( NOT_CHECKED + 1 ))
+      add_undet "range_todo_unresolvable"
+    fi
   fi
 fi
 

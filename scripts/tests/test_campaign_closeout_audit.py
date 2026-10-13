@@ -1,8 +1,8 @@
 """Behaviour tests for scripts/campaign-closeout-audit.sh, source 4 and source 5.
 
 Every test builds a throwaway git repository whose history interleaves a
-campaign's own commits with an upstream commit that carries work markers, then
-runs the real script against it. Nothing here touches the network or
+campaign's own commits with upstream commits, one of which carries work markers,
+then runs the real script against it. Nothing here touches the network or
 ~/.copilot: GitHub is skipped or replaced by a stub on PATH, and the session
 state directory is an empty temporary one.
 
@@ -31,6 +31,11 @@ SLUG = "demo-campaign"
 RUN_TIMEOUT = 60
 HANG_TIMEOUT = 15
 MISSING_SHA = "0" * 40
+LONG_FILLER = "x" * 300
+UPSTREAM_EXTRA_FILES = 6
+UPSTREAM_SUBJECT = "another campaign lands"
+QUIET_SUBJECT = "another campaign tidies up"
+DATE_RE = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2} [+-]\d{4}"
 
 
 def git_env(home: Path) -> dict[str, str]:
@@ -68,15 +73,19 @@ class History:
     repo: Path
     base: str  # origin/main tip before the first push
     first: str  # head of the campaign's first push
-    upstream: str  # another campaign's commit that landed between the pushes
+    upstream: str  # another campaign's commit that adds marker lines
+    quiet: str  # another campaign's later commit, adding none; the second push's base
     second: str  # head of the campaign's second push, also HEAD
     side: str  # a commit forked from base that is not reachable from second
     foreign: int  # marker lines the upstream commit adds
     own: int  # marker lines the campaign's two segments add together
 
+    def short(self, sha: str) -> str:
+        return sha[:7]
+
 
 def build_history(root: Path, env: dict[str, str], own_first: int, own_second: int) -> History:
-    """base -> campaign(first) -> upstream -> campaign(second), all linear."""
+    """base -> campaign(first) -> upstream -> quiet -> campaign(second), all linear."""
     repo = root / "audit repo"  # a space in the path, as in this project
     spec = repo / "docs" / "specs" / "active" / SLUG
     spec.mkdir(parents=True)
@@ -94,9 +103,18 @@ def build_history(root: Path, env: dict[str, str], own_first: int, own_second: i
         handle.write("plain campaign note\n" + marker_lines(MARK_A, own_first))
     first = commit("campaign first push")
 
+    # Three marker lines, one of them long enough to be cut for display, spread
+    # over a commit that touches seven files so the file list has to be cut too.
     with (repo / "upstream.md").open("a") as handle:
-        handle.write(marker_lines(MARK_A, 1) + marker_lines(MARK_B, 1) + "plain upstream note\n")
-    upstream = commit("another campaign lands")
+        handle.write(marker_lines(MARK_A, 1) + marker_lines(MARK_B, 1))
+        handle.write(f"padding {MARK_A} {LONG_FILLER}\n")
+        handle.write("plain upstream note\n")
+    for index in range(1, UPSTREAM_EXTRA_FILES + 1):
+        (repo / f"extra_{index}.md").write_text("plain extra file\n")
+    upstream = commit(UPSTREAM_SUBJECT)
+
+    (repo / "quiet.md").write_text("nothing to see\n")
+    quiet = commit(QUIET_SUBJECT)
 
     with (repo / "campaign.md").open("a") as handle:
         handle.write("another plain note\n" + marker_lines(MARK_B, own_second))
@@ -111,8 +129,8 @@ def build_history(root: Path, env: dict[str, str], own_first: int, own_second: i
     git(repo, env, "checkout", "-q", branch)
 
     return History(
-        repo, base, first, upstream, second, side,
-        foreign=2, own=own_first + own_second,
+        repo, base, first, upstream, quiet, second, side,
+        foreign=3, own=own_first + own_second,
     )
 
 
@@ -154,6 +172,13 @@ class Audit:
         assert match, f"{key} missing from output:\n{self.out}"
         return match.group(0)
 
+    def lines(self, key: str) -> list[str]:
+        return re.findall(rf"^{re.escape(key)}=.*$", self.out, re.MULTILINE)
+
+    @property
+    def verdict(self) -> str:
+        return self.field("verdict") or ""
+
 
 def run_script(args: list[str], env: dict[str, str], timeout: int = RUN_TIMEOUT) -> Audit:
     done = subprocess.run(
@@ -173,10 +198,12 @@ def audit(
     env: dict[str, str],
     *extra: str,
     skip_issues: bool = True,
+    slug: str | None = SLUG,
 ) -> Audit:
-    args = [
-        "--worktree", str(history.repo),
-        "--slug", SLUG,
+    args = ["--worktree", str(history.repo)]
+    if slug is not None:
+        args += ["--slug", slug]
+    args += [
         "--self-session", "test-session",
         "--session-state-dir", str(state_dir),
         *extra,
@@ -186,15 +213,23 @@ def audit(
     return run_script(args, env)
 
 
-# --- source 4: commit range --------------------------------------------------
+def segments(history: History) -> list[str]:
+    """The campaign's two pushes, exactly as a V-M-D handoff would carry them."""
+    return [
+        "--range", f"{history.base}..{history.first}",
+        "--range", f"{history.quiet}..{history.second}",
+    ]
 
 
-def test_segments_around_an_upstream_commit_report_zero(clean, state_dir, env):
-    result = audit(
-        clean, state_dir, env,
-        "--range", f"{clean.base}..{clean.first}",
-        "--range", f"{clean.upstream}..{clean.second}",
-    )
+def full_range(history: History) -> list[str]:
+    return ["--base", history.base, "--head", history.second]
+
+
+# --- source 4: segments ------------------------------------------------------
+
+
+def test_segments_alone_report_zero_but_leave_coverage_unchecked(clean, state_dir, env):
+    result = audit(clean, state_dir, env, *segments(clean))
 
     assert result.field("range_todo") == "0"
     assert result.field("range_todo_segment_1") == "0"
@@ -202,23 +237,40 @@ def test_segments_around_an_upstream_commit_report_zero(clean, state_dir, env):
     assert "commits=1" in result.line("range_todo_segment_1")
     assert "commits=1" in result.line("range_todo_segment_2")
     assert result.field("unhandled_total") == "0"
-    # The skipped GitHub source is the only open question left.
-    assert result.field("verdict") == "UNDETERMINED:issues_not_checked"
+    # Without a full range a segment that was left out could not be noticed.
+    assert result.field("range_todo_uncovered_commits") == "not_checked"
+    assert result.field("range_todo_uncovered_hits") == "not_checked"
+    assert "range_todo_uncovered_not_checked" in result.verdict
     assert result.code == 20
     assert git(clean.repo, env, "status", "--porcelain") == ""
+
+
+def test_segments_that_cover_the_full_range_leave_only_the_skipped_source(clean, state_dir, env):
+    result = audit(
+        clean, state_dir, env,
+        "--base", clean.base, "--head", clean.first,
+        "--range", f"{clean.base}..{clean.first}",
+    )
+
+    assert result.field("range_todo") == "0"
+    assert result.field("range_todo_uncovered_commits") == "0"
+    assert result.field("range_todo_uncovered_hits") == "0"
+    assert result.verdict == "UNDETERMINED:issues_not_checked"
+    assert result.code == 20
 
 
 def test_one_span_over_an_upstream_commit_counts_its_markers(clean, state_dir, env):
     result = audit(clean, state_dir, env, "--base", clean.base, "--head", clean.second)
 
     assert result.field("range_todo") == str(clean.foreign)
-    assert result.field("range_todo") != "0"
-    # Single-segment output keeps its original shape.
+    # Single-segment output keeps its original shape and adds nothing to it.
     assert result.line("range_todo") == (
         f"range_todo={clean.foreign}  (added lines matching {PATTERN} "
         f"in {clean.base}..{clean.second})"
     )
-    assert result.field("verdict") == "HOLD:unhandled_work"
+    assert "range_todo_uncovered" not in result.out
+    assert "range_todo_segment" not in result.out
+    assert result.verdict == "HOLD:unhandled_work"
     assert result.code == 10
 
 
@@ -228,25 +280,50 @@ def test_single_range_flag_over_the_same_span_is_also_positive(clean, state_dir,
 
     assert result.field("range_todo") == str(clean.foreign)
     assert result.field("range_todo_segment_1") == str(clean.foreign)
-    assert "commits=3" in result.line("range_todo_segment_1")
+    assert "commits=4" in result.line("range_todo_segment_1")
     assert result.code == 10
 
 
 def test_segments_sum_the_campaigns_own_markers_and_leave_out_the_upstream(dirty, state_dir, env):
-    segments = audit(
-        dirty, state_dir, env,
-        "--range", f"{dirty.base}..{dirty.first}",
-        "--range", f"{dirty.upstream}..{dirty.second}",
-    )
-    span = audit(dirty, state_dir, env, "--base", dirty.base, "--head", dirty.second)
+    result = audit(dirty, state_dir, env, *full_range(dirty), *segments(dirty))
+    span = audit(dirty, state_dir, env, *full_range(dirty))
 
-    assert segments.field("range_todo_segment_1") == "1"
-    assert segments.field("range_todo_segment_2") == "2"
-    assert segments.field("range_todo") == str(dirty.own)
-    assert segments.field("unhandled_total") == str(dirty.own)
-    assert segments.field("verdict") == "HOLD:unhandled_work"
+    assert result.field("range_todo_segment_1") == "1"
+    assert result.field("range_todo_segment_2") == "2"
+    assert result.field("range_todo") == str(dirty.own)
+    assert result.field("unhandled_total") == str(dirty.own)
+    # The upstream lines are reported, but they are not this campaign's total.
+    assert result.field("range_todo_uncovered_hits") == str(dirty.foreign)
+    assert result.verdict.startswith("HOLD:unhandled_work")
+    assert "range_todo_uncovered_hits" in (result.field("also_undetermined") or "")
     # The single span is exactly the sum plus what the upstream commit brought.
     assert span.field("range_todo") == str(dirty.own + dirty.foreign)
+
+
+def test_each_segment_names_its_first_and_last_commit(clean, state_dir, env):
+    result = audit(clean, state_dir, env, "--range", f"{clean.base}..{clean.second}")
+
+    first = result.line("range_todo_segment_1_first")
+    last = result.line("range_todo_segment_1_last")
+    assert clean.short(clean.first) in first
+    assert "campaign first push" in first
+    assert clean.short(clean.second) in last
+    assert "campaign second push" in last
+    for label in (first, last):
+        assert re.search(DATE_RE, label)
+
+
+def test_a_commit_in_two_segments_is_counted_once(dirty, state_dir, env):
+    wide = f"{dirty.base}..{dirty.second}"
+    narrow = f"{dirty.base}..{dirty.first}"  # entirely inside the wide one
+
+    result = audit(dirty, state_dir, env, "--range", wide, "--range", narrow)
+
+    assert result.field("range_todo") == str(dirty.own + dirty.foreign)
+    assert result.field("range_todo_segment_1") == str(dirty.own + dirty.foreign)
+    assert result.field("range_todo_segment_2") == "1"
+    assert result.field("range_todo_segments_overlap") == "1"
+    assert "4 distinct commit(s)" in result.line("range_todo")
 
 
 @pytest.mark.parametrize("missing_first", [True, False], ids=["first-missing", "second-missing"])
@@ -264,7 +341,7 @@ def test_an_unresolvable_segment_is_not_checked_never_zero(clean, state_dir, env
     assert not re.search(r"^range_todo=0\b", result.out, re.MULTILINE)
     assert result.field("range_todo_segment_1") == ("not_checked" if missing_first else "0")
     assert result.field("range_todo_segment_2") == ("0" if missing_first else "not_checked")
-    assert "range_todo_unresolvable" in (result.field("verdict") or "")
+    assert "range_todo_unresolvable" in result.verdict
     assert result.code == 20
 
 
@@ -278,7 +355,7 @@ def test_an_unresolvable_segment_does_not_hide_a_confirmed_blocker(dirty, state_
     assert result.field("range_todo") == "not_checked"
     assert result.field("unhandled_total") == "1"
     # A hard blocker decides on its own; the unknown is reported beside it.
-    assert result.field("verdict") == "HOLD:unhandled_work"
+    assert result.verdict.startswith("HOLD:unhandled_work")
     assert "range_todo_unresolvable" in (result.field("also_undetermined") or "")
     assert result.code == 10
 
@@ -296,7 +373,7 @@ def test_a_segment_holding_no_commit_is_not_checked_never_zero(clean, state_dir,
     assert result.field("range_todo_segment_1") == "0"
     assert result.field("range_todo_segment_2") == "not_checked"
     assert "holds no commit" in result.line("range_todo_segment_2")
-    assert "range_todo_empty_segment" in (result.field("verdict") or "")
+    assert "range_todo_empty_segment" in result.verdict
     assert result.code == 20
 
 
@@ -306,7 +383,7 @@ def test_a_diverged_range_is_not_mistaken_for_an_empty_one(clean, state_dir, env
 
     assert result.field("range_todo") == "1"
     assert "commits=1" in result.line("range_todo_segment_1")
-    assert result.field("verdict") == "HOLD:unhandled_work"
+    assert result.verdict.startswith("HOLD:unhandled_work")
 
 
 def test_the_single_segment_form_keeps_reporting_zero_for_an_empty_range(clean, state_dir, env):
@@ -320,12 +397,12 @@ def test_without_any_range_the_source_is_not_checked(clean, state_dir, env):
     result = audit(clean, state_dir, env)
 
     assert result.field("range_todo") == "not_checked"
-    assert "range_todo_not_checked" in (result.field("verdict") or "")
+    assert "range_todo_not_checked" in result.verdict
 
 
 @pytest.mark.parametrize(
     ("which", "expected"),
-    [("upstream", "0"), ("base", "2")],
+    [("quiet", "0"), ("base", "3")],
     ids=["after-upstream", "before-upstream"],
 )
 def test_base_alone_ends_at_the_checkout_head(clean, state_dir, env, which, expected):
@@ -356,19 +433,146 @@ def test_an_object_that_is_not_a_commit_is_not_a_range(clean, state_dir, env, en
     assert multi.field("range_todo_segment_1") == "not_checked"
 
 
+# --- source 4: what the segments leave uncovered -----------------------------
+
+
+def test_uncovered_commits_are_listed_with_what_a_person_needs(clean, state_dir, env):
+    result = audit(clean, state_dir, env, *full_range(clean), *segments(clean))
+
+    assert result.field("range_todo") == "0"
+    assert result.field("range_todo_uncovered_commits") == "2"
+    assert result.field("range_todo_uncovered_hits") == str(clean.foreign)
+    assert "in 1 of them" in result.line("range_todo_uncovered_hits")
+    assert f"commits=4" in result.line("range_todo_full_range")
+    # Not this campaign's total, but never a clean pass either.
+    assert result.field("unhandled_total") == "0"
+    assert result.verdict == "UNDETERMINED:range_todo_uncovered_hits,issues_not_checked"
+    assert result.code == 20
+
+    # Only the commit that adds marker lines is described; the quiet one is
+    # counted above and has nothing to attribute.
+    blocks = result.lines("uncovered_commit")
+    assert len(blocks) == 1
+    assert clean.short(clean.upstream) in blocks[0]
+    assert UPSTREAM_SUBJECT in blocks[0]
+    assert "Audit Test" in blocks[0]
+    assert re.search(DATE_RE, blocks[0])
+    assert QUIET_SUBJECT not in result.out
+
+    # Files are cut after five, with the remainder counted.
+    files = re.search(r"^  files\((\d+)\): (.*)$", result.out, re.MULTILINE)
+    assert files, result.out
+    assert files.group(1) == str(UPSTREAM_EXTRA_FILES + 1)
+    assert files.group(2).endswith(", +2")
+    assert files.group(2).count(",") == 5
+
+    # Every added marker line is shown, with the path it was added to.
+    hits = re.findall(r"^  hit: (.*?): (.*)$", result.out, re.MULTILINE)
+    assert len(hits) == clean.foreign
+    assert {path for path, _ in hits} == {"upstream.md"}
+    texts = [text for _, text in hits]
+    assert f"note {MARK_A} 0" in texts
+    assert f"note {MARK_B} 0" in texts
+    long_text = next(text for text in texts if LONG_FILLER[:20] in text)
+    assert long_text.endswith("...")
+    assert len(long_text) <= 153
+
+
+@pytest.mark.parametrize(
+    ("slug", "in_subject", "in_paths"),
+    [("another", "yes", "no"), ("EXTRA_3", "no", "yes"), ("unrelated-slug", "no", "no")],
+    ids=["subject", "path-case-insensitive", "neither"],
+)
+def test_the_attribution_hint_reports_where_the_slug_appears(
+    clean, state_dir, env, slug, in_subject, in_paths
+):
+    result = audit(clean, state_dir, env, *full_range(clean), *segments(clean), slug=slug)
+
+    assert (
+        f"attribution_hint: slug '{slug}' in subject={in_subject}, in paths={in_paths}; "
+        "a hint only, not a verdict"
+    ) in result.out
+    # A hint never changes the verdict.
+    assert "range_todo_uncovered_hits" in result.verdict
+    assert not result.verdict.startswith("HOLD")
+
+
+def test_the_attribution_hint_says_so_when_no_slug_was_given(clean, state_dir, env):
+    result = audit(clean, state_dir, env, *full_range(clean), *segments(clean), slug=None)
+
+    assert "attribution_hint: unavailable (--slug not supplied)" in result.out
+
+
+def test_a_segment_reaching_outside_the_full_range_is_only_counted(clean, state_dir, env):
+    result = audit(
+        clean, state_dir, env,
+        "--base", clean.quiet, "--head", clean.second,
+        "--range", f"{clean.base}..{clean.first}",
+        "--range", f"{clean.quiet}..{clean.second}",
+    )
+
+    assert "outside_full_range=1" in result.line("range_todo_segment_1")
+    assert "outside_full_range=0" in result.line("range_todo_segment_2")
+    assert result.field("range_todo") == "0"
+    assert result.field("range_todo_uncovered_commits") == "0"
+    assert not result.verdict.startswith("HOLD")
+
+
+def test_an_unresolvable_full_range_makes_coverage_not_checked(clean, state_dir, env):
+    result = audit(
+        clean, state_dir, env,
+        "--base", MISSING_SHA, "--head", clean.second,
+        *segments(clean),
+    )
+
+    assert result.field("range_todo") == "0"
+    assert result.field("range_todo_uncovered_commits") == "not_checked"
+    assert result.field("range_todo_uncovered_hits") == "not_checked"
+    assert "range_todo_full_range_unusable" in result.verdict
+    assert result.lines("uncovered_commit") == []
+    assert result.code == 20
+
+
+def test_an_empty_full_range_makes_coverage_not_checked(clean, state_dir, env):
+    result = audit(
+        clean, state_dir, env,
+        "--base", clean.second, "--head", clean.second,
+        *segments(clean),
+    )
+
+    assert result.field("range_todo_uncovered_commits") == "not_checked"
+    assert "range_todo_full_range_unusable" in result.verdict
+
+
+def test_coverage_is_not_computed_when_a_segment_is_unusable(clean, state_dir, env):
+    result = audit(
+        clean, state_dir, env,
+        *full_range(clean),
+        "--range", f"{clean.base}..{clean.first}",
+        "--range", f"{MISSING_SHA}..{clean.second}",
+    )
+
+    assert result.field("range_todo") == "not_checked"
+    assert result.field("range_todo_uncovered_commits") == "not_checked"
+    assert result.lines("uncovered_commit") == []
+    assert "range_todo_unresolvable" in result.verdict
+
+
 # --- argument handling -------------------------------------------------------
 
 
-@pytest.mark.parametrize("flag", ["--base", "--head"])
-def test_range_cannot_be_combined_with_base_or_head(clean, state_dir, env, flag):
-    result = audit(
-        clean, state_dir, env,
-        "--range", f"{clean.base}..{clean.first}",
-        flag, clean.first,
-    )
+def test_base_and_head_with_range_are_the_full_range(clean, state_dir, env):
+    result = audit(clean, state_dir, env, *full_range(clean), *segments(clean))
+
+    assert result.code != 2
+    assert f"{clean.base}..{clean.second}" in result.line("range_todo_full_range")
+
+
+def test_head_without_base_is_refused_when_range_is_used(clean, state_dir, env):
+    result = audit(clean, state_dir, env, "--range", f"{clean.base}..{clean.first}", "--head", clean.second)
 
     assert result.code == 2
-    assert "cannot be combined" in result.err
+    assert "--head needs --base" in result.err
     assert result.out == ""
 
 
