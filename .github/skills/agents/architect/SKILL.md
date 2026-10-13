@@ -234,19 +234,19 @@ Architect 在「新增 enum 值」計畫**外**，遇到相關 admin route 修�
 
 ## Event Form Addition Checklist（新增 event_form 值的必備 6 步驟）
 
-每次新增 `event_form` 值，以下 **6 個位置必須同一 commit 同步**：
+每次新增 `event_form` 值，以下 6 個步驟中，**除步驟 5（已自動化，僅需確認）外都必須同一 commit 同步**：
 
 | 步驟 | 位置 | 說明 |
 |------|------|------|
 | 1 | `supabase/migrations/<NNN>_*.sql` | `events_event_form_check` CHECK constraint（**authoritative source**）|
-| 2 | `scraper/annotator.py` | `VALID_EVENT_FORMS` frozenset（L863 附近）+ EVENT FORM RULES prompt 區塊（L686 附近） |
+| 2 | `scraper/annotator.py` | `VALID_EVENT_FORMS` frozenset + SYSTEM_PROMPT 的 EVENT FORM RULES 清單與 Decision guides（`event_form` 定義仍手寫在 annotator.py，沒有搬到 `scraper/taxonomy.md`——該檔只有 category） |
 | 3 | `scraper/database.py` | `_VALID_EVENT_FORMS` writer whitelist + `_event_to_row()` regression test；缺值時 scraper 輸出會在入庫前靜默被剝除 |
-| 4 | `web/lib/types.ts` | `EVENT_FORMS` array / `EventForm` type，前台與 admin form 共同依賴 |
-| 5 | `web/app/api/admin/extract-from-image/route.ts` + `web/app/api/admin/annotate-event/route.ts` | 兩個 GPT prompt 內的 `event_form:` 枚舉清單 |
+| 4 | `web/lib/types.ts` | `EVENT_FORMS` array / `EventForm` type，前台與 admin form 共同依賴；步驟 5 四支 route 的 prompt 與 `sanitizeEventFormValues()` 也由它衍生 |
+| 5 | `web/app/api/{admin,account}/{extract-from-image,annotate-event}/route.ts` | **已自動化，不需手動同步**：`event_form:` 清單以 `EVENT_FORMS.join(...)` 從 types.ts 帶入（admin 兩支自 2026-05-30 `d0a10772`；account 兩支自建立時 2026-06-03 `49c305b3`）；審核時只確認未被改回手寫枚舉 |
 | 6 | `web/messages/{zh,en,ja}.json` | `eventForm.<key>`（三語各一）|
 
 **Reference incidents:**
-* 2026-05-20 — migration 047 加入 `broadcast`/`tasting`/`study_abroad` 等新值並重命名舊值（`concert`→`performance`、`lecture_seminar`→`lecture`、`film_screening`→`screening`、`festival`→ 移除、`sports`→ 移除）。annotator.py 跟上了，但兩個 admin API prompt 留在 pre-047 命名 → OCR 回傳舊值 → DB CHECK 拒絕 → 管理画面保存 400 失敗（commit `9ecaae6`）。教訓：建立此 checklist。
+* 2026-05-20 — migration 047 加入 `broadcast`/`tasting`/`study_abroad` 等新值並重命名舊值（`concert`→`performance`、`lecture_seminar`→`lecture`、`film_screening`→`screening`、`festival`→ 移除、`sports`→ 移除）。annotator.py 跟上了，但兩個 admin API prompt 留在 pre-047 命名 → OCR 回傳舊值 → DB CHECK 拒絕 → 管理画面保存 400 失敗（commit `9ecaae6`）。教訓：建立此 checklist。（2026-05-30 `d0a10772` 起 route 改為 `EVENT_FORMS.join` 自動帶入，步驟 5 已不需手動同步。）
 * 2026-06-04 — publication repair 證明前台還依賴 `web/lib/types.ts` `EVENT_FORMS` 與 `web/messages/*.json` 的 `eventForm` namespace。少同步任一處，會出現 raw key 或前後端 enum 漂移。
 * 2026-07-11 — publication policy inventory 發現 `scraper/database.py::_VALID_EVENT_FORMS` 漏列既有 `publication`；scraper 即使正確輸出該值，`_event_to_row()` 仍會在 DB writer 層靜默剝除。教訓：writer whitelist 與 regression test 是第 6 個同步點。
 

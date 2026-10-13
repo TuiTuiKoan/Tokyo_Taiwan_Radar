@@ -556,30 +556,36 @@ Reference incidents:
 - 2026-05-05 — Ghost category：`category_corrections` 含無效分類 `culture`，36 筆事件面臨 re-annotation 時分類被靜默剝離。修復：新增啟動守衛 + category_corrections 驗證 + DB 清理。
 - 2026-05-20 — types.ts 38 值、annotator.py 同步，但兩個 admin API prompt 只列 18 值；OCR 時 GPT 自創 `health`，前端顯示 `categories.health`（commit `997378c`）。教訓：新增第 5 同步位置。（2026-05-30 `d0a10772` 起改為 `CATEGORIES.join` 自動帶入，此位置已不需手動同步。）
 
-## Event Form Sync Guard（DB constraint ↔ annotator.py ↔ admin API prompts ↔ i18n）
+## Event Form Sync Guard（DB constraint ↔ annotator.py ↔ database.py ↔ types.ts ↔ i18n）
 
-在審核**任何**新增 `event_form` 有效值的 PR 前，**必須**確認以下**五處**同步：
+在審核**任何**新增 `event_form` 有效值的 PR 前，**必須**確認以下**六處**同步：
 
 1. **DB migration**：`events_event_form_check` CHECK constraint 允許清單新增新值（**authoritative source**）。
-2. **`annotator.py` → `VALID_EVENT_FORMS`** frozenset 包含新值（L863 附近）。
-3. **`annotator.py` → SYSTEM_PROMPT** EVENT FORM RULES 清單 + Decision guides 有新值的定義行（L686 附近）。
-4. **`web/app/api/admin/extract-from-image/route.ts` L58 + `web/app/api/admin/annotate-event/route.ts` L382** → 兩個 GPT prompt 內的 `event_form:` 枚舉清單。
-5. **`web/messages/*.json`**：`eventForm` namespace 中，`zh.json`、`en.json`、`ja.json` 三個語系均加入新值的翻譯字串。缺一則前端顯示 raw key。
+2. **`annotator.py` → `VALID_EVENT_FORMS`** frozenset 包含新值。
+3. **`annotator.py` → SYSTEM_PROMPT** EVENT FORM RULES 清單 + Decision guides 有新值的定義行。`event_form` 的定義**仍手寫在 `annotator.py`**，沒有像分類那樣搬到 `scraper/taxonomy.md`（該檔只有 category）。
+4. **`scraper/database.py` → `_VALID_EVENT_FORMS`** writer whitelist 包含新值（`_event_to_row()` 以此過濾；缺值時 scraper 輸出會在入庫前靜默被剝除）。
+5. **`web/lib/types.ts` → `EVENT_FORMS`** array 包含新值（下方四支 route 的 GPT prompt 與 server 端過濾都由它衍生）。
+6. **`web/messages/*.json`**：`eventForm` namespace 中，`zh.json`、`en.json`、`ja.json` 三個語系均加入新值的翻譯字串。缺一則前端顯示 raw key。
+
+> **已不是手動同步位置**：`web/app/api/{admin,account}/{extract-from-image,annotate-event}/route.ts` 的 `event_form:` 清單，admin 兩支自 2026-05-30（`d0a10772`）、account 兩支自建立時（2026-06-03，`49c305b3`）起，以 `${EVENT_FORMS.join(" | ")}` 從 `web/lib/types.ts` 自動帶入；server 端另以 `sanitizeEventFormValues()`（`web/lib/eventFieldMerge.ts`）依 `EVENT_FORMS` 過濾。審核時只需確認它沒有被改回手寫枚舉：`grep -n 'EVENT_FORMS.join' web/app/api/{admin,account}/{extract-from-image,annotate-event}/route.ts` 應有 4 筆。
 
 **違反後果**：
 - 第 1–3 點：GPT 無法選用新值，靜默失敗；re-annotation 時 `_validate_event_forms()` 靜默剝離，默認回退。
-- 第 4 點：管理画面 OCR / annotate-event 的 GPT 用舊命名輸出（如 pre-047 的 `concert`/`lecture_seminar`/`film_screening`）→ DB CHECK constraint 拒絕 → **管理画面保存 400 失敗，UI 卡住「保存中…」超過 1 分鐘**。
-- 第 5 點：前端 event_form badge 顯示 raw key（如 `study_abroad`）而非翻譯文字。
+- 第 4 點：`_event_to_row()` 靜默剝除新值，scraper 輸出不入庫（不報錯）。
+- 第 5 點：四支 route 的 GPT prompt 看不到新值，`sanitizeEventFormValues()` 也會把它濾掉；反向（`EVENT_FORMS` 有而 DB CHECK 沒有）則被 `events_event_form_check` 拒絕 → **管理画面保存 400 失敗，UI 卡住「保存中…」超過 1 分鐘**（2026-05-20 事故的失敗模式）。
+- 第 6 點：前端 event_form badge 顯示 raw key（如 `study_abroad`）而非翻譯文字。
 
-**現有有效值（截至 2026-05-20，migration 047）**：
-`exhibition | screening | lecture | performance | market | workshop | conference | networking | screening_with_talk | tour | competition | tasting | broadcast | study_abroad | other`
+> **盲點**：`event_form` 沒有等同 `_check_category_sync()` 的啟動守衛，也沒有 types.ts ↔ `VALID_EVENT_FORMS` ↔ `_VALID_EVENT_FORMS` ↔ migration 的 parity 測試（`scraper/tests`、`web/tests` 中無 `VALID_EVENT_FORMS` / `EVENT_FORMS` 比對）。六處只能靠 PR 審核逐一核對。
+
+**現有有效值（截至 2026-10-13，與 `web/lib/types.ts` `EVENT_FORMS`、migration 047 一致）**：
+`exhibition | screening | lecture | performance | market | workshop | conference | networking | screening_with_talk | tour | competition | tasting | broadcast | study_abroad | publication | other`
 
 > ⚠️ migration 047 重命名舊值：`concert` → `performance`、`lecture_seminar` → `lecture`、`film_screening` → `screening`；移除 `festival` / `sports`。任何引用舊命名的代碼或 prompt 都是 bug。
 
 Reference incidents:
 - 2026-05-08 — migration 058 新增 `study_abroad`；event `b022b452`（銘傳大学 × ASE 台湾留学説明会）`event_form` 從 `['other']` 更正 + FC 鎖定。
-- 2026-05-20 — 兩個 admin API prompt 用 pre-047 命名（`concert`/`lecture_seminar`/`film_screening`/`festival`/`sports`）→ OCR 健康まつり海報後 DB 拒絕 → 管理画面保存失敗 400（commit `9ecaae6`）。教訓：第 4 同步位置必須與 migration 同 commit 更新。
-- 2026-05-09 — `web/messages/*.json` 漏加 `study_abroad` 翻譯（commit `5a94ee2`）；確立第 4 個同步點。
+- 2026-05-20 — 兩個 admin API prompt 用 pre-047 命名（`concert`/`lecture_seminar`/`film_screening`/`festival`/`sports`）→ OCR 健康まつり海報後 DB 拒絕 → 管理画面保存失敗 400（commit `9ecaae6`）。教訓：當時的第 4 同步位置（route prompt）必須與 migration 同 commit 更新。（2026-05-30 `d0a10772` 起改為 `EVENT_FORMS.join` 自動帶入，此位置已不需手動同步。）
+- 2026-05-09 — `web/messages/*.json` 漏加 `study_abroad` 翻譯（commit `5a94ee2`）；確立 i18n 同步點（當時為第 4 個）。
 
 ## Online Events Location Guard（線上活動地點統一規則）
 
