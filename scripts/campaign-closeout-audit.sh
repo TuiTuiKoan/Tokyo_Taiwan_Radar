@@ -34,10 +34,22 @@ WT=""
 SLUG=""
 BASE=""
 HEAD_SHA=""
+RANGES=""
 SELF_SESSION=""
 STATE_DIR="$HOME/.copilot/session-state"
 IDLE_THRESHOLD=900
 SKIP_ISSUES=0
+
+# Issues carrying this label are reminders the repository generates on its own
+# every day, and their body lists commit subjects, so any slug that appears in a
+# subject matches them. They are not work, and they are excluded from source 5.
+ISSUE_EXCLUDE_LABEL="daily-review"
+
+# The two marker words counted by source 4, assembled from halves on purpose.
+# The audit counts them on ADDED lines, so a script that spelled them out would
+# flag any campaign that merely edited it. The words are named in the heading
+# comment of source 4 below.
+MARKER_PATTERN='TO''DO|FIX''ME'
 
 usage() {
   cat <<'EOF'
@@ -46,9 +58,23 @@ Usage: scripts/campaign-closeout-audit.sh --worktree <registered-path> [options]
   --worktree <path>        registered or physical path of the worktree to audit
   --slug <slug>            campaign slug; without it the spec and issue sources
                            report not_checked rather than a false zero
-  --base <sha>             campaign base SHA, the origin/main tip before the
-                           V-M-D push; start of the TODO commit range
-  --head <sha>             pushed HEAD SHA; end of the TODO commit range
+  --range <base>..<head>   one pushed segment of the campaign's commit range;
+                           repeatable. base is the origin/main tip before that
+                           push, head is the HEAD that push delivered. Give one
+                           per push: a campaign pushed in several rounds has
+                           other campaigns' commits between its rounds, and one
+                           span over all of them counts those commits' added
+                           lines as this campaign's. Each segment is counted and
+                           printed, and range_todo is their sum. A segment that
+                           does not resolve here makes range_todo not_checked,
+                           never 0. Segments must not overlap: a commit inside
+                           two segments is counted twice. The three-dot form
+                           a...b is refused.
+  --base <sha>             single-segment form, kept for compatibility: start of
+                           the commit range scanned for added work markers
+  --head <sha>             single-segment form: end of the range, default HEAD
+                           (--range and --base/--head are mutually exclusive;
+                           giving both exits 2 instead of guessing which wins)
   --self-session <id>      this session's id, excluded from contention
   --session-state-dir <d>  default ~/.copilot/session-state
   --idle-threshold <secs>  default 900; a lock older than this is UNDETERMINED,
@@ -57,12 +83,55 @@ Usage: scripts/campaign-closeout-audit.sh --worktree <registered-path> [options]
 EOF
 }
 
+# add_range appends one validated <base>..<head> segment to RANGES. It exits the
+# script directly, so it must never be called inside a command substitution.
+add_range() {
+  r="$1"
+  case "$r" in
+    *...*)
+      echo "--range refuses the three-dot form '$r': after the push HEAD equals" >&2
+      echo "origin/main and that form is empty, which would report a false zero" >&2
+      usage >&2
+      exit 2 ;;
+    *..*) ;;
+    *)
+      echo "--range expects <base>..<head>, got '$r'" >&2
+      usage >&2
+      exit 2 ;;
+  esac
+  rb="${r%%..*}"
+  rh="${r#*..}"
+  if [ -z "$rb" ] || [ -z "$rh" ]; then
+    echo "--range needs both a base and a head, got '$r'" >&2
+    usage >&2
+    exit 2
+  fi
+  if [ -z "$RANGES" ]; then
+    RANGES="$r"
+  else
+    RANGES="$RANGES
+$r"
+  fi
+}
+
 while [ $# -gt 0 ]; do
+  # A value flag with nothing after it must stop the parse. Without this guard
+  # `shift 2` fails on the last argument, leaves $# unchanged, and the loop never
+  # ends.
+  case "$1" in
+    --worktree|--slug|--base|--head|--range|--self-session|--session-state-dir|--idle-threshold)
+      if [ $# -lt 2 ]; then
+        echo "$1 requires a value" >&2
+        usage >&2
+        exit 2
+      fi ;;
+  esac
   case "$1" in
     --worktree)           WT="${2:-}"; shift 2 ;;
     --slug)               SLUG="${2:-}"; shift 2 ;;
     --base)               BASE="${2:-}"; shift 2 ;;
     --head)               HEAD_SHA="${2:-}"; shift 2 ;;
+    --range)              add_range "${2:-}"; shift 2 ;;
     --self-session)       SELF_SESSION="${2:-}"; shift 2 ;;
     --session-state-dir)  STATE_DIR="${2:-}"; shift 2 ;;
     --idle-threshold)     IDLE_THRESHOLD="${2:-}"; shift 2 ;;
@@ -71,6 +140,12 @@ while [ $# -gt 0 ]; do
     *) echo "unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
+
+if [ -n "$RANGES" ] && { [ -n "$BASE" ] || [ -n "$HEAD_SHA" ]; }; then
+  echo "--range cannot be combined with --base or --head; use one form" >&2
+  usage >&2
+  exit 2
+fi
 
 if [ -z "$WT" ]; then
   echo "--worktree is required" >&2
@@ -302,8 +377,72 @@ fi
 #    The range is <base>..<head>, never origin/main...HEAD: after the V-M-D push
 #    HEAD equals origin/main, so the three-dot form is always empty and would
 #    report a false zero for every campaign that shipped.
-if [ -z "$BASE" ]; then
-  echo "range_todo=not_checked  (reason: --base not supplied by the V-M-D handoff;"
+#
+#    A campaign pushed in several rounds has other campaigns' commits between its
+#    rounds. One span from the first base to the last head would count those
+#    commits' added lines as this campaign's, so the range is given per push with
+#    --range and each segment is counted on its own. --base/--head is exactly one
+#    segment, kept for compatibility, and goes through the same counter.
+
+# count_segment <base> <end> counts the added marker lines in one commit range.
+# It sets SEG_STATUS (ok|unresolved), SEG_COUNT and SEG_COMMITS and never prints.
+# Both ends are peeled to a commit, so a tree or a blob cannot pass for a range.
+# git's own exit status is checked as well: counting through a pipe alone would
+# turn a failed log into a clean zero, which is the one answer this gate must
+# never invent.
+count_segment() {
+  SEG_STATUS="unresolved"
+  SEG_COUNT=0
+  SEG_COMMITS=0
+  git -C "$WT" rev-parse --verify --quiet "${1}^{commit}" >/dev/null 2>&1 || return 0
+  git -C "$WT" rev-parse --verify --quiet "${2}^{commit}" >/dev/null 2>&1 || return 0
+  seg_log=$( git -C "$WT" log --format='' -p "$1..$2" 2>/dev/null ) || return 0
+  seg_commits=$( git -C "$WT" rev-list --count "$1..$2" 2>/dev/null ) || return 0
+  seg_n=$( printf '%s\n' "$seg_log" | grep -E '^\+' | grep -cE "$MARKER_PATTERN" )
+  SEG_COUNT=$( count_or_zero "$seg_n" )
+  SEG_COMMITS=$( count_or_zero "$seg_commits" )
+  SEG_STATUS="ok"
+}
+
+if [ -n "$RANGES" ]; then
+  RT_N=0
+  RT_SUM=0
+  RT_UNRESOLVED=0
+  RT_LINES=""
+  while IFS= read -r seg; do
+    [ -n "$seg" ] || continue
+    RT_N=$(( RT_N + 1 ))
+    seg_base="${seg%%..*}"
+    seg_head="${seg#*..}"
+    count_segment "$seg_base" "$seg_head"
+    if [ "$SEG_STATUS" = "ok" ]; then
+      RT_SUM=$(( RT_SUM + SEG_COUNT ))
+      RT_LINES="${RT_LINES}range_todo_segment_${RT_N}=${SEG_COUNT}  (${seg}; commits=${SEG_COMMITS})
+"
+    else
+      RT_UNRESOLVED=$(( RT_UNRESOLVED + 1 ))
+      RT_LINES="${RT_LINES}range_todo_segment_${RT_N}=not_checked  (${seg}; reason: base or head does not resolve here)
+"
+    fi
+  done <<EOF
+$RANGES
+EOF
+  if [ "$RT_UNRESOLVED" -eq 0 ]; then
+    echo "range_todo=$RT_SUM  (added lines matching $MARKER_PATTERN, summed over $RT_N segment(s))"
+  else
+    # A known blocker is still a blocker: the lines already found in the
+    # resolvable segments stay in unhandled_total, so a clearly dirty campaign is
+    # not downgraded to "ask the user" by an unrelated unresolved segment.
+    echo "range_todo=not_checked  (reason: $RT_UNRESOLVED of $RT_N segment(s) do not resolve here;"
+    echo "range_todo=not_checked  $RT_SUM matching line(s) in the segments that did resolve stay in"
+    echo "range_todo=not_checked  unhandled_total, but the total is incomplete)"
+    NOT_CHECKED=$(( NOT_CHECKED + 1 ))
+    add_undet "range_todo_unresolvable"
+  fi
+  printf '%s' "$RT_LINES"
+  UNHANDLED_TOTAL=$(( UNHANDLED_TOTAL + RT_SUM ))
+elif [ -z "$BASE" ]; then
+  echo "range_todo=not_checked  (reason: neither --range nor --base supplied by the V-M-D handoff;"
   echo "range_todo=not_checked  origin/main...HEAD is refused because it is empty"
   echo "range_todo=not_checked  after the push and would report a false zero)"
   NOT_CHECKED=$(( NOT_CHECKED + 1 ))
@@ -311,14 +450,10 @@ if [ -z "$BASE" ]; then
 else
   END="$HEAD_SHA"
   [ -n "$END" ] || END="HEAD"
-  if git -C "$WT" rev-parse --verify --quiet "$BASE" >/dev/null 2>&1 \
-     && git -C "$WT" rev-parse --verify --quiet "$END" >/dev/null 2>&1; then
-    n=$( git -C "$WT" log --format='' -p "$BASE..$END" 2>/dev/null \
-         | grep -E '^\+' \
-         | grep -cE 'TODO|FIXME' )
-    n=$( count_or_zero "$n" )
-    echo "range_todo=$n  (added lines matching TODO|FIXME in $BASE..$END)"
-    UNHANDLED_TOTAL=$(( UNHANDLED_TOTAL + n ))
+  count_segment "$BASE" "$END"
+  if [ "$SEG_STATUS" = "ok" ]; then
+    echo "range_todo=$SEG_COUNT  (added lines matching $MARKER_PATTERN in $BASE..$END)"
+    UNHANDLED_TOTAL=$(( UNHANDLED_TOTAL + SEG_COUNT ))
   else
     echo "range_todo=not_checked  (reason: --base or --head does not resolve here)"
     NOT_CHECKED=$(( NOT_CHECKED + 1 ))
@@ -326,7 +461,8 @@ else
   fi
 fi
 
-# 5. open GitHub issues naming the slug
+# 5. open GitHub issues naming the slug, minus the auto-generated daily reminders
+#    (ISSUE_EXCLUDE_LABEL, defined with the other settings above).
 if [ "$SKIP_ISSUES" -eq 1 ]; then
   echo "open_issues=not_checked  (reason: --skip-issues)"
   NOT_CHECKED=$(( NOT_CHECKED + 1 ))
@@ -340,10 +476,10 @@ elif ! command -v gh >/dev/null 2>&1 || ! gh auth status >/dev/null 2>&1; then
   NOT_CHECKED=$(( NOT_CHECKED + 1 ))
   add_undet "issues_not_checked"
 else
-  if issues=$( cd "$WT" && gh issue list --state open --search "$SLUG" --limit 100 --json number 2>/dev/null ); then
+  if issues=$( cd "$WT" && gh issue list --state open --search "$SLUG -label:$ISSUE_EXCLUDE_LABEL" --limit 100 --json number 2>/dev/null ); then
     n=$( printf '%s' "$issues" | grep -o '"number"' | grep -c . )
     n=$( count_or_zero "$n" )
-    echo "open_issues=$n  (open issues matching '$SLUG')"
+    echo "open_issues=$n  (open issues matching '$SLUG', excluding label:$ISSUE_EXCLUDE_LABEL)"
     UNHANDLED_TOTAL=$(( UNHANDLED_TOTAL + n ))
   else
     echo "open_issues=not_checked  (reason: gh query failed)"

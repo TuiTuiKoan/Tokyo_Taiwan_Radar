@@ -108,6 +108,38 @@ V-M-D push 完成後 `HEAD` 等於 `origin/main`，`origin/main...HEAD` 恆為�
 
 **拿不到 base 就標 `not_checked`，不要退回三點形式，也不要輸出 `none`。**
 
+### 多次 push 的 campaign：單一跨度會被上游 commit 污染
+
+腳本統計 `<base>..<head>` 範圍內新增行的待辦字樣。範圍是 commit 圖上的區間，不認作者：campaign
+分多次 push 時，兩次 push 之間若有別的 campaign 的 commit 進入 `origin/main`，單一跨度就把那些
+commit 的新增行一併算進來。實測（2026-10-13 ai-portability）：單一跨度 `7f8e75c9..87c2b557` 夾了
+10 個上游 commit，其中兩個的新增行含字面待辦字樣（1 筆與 6 筆，都是文字描述，不是待辦），
+`range_todo=7`；campaign 自己的兩段各自重算為 0。
+
+* **一次 push 一段**：`--range <base>..<head>`，可重複。腳本逐段輸出（`range_todo_segment_<n>`，附
+  `commits=`）再加總為 `range_todo`。
+* **漏給一段，腳本無從得知。** 腳本只對「有給的段落」負責；少傳一次 push 得到的 `0`，不是整個
+  campaign 的 `0`。缺任何一組 base／head 時，來源 4 在報告中標 `not_checked`，不要拿部分段落的結果
+  或較寬的單一跨度充數。V-M-D 的 handoff 範本目前只有一組 base／head 欄位，其餘各組由協調者或使用者
+  逐組補上。
+* **任一段解析不到 → `range_todo=not_checked`，不是 0。** 其餘段落已確認的行數仍計入
+  `unhandled_total`（A5 的順序：硬阻擋優先於未知）。
+* **兩端都要是 commit。** 腳本先把兩端 peel 成 commit。tree／blob 當 base 時，`git log` 忽略它而把
+  整段歷史算進去；當 head 時，`git log` 失敗卻留下看似乾淨的 0（舊版實測兩者都發生）。
+* **`--range` 與 `--base`／`--head` 互斥**（exit 2），不猜哪一個優先。三點形式 `a...b`、缺任一端、
+  缺 `..` 的值一律 exit 2。
+* **各段不得重疊**，重疊的 commit 會被算兩次。這只會偏向 HOLD、不會漏報，所以腳本不去重。
+* **輸出形狀依輸入形式決定。** `--base`／`--head` 維持原本單行
+  `range_todo=<n>  (… in <base>..<end>)`；`--range` 一律輸出彙總行加逐段行，段數為 1 也一樣，讀取端
+  不必依段數分支。
+
+### 來源 5 排除 `daily-review` label
+
+每日自動產生的 `daily-review` 提醒 issue 內文列出當天 commit 主旨，主旨提到 slug 就會命中來源 5
+（2026-10-13 ai-portability：#296 使 `open_issues=1`）。搜尋因此是 `<slug> -label:daily-review`，輸出行
+註明 `excluding label:daily-review`。它是提醒、不是待辦。已知限制：真的待辦 issue 若被貼上這個 label
+會被漏掉，所以這個 label 只留給自動產生的提醒。
+
 ### `not_checked` 與 `0` 是不同的主張
 
 `0` 是「查過了，沒有」；`not_checked` 是「沒查」。只有前者支持退役。`RETIRE_CANDIDATE`
@@ -328,5 +360,11 @@ per-model / per-slice 的 token 與成本 index **本階段不做**。凍結理�
 * **禁止用 awk 做路徑欄位切分**。本 repo 的每一個路徑都含空格，欄位切分會把路徑截在第一個空格。
   一律 `sed` + 全程引號。
 * `--session-state-dir` 可指向測試 fixture，用來迴歸驗證 idle-lock 與 PID 陷阱。
-* Phase D 重跑時 `--head` 沿用 pushed HEAD，不用含結案記錄 commit 的 SHA，見 § Phase D。
+* Phase D 重跑時 `--head` 沿用 pushed HEAD，不用含結案記錄 commit 的 SHA，見 § Phase D。多段時沿用
+  同一組 `--range`，每段的 head 都不換。
+* 值型旗標（`--worktree`、`--slug`、`--range` 等）放在最後而沒有值時 exit 2。舊版此時
+  `shift 2` 失敗、`$#` 不變，參數迴圈永遠不結束。
+* 測試：`scripts/tests/test_campaign_closeout_audit.py` 用暫存 git repo 建「campaign／含待辦字樣的上游／
+  campaign」交錯歷史，不碰網路與 `~/.copilot`；來源 5 以 PATH 上的 stub `gh` 驗證搜尋參數。測試檔
+  自己把兩個待辦字樣拆開組字，避免自己污染稽核。腳本內的 `MARKER_PATTERN` 同理。
 * 它是 **single-worktree probe，不是 inventory**。

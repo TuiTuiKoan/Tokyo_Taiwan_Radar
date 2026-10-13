@@ -62,6 +62,20 @@ V-M-D 的 handoff prompt 必須帶下列四項。**缺任一項，對應的檢�
 **禁用 `origin/main...HEAD` 求 commit range**。V-M-D push 之後 `HEAD` 等於 `origin/main`，
 三點形式恆為空集合，會對每一個真的出貨過的 campaign 回報零待辦——這是假陰性，不是通過。
 
+**多次 push 的 campaign：base 與 head 成對，一次 push 一組。** campaign 分多次 push，且兩次之間
+有別的 campaign 的 commit 進入 `origin/main` 時，最早的 base 到最後的 head 之間夾著別人的 commit。
+單一跨度會把它們新增行裡的待辦字樣算成這個 campaign 的，`range_todo` 偏高，得到假的
+`HOLD:unhandled_work`（2026-10-13 ai-portability：單一跨度為 7，兩段各自為 0）。
+
+* 對每次 push 各傳一個 `--range <base>..<head>`（可重複）。腳本逐段輸出，`range_todo` 是各段加總。
+* **漏給一段，腳本無從得知。** 只傳部分段落得到的 `0` 不是整個 campaign 的 `0`：缺任何一組時，
+  來源 4 在報告中標 `not_checked`，不要拿較寬的單一跨度或部分段落的結果充數。
+* V-M-D 的 handoff 範本只有一組 base／head 欄位；多次 push 的其餘各組由協調者或使用者逐組補上。
+* 任一段解析不到，整體 `range_todo` 是 `not_checked`，不是 `0`；其餘段落已確認的行數仍計入
+  `unhandled_total`，明確的阻擋不會被未知項降級。
+* 各段不得重疊（重疊的 commit 算兩次）。`--range` 與 `--base`／`--head` 互斥，同時給會 exit 2。
+* 單次 push 的 campaign 仍可用 `--base`／`--head`，行為與輸出格式不變。
+
 ## Phase A — Audit（唯讀，無論結果都要輸出）
 
 先跑腳本，再人工複核它標為 `not_checked` 的每一項：
@@ -71,12 +85,15 @@ git -C '<worktree>' fetch origin main --quiet   # 腳本本身不 fetch
 bash scripts/campaign-closeout-audit.sh \
   --worktree '<registered-path>' \
   --slug '<slug>' \
-  --base '<campaign-base-sha>' \
-  --head '<pushed-head-sha>' \
+  --range '<push-1-base-sha>..<push-1-head-sha>' \
+  --range '<push-2-base-sha>..<push-2-head-sha>' \
   --self-session '<this-session-id>'
 ```
 
-Exit code：`0` = RETIRE_CANDIDATE、`10` = HOLD、`20` = UNDETERMINED。
+`--range` 有幾次 push 就傳幾個；只有一次 push 時傳一個，或沿用相容的
+`--base '<campaign-base-sha>' --head '<pushed-head-sha>'`。兩種形式不可混用。
+
+Exit code：`0` = RETIRE_CANDIDATE、`10` = HOLD、`20` = UNDETERMINED、`2` = 用法錯誤。
 
 * **A0** 進入指定 worktree。**禁止在主工作樹做判定**——主工作樹是 governance-only，它的
   dirty 狀態與 campaign 無關。
@@ -89,6 +106,10 @@ Exit code：`0` = RETIRE_CANDIDATE、`10` = HOLD、`20` = UNDETERMINED。
   3. legacy `.copilot-tracking/plans/*.md` 未完成項（舊 Copilot scratch，只做唯讀檢查，不再新增；新待辦以來源 1 的 spec `tasks.md` 為準）
   4. `git log <base>..<head>` 範圍內**新增行**的 `TODO` / `FIXME`
   5. 提及該 slug 的 open GitHub issues（無 token → `not_checked`）
+
+  來源 4 的範圍是一段或多段：多次 push 的 campaign 逐次各給一個 `--range`，見上面「多次 push 的
+  campaign」。來源 5 搜尋時排除帶 `daily-review` label 的 issue：那是每日自動產生的提醒，內文列出
+  commit 主旨，主旨含 slug 就會命中，不是待辦。
 
   來源 1 與 2 先解析 `docs/specs/active/<slug>/`（找不到再試 `archive/`）。**slug 解析不到
   目錄時輸出 `not_checked`，不是 `0`**——少打一個字母就把 24 筆待辦報成 0，這道閘門即形同

@@ -9,7 +9,67 @@ ms.date: 2026-08-12
 
 ---
 
-## 2026-10-13 — senses-taxonomy 結案：Phase C／D 實測到的六件事
+## 2026-10-13 — ai-portability 稽核回 HOLD：兩個阻擋都是假陽性，稽核腳本改為支援多段 range
+
+**背景**：ai-portability 的稽核回 `HOLD:unhandled_work`，阻擋是 `range_todo=7` 與 `open_issues=1`。
+人工複核後兩者都不是待辦。腳本因此新增可重複的 `--range`、排除 `daily-review` label（分支
+`feat/closeout-audit-multirange`）。對應規則已寫進 SKILL.md § A2、§ 腳本與 agent 檔的交接契約。
+驗證：對舊 worktree 用兩段 `--range` 得 `range_todo=0`、`open_issues=0`；同一 worktree 用舊的單段
+`--base`／`--head` 仍得 `range_todo=7`。
+
+### 1. 單一 `--base`／`--head` 跨度夾進別的 campaign 的上游 commit
+
+**現象**：範圍 `7f8e75c9..87c2b557` 夾了 10 個別的 campaign 的上游 commit，其中兩個的新增行含字面待辦
+字樣（1 筆與 6 筆），都是文字描述。`range_todo=7`，但 campaign 自己的兩段（`7f8e75c9..6b404ea3`、
+`8f09543d..87c2b557`）各自重算為 0。
+
+**根因**：腳本只吃單一 `--base`／`--head`，統計的是 commit 圖上的區間，不認作者。多次 push 的
+campaign 在兩次 push 之間必有別人的 commit 進入 `origin/main`，單一跨度必被污染。
+
+**修正**：新增可重複的 `--range <base>..<head>`，逐段輸出再加總。`--base`／`--head` 保留為單段，輸出
+格式不變。`--range` 與 `--base`／`--head` 互斥（exit 2）。任一段解析不到，`range_todo` 是
+`not_checked`，不是 0。
+
+**教訓**：一個 campaign 的 commit 範圍不一定連續。交接契約必須是「一次 push 一組 base／head」。
+也因此多了一個腳本偵測不到的失效模式：**漏給一段，得到的 0 只代表有給的段落**。缺任何一組時，
+來源 4 要標 `not_checked`，不得拿部分段落的 0 充數。V-M-D 的 handoff 範本目前只有一組 base／head 欄位
+（本次未改），其餘各組要由協調者或使用者補上。
+
+### 2. `open_issues` 命中每日自動產生的提醒
+
+**現象**：issue #296 是每日自動產生的 `daily-review` 提醒，內文列出當天 commit 主旨，主旨含
+`ai-portability` 就命中來源 5，`open_issues=1`。
+
+**根因**：搜尋只比對 slug，沒有區分「待辦 issue」與「提到 slug 的提醒」。
+
+**修正**：搜尋改為 `<slug> -label:daily-review`，輸出行註明排除的 label。實測
+`gh issue list --state open --search "ai-portability -label:daily-review"` 回傳空集合。
+
+**教訓**：來源 5 的語義是「有人欠這個 campaign 一件事」，不是「有人提過這個 slug」。自動產生的
+issue 要以 label 排除。已知限制：真的待辦 issue 若被貼上該 label 會被漏掉。
+
+### 3. 順手修掉的兩個既有缺陷（寫測試時發現）
+
+* **值型旗標缺值時參數迴圈不會結束。** `--worktree` 這類旗標若是最後一個參數，`shift 2` 失敗、`$#`
+  不變，迴圈永遠轉下去（實測 5 秒逾時仍卡住）。新增的 `--range` 有同樣的坑，所以在解析前統一檢查
+  「值型旗標後面要有值」，否則 exit 2。
+* **非 commit 的 ref 會被當成範圍端點。** tree／blob 當 base 時 `git log` 把它忽略，整段歷史都被
+  算進去（實測 34 筆）；當 head 時 `git log` 失敗，留下看似乾淨的 `range_todo=0`。兩端現在先 peel
+  成 commit，並檢查 `git log` 自己的 exit status，不再只靠 pipeline 計數。
+
+**教訓**：計數放在 pipeline 末端時，前面的 git 指令失敗不會改變結果，只會得到一個看似合理的 0。
+這個 gate 唯一不能自己發明的答案就是 0。
+
+### 4. 稽核自己的新增行不能含字面待辦字樣
+
+**現象**：這份改動本身要新增大量說明文字、測試與腳本，而腳本統計的正是「新增行上的字面待辦字樣」。
+
+**處置**：腳本的比對樣式以兩半字串組合（`MARKER_PATTERN`），測試檔把兩個字樣拆開組字，文件改以
+「待辦字樣」描述。提交前用 `git diff origin/main | grep '^+' | grep -v '^+++'` 驗證新增行不含它們。
+
+**教訓**：改動稽核工具本身的 campaign，其新增行同樣會被這個工具掃描。不要等到結案才發現自己污染了
+自己的稽核。
+
 
 **背景**：campaign `senses-taxonomy` 的 Phase A–D 實際走完一輪。以下六件事都是實際發生的：一件是假 HOLD（1）、
 一件推翻了預期（4），其餘四件讓流程停下或被擋（2、3、5、6）。對應規則已寫進 SKILL.md（§ Phase B 同意閘門、
