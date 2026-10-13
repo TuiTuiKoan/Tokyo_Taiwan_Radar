@@ -70,6 +70,7 @@ class History:
     first: str  # head of the campaign's first push
     upstream: str  # another campaign's commit that landed between the pushes
     second: str  # head of the campaign's second push, also HEAD
+    side: str  # a commit forked from base that is not reachable from second
     foreign: int  # marker lines the upstream commit adds
     own: int  # marker lines the campaign's two segments add together
 
@@ -101,7 +102,18 @@ def build_history(root: Path, env: dict[str, str], own_first: int, own_second: i
         handle.write("another plain note\n" + marker_lines(MARK_B, own_second))
     second = commit("campaign second push")
 
-    return History(repo, base, first, upstream, second, foreign=2, own=own_first + own_second)
+    # A commit forked from base, so it is not reachable from `second`. It makes a
+    # diverged range (second..side) whose base is not an ancestor of its head.
+    branch = git(repo, env, "rev-parse", "--abbrev-ref", "HEAD")
+    git(repo, env, "checkout", "-q", "--detach", base)
+    (repo / "side.md").write_text(marker_lines(MARK_A, 1))
+    side = commit("work forked from base")
+    git(repo, env, "checkout", "-q", branch)
+
+    return History(
+        repo, base, first, upstream, second, side,
+        foreign=2, own=own_first + own_second,
+    )
 
 
 @pytest.fixture(scope="module")
@@ -269,6 +281,39 @@ def test_an_unresolvable_segment_does_not_hide_a_confirmed_blocker(dirty, state_
     assert result.field("verdict") == "HOLD:unhandled_work"
     assert "range_todo_unresolvable" in (result.field("also_undetermined") or "")
     assert result.code == 10
+
+
+@pytest.mark.parametrize("shape", ["swapped", "equal"])
+def test_a_segment_holding_no_commit_is_not_checked_never_zero(clean, state_dir, env, shape):
+    """One push delivers at least one commit, so an empty segment is a mistake."""
+    good = f"{clean.base}..{clean.first}"
+    empty = f"{clean.second}..{clean.base}" if shape == "swapped" else f"{clean.first}..{clean.first}"
+
+    result = audit(clean, state_dir, env, "--range", good, "--range", empty)
+
+    assert result.field("range_todo") == "not_checked"
+    assert not re.search(r"^range_todo=0\b", result.out, re.MULTILINE)
+    assert result.field("range_todo_segment_1") == "0"
+    assert result.field("range_todo_segment_2") == "not_checked"
+    assert "holds no commit" in result.line("range_todo_segment_2")
+    assert "range_todo_empty_segment" in (result.field("verdict") or "")
+    assert result.code == 20
+
+
+def test_a_diverged_range_is_not_mistaken_for_an_empty_one(clean, state_dir, env):
+    """The base is not an ancestor of the head here, and the range still counts."""
+    result = audit(clean, state_dir, env, "--range", f"{clean.second}..{clean.side}")
+
+    assert result.field("range_todo") == "1"
+    assert "commits=1" in result.line("range_todo_segment_1")
+    assert result.field("verdict") == "HOLD:unhandled_work"
+
+
+def test_the_single_segment_form_keeps_reporting_zero_for_an_empty_range(clean, state_dir, env):
+    """The empty-segment rule belongs to --range; --base/--head stays as it was."""
+    result = audit(clean, state_dir, env, "--base", clean.first, "--head", clean.first)
+
+    assert result.field("range_todo") == "0"
 
 
 def test_without_any_range_the_source_is_not_checked(clean, state_dir, env):

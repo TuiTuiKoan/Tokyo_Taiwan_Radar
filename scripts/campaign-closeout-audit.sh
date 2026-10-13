@@ -66,10 +66,11 @@ Usage: scripts/campaign-closeout-audit.sh --worktree <registered-path> [options]
                            span over all of them counts those commits' added
                            lines as this campaign's. Each segment is counted and
                            printed, and range_todo is their sum. A segment that
-                           does not resolve here makes range_todo not_checked,
-                           never 0. Segments must not overlap: a commit inside
-                           two segments is counted twice. The three-dot form
-                           a...b is refused.
+                           does not resolve here, or holds no commit (base and
+                           head swapped, or equal), makes range_todo
+                           not_checked, never 0. Segments must not overlap: a
+                           commit inside two segments is counted twice. The
+                           three-dot form a...b is refused.
   --base <sha>             single-segment form, kept for compatibility: start of
                            the commit range scanned for added work markers
   --head <sha>             single-segment form: end of the range, default HEAD
@@ -408,6 +409,7 @@ if [ -n "$RANGES" ]; then
   RT_N=0
   RT_SUM=0
   RT_UNRESOLVED=0
+  RT_EMPTY=0
   RT_LINES=""
   while IFS= read -r seg; do
     [ -n "$seg" ] || continue
@@ -415,7 +417,15 @@ if [ -n "$RANGES" ]; then
     seg_base="${seg%%..*}"
     seg_head="${seg#*..}"
     count_segment "$seg_base" "$seg_head"
-    if [ "$SEG_STATUS" = "ok" ]; then
+    if [ "$SEG_STATUS" = "ok" ] && [ "$SEG_COMMITS" -eq 0 ]; then
+      # One push always delivers at least one commit, so a segment holding none
+      # is a base and head written the wrong way round (or equal), not a clean
+      # campaign. There is deliberately no ancestry test: a base that is not an
+      # ancestor of head is a legitimate diverged range and must still count.
+      RT_EMPTY=$(( RT_EMPTY + 1 ))
+      RT_LINES="${RT_LINES}range_todo_segment_${RT_N}=not_checked  (${seg}; reason: holds no commit, base and head may be swapped or equal)
+"
+    elif [ "$SEG_STATUS" = "ok" ]; then
       RT_SUM=$(( RT_SUM + SEG_COUNT ))
       RT_LINES="${RT_LINES}range_todo_segment_${RT_N}=${SEG_COUNT}  (${seg}; commits=${SEG_COMMITS})
 "
@@ -427,17 +437,19 @@ if [ -n "$RANGES" ]; then
   done <<EOF
 $RANGES
 EOF
-  if [ "$RT_UNRESOLVED" -eq 0 ]; then
+  if [ "$RT_UNRESOLVED" -eq 0 ] && [ "$RT_EMPTY" -eq 0 ]; then
     echo "range_todo=$RT_SUM  (added lines matching $MARKER_PATTERN, summed over $RT_N segment(s))"
   else
     # A known blocker is still a blocker: the lines already found in the
-    # resolvable segments stay in unhandled_total, so a clearly dirty campaign is
-    # not downgraded to "ask the user" by an unrelated unresolved segment.
-    echo "range_todo=not_checked  (reason: $RT_UNRESOLVED of $RT_N segment(s) do not resolve here;"
-    echo "range_todo=not_checked  $RT_SUM matching line(s) in the segments that did resolve stay in"
+    # usable segments stay in unhandled_total, so a clearly dirty campaign is
+    # not downgraded to "ask the user" by an unrelated unusable segment.
+    echo "range_todo=not_checked  (reason: $(( RT_UNRESOLVED + RT_EMPTY )) of $RT_N segment(s) cannot be used:"
+    echo "range_todo=not_checked  $RT_UNRESOLVED do not resolve here, $RT_EMPTY hold no commit;"
+    echo "range_todo=not_checked  $RT_SUM matching line(s) in the usable segments stay in"
     echo "range_todo=not_checked  unhandled_total, but the total is incomplete)"
     NOT_CHECKED=$(( NOT_CHECKED + 1 ))
-    add_undet "range_todo_unresolvable"
+    [ "$RT_UNRESOLVED" -eq 0 ] || add_undet "range_todo_unresolvable"
+    [ "$RT_EMPTY" -eq 0 ] || add_undet "range_todo_empty_segment"
   fi
   printf '%s' "$RT_LINES"
   UNHANDLED_TOTAL=$(( UNHANDLED_TOTAL + RT_SUM ))
