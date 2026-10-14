@@ -159,35 +159,59 @@ is the branch name, not a specification slug.
 
 ## Worktree disposition
 
-`pending`, decided at `pending`.
+`remove`, decided at `2026-10-14T05:14:32Z`.
 
-The owner stated on 2026-10-14 that they want this worktree closed. That is an
-intention, not a disposition: no removal has happened and no decision time exists
-yet. Removal is gated on all of the following:
+The owner stated on 2026-10-14 that they want this worktree closed. After the
+record reached `origin/main` they chose to delete the remote branch and then the
+local branch, and reported that the two copies of the local environment file have
+the same digest. The decision time above (2026-10-14 14:14 JST) is the close-out
+agent's re-observation after that reply, and it is the time written into the
+recovery capsule before removal. The owner did not restate "remove" in that
+reply: the agent treated the choice of the removal plan as the decision, said so
+when it handed over the commands, and made running them conditional on no session
+using the worktree. The owner then reported running them.
 
-* This record is on `origin/main`.
-* The recovery capsule is written outside the worktree.
-* The six values below are re-observed immediately before removal and match.
-* Occupancy is re-observed with `lsof`, and no process holds the worktree as its
-  working directory.
-* The owner compares the local environment file with the copy in the main
-  working directory and the row under Ignored artifacts and handling is settled.
-* The owner states at that time that no other session uses the worktree.
+Occupancy was observed with `lsof` at 2026-10-14T04:56Z and again at 05:14Z: no
+process had the worktree as its working directory. The owner's statement that no
+other session uses it was given before 2026-10-14T04:00Z and was not repeated at
+the decision.
 
-After the second audit output, the owner replied that no specification exists,
-that all other sessions are closed, and that `UNDETERMINED` is accepted. That
-reply was received between 2026-10-14T00:33Z and 04:00Z. Acceptance allows the
-record to be written with the unknowns listed under Known risks; it does not
-resolve them.
+The removal time itself was not recorded. It lies between the recovery capsule
+being written at about 05:15Z and the first post-removal observation at
+2026-10-14T05:17Z, which found:
+
+| Post-removal check | Result |
+|--------------------|--------|
+| Worktree registration | not registered |
+| Local branch `feat/event-intake-wizard` | deleted |
+| Remote branch `origin/feat/event-intake-wizard` | deleted by the owner; `git ls-remote` returned no line |
+| Remote-tracking ref for that branch | gone |
+| Directory `ttr-v8-worktree` | gone, at both the registered and the physical path |
+| Administrative metadata under `.git/worktrees` | none |
+| Line in `.git/info/exclude` | removed |
+| Branch tip `4c994ce0` | ancestor of `origin/main`, so no commit was lost |
+
+The exclude line was removed by reconciling the whole block of worktree entries
+against the live worktrees, not by deleting a single line. The seven entries of
+live worktrees were kept.
+
+The six values cannot be observed again after removal. This section was
+backfilled from the recovery capsule, which holds the values recorded at the
+decision:
 
 | Freshness value | Observed at the decision |
 |-----------------|--------------------------|
-| branch tip | `pending` |
-| ahead of `origin/main` | `pending` |
-| behind `origin/main` | `pending` |
-| dirty count | `pending` |
-| ignored artifact set | `pending` |
-| path identity | `pending` |
+| branch tip | `4c994ce072c947312f4beb63ce997bed32dc813e` |
+| ahead of `origin/main` | `0` |
+| behind `origin/main` | `1`; `origin/main` advanced to `6c760f1b` after the branch tip, which is not a branch change |
+| dirty count | `0` |
+| ignored artifact set | `7`, the entries listed under Ignored artifacts and handling |
+| path identity | `divergent`, directory `ttr-v8-worktree`, branch `feat/event-intake-wizard` |
+
+The Known risks entry about the local environment file and the gating written
+before removal describe the state before the owner compared the two copies. The
+comparison was made before 05:14Z and is recorded in the row under Ignored
+artifacts and handling.
 
 For reference, the observation at the second audit (2026-10-14T00:33Z): branch
 tip `1c6b388087c3a8c94f5201f0f1a292734f4e05f0`, ahead 0, behind 270, dirty 0,
@@ -228,7 +252,7 @@ difference stops the removal. The worktree has no ignored file under `tmp/`.
 | `web/next-env.d.ts` | `disposable` | `7b550dda9686c16f36a17bf9051d5dbf31e98555b30d114ac49fc49a1e712651` |
 | `web/lib/specs/specs-snapshot.json` | `disposable` | `8a24635127ba81b871e6896df858837456fd3288d6eaec2fa994da553fe0cab5` |
 | `web/lib/specs/system-map.json` | `disposable` | `dbbaed3c5ff25ddfd2eebeac22dda119275d12a8fee21daa4e98cd9ed6b9b90f` |
-| `web/.env.local` | `retain_worktree` until the owner compares it with the main working directory's copy; `duplicated` if the digests match | not computed |
+| `web/.env.local` | `duplicated`: the owner compared it with the main working directory's copy before 2026-10-14T05:14Z and the digests are identical | `1e6638189a1a024f0c33ef952c253429209bd57b0aa7ba3e517203e1ccd68b55` |
 
 The two JSON files are written by `scripts/build-specs-snapshot.ts` at build time
 and are ignored by `web/.gitignore`.
