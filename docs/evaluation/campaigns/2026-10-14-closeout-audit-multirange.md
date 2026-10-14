@@ -1,6 +1,6 @@
 ---
 title: Closeout Audit Multi-range Close-out
-description: Six commits taught the campaign close-out audit to count work-marker words per push, to list commits that no push covers, and to refuse empty segments; this record proves the delivery, states what could not be checked, and holds the worktree disposition as pending
+description: Six commits taught the campaign close-out audit to count work-marker words per push, to list commits that no push covers, and to refuse empty segments; this record proves the delivery, states what could not be checked, and records the worktree disposition and its retirement
 ms.date: 2026-10-14
 ms.topic: reference
 keywords:
@@ -201,33 +201,50 @@ property of having no specification, not a defect to repair before removal.
 
 ## Worktree disposition
 
-`pending`, decided at `pending`.
+`remove`, decided at `2026-10-14T04:05:23Z`.
 
-The owner answered that the worktree should be retired, at the Phase B reply,
-after reading the audit output. That is an intention, not a disposition: no
-removal has happened and no decision time exists yet. Removal is gated on all of
-the following:
+The decision time is when the recovery capsule was written outside the worktree,
+after the retirement preflight re-observed the six values below and found that no
+process held the worktree as its working directory (a scan of working
+directories, with 489 entries visible as a control). The owner had answered at
+the Phase B reply, after reading the audit output, that the worktree should be
+retired, and stated that no other session uses it. That statement is recorded
+at 2026-10-14T00:43Z (09:43 JST) as the owner's confirmation replacing
+detection, and it covers that moment only. The owner was asked to restate it
+when running the removal; the reply was the transcript of the commands and the
+word "removed", with no separate statement. The record therefore rests on the
+Phase B statement and on the process scan, and does not claim a second
+confirmation.
 
-* This record is on `origin/main`.
-* The recovery capsule is written outside the worktree.
-* The six values below are re-observed immediately before removal and match.
-* Occupancy is re-observed with `lsof`, and no process other than the close-out
-  session holds the worktree as its working directory.
-* The ignored artifacts are classified and their digests recorded.
-* The owner states at that time that no other session uses the worktree.
+The owner ran the removal commands: remove the worktree without `--force`, delete
+the local branch with `-d`, and rebuild the `ttr-*-worktree/` block of
+`.git/info/exclude` from the live worktrees. The branch has no remote
+counterpart, so no remote deletion was owed. The residue check below was observed
+at 2026-10-14T05:12Z (14:12 JST), after the owner reported the removal:
 
-At the Phase B reply the owner stated that no other session uses the worktree.
-That statement is recorded here at 2026-10-14T00:43Z (09:43 JST) as the owner's
-confirmation replacing detection, and it covers that moment only.
+| Residue check | Observed |
+|---------------|----------|
+| registered in `git worktree list` | `unregistered=ok` |
+| local branch `feat/closeout-audit-multirange` | `branch=deleted` |
+| line in `.git/info/exclude` | `exclude=removed` |
+| directory `ttr-closeout-audit-multirange-worktree` | `directory=gone` |
+| administrative data under `.git/worktrees/` | `admin_metadata=gone` |
+| registered worktrees | 19, down from 20 |
+| record commit `13d8798b` | ancestor of `origin/main` |
+
+The `ttr-*-worktree/` lines left in `.git/info/exclude` are the eight live
+worktrees whose physical paths resolve under the repository root. The ten
+registered under the sibling `Tokyo Taiwan Radar.worktrees` directories resolve
+outside it and have no line.
 
 | Freshness value | Observed at the decision |
 |-----------------|--------------------------|
-| branch tip | `pending` |
-| ahead of `origin/main` | `pending` |
-| behind `origin/main` | `pending` |
-| dirty count | `pending` |
-| ignored artifact set | `pending` |
-| path identity | `pending` |
+| branch tip | `13d8798b7585cd27f82893c9b743a5827093de8c` |
+| ahead of `origin/main` | 0 |
+| behind `origin/main` | 0 |
+| dirty count | 0 |
+| ignored artifact set | 5 entries, 15 files, listed under Ignored artifacts |
+| path identity | `canonical`, directory `ttr-closeout-audit-multirange-worktree`, branch `feat/closeout-audit-multirange` |
 
 For reference, the observation at the close-out audit (2026-10-13T19:14Z): branch
 tip `06a5f4d162aa95ce55a1e8a48b58fa2a70f46664`, ahead 0, behind 0, dirty 0,
@@ -263,20 +280,34 @@ Code, VS Code chat, and Codex sessions are not.
 
 ## Ignored artifacts and handling
 
-The worktree holds five ignored entries, 15 files in total: the pytest cache and
-four bytecode cache directories. They are expected to be regenerable, so none is
-expected to need preserving, but the classification and the digests are produced
-at the retirement preflight, which observes the set again. Until then the
-handling is `pending`. `tmp/` holds one file, `tmp/gnews_streaming_ids.txt`, which
-is tracked and exists on `origin/main`; it is not an ignored artifact.
+The worktree held five ignored entries, 15 files in total: the pytest cache and
+four bytecode cache directories. Every file is a regenerable cache: the pytest
+cache is rewritten by any test run, and each bytecode file is compiled from the
+tracked source its name points to (all 11 sources are tracked). There were no
+symbolic links or special files and no ignored file under `tmp/`, so none needed
+preserving. They were classified at the retirement preflight
+(2026-10-14T04:02Z to 04:05Z), which observed the set again, and each digest was
+recorded before removal. `tmp/` held one file, `tmp/gnews_streaming_ids.txt`,
+which is tracked, and its blob on the branch equalled the one on `origin/main`;
+it is not an ignored artifact.
 
 | Artifact | Handling | SHA-256 |
 |----------|----------|---------|
-| `.pytest_cache/` | `pending` (expected `disposable`) | `pending` |
-| `scripts/__pycache__/` | `pending` (expected `disposable`) | `pending` |
-| `scripts/claude/__pycache__/` | `pending` (expected `disposable`) | `pending` |
-| `scripts/claude/tests/__pycache__/` | `pending` (expected `disposable`) | `pending` |
-| `scripts/tests/__pycache__/` | `pending` (expected `disposable`) | `pending` |
+| `.pytest_cache/.gitignore` | `disposable` | `3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd` |
+| `.pytest_cache/CACHEDIR.TAG` | `disposable` | `37dc88ef9a0abeddbe81053a6dd8fdfb13afb613045ea1eb4a5c815a74a3bde4` |
+| `.pytest_cache/README.md` | `disposable` | `73fd6fccdd802c419a6b2d983d6c3173b7da97558ac4b589edec2dfe443db9ad` |
+| `.pytest_cache/v/cache/nodeids` | `disposable` | `71560ee7a8740fdb002bcf081c41c6a5b3866315342ee226a9036f9659487298` |
+| `scripts/__pycache__/sync_ai_adapters.cpython-314.pyc` | `disposable` | `8923fc46f2a64b805402757a00c5b7a347e0782b864dc95b2d708fcbb9d2f1f1` |
+| `scripts/claude/__pycache__/_policy.cpython-314.pyc` | `disposable` | `bf49faf42c3875c389ae95de43bac9b727ac7fe2a3c5b681bdb234ec8b0585df` |
+| `scripts/claude/__pycache__/_tokenizer.cpython-314.pyc` | `disposable` | `f26a76c99e364817480e810775491489bdf7bc0e58a49ce13f6d3fc69492f4f9` |
+| `scripts/claude/tests/__pycache__/conftest.cpython-314-pytest-9.0.3.pyc` | `disposable` | `97a5fc4fceb767ab2ef659d633e2004bce4bb94789d0ca7975f58b2df90876b7` |
+| `scripts/claude/tests/__pycache__/test_bash_guard.cpython-314-pytest-9.0.3.pyc` | `disposable` | `680c9733a5e4a0fc0e9c56a2285a88a4c68b97b5950fa050685eb76bd57889d0` |
+| `scripts/claude/tests/__pycache__/test_file_guard.cpython-314-pytest-9.0.3.pyc` | `disposable` | `eb2595b38ce9656c8defbb1f37e5e8fa3beb1287842b1b2937b6d32046564f0b` |
+| `scripts/claude/tests/__pycache__/test_launcher.cpython-314-pytest-9.0.3.pyc` | `disposable` | `ac7113b39c095756075e119f7d69870c0b126793c68b564626fbbab7b83849d2` |
+| `scripts/tests/__pycache__/conftest.cpython-314-pytest-9.0.3.pyc` | `disposable` | `5177c44285117862c5e242c8d35df87257cb73ea0a0f3b88e36f8bf5887d9be1` |
+| `scripts/tests/__pycache__/test_campaign_closeout_audit.cpython-314-pytest-9.0.3.pyc` | `disposable` | `5096816a4270a306b2ecb395548196ddc666ae16a7bd1e23f8de7aefe499062b` |
+| `scripts/tests/__pycache__/test_claude_settings.cpython-314-pytest-9.0.3.pyc` | `disposable` | `53bb5a9ab329db95cfada08b2ae6ab8c161e9610eb9a2be24db82a92479b7bcd` |
+| `scripts/tests/__pycache__/test_sync_ai_adapters.cpython-314-pytest-9.0.3.pyc` | `disposable` | `f183a26fac8874d521d4f15252b858f602e6ea1f081c38b27c8366ff759ca9d5` |
 
 ## Evidence anchors
 
