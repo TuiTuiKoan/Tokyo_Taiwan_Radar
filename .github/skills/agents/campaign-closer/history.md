@@ -9,6 +9,41 @@ ms.date: 2026-08-12
 
 ---
 
+## 2026-10-14 — exclude 對帳的目標清單：用物理路徑推導，並以 worktree 計數當 STALE 閘門
+
+**背景**：closeout-audit-multirange 退役的 D3，要把 `.git/info/exclude` 的 `ttr-*-worktree/` 區塊收斂到仍然存活
+的 worktree。這一次沒有出錯：這條記錄的是實際做對的推導方式，以及它擋掉的失效模式。相鄰的兩條教訓（裸 `cd`、
+整塊複合腳本被 hook 擋下）都出在這一步，所以放在一起。對應規則已寫進 SKILL.md § Phase D「exclude 對帳的
+目標清單」。
+
+### 1. 登記路徑不等於 root 之下的路徑
+
+**現象**：20 個已註冊 worktree 中，要留在 exclude 的 8 個 `ttr-*` worktree 有 7 個登記在不是目前 root 字串
+前綴的路徑：5 個在 `…/Development/Tokyo Taiwan Radar/…`，2 個在 `…/development/Tokyo Taiwan Radar/…`（小寫
+d）。前者的父目錄是指向 `3-TTR/Tokyo Taiwan Radar` 的符號連結，後者靠大小寫不敏感的檔案系統。它們的物理路徑
+都在 root 之下，所以都需要 exclude 行；只有 `ttr-iwafu-gate-worktree` 的登記路徑本身就在 root 之下。另外 10
+個登記在兄弟目錄 `Tokyo Taiwan Radar.worktrees`，物理路徑在 root 之外，不需要行。
+
+**根因（做錯會發生什麼）**：以登記路徑的字串比對 root 前綴，會把那 7 個存活的 worktree 判成 `external`，把它們
+的 exclude 行當成多餘而刪掉。活的 worktree 重新出現在主樹的 untracked 清單，一個粗心的 `git add -A` 就會把它
+掃進去。只看 basename 同樣分不出「在 root 之下」與「在 root 之外」。
+
+**做法**：對每個已註冊路徑各下一條 `( cd "$WT" && /bin/pwd -P )` 取物理路徑；物理路徑在 `"$ROOT"/` 之下者取
+basename 加 `/`，其餘不收。一條路徑一條指令，各自包子 shell，不用迴圈、不用裸 `cd`。
+
+### 2. 目標清單是快照，用 worktree 計數當 STALE 閘門
+
+**現象**：D1 的觀測到使用者執行 D3 之間隔了數分鐘到數小時，期間其他 session 可以新增或移除 worktree。同日
+另一個 session 就推上了 `event-intake-wizard` 的結案記錄，平行 campaign 確實在動。
+
+**做法**：貼上 D3 指令前，先輸出 `git worktree list --porcelain | grep -c '^worktree '`（本次 20，移除後預期
+19）。不是預期值就視為 STALE：目標清單重新推導，不貼上先前產生的 `printf` 清單。移除後再算一次，應為預期值減一。
+
+**教訓**：計數是最便宜的「世界變了沒」訊號，但它只偵測數量變化，偵測不到「一個移除、一個新增」的同數量替換，
+所以不取代對帳後的 `comm -23`／`comm -13` 驗證。目標清單與 Freshness 六值一樣有時效，不能沿用先前的 PASS。
+
+---
+
 ## 2026-10-14 — 在 Bash 工具單獨執行 `cd <worktree> && /bin/pwd -P`：cwd 漏進別的 campaign 的 live worktree
 
 **背景**：ai-portability 退役的 D3 尾段做 `.git/info/exclude` 對帳。為確認各 live worktree 的物理路徑

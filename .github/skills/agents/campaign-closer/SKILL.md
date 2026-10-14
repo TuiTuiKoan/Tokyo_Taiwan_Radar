@@ -323,6 +323,22 @@ exclude 未變）。處理方式是拆成幾條簡單指令，演算法不變：
 
 這偏離該文件的字面腳本，但演算法等價。仍然**不可**盲刪單行。
 
+### exclude 對帳的目標清單：用物理路徑推導，並以 worktree 計數當閘門
+
+目標清單（要保留的 `ttr-*-worktree/` 行）是某一刻的快照，推導與使用各有一個陷阱：
+
+1. **用物理路徑，不用登記路徑，也不只看 basename。** 已註冊的路徑可能經由符號連結或大小寫不同的父目錄登記。
+   2026-10-14 的 8 個存活 `ttr-*` worktree 中，7 個登記在不是目前 root 字串前綴的路徑（`…/Development/Tokyo
+   Taiwan Radar/…` 的父目錄是指向 root 的符號連結，`…/development/…` 是小寫），只有 1 個登記路徑本身在 root
+   之下。以登記字串比對會把這 7 個判成 `external`，刪掉它們仍然需要的 exclude 行，活的 worktree 就重新出現在
+   主樹的 untracked 清單。對每個已註冊路徑各下一條 `( cd "$WT" && /bin/pwd -P )`，物理路徑在 `"$ROOT"/` 之下者
+   取 basename 加 `/`。登記在兄弟目錄 `Tokyo Taiwan Radar.worktrees` 的物理路徑在 root 之外，不需要行
+   （`git.instructions.md` 同樣說明）。
+2. **用 `git worktree list` 的計數當 STALE 閘門。** 貼上 D3 指令前先輸出
+   `git worktree list --porcelain | grep -c '^worktree '`（2026-10-14 為 20，移除後預期 19）。不是預期值就代表別的
+   session 新增或移除了 worktree：目標清單重新推導，不貼上先前產生的 `printf` 清單。計數只偵測數量變化，偵測不到
+   「一個移除、一個新增」，所以不取代對帳後的 `comm -23`／`comm -13` 驗證。
+
 ### 在 Bash 工具裡解析路徑：包子 shell，不要裸 `cd`
 
 Bash 工具的 shell 狀態跨呼叫保留，裸 `cd` 改的是之後每一次呼叫的 cwd。2026-10-14 退役 D3 對帳時，為確認各 live
