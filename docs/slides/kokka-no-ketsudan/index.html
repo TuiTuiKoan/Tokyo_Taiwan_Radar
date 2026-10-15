@@ -1,0 +1,1007 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>国家の決断 全10回</title>
+<!--
+  『国家の決断』読書会シリーズ (1) — Instagram / X 用アニメーション & 静止画カード
+  - ブラウザで開く: 自動再生プレビュー（クリックで一時停止）
+  - ?static=N        : 第 N 枚（1–10）の静止画カード
+  - ?fmt=story       : 1080x1920（Reels / Stories）レイアウト
+  - ?render=1        : render.js 用（自動再生しない。window.__seek(t) で駆動）
+  書影は assets/cover.jpg を置くと自動で差し替わる（無い場合は手描き書影イメージ）。
+-->
+<style>
+@font-face { font-family: "Hand"; src: url("assets/NothingYouCouldDo-Regular.ttf"); }
+@font-face { font-family: "Retro"; src: url("assets/EricaOne-Regular.ttf"); }
+
+:root {
+  /* Design library palette — mirrors web/lib/design/tokens.ts */
+  --paper: #FFFDF5;
+  --blush: #FFF1EE;
+  --matcha: #F7FFE8;
+  --red: #E84860;      /* 蓮霧 mascot red */
+  --pink: #FF7AA0;
+  --pink-deep: #D85862;
+  --green: #78B94E;
+  --leaf: #C4E86F;     /* 亮綠 */
+  --forest: #1F5E2B;   /* 抹茶深綠 */
+  --gold: #C9A227;
+  --cocoa: #3A261F;
+  --coal: #1A1818;
+  --mocha: #6A5148;
+  --jp: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "IPAPGothic", "IPAGothic", "WenQuanYi Zen Hei", sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: #2a2623; }
+body { display: flex; align-items: center; justify-content: center; min-height: 100vh; overflow: hidden; }
+html.render body, html.static body { display: block; min-height: 0; }
+
+#frame { position: relative; width: 1080px; height: 1350px; overflow: hidden; background: var(--paper);
+  font-family: var(--jp); color: var(--cocoa); transform-origin: 0 0; }
+html.story #frame { height: 1920px; }
+#stage { position: absolute; left: 0; top: 0; width: 1080px; height: 1350px; overflow: hidden; }
+html.story #stage { top: 285px; }
+
+/* story bands */
+.band { display: none; position: absolute; left: 0; width: 1080px; height: 285px; z-index: 0; }
+html.story .band { display: block; }
+.band.top { top: 0; }
+.band.bot { bottom: 0; }
+
+.scene { position: absolute; inset: 0; overflow: hidden; visibility: hidden; padding: 128px 80px 110px; display: flex; flex-direction: column; }
+.scene > * { position: relative; z-index: 2; }
+.bgfx { position: absolute !important; inset: 0; z-index: 0 !important; pointer-events: none; }
+
+/* chrome */
+.chrome { position: absolute !important; left: 0; right: 0; top: 0; height: 120px; z-index: 5 !important; }
+.tag { position: absolute; left: 64px; top: 44px; padding: 10px 26px 10px 22px; font-size: 25px; font-weight: 700; letter-spacing: .04em; color: var(--paper); }
+.tag b { color: var(--leaf); }
+.pageno { position: absolute; right: 64px; top: 30px; font-family: "Retro", var(--jp); font-size: 54px; color: var(--red); letter-spacing: .02em; }
+.pageno small { font-family: var(--jp); font-weight: 900; font-size: 28px; color: var(--cocoa); opacity: .6; margin-left: 4px; }
+.foot { position: absolute !important; left: 64px; right: 170px; bottom: 40px; height: 40px; z-index: 5 !important; display: flex; align-items: center; justify-content: space-between; font-size: 22px; font-weight: 700; color: var(--mocha); }
+.foot .dots { display: flex; gap: 10px; }
+
+/* type */
+.kicker { align-self: flex-start; font-size: 30px; font-weight: 700; padding: 8px 26px; color: var(--paper); margin-bottom: 18px; }
+h1, h2 { font-weight: 900; -webkit-text-stroke: 1.3px currentColor; paint-order: stroke fill; letter-spacing: .01em; }
+h2 { font-size: 58px; line-height: 1.32; margin-bottom: 26px; }
+h2 .em { color: var(--red); }
+p, li { font-size: 31px; line-height: 1.62; }
+.small { font-size: 28px; line-height: 1.6; }
+b, strong { font-weight: 900; -webkit-text-stroke: .6px currentColor; }
+.mk { background-image: linear-gradient(transparent 50%, rgba(196,232,111,.95) 50%, rgba(196,232,111,.95) 94%, transparent 94%);
+  background-repeat: no-repeat; background-size: var(--p, 100%) 100%; padding: 0 2px; }
+.mk.pink { background-image: linear-gradient(transparent 50%, rgba(255,122,160,.55) 50%, rgba(255,122,160,.55) 94%, transparent 94%); }
+.hand { font-family: "Hand", cursive; font-weight: 400; -webkit-text-stroke: 0; }
+.retro { font-family: "Retro", var(--jp); }
+.red { color: var(--red); } .forest { color: var(--forest); } .gold { color: var(--gold); }
+
+/* rough boxes */
+.rbox { position: relative; }
+.rbox > .rsvg { position: absolute; left: -12px; top: -12px; z-index: -1; overflow: visible; pointer-events: none; }
+.rbox > *:not(.rsvg) { position: relative; }
+.chrome .tag.rbox { position: absolute; }
+#s8 .tile.rbox > svg:not(.rsvg), #s8 .tile.rbox > span { position: absolute; }
+
+.doodle { overflow: visible; }
+.doodle * { vector-effect: non-scaling-stroke; }
+.ink { fill: none; stroke: var(--cocoa); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+.boil { filter: url(#rough); }
+.boil-soft { filter: url(#roughSoft); }
+
+/* ========== scene specific ========== */
+/* 1 cover */
+#s1 { padding-top: 150px; }
+#s1 .vol { position: absolute !important; right: 46px; top: 120px; width: 190px; height: 190px; z-index: 4 !important; }
+#s1 .q1 { font-size: 124px; line-height: 1.15; color: var(--red); font-weight: 900; -webkit-text-stroke: 3px currentColor; margin-top: 36px; }
+#s1 .q2 { font-size: 124px; line-height: 1.2; font-weight: 900; -webkit-text-stroke: 3px currentColor; }
+#s1 .circ { position: relative; display: inline-block; }
+#s1 .circ svg { position: absolute; left: 0; top: 0; overflow: visible; }
+#s1 .fireword { position: relative; display: inline-block; }
+#s1 .scene-ill { height: 380px; margin: 18px -80px 0; }
+#s1 .sub { font-size: 46px; line-height: 1.45; font-weight: 900; -webkit-text-stroke: 1.2px currentColor; margin-top: 8px; }
+#s1 .badge { align-self: flex-start; margin-top: 30px; padding: 18px 30px; font-size: 30px; font-weight: 700; line-height: 1.45; }
+
+/* 2 book */
+#s2 h2 { font-size: 52px; }
+#s2 .row { display: flex; gap: 46px; align-items: flex-start; }
+#s2 .bookwrap { flex: 0 0 300px; height: 446px; position: relative; margin-top: 6px; }
+#s2 .book { position: absolute; inset: 0; transform-origin: 50% 90%; }
+#s2 .book img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 4px 10px 10px 4px; box-shadow: 10px 14px 0 rgba(58,38,31,.22); }
+#s2 .col { flex: 1; }
+#s2 .col p { font-size: 29px; }
+#s2 .qrnote { display: flex; gap: 22px; align-items: center; margin-top: 22px; padding: 18px; }
+#s2 .qrnote .qr { width: 190px; height: 190px; background: #fff; padding: 10px; flex: 0 0 190px; }
+#s2 .qrnote .lbl { font-size: 27px; line-height: 1.45; font-weight: 700; }
+#s2 .qrnote .lbl .hand { font-size: 40px; color: var(--red); display: block; margin-bottom: 4px; }
+#s2 .series { margin-top: 26px; font-size: 29px; }
+#s2 .warn { margin-top: 26px; padding: 26px 32px 22px; }
+#s2 .warn h3 { font-size: 36px; font-weight: 900; color: var(--red); -webkit-text-stroke: 1px currentColor; margin-bottom: 10px; }
+#s2 .warn li { font-size: 27px; line-height: 1.55; list-style: none; padding-left: 40px; position: relative; margin-top: 8px; }
+#s2 .warn li::before { content: ""; position: absolute; left: 4px; top: 13px; width: 20px; height: 20px; border-radius: 50%; background: var(--leaf); border: 3px solid var(--forest); }
+
+/* mirror scenes 3,4 */
+.mirror-row { display: flex; gap: 34px; align-items: center; margin-bottom: 20px; }
+.mirror { flex: 0 0 330px; height: 300px; position: relative; }
+.mirror svg { position: absolute; inset: 0; overflow: visible; }
+.mirror .year { position: absolute; left: 0; right: 0; top: 42px; text-align: center; font-family: "Retro"; font-size: 70px; color: var(--red); }
+.pt { padding: 20px 28px 18px; margin-top: 16px; }
+.pt h3 { font-size: 34px; font-weight: 900; -webkit-text-stroke: .9px currentColor; margin-bottom: 6px; display: flex; gap: 14px; align-items: center; }
+.pt h3 .n { flex: 0 0 48px; height: 48px; border-radius: 50%; background: var(--red); color: var(--paper); font-family: var(--jp); font-weight: 900; font-size: 28px; display: flex; align-items: center; justify-content: center; -webkit-text-stroke: 0; }
+.pt p { font-size: 30px; }
+.stamp { align-self: center; margin-top: 26px; padding: 16px 30px; font-size: 36px; font-weight: 900; color: var(--red); -webkit-text-stroke: 1px currentColor; text-align: center; line-height: 1.4; }
+.side-note { flex: 1; font-size: 30px; line-height: 1.6; }
+
+#s4 .concl { margin-top: 40px; padding: 28px 32px; color: var(--paper); }
+#s4 .concl h3 { font-size: 34px; color: var(--leaf); font-weight: 900; margin-bottom: 14px; }
+#s4 .vs { display: flex; gap: 18px; margin-bottom: 16px; }
+#s4 .vs > div { flex: 1; padding: 18px 20px; font-size: 28px; line-height: 1.45; font-weight: 700; color: var(--cocoa); }
+#s4 .vs .lab { display: block; font-size: 23px; color: var(--red); margin-bottom: 4px; }
+#s4 .concl p { font-size: 33px; line-height: 1.6; }
+#s4 .mirror { flex-basis: 360px; height: 340px; }
+#s4 .side-note p { font-size: 30px !important; }
+#s4 .tz { color: var(--leaf); font-size: 40px; font-weight: 900; }
+
+/* 5 voices */
+.voice { display: flex; gap: 26px; align-items: flex-start; margin-top: 40px; }
+.voice.r { flex-direction: row-reverse; }
+.ava { flex: 0 0 132px; height: 132px; position: relative; }
+.ava svg { position: absolute; inset: 0; overflow: visible; }
+.ava .ini { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: "Hand"; font-size: 84px; font-weight: 400; color: var(--paper); }
+.bub { flex: 1; padding: 26px 32px 24px; }
+.bub .who { font-size: 27px; font-weight: 900; margin-bottom: 8px; display: block; }
+.bub .who small { font-weight: 700; color: var(--mocha); }
+.bub p { font-size: 33px; line-height: 1.65; }
+.qmark { position: absolute !important; font-family: "Retro"; font-size: 300px; line-height: 1; color: var(--pink); opacity: .35; z-index: 1 !important; }
+
+/* 6 seesaw */
+#s6 .seesaw { height: 430px; margin: 20px -40px 24px; }
+#s6 .bul li, #s7 .bul li { font-size: 33px; margin-top: 30px; }
+.bul li { list-style: none; position: relative; padding-left: 50px; margin-top: 18px; font-size: 30px; }
+.bul li .ic { position: absolute; left: 0; top: 6px; width: 36px; height: 36px; }
+
+/* 7 */
+#s7 .top7 { display: flex; gap: 28px; align-items: flex-end; }
+#s7 .top7 h2 { flex: 1; }
+#s7 .win { flex: 0 0 270px; height: 270px; margin-bottom: 14px; }
+#s7 .skyline { position: absolute !important; left: 0; bottom: 96px; width: 1080px; height: 250px; z-index: 1 !important; }
+
+/* 8 */
+#s8 .icons { display: flex; gap: 22px; margin: 20px 0 6px; }
+#s8 .tile { flex: 1; height: 196px; position: relative; padding: 0; }
+#s8 .tile svg[data-icon] { position: absolute; left: 0; right: 0; top: 4px; margin: auto; width: 150px; height: 130px; overflow: visible; }
+#s8 .tile span { position: absolute; left: 0; right: 0; bottom: 12px; text-align: center; font-size: 23px; font-weight: 900; }
+#s8 .gz { position: absolute !important; right: 54px; top: 1054px; transform-origin: center; padding: 14px 24px; font-size: 34px; font-weight: 900; color: var(--paper); line-height: 1.25; text-align: center; z-index: 6 !important; }
+
+/* 9 */
+#s9 .opt { display: flex; gap: 24px; align-items: center; padding: 26px 28px; margin-top: 26px; }
+#s9 .opt .L { flex: 0 0 76px; height: 76px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: var(--jp); font-weight: 900; font-size: 40px; color: var(--paper); -webkit-text-stroke: 1px currentColor; }
+#s9 .opt p { flex: 1; font-size: 32px; line-height: 1.5; font-weight: 700; }
+#s9 .opt .chk { flex: 0 0 58px; height: 58px; overflow: visible; }
+#s9 .cta { margin-top: 50px; padding: 30px 36px; font-size: 37px; font-weight: 900; line-height: 1.5; -webkit-text-stroke: .8px currentColor; }
+#s9 .finger { position: absolute !important; z-index: 8 !important; font-size: 88px; left: 0; top: 0; }
+
+/* 10 */
+#s10 { color: var(--paper); }
+#s10 h2 { font-size: 52px; }
+#s10 p { font-size: 29px; }
+#s10 .mail { margin-top: 26px; padding: 26px 32px; color: var(--cocoa); }
+#s10 .mail h3 { font-size: 34px; font-weight: 900; color: var(--red); margin-bottom: 8px; }
+#s10 .mail p { font-size: 28px; }
+#s10 .save { margin-top: 30px; display: flex; gap: 24px; align-items: center; }
+#s10 .save p { flex: 1; font-size: 33px; font-weight: 900; line-height: 1.5; -webkit-text-stroke: .7px currentColor; }
+#s10 .save svg { flex: 0 0 84px; height: 84px; overflow: visible; }
+#s10 .circle10 { position: absolute !important; left: 0; bottom: 92px; width: 1080px; height: 270px; z-index: 1 !important; }
+
+/* transition layers */
+#wipe { position: absolute; left: 0; top: 0; width: 1080px; height: 1350px; z-index: 50; pointer-events: none; overflow: visible; }
+html.story #wipe, html.story #lianbuLayer { top: 285px !important; }
+
+/* player UI (preview only) */
+#ui { position: fixed; left: 12px; bottom: 12px; color: #fff; font: 13px/1.4 system-ui, sans-serif; opacity: .7; }
+html.render #ui, html.static #ui { display: none; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <filter id="rough" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence id="turb" type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="1" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="5" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <filter id="roughSoft" x="-5%" y="-5%" width="110%" height="110%">
+      <feTurbulence id="turb2" type="fractalNoise" baseFrequency="0.05" numOctaves="2" seed="3" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <pattern id="grain" width="9" height="9" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1" fill="#3A261F" opacity=".06"/>
+      <circle cx="6.5" cy="6" r=".8" fill="#3A261F" opacity=".05"/>
+    </pattern>
+    <pattern id="hatch" width="22" height="22" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+      <line x1="0" y1="0" x2="0" y2="22" stroke="#3A261F" stroke-width="3" opacity=".07"/>
+    </pattern>
+    <pattern id="dotsPink" width="26" height="26" patternUnits="userSpaceOnUse">
+      <circle cx="6" cy="6" r="3.4" fill="#FF7AA0" opacity=".28"/>
+    </pattern>
+    <pattern id="dotsLeaf" width="26" height="26" patternUnits="userSpaceOnUse">
+      <circle cx="6" cy="6" r="3.4" fill="#78B94E" opacity=".22"/>
+    </pattern>
+    <!-- Lianbu (蓮霧) mascot — from web/public/lianbu-favicon.svg -->
+    <symbol id="lianbu" viewBox="0 0 200 220">
+      <path d="M100,80 C110,30 60,0 80,20 C100,40 140,50 160,30" fill="none" stroke="#1F5E2B" stroke-width="4.5" stroke-linecap="round"/>
+      <circle cx="164" cy="26" r="6" fill="#1F5E2B"/><circle cx="164" cy="26" r="2.2" fill="#C4E86F"/>
+      <path d="M100,80 C 86,80 78,88 74,98 C 72,108 66,116 60,128 C 46,146 30,166 36,190 C 44,210 72,216 102,216 C 132,216 160,210 164,190 C 170,166 154,146 140,128 C 134,116 128,108 126,98 C 122,88 114,80 100,80 Z" fill="#E84860" stroke="#3A261F" stroke-width="3"/>
+      <ellipse cx="58" cy="142" rx="13.3" ry="8" fill="#FF7AA0" opacity="0.65" transform="rotate(-10 58 142)"/>
+      <ellipse cx="146" cy="150" rx="12" ry="6.5" fill="#FF7AA0" opacity="0.75" transform="rotate(12 146 150)"/>
+      <ellipse cx="80" cy="116" rx="13" ry="14" fill="#FFFFFF"/>
+      <circle cx="78" cy="118" r="7" fill="#1A1818"/><circle cx="75" cy="115" r="2.6" fill="#FFFFFF"/>
+      <path d="M116,128 Q124,118 132,128" fill="none" stroke="#1A1818" stroke-width="4.5" stroke-linecap="round"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div id="frame">
+  <div class="band top" id="bandTop"></div>
+  <div class="band bot" id="bandBot"></div>
+  <div id="stage">
+
+<!-- ================= 1 COVER ================= -->
+<section class="scene" id="s1" data-dur="7" data-bg="#FFFDF5" data-wipe="#E84860">
+  <svg class="bgfx" data-bg="cover"></svg>
+  <svg class="vol doodle" viewBox="0 0 210 210" data-a="stamp" data-t="1.9" data-r="-12">
+    <g class="boil">
+      <path data-rough-circle="105,105,92,7" fill="#C4E86F" stroke="#1F5E2B" stroke-width="5"/>
+    </g>
+    <text x="105" y="92" text-anchor="middle" font-family="IPAPGothic, sans-serif" font-weight="900" font-size="34" fill="#1F5E2B">全10回</text>
+    <text x="105" y="160" text-anchor="middle" font-family="Retro" font-size="74" fill="#E84860">01</text>
+  </svg>
+  <div class="q1" data-a="pop" data-t="0.25" data-r="-3"><span class="circ">「台湾有事」<svg><path class="ink boil" data-draw data-t="1.0" data-d=".8" style="stroke:#1F5E2B;stroke-width:7" data-rough-loop="1"/></svg></span>は</div>
+  <div class="q2" data-a="pop" data-t="0.6" data-r="2">対岸の火事か？</div>
+  <svg class="scene-ill doodle" viewBox="0 0 1080 380" id="ill1" data-a="up" data-t="1.3" data-d=".8"></svg>
+  <div class="sub" data-a="up" data-t="2.4">平和への過信と、<br>私たちが生きる<span class="mk" data-a="marker" data-t="3.0">「超限戦」</span>のリアル</div>
+  <div class="badge rbox" data-a="up" data-t="3.4" data-rough="#1F5E2B" data-fill="#F7FFE8" data-sw="4">在日台湾人の視線から読み解く<br><b class="red">『国家の決断』全10回（1）</b></div>
+</section>
+
+<!-- ================= 2 BOOK ================= -->
+<section class="scene" id="s2" data-dur="13" data-bg="#F7FFE8" data-wipe="#C4E86F">
+  <svg class="bgfx" data-bg="dots-leaf"></svg>
+  <h2 data-a="up" data-t="0.2">📖 『国家の決断』と<br>私たちが直面する<span class="em">現実</span></h2>
+  <div class="row">
+    <div class="bookwrap" data-a="pop" data-t="0.5" data-r="-5">
+      <div class="book" id="book"></div>
+    </div>
+    <div class="col">
+      <p data-a="up" data-t="0.9">台湾の話題作『国家の決断』（<b>張国城</b> 著）は、第二次世界大戦後の東アジア国際政治を<span class="mk" data-a="marker" data-t="1.6">「台湾人としての当事者視点」</span>で解き明かした一冊です。</p>
+      <div class="qrnote rbox" data-a="pop" data-t="2.0" data-r="2" data-rough="#E84860" data-fill="#FFF1EE" data-sw="4">
+        <svg class="qr" id="qr" viewBox="0 0 29 29" shape-rendering="crispEdges"></svg>
+        <div class="lbl"><span class="hand">Amazon →</span>スキャンして<br>書籍ページへ<br><span style="font-size:22px;color:#6A5148">Kindle版</span></div>
+      </div>
+    </div>
+  </div>
+  <p class="series" data-a="up" data-t="2.6">本シリーズでは、<b class="red">10の視点</b>を通じて本書が投げかける示唆を掘り下げ、日本と台湾の安全保障および未来のあり方を検証していきます。</p>
+  <div class="warn rbox" data-a="up" data-t="4.0" data-rough="#E84860" data-fill="#FFFDF5" data-sw="5">
+    <h3>⚠️ 現代の「有事」は軍事攻撃だけではありません</h3>
+    <ul>
+      <li data-a="up" data-t="4.6"><b>日米安保・一方的な思惑の限界：</b>「自ら攻撃しなければ巻き込まれない」という平和主義的回避論や、「同盟国は無条件で介入してくれる」という一方的な依存意識だけでは防げない領域が存在します。</li>
+      <li data-a="up" data-t="6.2"><b>超限戦・認知戦の脅威：</b>SNSを通じた世論誘導、サイバー攻撃、パンデミック初期の物資買い占めなど、すでに<span class="mk pink" data-a="marker" data-t="7.0">「静かな有事」は始まっています。</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ================= 3 KOREA ================= -->
+<section class="scene" id="s3" data-dur="11" data-bg="#FFFDF5" data-wipe="#E84860">
+  <svg class="bgfx" data-bg="blobs-blush"></svg>
+  <div class="kicker rbox" data-a="pop" data-t="0.15" data-r="-3" data-rough="#3A261F" data-fill="#E84860" data-sw="3">📜 歴史の鏡 ①</div>
+  <h2 data-a="up" data-t="0.35">朝鮮戦争——<br>外援が動く<span class="em">「本当の理由」</span></h2>
+  <div class="mirror-row">
+    <div class="mirror" data-a="pop" data-t="0.8" data-r="-4">
+      <svg viewBox="0 0 360 330" id="mirror3"></svg>
+      <div class="year">1950</div>
+    </div>
+    <div class="side-note" data-a="up" data-t="1.4">
+      <span class="hand red" style="font-size:44px">7th Fleet!</span><br>
+      朝鮮戦争の勃発で、米国は<b>第七艦隊</b>を台湾海峡へ。<br>
+      <span style="color:#6A5148;font-size:26px">——動かしたのは「善意」ではなく、情勢の激変。</span>
+    </div>
+  </div>
+  <div class="pt rbox" data-a="up" data-t="2.2" data-rough="#3A261F" data-fill="#FFFDF5" data-sw="4">
+    <h3><span class="n">1</span>地政学の劇変と大国の都合</h3>
+    <p>1950年の朝鮮戦争勃発により、米国は東アジア戦略を突如再編し、台湾防衛（第七艦隊派遣）を決定しました。</p>
+  </div>
+  <div class="pt rbox" data-a="up" data-t="3.6" data-rough="#3A261F" data-fill="#FFFDF5" data-sw="4">
+    <h3><span class="n">2</span>冷酷な国際政治の現実</h3>
+    <p>同盟国の介入は、感情や道義ではなく<span class="mk" data-a="marker" data-t="4.4"><b>「国際情勢の激変」と「大国自身の利害」</b></span>によって決まります。</p>
+  </div>
+  <div class="stamp rbox" data-a="stamp" data-t="6.0" data-r="-2" data-rough="#E84860" data-fill="#FFF1EE" data-sw="5">安保は永続的な「善意の保障」ではありません</div>
+</section>
+
+<!-- ================= 4 VIETNAM ================= -->
+<section class="scene" id="s4" data-dur="12" data-bg="#F7FFE8" data-wipe="#1F5E2B">
+  <svg class="bgfx" data-bg="dots-leaf"></svg>
+  <div class="kicker rbox" data-a="pop" data-t="0.15" data-r="-3" data-rough="#3A261F" data-fill="#1F5E2B" data-sw="3">📜 歴史の鏡 ②</div>
+  <h2 data-a="up" data-t="0.35">ベトナム戦争——<br>南ベトナム崩壊が示す<span class="em">警鐘</span></h2>
+  <div class="mirror-row">
+    <div class="mirror" data-a="pop" data-t="0.8" data-r="3">
+      <svg viewBox="0 0 360 330" id="mirror4"></svg>
+      <div class="year" style="color:#1F5E2B">1975</div>
+    </div>
+    <div class="side-note pt rbox" data-a="up" data-t="1.4" data-rough="#3A261F" data-fill="#FFFDF5" data-sw="4" style="margin-top:0">
+      <h3 style="font-size:31px">南ベトナムの自滅</h3>
+      <p style="font-size:28px">米国から巨大な軍事支援を受けながらも、内部対立と<span class="mk pink" data-a="marker" data-t="2.4">「米国依存」</span>により自衛の意思を失い、米軍撤退後に自滅。</p>
+    </div>
+  </div>
+  <div class="concl rbox" data-a="up" data-t="4.6" data-rough="#3A261F" data-fill="#1F5E2B" data-sw="4">
+    <h3>結論</h3>
+    <div class="vs">
+      <div class="rbox" data-a="pop" data-t="5.2" data-r="-2" data-rough="#3A261F" data-fill="#FFF1EE" data-sw="3"><span class="lab">朝鮮戦争の教訓</span>外援は大国の都合で動く</div>
+      <div class="rbox" data-a="pop" data-t="5.6" data-r="2" data-rough="#3A261F" data-fill="#F7FFE8" data-sw="3"><span class="lab">ベトナム戦争の教訓</span>自衛の意志なき者は救われない</div>
+    </div>
+    <p data-a="up" data-t="6.4"><span class="tz">「天助自助」</span>の覚悟がない社会は、どんな強力な同盟でも守り切れません。</p>
+  </div>
+</section>
+
+<!-- ================= 5 VOICES ================= -->
+<section class="scene" id="s5" data-dur="12" data-bg="#FFF1EE" data-wipe="#FF7AA0">
+  <svg class="bgfx" data-bg="dots-pink"></svg>
+  <div class="qmark" style="right:60px;top:110px">“</div>
+    <h2 data-a="up" data-t="0.2">🗣️ 読書会メンバーの<br><span class="em">議論より</span></h2>
+  <div class="voice" data-a="up" data-t="0.6">
+    <div class="ava" data-a="pop" data-t="0.6"><svg viewBox="0 0 132 132"><g class="boil"><path data-rough-circle="66,66,60,11" fill="#E84860" stroke="#3A261F" stroke-width="4"/></g></svg><span class="ini">J</span></div>
+    <div class="bub rbox" data-rough="#3A261F" data-fill="#FFFDF5" data-sw="4" data-tail="left">
+      <span class="who">Jennifer Wu <small>（呉家威）</small></span>
+      <p data-a="type" data-t="1.0" data-d="4.2">「南ベトナムは『米軍が何とかしてくれる』と依存し、自ら戦う意志を失っていました。もし私たちの社会が土壇場でバラバラになれば…と思うと<span class="mk pink">ゾッとします。</span>」</p>
+    </div>
+  </div>
+  <div class="voice r" data-a="up" data-t="5.4">
+    <div class="ava" data-a="pop" data-t="5.4"><svg viewBox="0 0 132 132"><g class="boil"><path data-rough-circle="66,66,60,12" fill="#1F5E2B" stroke="#3A261F" stroke-width="4"/></g></svg><span class="ini">Z</span></div>
+    <div class="bub rbox" data-rough="#3A261F" data-fill="#F7FFE8" data-sw="4" data-tail="right">
+      <span class="who">Zheng Yenwei <small>（鄭彥威）</small></span>
+      <p data-a="type" data-t="5.8" data-d="3.6">「同盟は無条件の保険ではありません。<span class="mk">『天助自助（天は自らを助ける者を助ける）』</span>の覚悟があって初めて、国際支援は意味を持ちます。」</p>
+    </div>
+  </div>
+  <svg class="talk5 doodle" viewBox="0 0 1080 300" id="talk5" style="position:absolute;left:0;bottom:96px;width:1080px;height:300px;z-index:1"></svg>
+</section>
+
+<!-- ================= 6 PARTNERS ================= -->
+<section class="scene" id="s6" data-dur="11" data-bg="#FFFDF5" data-wipe="#C4E86F">
+  <svg class="bgfx" data-bg="blobs-matcha"></svg>
+  <h2 data-a="up" data-t="0.2">🤝 一方的な「保護」から<br><span class="em">「対等なパートナー」</span>へ</h2>
+  <svg class="seesaw doodle" viewBox="0 0 1000 360" id="seesaw"></svg>
+  <ul class="bul">
+    <li data-a="up" data-t="3.4"><svg class="ic" viewBox="0 0 36 36"><path data-rough-circle="18,18,15,21" fill="#C4E86F" stroke="#1F5E2B" stroke-width="3"/></svg>台湾の防衛意志や半導体・社会のレジリエンスに加え、長年中国からの偽情報（フェイクニュース）や<span class="mk" data-a="marker" data-t="4.2">認知戦の最前線で培った対策・実戦経験</span>は、日本が同様の脅威に備える上で大きな助けとなります。</li>
+    <li data-a="up" data-t="5.6"><svg class="ic" viewBox="0 0 36 36"><path data-rough-circle="18,18,15,22" fill="#FF7AA0" stroke="#E84860" stroke-width="3"/></svg>「助けられる側」と「守る側」という一方的な関係ではなく、互いに自衛の意志を持ち、情報戦・社会防衛を高め合う<span class="mk pink" data-a="marker" data-t="6.6"><b>対等なパートナーシップ</b></span>こそが求められています。</li>
+  </ul>
+</section>
+
+<!-- ================= 7 REALIZATION ================= -->
+<section class="scene" id="s7" data-dur="12" data-bg="#F7FFE8" data-wipe="#78B94E">
+  <svg class="bgfx" data-bg="blobs-leaf"></svg>
+  <div class="top7">
+    <h2 data-a="up" data-t="0.2">🌿 日本で暮らし、働く<br>私たち<span class="em">（在日台湾人）</span><br>の気づき</h2>
+    <svg class="win doodle" viewBox="0 0 250 250" id="win7" data-a="pop" data-t="0.5" data-r="4"></svg>
+  </div>
+  <ul class="bul">
+    <li data-a="up" data-t="1.4"><svg class="ic" viewBox="0 0 36 36"><path d="M6 30 C 6 12, 18 4, 32 4 C 32 20, 22 30, 6 30 Z M6 30 L 22 14" fill="#C4E86F" stroke="#1F5E2B" stroke-width="3" stroke-linejoin="round"/></svg>私たちも日本で生活する中で、「平和な日常」のありがたさを痛感すると同時に、<span class="mk" data-a="marker" data-t="2.6">平和が当たり前になりすぎる怖さ</span>も感じています。</li>
+    <li data-a="up" data-t="3.8"><svg class="ic" viewBox="0 0 36 36"><path d="M6 30 C 6 12, 18 4, 32 4 C 32 20, 22 30, 6 30 Z M6 30 L 22 14" fill="#C4E86F" stroke="#1F5E2B" stroke-width="3" stroke-linejoin="round"/></svg>日本社会の「やさしさ」や「自由」は誇るべき美徳ですが、それが海外からの認知戦や世論分断に<span class="mk pink" data-a="marker" data-t="5.0">つけ込まれる脆弱性</span>にもなり得ます。</li>
+    <li data-a="up" data-t="6.2"><svg class="ic" viewBox="0 0 36 36"><path d="M6 30 C 6 12, 18 4, 32 4 C 32 20, 22 30, 6 30 Z M6 30 L 22 14" fill="#C4E86F" stroke="#1F5E2B" stroke-width="3" stroke-linejoin="round"/></svg>上から目線の助言ではなく、同じ社会で暮らす一員として、<b class="forest">共に防衛意識と危機感に向き合いたい</b>と考えています。</li>
+  </ul>
+  <svg class="skyline doodle" viewBox="0 0 1080 250" id="sky7"></svg>
+</section>
+
+<!-- ================= 8 QUASI-WAR ================= -->
+<section class="scene" id="s8" data-dur="12" data-bg="#FFFDF5" data-wipe="#3A261F">
+  <svg class="bgfx" data-bg="hatch"></svg>
+  <h2 data-a="up" data-t="0.2">⚠️「有事」は<br><span class="em">遠い未来の話</span>でしょうか？</h2>
+  <p class="small" data-a="up" data-t="0.6">近年、相次ぐ大規模サイバー攻撃や個人情報流出、経済的脅迫。さらにコロナ禍初期、台湾がいち早く警戒しマスク輸出規制等を行った一方、日本で買い占めや供給混乱が生じた例も<b>「非軍事的な超限戦」</b>の現実を示しています。</p>
+  <div class="icons" id="icons8">
+    <div class="tile rbox" data-a="pop" data-t="1.6" data-r="-3" data-rough="#3A261F" data-fill="#FFF1EE" data-sw="4"><svg viewBox="0 0 150 130" data-icon="laptop"></svg><span>サイバー攻撃</span></div>
+    <div class="tile rbox" data-a="pop" data-t="1.9" data-r="2" data-rough="#3A261F" data-fill="#F7FFE8" data-sw="4"><svg viewBox="0 0 150 130" data-icon="leak"></svg><span>情報流出</span></div>
+    <div class="tile rbox" data-a="pop" data-t="2.2" data-r="-2" data-rough="#3A261F" data-fill="#FFF1EE" data-sw="4"><svg viewBox="0 0 150 130" data-icon="coin"></svg><span>経済的脅迫</span></div>
+    <div class="tile rbox" data-a="pop" data-t="2.5" data-r="3" data-rough="#3A261F" data-fill="#F7FFE8" data-sw="4"><svg viewBox="0 0 150 130" data-icon="mask"></svg><span>買い占め</span></div>
+  </div>
+  <ul class="bul" style="margin-right:250px">
+    <li data-a="up" data-t="3.4" class="small"><svg class="ic" viewBox="0 0 36 36"><path d="M18 3 L 34 32 L 2 32 Z" fill="#C9A227" stroke="#3A261F" stroke-width="3" stroke-linejoin="round"/></svg>「攻撃しなければ巻き込まれない」という油断や、同盟国への無条件の依存は通用しません。兵器が飛ばなくても、インフラ・生活・情報空間は脅かされます。</li>
+    <li data-a="up" data-t="5.0" class="small"><svg class="ic" viewBox="0 0 36 36"><path d="M18 3 L 34 32 L 2 32 Z" fill="#C9A227" stroke="#3A261F" stroke-width="3" stroke-linejoin="round"/></svg>私たちはすでに<span class="mk" data-a="marker" data-t="5.6"><b>「グレーゾーン（準有事）」</b></span>の中に生きています。</li>
+    <li data-a="up" data-t="6.4" class="small"><svg class="ic" viewBox="0 0 36 36"><path d="M18 3 L 34 32 L 2 32 Z" fill="#C9A227" stroke="#3A261F" stroke-width="3" stroke-linejoin="round"/></svg>サイバー空間や情報空間の脆弱さに対し、社会全体の無防備さが問われています。</li>
+  </ul>
+  <div class="gz rbox" data-a="stamp" data-t="7.4" data-r="-9" data-rough="#3A261F" data-fill="#E84860" data-sw="4">GRAY<br>ZONE<br><span style="font-size:24px">準有事</span></div>
+</section>
+
+<!-- ================= 9 QUESTIONS ================= -->
+<section class="scene" id="s9" data-dur="11" data-bg="#C4E86F" data-wipe="#E84860">
+  <svg class="bgfx" data-bg="blobs-on-leaf"></svg>
+  <h2 data-a="up" data-t="0.2">💬 身近なニュースから考える、<br><span class="em">私たちの日常</span></h2>
+  <p data-a="up" data-t="0.6" style="font-weight:700">インフラ障害やSNSでの過激な世論分断を目にした時、皆さんはどう感じますか？</p>
+  <div class="opt rbox" data-a="up" data-t="1.4" data-rough="#3A261F" data-fill="#FFFDF5" data-sw="4"><span class="L" style="background:#E84860">A</span><p>情報やインフラのサイバーセキュリティをもっと強化すべき</p><svg class="chk" viewBox="0 0 58 58"><path data-rough-rect="4,4,50,50,23" fill="#FFF" stroke="#3A261F" stroke-width="4"/><path class="ink boil" style="stroke:#E84860;stroke-width:7" data-draw data-t="3.6" data-d=".35" d="M12 30 L 25 44 L 52 6"/></svg></div>
+  <div class="opt rbox" data-a="up" data-t="1.8" data-rough="#3A261F" data-fill="#FFFDF5" data-sw="4"><span class="L" style="background:#1F5E2B">B</span><p>海外からの世論誘導やフェイクニュースに惑わされない「防衛性民主主義」が必要</p><svg class="chk" viewBox="0 0 58 58"><path data-rough-rect="4,4,50,50,24" fill="#FFF" stroke="#3A261F" stroke-width="4"/><path class="ink boil" style="stroke:#E84860;stroke-width:7" data-draw data-t="4.6" data-d=".35" d="M12 30 L 25 44 L 52 6"/></svg></div>
+  <div class="opt rbox" data-a="up" data-t="2.2" data-rough="#3A261F" data-fill="#FFFDF5" data-sw="4"><span class="L" style="background:#C9A227">C</span><p>日常の備え（防災・情報リテラシー）から見直したい</p><svg class="chk" viewBox="0 0 58 58"><path data-rough-rect="4,4,50,50,25" fill="#FFF" stroke="#3A261F" stroke-width="4"/><path class="ink boil" style="stroke:#E84860;stroke-width:7" data-draw data-t="5.6" data-d=".35" d="M12 30 L 25 44 L 52 6"/></svg></div>
+  <div class="cta rbox" data-a="pop" data-t="6.4" data-r="-1.5" data-rough="#3A261F" data-fill="#E84860" data-sw="4" data-tail="bottom" style="color:#FFFDF5">ぜひ<span style="color:#C4E86F">コメント欄</span>で、普段感じていることやご意見をお聞かせください！ 💬</div>
+  <div class="finger" id="finger9">👆</div>
+</section>
+
+<!-- ================= 10 CTA ================= -->
+<section class="scene" id="s10" data-dur="12" data-bg="#1F5E2B" data-wipe="#FF7AA0">
+  <svg class="bgfx" data-bg="forest"></svg>
+  <h2 data-a="up" data-t="0.2">🇹🇼🤝🇯🇵 <span style="color:#C4E86F">「認識台灣」読書会</span><br><span style="font-size:38px">（台湾理解スタディグループ）とは？</span></h2>
+  <p data-a="up" data-t="0.7">日本（東京・大阪など）で暮らす台湾人のIT・メーカー・HRなどの社会人や研究者が集まり、台湾の歴史・地政学・社会課題の書籍を深掘りする読書会です。</p>
+  <p data-a="up" data-t="1.6" style="margin-top:14px">単なる観光やグルメの「親日・親台」を超え、<span style="color:#C4E86F;font-weight:900">日台が対等かつ深層で向き合える対話の場</span>を目指して活動しています。</p>
+  <div class="mail rbox" data-a="pop" data-t="3.0" data-r="-1.5" data-rough="#3A261F" data-fill="#FFFDF5" data-sw="4">
+    <h3>✉️【質問・感想大歓迎！】</h3>
+    <p>「台湾の若い世代の防衛意識は？」「情報戦にどう備えている？」など、台湾人メンバーに聞いてみたいことがあれば、気軽にコメント欄へどうぞ！</p>
+  </div>
+  <div class="save" data-a="up" data-t="5.0">
+    <svg viewBox="0 0 84 84" id="bm10" data-wig><g class="boil"><path d="M18 6 H 66 V 78 L 42 60 L 18 78 Z" fill="#E84860" stroke="#FFFDF5" stroke-width="5" stroke-linejoin="round"/></g></svg>
+    <p>📌 保存・シェアで、一緒にこれからの<span style="color:#C4E86F">安全と日常</span>を考えましょう！</p>
+    <svg viewBox="0 0 84 84" id="sh10" data-wig><g class="boil"><path d="M8 40 L 76 8 L 56 76 L 40 48 Z M40 48 L 76 8" fill="#C4E86F" stroke="#FFFDF5" stroke-width="5" stroke-linejoin="round"/></g></svg>
+  </div>
+  <svg class="circle10 doodle" viewBox="0 0 1080 270" id="circle10"></svg>
+</section>
+
+  </div><!-- /stage -->
+  <svg id="wipe" viewBox="0 0 1080 1350" preserveAspectRatio="none"></svg>
+  <svg id="lianbuLayer" style="position:absolute;left:0;top:0;width:1080px;height:1350px;z-index:40;pointer-events:none;overflow:hidden"></svg>
+</div>
+<div id="ui">space: 再生/停止 · ←/→: シーン移動 · ?static=N 静止画 · ?fmt=story 9:16</div>
+
+<script src="assets/qr.js"></script>
+<script>
+(() => {
+const NS = "http://www.w3.org/2000/svg";
+const Q = new URLSearchParams(location.search);
+const STATIC = Q.get("static") ? parseInt(Q.get("static"), 10) : 0;
+const RENDER = Q.has("render");
+const STORY = Q.get("fmt") === "story";
+const root = document.documentElement;
+if (STATIC) root.classList.add("static");
+if (RENDER) root.classList.add("render");
+if (STORY) root.classList.add("story");
+
+/* ---------------- utils ---------------- */
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const ease = {
+  out: t => 1 - Math.pow(1 - t, 3),
+  inOut: t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2,
+  back: t => { const c1 = 1.9, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); },
+  elastic: t => t === 0 ? 0 : t === 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t * 10 - .75) * (2 * Math.PI) / 3) + 1,
+};
+function rng(seed) { let s = (seed * 2654435761) >>> 0 || 1; return () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; }
+function el(tag, attrs = {}, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+
+// Catmull-Rom through points -> smooth path
+function smooth(pts, closed = false) {
+  if (pts.length < 2) return "";
+  const P = closed ? [pts[pts.length - 1], ...pts, pts[0], pts[1]] : [pts[0], ...pts, pts[pts.length - 1]];
+  let d = `M${P[1][0].toFixed(1)},${P[1][1].toFixed(1)}`;
+  for (let i = 1; i < P.length - 2; i++) {
+    const [p0, p1, p2, p3] = [P[i - 1], P[i], P[i + 1], P[i + 2]];
+    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+    const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+    d += ` C${c1[0].toFixed(1)},${c1[1].toFixed(1)} ${c2[0].toFixed(1)},${c2[1].toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+  }
+  return d;
+}
+function roundedRectPts(x, y, w, h, r, step = 34) {
+  const pts = [];
+  const line = (x1, y1, x2, y2) => { const n = Math.max(1, Math.round(Math.hypot(x2 - x1, y2 - y1) / step)); for (let i = 0; i < n; i++) pts.push([lerp(x1, x2, i / n), lerp(y1, y2, i / n)]); };
+  const arc = (cx, cy, a0) => { for (let i = 0; i < 3; i++) { const a = a0 + (Math.PI / 2) * i / 3; pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); } };
+  line(x + r, y, x + w - r, y); arc(x + w - r, y + r, -Math.PI / 2);
+  line(x + w, y + r, x + w, y + h - r); arc(x + w - r, y + h - r, 0);
+  line(x + w - r, y + h, x + r, y + h); arc(x + r, y + h - r, Math.PI / 2);
+  line(x, y + h - r, x, y + r); arc(x + r, y + r, Math.PI);
+  return pts;
+}
+function jitter(pts, R, j) { return pts.map(p => [p[0] + (R() - .5) * 2 * j, p[1] + (R() - .5) * 2 * j]); }
+// sketchy outline: open path that overshoots its start
+function roughRect(x, y, w, h, r, seed, j = 2.4) {
+  const R = rng(seed); const pts = jitter(roundedRectPts(x, y, w, h, r), R, j);
+  return smooth([...pts, [pts[0][0] + (R() - .5) * 6, pts[0][1] + (R() - .5) * 4], [pts[1][0] + R() * 8, pts[1][1] + (R() - .5) * 5]]);
+}
+function roughRectFill(x, y, w, h, r, seed, j = 1.6) { const R = rng(seed + 99); return smooth(jitter(roundedRectPts(x, y, w, h, r), R, j), true) + "Z"; }
+function roughCircle(cx, cy, rad, seed, turns = 1.08, j = .05) {
+  const R = rng(seed); const pts = []; const n = Math.round(22 * turns); const a0 = R() * Math.PI * 2;
+  for (let i = 0; i <= n; i++) { const a = a0 + (i / 22) * Math.PI * 2; const rr = rad * (1 + (R() - .5) * 2 * j); pts.push([cx + rr * Math.cos(a), cy + rr * Math.sin(a)]); }
+  return smooth(pts);
+}
+
+/* ---------------- static decorations ---------------- */
+function buildRough() {
+  // [data-rough-circle="cx,cy,r,seed"] / [data-rough-rect="x,y,w,h,seed"]
+  document.querySelectorAll("[data-rough-circle]").forEach(p => { const [cx, cy, r, s] = p.dataset.roughCircle.split(",").map(Number); p.setAttribute("d", roughCircle(cx, cy, r, s, 1.06, .04)); });
+  document.querySelectorAll("[data-rough-rect]").forEach(p => { const [x, y, w, h, s] = p.dataset.roughRect.split(",").map(Number); p.setAttribute("d", roughRect(x, y, w, h, 8, s, 1.6)); });
+  document.querySelectorAll("[data-rough-loop]").forEach(p => {
+    // loose scribbled ellipse sized to the parent span (pixel space)
+    const host = p.closest("span"), svg = p.ownerSVGElement;
+    const w = host.offsetWidth, h = host.offsetHeight;
+    svg.setAttribute("width", w); svg.setAttribute("height", h); svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+    const R = rng(7); const pts = []; const cx = w / 2, cy = h * .55, rx = w / 2 + 14, ry = h / 2 + 4;
+    for (let i = 0; i <= 30; i++) { const a = -2.5 + i / 26 * Math.PI * 2; const k = 1 + (R() - .5) * .05 + i * .002; pts.push([cx + rx * k * Math.cos(a), cy + ry * k * Math.sin(a)]); }
+    p.setAttribute("d", smooth(pts));
+  });
+  // html boxes with sketchy borders
+  let seed = 11;
+  document.querySelectorAll(".rbox").forEach(box => {
+    const w = box.offsetWidth, h = box.offsetHeight; const pad = 12;
+    const svg = el("svg", { class: "rsvg", width: w + pad * 2, height: h + pad * 2 + 40 });
+    const g = el("g", { class: "boil-soft" }, svg);
+    const fill = box.dataset.fill, stroke = box.dataset.rough, sw = box.dataset.sw || 4;
+    const r = Math.min(26, h / 3);
+    if (fill) {
+      el("path", { d: roughRectFill(pad + 7, pad + 9, w, h, r, seed), fill: "rgba(58,38,31,.16)" }, g); // offset shadow
+      el("path", { d: roughRectFill(pad, pad, w, h, r, seed + 1), fill }, g);
+    }
+    if (stroke) {
+      el("path", { d: roughRect(pad, pad, w, h, r, seed + 2), fill: "none", stroke, "stroke-width": sw, "stroke-linecap": "round" }, g);
+      el("path", { d: roughRect(pad + 1, pad - 1, w - 2, h + 1, r, seed + 3, 3), fill: "none", stroke, "stroke-width": sw * .45, opacity: .6, "stroke-linecap": "round" }, g);
+    }
+    const tail = box.dataset.tail;
+    if (tail) {
+      const tp = tail === "left" ? `M${pad + 2},${pad + 56} L${pad - 30},${pad + 70} L${pad + 2},${pad + 92}` :
+                 tail === "right" ? `M${pad + w - 2},${pad + 56} L${pad + w + 30},${pad + 70} L${pad + w - 2},${pad + 92}` :
+                 `M${pad + w - 170},${pad + h - 2} L${pad + w - 130},${pad + h + 36} L${pad + w - 110},${pad + h - 2}`;
+      el("path", { d: tp, fill, stroke, "stroke-width": sw, "stroke-linejoin": "round" }, g);
+    }
+    box.prepend(svg); seed += 7;
+  });
+}
+
+function buildBackgrounds() {
+  document.querySelectorAll(".bgfx").forEach((svg, i) => {
+    svg.setAttribute("viewBox", "0 0 1080 1350"); svg.setAttribute("width", 1080); svg.setAttribute("height", 1350);
+    const kind = svg.dataset.bg; const sc = svg.closest(".scene"); sc.style.background = sc.dataset.bg;
+    const blob = (cx, cy, r, fill, seed, extra = {}) => el("path", { d: roughCircle(cx, cy, r, seed, 1, .14) + "Z", fill, ...extra }, svg);
+    const g = el("g", { class: "drift" }, svg);
+    const B = (cx, cy, r, fill, seed) => { const p = blob(cx, cy, r, fill, seed); g.appendChild(p); return p; };
+    if (kind === "cover") { B(980, 260, 300, "#FFF1EE", 3); B(60, 1250, 260, "#F7FFE8", 5); B(150, 160, 90, "#C4E86F", 8).setAttribute("opacity", ".5"); }
+    if (kind === "dots-leaf") { el("rect", { width: 1080, height: 1350, fill: "url(#dotsLeaf)" }, svg); B(1000, 1240, 260, "#C4E86F", 4).setAttribute("opacity", ".45"); }
+    if (kind === "blobs-blush") { B(1010, 420, 280, "#FFF1EE", 6); B(70, 1200, 300, "#FFF1EE", 9); B(980, 1280, 120, "#FF7AA0", 2).setAttribute("opacity", ".35"); }
+    if (kind === "dots-pink") { el("rect", { width: 1080, height: 1350, fill: "url(#dotsPink)" }, svg); }
+    if (kind === "blobs-matcha") { B(1000, 330, 290, "#F7FFE8", 12); B(80, 1150, 260, "#FFF1EE", 13); }
+    if (kind === "blobs-leaf") { B(980, 1200, 320, "#C4E86F", 14).setAttribute("opacity", ".4"); B(80, 300, 160, "#FFF1EE", 15); }
+    if (kind === "hatch") { el("rect", { width: 1080, height: 1350, fill: "url(#hatch)" }, svg); B(1020, 260, 200, "#FFF1EE", 16); }
+    if (kind === "blobs-on-leaf") { B(1000, 300, 280, "#F7FFE8", 17).setAttribute("opacity", ".7"); B(60, 1250, 300, "#78B94E", 18).setAttribute("opacity", ".35"); el("rect", { width: 1080, height: 1350, fill: "url(#grain)" }, svg); }
+    if (kind === "forest") { B(1000, 260, 300, "#78B94E", 19).setAttribute("opacity", ".35"); B(80, 1240, 280, "#C4E86F", 20).setAttribute("opacity", ".22"); }
+    el("rect", { width: 1080, height: 1350, fill: "url(#grain)" }, svg);
+  });
+}
+
+function buildChrome() {
+  document.querySelectorAll(".scene").forEach((sc, i) => {
+    const dark = sc.dataset.bg === "#1F5E2B";
+    const c = document.createElement("div"); c.className = "chrome";
+    c.innerHTML = `<div class="tag rbox" data-rough="#3A261F" data-fill="${dark ? "#E84860" : "#1F5E2B"}" data-sw="3">国家の決断 <b>｜</b> 全10回 (1)</div>
+      <div class="pageno">${String(i + 1).padStart(2, "0")}<small> /10</small></div>`;
+    if (dark) c.querySelector(".pageno").style.color = "#C4E86F";
+    if (dark) c.querySelector(".pageno small").style.color = "#FFFDF5";
+    sc.appendChild(c);
+    const f = document.createElement("div"); f.className = "foot";
+    if (dark) f.style.color = "#F7FFE8";
+    let dots = ""; for (let k = 0; k < 10; k++) dots += `<svg width="20" height="20" viewBox="0 0 20 20"><path d="${roughCircle(10, 10, 7, k + 40, 1.05, .08)}" fill="${k === i ? "#E84860" : (k < i ? "#C4E86F" : "none")}" stroke="${dark ? "#F7FFE8" : "#3A261F"}" stroke-width="2.4"/></svg>`;
+    f.innerHTML = `<span>「認識台灣」読書会 × <span class="hand" style="font-size:26px">Tokyo Taiwan Radar</span></span><span class="dots">${dots}</span>`;
+    sc.appendChild(f);
+  });
+}
+
+/* ---------------- illustrations ---------------- */
+const dyn = []; // per-frame updaters: (sceneIdx, fn(localT, globalT))
+function onFrame(scene, fn) { dyn.push({ scene, fn }); }
+function wavePath(x0, x1, y, amp, len, phase) { const pts = []; for (let x = x0; x <= x1; x += 18) pts.push([x, y + Math.sin((x / len) * Math.PI * 2 + phase) * amp]); return smooth(pts); }
+
+function buildCover() {
+  const s = document.getElementById("ill1");
+  // far island (Taiwan) with fire
+  const isl = el("g", { class: "boil" }, s);
+  el("path", { d: "M90 210 C 130 150, 210 130, 270 150 C 330 168, 360 196, 380 222 Z", fill: "#78B94E", stroke: "#1F5E2B", "stroke-width": 5 }, isl);
+  const fire = el("g", { class: "boil" }, s);
+  const f1 = el("path", { d: "M230 150 C 196 112, 236 84, 222 40 C 262 70, 282 104, 262 150 Z", fill: "#E84860", stroke: "#D85862", "stroke-width": 4 }, fire);
+  const f2 = el("path", { d: "M262 152 C 248 128, 268 112, 262 86 C 288 104, 296 128, 284 152 Z", fill: "#FF7AA0", stroke: "#E84860", "stroke-width": 4 }, fire);
+  el("text", { x: 150, y: 120, "font-family": "Hand", "font-size": 36, fill: "#D85862" }, s).textContent = "!!";
+  // smoke puffs
+  const smoke = []; for (let i = 0; i < 3; i++) smoke.push(el("path", { d: roughCircle(0, 0, 16 + i * 5, 60 + i, 1, .12) + "Z", fill: "#3A261F", opacity: .12 }, s));
+  // sea
+  const waves = []; for (let i = 0; i < 5; i++) waves.push(el("path", { class: "ink", style: `stroke:${i % 2 ? "#78B94E" : "#1F5E2B"};stroke-width:${5 - i * .5}` }, s));
+  // near shore (Japan) + Lianbu with binoculars
+  const shore = el("g", { class: "boil" }, s);
+  el("path", { d: "M700 380 C 720 300, 820 270, 1080 262 L 1080 380 Z", fill: "#FFF1EE", stroke: "#3A261F", "stroke-width": 5 }, shore);
+  el("path", { d: "M800 300 l 0 -46 l 34 -26 l 34 26 l 0 46 Z M818 300 l0 -26 h20 v26", fill: "#FFFDF5", stroke: "#3A261F", "stroke-width": 4, "stroke-linejoin": "round" }, shore);
+  const lb = el("g", {}, s); const use = el("use", { href: "#lianbu", x: 0, y: 0, width: 150, height: 165 }, lb);
+  const bino = el("g", { class: "boil" }, lb);
+  el("rect", { x: 22, y: 92, width: 34, height: 26, rx: 8, fill: "#3A261F" }, bino); el("rect", { x: 60, y: 92, width: 34, height: 26, rx: 8, fill: "#3A261F" }, bino);
+  el("circle", { cx: 39, cy: 105, r: 8, fill: "#C4E86F" }, bino); el("circle", { cx: 77, cy: 105, r: 8, fill: "#C4E86F" }, bino);
+  const sweat = el("path", { d: "M138 70 C 130 84, 132 94, 140 94 C 148 94, 150 84, 138 70 Z", fill: "#7FC8F8", stroke: "#3A261F", "stroke-width": 2.5 }, lb);
+  el("text", { x: 500, y: 92, "font-family": "Hand", "font-size": 34, fill: "#1F5E2B", "text-anchor": "middle" }, s).textContent = "...just across the sea?";
+  onFrame(0, (lt, t) => {
+    waves.forEach((w, i) => w.setAttribute("d", wavePath(-20, 1100, 236 + i * 30, 7 - i, 120 + i * 26, t * (2.2 - i * .25) + i)));
+    const fl = 1 + Math.sin(t * 13) * .07 + Math.sin(t * 7.3) * .05;
+    fire.setAttribute("transform", `translate(250 152) scale(${2 - fl} ${fl}) translate(-250 -152)`);
+    smoke.forEach((p, i) => { const k = ((t * .45 + i / 3) % 1); p.setAttribute("transform", `translate(${245 + k * 40 + Math.sin(t * 2 + i) * 8} ${70 - k * 90}) scale(${.6 + k})`); p.setAttribute("opacity", (.16 * (1 - k)).toFixed(3)); });
+    const bob = Math.sin(t * 3.2) * 6; lb.setAttribute("transform", `translate(900 ${100 + bob}) rotate(${Math.sin(t * 2) * 3} 75 110)`);
+    sweat.setAttribute("transform", `translate(0 ${Math.abs(Math.sin(t * 3)) * 6})`);
+  });
+}
+
+function buildMirror(id, kind) {
+  const s = document.getElementById(id);
+  const g = el("g", { class: "boil" }, s);
+  el("path", { d: roughCircle(180, 165, 152, kind === 3 ? 31 : 32, 1, .03) + "Z", fill: kind === 3 ? "#FFF1EE" : "#FFFDF5", stroke: "#C9A227", "stroke-width": 14 }, g);
+  el("path", { d: roughCircle(180, 165, 136, 33, 1.05, .03), fill: "none", stroke: "#3A261F", "stroke-width": 3 }, g);
+  el("path", { d: "M120 60 Q 90 90 84 140", fill: "none", stroke: "#fff", "stroke-width": 9, "stroke-linecap": "round", opacity: .9 }, g);
+  const clipId = "mclip" + kind;
+  const cp = el("clipPath", { id: clipId }, s); el("circle", { cx: 180, cy: 165, r: 134 }, cp);
+  const inner = el("g", { "clip-path": `url(#${clipId})` }, s);
+  if (kind === 3) {
+    const waves = []; for (let i = 0; i < 3; i++) waves.push(el("path", { class: "ink", style: `stroke:${i ? "#78B94E" : "#1F5E2B"};stroke-width:4` }, inner));
+    const ship = el("g", { class: "boil" }, inner);
+    el("path", { d: "M-60 0 L 60 0 L 44 26 L -46 26 Z", fill: "#3A261F" }, ship);
+    el("rect", { x: -24, y: -26, width: 40, height: 26, fill: "#6A5148", stroke: "#3A261F", "stroke-width": 3 }, ship);
+    el("rect", { x: -12, y: -46, width: 12, height: 20, fill: "#6A5148", stroke: "#3A261F", "stroke-width": 3 }, ship);
+    el("path", { d: "M10 -26 L 10 -64 L 40 -56 L 10 -48", fill: "#E84860", stroke: "#3A261F", "stroke-width": 3 }, ship);
+    onFrame(2, (lt, t) => {
+      waves.forEach((w, i) => w.setAttribute("d", wavePath(30, 340, 238 + i * 22, 5, 80, t * 2.5 + i * 1.3)));
+      const x = 70 + ((lt * 26) % 300); ship.setAttribute("transform", `translate(${x} ${226 + Math.sin(t * 3) * 4}) rotate(${Math.sin(t * 2.6) * 3})`);
+    });
+  } else {
+    // tower of "support" blocks on a cracked, empty base
+    const base = el("g", {}, inner);
+    el("path", { d: "M84 252 L 276 252", class: "ink", style: "stroke:#3A261F;stroke-width:5" }, base);
+    const crack = el("path", { d: "M168 252 L 180 266 L 170 278 L 186 292", class: "ink boil", style: "stroke:#E84860;stroke-width:4", "data-draw": "", "data-t": "2.0", "data-d": ".5" }, base);
+    el("text", { x: 180, y: 286, "text-anchor": "middle", "font-size": 22, "font-weight": 900, fill: "#E84860", "font-family": "IPAPGothic, sans-serif" }, base).textContent = "自衛の意志 ?";
+    const tower = el("g", { class: "boil" }, inner);
+    const cols = ["#C4E86F", "#FF7AA0", "#C4E86F"];
+    const blocks = cols.map((c, i) => { const b = el("g", {}, tower); el("rect", { x: -54, y: -36, width: 108, height: 36, rx: 6, fill: c, stroke: "#3A261F", "stroke-width": 4 }, b); el("text", { x: 0, y: -10, "text-anchor": "middle", "font-size": 20, "font-weight": 900, fill: "#3A261F", "font-family": "IPAPGothic, sans-serif" }, b).textContent = "米国支援"; return b; });
+    const rest = [[128, 250, -4], [234, 250, 8], [184, 214, -14]];
+    onFrame(3, (lt) => {
+      const fall = clamp((lt - 3.0) / 1.1);
+      const bounce = x => { const n1 = 7.5625, d1 = 2.75; if (x < 1 / d1) return n1 * x * x; if (x < 2 / d1) return n1 * (x -= 1.5 / d1) * x + .75; if (x < 2.5 / d1) return n1 * (x -= 2.25 / d1) * x + .9375; return n1 * (x -= 2.625 / d1) * x + .984375; };
+      blocks.forEach((b, i) => {
+        const y0 = 250 - i * 37; const wob = Math.sin(lt * 6 + i) * (1 - fall) * clamp(lt - 1.2, 0, 1) * (1.5 + i * 1.5);
+        const k = clamp((fall - i * .06) / (1 - i * .06)); const ky = bounce(k), kx = ease.out(k);
+        const x = lerp(180 + wob, rest[i][0], kx), y = lerp(y0, rest[i][1], ky), r = lerp(wob * 1.4, rest[i][2], kx);
+        b.setAttribute("transform", `translate(${x} ${y}) rotate(${r})`);
+      });
+    });
+  }
+}
+
+function buildSeesaw() {
+  const s = document.getElementById("seesaw");
+  const g = el("g", { class: "boil" }, s);
+  el("path", { d: "M440 330 L 500 230 L 560 330 Z", fill: "#C9A227", stroke: "#3A261F", "stroke-width": 5, "stroke-linejoin": "round" }, g);
+  el("path", { d: "M120 336 L 880 336", class: "ink", style: "stroke:#3A261F;stroke-width:4", opacity: .4 }, g);
+  const beam = el("g", { class: "boil" }, s);
+  el("rect", { x: 120, y: 214, width: 760, height: 20, rx: 10, fill: "#6A5148", stroke: "#3A261F", "stroke-width": 4 }, beam);
+  const mkSeat = (x, fill, label, seed) => {
+    const p = el("g", {}, beam);
+    el("path", { d: roughCircle(x, 150, 62, seed, 1, .05) + "Z", fill, stroke: "#3A261F", "stroke-width": 5 }, p);
+    const t = el("text", { x, y: 162, "text-anchor": "middle", "font-size": 34, "font-weight": 900, fill: "#FFFDF5", "font-family": "IPAPGothic, sans-serif", stroke: "#FFFDF5", "stroke-width": 1 }, p);
+    t.textContent = label; return { p, t };
+  };
+  const L = mkSeat(220, "#E84860", "台湾", 51), R = mkSeat(780, "#1F5E2B", "日本", 52);
+  const capL = el("text", { x: 220, y: 70, "text-anchor": "middle", "font-size": 26, "font-weight": 900, fill: "#6A5148", "font-family": "IPAPGothic, sans-serif" }, beam);
+  const capR = el("text", { x: 780, y: 70, "text-anchor": "middle", "font-size": 26, "font-weight": 900, fill: "#6A5148", "font-family": "IPAPGothic, sans-serif" }, beam);
+  const arrows = el("g", { opacity: 0 }, s);
+  el("path", { d: "M330 120 C 420 60, 580 60, 670 120", class: "ink", style: "stroke:#E84860;stroke-width:6" }, arrows);
+  el("path", { d: "M650 96 L 672 122 L 640 128", class: "ink", style: "stroke:#E84860;stroke-width:6" }, arrows);
+  el("path", { d: "M670 170 C 580 220, 420 220, 330 170", class: "ink", style: "stroke:#1F5E2B;stroke-width:6" }, arrows);
+  el("path", { d: "M350 194 L 328 168 L 360 162", class: "ink", style: "stroke:#1F5E2B;stroke-width:6" }, arrows);
+  const eq = el("text", { x: 500, y: 158, "text-anchor": "middle", "font-family": "Hand", "font-size": 50, fill: "#1F5E2B" }, arrows); eq.textContent = "equal!";
+  onFrame(5, (lt, t) => {
+    const k = ease.elastic(clamp((lt - 1.6) / 1.4));
+    const ang = lerp(-14, 0, k) + Math.sin(t * 2) * (1 - k) * 1.5;
+    beam.setAttribute("transform", `rotate(${ang} 500 224)`);
+    const flipped = lt > 1.9;
+    capL.textContent = flipped ? "情報戦の実戦経験" : "助けられる側";
+    capR.textContent = flipped ? "共に備える" : "守る側";
+    arrows.setAttribute("opacity", clamp((lt - 2.4) / .5).toFixed(2));
+    L.p.setAttribute("transform", `translate(0 ${Math.sin(t * 3) * 3})`); R.p.setAttribute("transform", `translate(0 ${Math.sin(t * 3 + 1) * 3})`);
+  });
+}
+
+function buildWindow() {
+  const s = document.getElementById("win7");
+  const g = el("g", { class: "boil" }, s);
+  el("path", { d: roughRectFill(14, 14, 222, 200, 14, 70), fill: "#FFFDF5", stroke: "#3A261F", "stroke-width": 5 }, g);
+  el("path", { d: "M125 16 L 125 212 M16 110 L 234 110", class: "ink", style: "stroke-width:4" }, g);
+  const sun = el("g", {}, s); el("circle", { cx: 70, cy: 62, r: 24, fill: "#C9A227", stroke: "#3A261F", "stroke-width": 3 }, sun);
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; el("line", { x1: 70 + Math.cos(a) * 32, y1: 62 + Math.sin(a) * 32, x2: 70 + Math.cos(a) * 42, y2: 62 + Math.sin(a) * 42, class: "ink", style: "stroke:#C9A227;stroke-width:4" }, sun); }
+  const pot = el("g", { class: "boil" }, s);
+  el("path", { d: "M150 214 L 158 244 L 214 244 L 222 214 Z", fill: "#E84860", stroke: "#3A261F", "stroke-width": 4 }, pot);
+  const stem = el("path", { d: "M186 214 C 184 180, 192 160, 186 128", class: "ink", style: "stroke:#1F5E2B;stroke-width:5", "data-draw": "", "data-t": "1.0", "data-d": ".8" }, s);
+  const leaves = [el("path", { d: "M186 176 C 160 170, 150 150, 154 140 C 172 140, 186 156, 186 176 Z", fill: "#C4E86F", stroke: "#1F5E2B", "stroke-width": 3 }, s),
+                  el("path", { d: "M187 150 C 210 146, 222 126, 218 114 C 200 114, 187 130, 187 150 Z", fill: "#78B94E", stroke: "#1F5E2B", "stroke-width": 3 }, s)];
+  onFrame(6, (lt, t) => {
+    sun.setAttribute("transform", `rotate(${t * 20} 70 62)`);
+    leaves.forEach((l, i) => { const k = ease.back(clamp((lt - 1.6 - i * .3) / .5)); l.setAttribute("transform", `translate(186 ${160 - i * 20}) scale(${k}) rotate(${Math.sin(t * 2 + i) * 6}) translate(-186 ${-160 + i * 20})`); });
+  });
+}
+
+function buildIcons8() {
+  document.querySelectorAll("[data-icon]").forEach(s => {
+    const k = s.dataset.icon; const g = el("g", { class: "boil" }, s);
+    if (k === "laptop") {
+      el("rect", { x: 30, y: 20, width: 90, height: 62, rx: 6, fill: "#3A261F" }, g); el("rect", { x: 38, y: 28, width: 74, height: 46, fill: "#7FC8F8" }, g);
+      el("path", { d: "M18 92 L 132 92 L 122 82 L 28 82 Z", fill: "#6A5148", stroke: "#3A261F", "stroke-width": 3 }, g);
+      const bolt = el("path", { d: "M82 30 L 64 54 L 78 54 L 68 74 L 92 46 L 78 46 Z", fill: "#E84860", stroke: "#3A261F", "stroke-width": 2.5 }, g);
+      onFrame(7, (lt, t) => bolt.setAttribute("opacity", (Math.sin(t * 9) > -.3 ? 1 : .2)));
+    }
+    if (k === "leak") {
+      el("path", { d: "M26 40 L 60 40 L 68 30 L 124 30 L 124 96 L 26 96 Z", fill: "#C9A227", stroke: "#3A261F", "stroke-width": 4, "stroke-linejoin": "round" }, g);
+      const papers = [0, 1, 2].map(i => { const p = el("g", {}, s); el("rect", { x: -14, y: -18, width: 28, height: 36, fill: "#FFFDF5", stroke: "#3A261F", "stroke-width": 3 }, p); el("path", { d: "M-8 -8 h16 M-8 0 h16 M-8 8 h10", class: "ink", style: "stroke-width:2.5" }, p); return p; });
+      onFrame(7, (lt, t) => papers.forEach((p, i) => { const q = (t * .5 + i / 3) % 1; p.setAttribute("transform", `translate(${75 + (i - 1) * 30 * q + Math.sin(t * 3 + i) * 6} ${40 - q * 46}) rotate(${(i - 1) * 40 * q})`); p.setAttribute("opacity", (1 - q).toFixed(2)); }));
+    }
+    if (k === "coin") {
+      el("circle", { cx: 66, cy: 62, r: 38, fill: "#C9A227", stroke: "#3A261F", "stroke-width": 4 }, g);
+      el("text", { x: 66, y: 78, "text-anchor": "middle", "font-family": "IPAPGothic, sans-serif", "font-weight": 900, "font-size": 46, fill: "#3A261F" }, g).textContent = "¥";
+      for (let i = 0; i < 3; i++) el("ellipse", { cx: 104 + i * 16, cy: 86 + i * 12, rx: 10, ry: 6, fill: "none", stroke: "#6A5148", "stroke-width": 4, transform: `rotate(35 ${104 + i * 16} ${86 + i * 12})` }, g);
+      onFrame(7, (lt, t) => g.setAttribute("transform", `rotate(${Math.sin(t * 4) * 6} 66 62)`));
+    }
+    if (k === "mask") {
+      el("path", { d: "M36 46 C 56 36, 94 36, 114 46 L 110 86 C 90 98, 60 98, 40 86 Z", fill: "#FFFFFF", stroke: "#3A261F", "stroke-width": 4, "stroke-linejoin": "round" }, g);
+      el("path", { d: "M44 58 h62 M44 70 h62", class: "ink", style: "stroke-width:2.5;stroke:#6A5148" }, g);
+      el("path", { d: "M36 50 C 20 50, 18 76, 40 80 M114 50 C 130 50, 132 76, 110 80", class: "ink", style: "stroke-width:3.5" }, g);
+      const tag = el("g", {}, s); el("rect", { x: -46, y: -14, width: 92, height: 28, rx: 4, fill: "#E84860", stroke: "#3A261F", "stroke-width": 3 }, tag);
+      el("text", { x: 0, y: 8, "text-anchor": "middle", "font-family": "Retro", "font-size": 18, fill: "#FFFDF5" }, tag).textContent = "SOLD OUT";
+      onFrame(7, (lt, t) => tag.setAttribute("transform", `translate(98 22) rotate(${12 + Math.sin(t * 5) * 5})`));
+    }
+  });
+}
+
+function buildBook() {
+  const b = document.getElementById("book");
+  const img = new Image(); img.src = "assets/cover.jpg";
+  const draw = () => {
+    b.innerHTML = `<svg viewBox="0 0 300 446" width="300" height="446" style="overflow:visible">
+      <g class="boil-soft">
+        <path d="${roughRectFill(14, 14, 286, 432, 8, 80)}" fill="rgba(58,38,31,.22)"/>
+        <path d="${roughRectFill(0, 0, 286, 432, 8, 81)}" fill="#1F5E2B" stroke="#3A261F" stroke-width="5"/>
+        <path d="M18 4 L 18 428" stroke="#FFFDF5" stroke-width="3" opacity=".35"/>
+        <path d="${roughCircle(150, 250, 104, 82, 1, .08)}Z" fill="#E84860" opacity=".9"/>
+        <path d="M70 330 C 120 290, 190 300, 236 270" stroke="#C4E86F" stroke-width="6" fill="none" stroke-linecap="round"/>
+      </g>
+      <text x="150" y="98" text-anchor="middle" font-size="50" font-weight="900" fill="#FFFDF5" stroke="#FFFDF5" stroke-width="1.5" font-family="WenQuanYi Zen Hei, sans-serif">國家的決斷</text>
+      <text x="150" y="140" text-anchor="middle" font-size="17" font-weight="700" fill="#C4E86F" font-family="WenQuanYi Zen Hei, sans-serif">給台灣人看的二戰後國際關係史</text>
+      <text x="150" y="268" text-anchor="middle" font-size="56" fill="#FFFDF5" font-family="Retro">1945→</text>
+      <text x="150" y="400" text-anchor="middle" font-size="26" font-weight="900" fill="#FFFDF5" font-family="WenQuanYi Zen Hei, sans-serif">張國城　著</text>
+    </svg>`;
+    el("path", { d: "M-20 -6 L 70 -22 L 76 6 L -14 22 Z", fill: "rgba(196,232,111,.85)", transform: "translate(110 -10) rotate(-6)" }, b.querySelector("svg"));
+  };
+  img.onload = () => { b.innerHTML = ""; b.appendChild(img); const tape = document.createElement("div"); tape.style.cssText = "position:absolute;left:110px;top:-18px;width:96px;height:34px;background:rgba(196,232,111,.85);transform:rotate(-6deg)"; b.appendChild(tape); window.__coverReal = true; };
+  img.onerror = () => { draw(); window.__coverReal = false; };
+}
+
+function buildQR() {
+  const s = document.getElementById("qr"); if (!window.QR_ROWS) return;
+  const n = QR_ROWS.length; s.setAttribute("viewBox", `-2 -2 ${n + 4} ${n + 4}`);
+  let d = ""; QR_ROWS.forEach((row, y) => { for (let x = 0; x < n; x++) if (row[x] === "1") d += `M${x},${y}h1v1h-1z`; });
+  el("rect", { x: -2, y: -2, width: n + 4, height: n + 4, fill: "#fff" }, s);
+  el("path", { d, fill: "#1A1818" }, s);
+}
+
+function buildTalk5() {
+  const s = document.getElementById("talk5");
+  const book = el("g", { class: "boil" }, s);
+  el("path", { d: "M540 250 C 470 220, 400 222, 340 240 L 340 140 C 400 122, 470 120, 540 150 Z", fill: "#FFFDF5", stroke: "#3A261F", "stroke-width": 5, "stroke-linejoin": "round" }, book);
+  el("path", { d: "M540 250 C 610 220, 680 222, 740 240 L 740 140 C 680 122, 610 120, 540 150 Z", fill: "#FFFDF5", stroke: "#3A261F", "stroke-width": 5, "stroke-linejoin": "round" }, book);
+  for (let i = 0; i < 3; i++) { el("path", { d: `M370 ${168 + i * 22} C 420 ${156 + i * 22}, 470 ${156 + i * 22}, 515 ${170 + i * 22}`, class: "ink", style: "stroke:#6A5148;stroke-width:3" }, book); el("path", { d: `M565 ${170 + i * 22} C 610 ${156 + i * 22}, 660 ${156 + i * 22}, 710 ${168 + i * 22}`, class: "ink", style: "stroke:#6A5148;stroke-width:3" }, book); }
+  el("text", { x: 540, y: 104, "text-anchor": "middle", "font-family": "Retro", "font-size": 40, fill: "#E84860" }, s).textContent = "國家的決斷";
+  const bub = (x, y, fill, ch, seed) => { const g = el("g", {}, s); const gg = el("g", { class: "boil" }, g);
+    el("path", { d: roughCircle(0, 0, 50, seed, 1, .06) + "Z", fill, stroke: "#3A261F", "stroke-width": 4 }, gg);
+    el("path", { d: "M-20 40 L -34 70 L 4 48", fill, stroke: "#3A261F", "stroke-width": 4, "stroke-linejoin": "round" }, gg);
+    el("text", { x: 0, y: 20, "text-anchor": "middle", "font-family": "Retro", "font-size": 56, fill: "#FFFDF5" }, g).textContent = ch; return g; };
+  const b1 = bub(220, 120, "#E84860", "?", 91), b2 = bub(860, 110, "#1F5E2B", "!", 92), b3 = bub(980, 220, "#C4E86F", "…", 93);
+  onFrame(4, (lt, t) => {
+    [[b1, 220, 120, 0], [b2, 860, 110, 1.2], [b3, 985, 235, 2.1]].forEach(([b, x, y, ph]) => { const k = ease.back(clamp((lt - 1.0 - ph * 1.5) / .5)); b.setAttribute("transform", `translate(${x} ${y + Math.sin(t * 2.4 + ph) * 8}) scale(${k * (b === b3 ? .7 : 1)})`); });
+  });
+}
+
+function buildSkyline() {
+  const s = document.getElementById("sky7");
+  const P = (d, col = "#1F5E2B", w = 4, t = 0) => el("path", { d, class: "ink", style: `stroke:${col};stroke-width:${w}`, "data-draw": "", "data-t": String(7.0 + t), "data-d": "1.1" }, s);
+  P("M0 240 L 1080 240", "#3A261F", 4, 0);
+  P("M40 240 L 40 150 L 100 110 L 160 150 L 160 240 M70 240 L 70 190 L 100 190 L 100 240", "#3A261F", 4, .1);
+  P("M200 240 L 200 120 L 280 120 L 280 240 M220 140 h16 M250 140 h16 M220 170 h16 M250 170 h16 M220 200 h16 M250 200 h16", "#6A5148", 4, .2);
+  P("M330 240 C 320 200, 340 170, 360 160 C 380 170, 400 200, 390 240 M360 240 L 360 200", "#78B94E", 5, .3);
+  // tower
+  P("M520 240 L 560 40 L 600 240 M532 180 L 588 180 M544 120 L 576 120 M560 40 L 560 16", "#E84860", 5, .35);
+  P("M534 180 L 586 240 M586 180 L 534 240", "#E84860", 3, .5);
+  P("M660 240 L 660 140 L 760 140 L 760 240 M680 160 h20 M720 160 h20 M680 196 h20 M720 196 h20", "#6A5148", 4, .4);
+  P("M800 240 L 800 170 L 850 130 L 900 170 L 900 240 M835 240 L 835 200 L 865 200 L 865 240", "#3A261F", 4, .5);
+  P("M950 240 C 940 196, 962 160, 990 150 C 1018 160, 1040 196, 1030 240 M990 240 L 990 190", "#78B94E", 5, .6);
+  // tiny train
+  const train = el("g", { class: "boil" }, s);
+  el("rect", { x: 0, y: 214, width: 120, height: 22, rx: 8, fill: "#C4E86F", stroke: "#1F5E2B", "stroke-width": 3 }, train);
+  el("rect", { x: 128, y: 214, width: 120, height: 22, rx: 8, fill: "#C4E86F", stroke: "#1F5E2B", "stroke-width": 3 }, train);
+  if (STATIC) train.style.display = "none";
+  onFrame(6, (lt, t) => { train.setAttribute("transform", `translate(${((lt * 140) % 1500) - 300} 0)`); });
+}
+
+function buildCircle10() {
+  const s = document.getElementById("circle10");
+  const st = el("g", { class: "boil" }, s);
+  const bk = (y, w, fill, x = 120) => el("path", { d: roughRectFill(x, y, w, 34, 6, y), fill, stroke: "#FFFDF5", "stroke-width": 4 }, st);
+  bk(210, 230, "#E84860", 110); bk(174, 200, "#C9A227", 128); bk(138, 220, "#FF7AA0", 116); bk(102, 180, "#78B94E", 140);
+  el("path", { d: "M400 160 L 400 236 C 400 250, 470 250, 470 236 L 470 160 Z M470 178 C 500 178, 500 220, 470 220", fill: "#FFFDF5", stroke: "#FFFDF5", "stroke-width": 4, "stroke-linejoin": "round" }, st);
+  const steam = [0, 1].map(i => el("path", { d: `M${422 + i * 24} 146 C ${412 + i * 24} 126, ${436 + i * 24} 116, ${424 + i * 24} 96`, class: "ink", style: "stroke:#C4E86F;stroke-width:4" }, s));
+  const tx = el("text", { x: 600, y: 160, "font-family": "Hand", "font-size": 56, fill: "#C4E86F" }, s); tx.textContent = "to be continued…";
+  const tx2 = el("text", { x: 600, y: 222, "font-family": "IPAPGothic, sans-serif", "font-size": 30, "font-weight": 900, fill: "#FFFDF5" }, s); tx2.textContent = "次回（2）につづく →";
+  onFrame(9, (lt, t) => {
+    steam.forEach((p, i) => { p.setAttribute("transform", `translate(0 ${-((t * 18 + i * 10) % 20)})`); p.setAttribute("opacity", (0.5 + 0.5 * Math.sin(t * 3 + i)).toFixed(2)); });
+    const k = ease.out(clamp((lt - 6.2) / .8)); tx.setAttribute("opacity", k); tx2.setAttribute("opacity", clamp((lt - 6.8) / .6));
+    document.querySelectorAll("#s10 [data-wig]").forEach((w, i) => w.style.transform = `rotate(${Math.sin(t * 5 + i * 2) * 8}deg) translateY(${Math.abs(Math.sin(t * 4 + i)) * -6}px)`);
+  });
+}
+
+/* ---------------- timeline ---------------- */
+let scenes, starts = [], total = 0;
+const TR = 0.75; // transition length
+const items = [];
+function collect() {
+  scenes = [...document.querySelectorAll(".scene")];
+  scenes.forEach((sc, i) => { starts.push(total); total += parseFloat(sc.dataset.dur); });
+  total += 0.6; // hold at end, then loop
+  scenes.forEach((sc, i) => {
+    sc.querySelectorAll("[data-a]").forEach(e => {
+      const it = { e, i, a: e.dataset.a, t: parseFloat(e.dataset.t || 0), d: parseFloat(e.dataset.d || (e.dataset.a === "marker" ? .55 : .6)), r: parseFloat(e.dataset.r || 0) };
+      if (it.a === "type") {
+        // split text into per-character spans (keep inline markup)
+        const chars = [];
+        const walk = n => { [...n.childNodes].forEach(c => { if (c.nodeType === 3) { const frag = document.createDocumentFragment(); [...c.textContent].forEach(ch => { const sp = document.createElement("span"); sp.textContent = ch; frag.appendChild(sp); chars.push(sp); }); c.replaceWith(frag); } else walk(c); }); };
+        walk(e); it.chars = chars;
+      }
+      items.push(it);
+    });
+    sc.querySelectorAll("[data-draw]").forEach(p => {
+      const L = p.getTotalLength ? p.getTotalLength() : 300;
+      p.style.strokeDasharray = `${L + 2} ${L + 2}`;
+      items.push({ e: p, i, a: "draw", t: parseFloat(p.dataset.t || 0), d: parseFloat(p.dataset.d || .6), L });
+    });
+  });
+}
+
+function applyItem(it, lt) {
+  const p = clamp((lt - it.t) / it.d);
+  const s = it.e.style;
+  switch (it.a) {
+    case "up": { const k = ease.out(p); s.opacity = k; s.transform = `translateY(${(1 - k) * 42}px)`; break; }
+    case "pop": { const k = ease.back(p); s.opacity = clamp(p * 3); s.transform = `scale(${Math.max(0, k)}) rotate(${it.r * (1 + (1 - k) * 3)}deg)`; break; }
+    case "stamp": { const k = ease.out(p); s.opacity = clamp(p * 2.5); s.transform = `scale(${lerp(2.2, 1, k)}) rotate(${it.r}deg)`; break; }
+    case "marker": { s.setProperty("--p", (ease.inOut(p) * 100).toFixed(1) + "%"); break; }
+    case "type": { const n = Math.round(it.chars.length * p); it.chars.forEach((c, k) => c.style.opacity = k < n ? 1 : 0); break; }
+    case "draw": { s.strokeDashoffset = ((1 - ease.inOut(p)) * (it.L + 2)).toFixed(1); break; }
+  }
+}
+
+/* wipe: colored ink blob grows from a corner, then next scene is revealed through a circle */
+const wipe = document.getElementById("wipe");
+const wipeBlob = el("path", { class: "boil" }, wipe);
+const wipeBlob2 = el("path", { class: "boil" }, wipe);
+function wipeD(cx, cy, r, seed) { return roughCircle(cx, cy, r, seed, 1, .07) + "Z"; }
+
+/* Lianbu peeking on top of every scene (bottom-right) */
+const lbLayer = document.getElementById("lianbuLayer");
+const lbG = el("g", {}, lbLayer);
+el("use", { href: "#lianbu", width: 120, height: 132 }, lbG);
+const lbSpark = el("g", {}, lbLayer);
+for (let i = 0; i < 3; i++) el("path", { d: "M0 -12 L 3 -3 L 12 0 L 3 3 L 0 12 L -3 3 L -12 0 L -3 -3 Z", fill: "#C4E86F", stroke: "#1F5E2B", "stroke-width": 2 }, lbSpark);
+
+let turbFrame = -1;
+function seek(t) {
+  if (!STATIC) t = ((t % total) + total) % total;
+  // boiling lines: 8 fps seed swap
+  const bf = Math.floor(t * 8) % 6;
+  if (bf !== turbFrame) { turbFrame = bf; document.getElementById("turb").setAttribute("seed", bf + 1); document.getElementById("turb2").setAttribute("seed", bf + 7); }
+
+  let cur = 0; for (let i = 0; i < scenes.length; i++) if (t >= starts[i]) cur = i;
+  scenes.forEach((sc, i) => {
+    const lt = t - starts[i];
+    const end = starts[i] + parseFloat(sc.dataset.dur);
+    const visible = (i === cur) || (i === cur + 1 && t > end - TR) || (i === cur - 1 && lt < parseFloat(sc.dataset.dur) + TR);
+    sc.style.visibility = (i === cur || (i === cur - 1 && t - starts[cur] < TR)) ? "visible" : "hidden";
+    sc.style.clipPath = "";
+    sc.style.zIndex = i === cur ? 2 : 1;
+  });
+  const lt = t - starts[cur];
+  // transition into `cur` (except first scene at loop start)
+  wipeBlob.setAttribute("d", ""); wipeBlob2.setAttribute("d", "");
+  if (cur > 0 && lt < TR && !STATIC) {
+    const k = ease.inOut(clamp(lt / TR));
+    const cx = cur % 2 ? 980 : 100, cy = 1250;
+    const R1 = lerp(0, 1900, clamp(k * 1.25)), R2 = lerp(0, 1900, clamp(k * 1.25 - .25));
+    wipeBlob.setAttribute("d", wipeD(cx, cy, R1, cur * 3)); wipeBlob.setAttribute("fill", scenes[cur].dataset.wipe);
+    wipeBlob.setAttribute("opacity", (1 - clamp((k - .6) / .4)).toFixed(2));
+    scenes[cur].style.clipPath = `circle(${R2}px at ${cx}px ${cy}px)`;
+    scenes[cur].style.zIndex = 3;
+  } else if (cur === 0 && lt < .4 && !STATIC && t > .01) {
+    // loop-in fade from end
+  }
+  // element animations
+  items.forEach(it => { if (it.i === cur || it.i === cur - 1) applyItem(it, STATIC ? 999 : t - starts[it.i]); });
+  dyn.forEach(d => { if (d.scene === cur || d.scene === cur - 1) d.fn(STATIC ? 30 : t - starts[d.scene], t); });
+
+  // Lianbu peeker
+  const dark = scenes[cur].dataset.bg === "#1F5E2B";
+  const hide = cur === 0; // cover already features Lianbu
+  const pk = STATIC ? 1 : ease.back(clamp((lt - 1.2) / .6));
+  const bob = Math.sin(t * 3) * 5;
+  const wave = cur === 9 ? Math.sin(t * 6) * 12 : Math.sin(t * 1.7) * 4;
+  lbG.style.display = hide ? "none" : ""; lbSpark.style.display = hide ? "none" : "";
+  const baseY = 1350 - 120 * pk + 12 + bob;
+  lbG.setAttribute("transform", `translate(${cur === 4 ? 40 : 935} ${baseY}) rotate(${wave} 60 120)`);
+  [...lbSpark.children].forEach((sp, i) => { const q = (t * .8 + i / 3) % 1; sp.setAttribute("transform", `translate(${(cur === 4 ? 40 : 935) + 20 + i * 36} ${baseY - 10 - q * 50}) scale(${Math.sin(q * Math.PI) * .9})`); });
+  if (cur === 4) lbG.setAttribute("transform", lbG.getAttribute("transform") + " translate(120 0) scale(-1 1)");
+
+  // Story bands progress
+  if (STORY) {
+    const prog = document.getElementById("progBar"); if (prog) prog.setAttribute("width", (STATIC ? (STATIC / 10) : (t / total)) * 920);
+  }
+  // pointer (scene 9)
+  const fg = document.getElementById("finger9");
+  if (cur === 8 || STATIC === 9) {
+    const L9 = STATIC ? 30 : t - starts[8];
+    const targets = [[3.6, 0], [4.6, 1], [5.6, 2]];
+    const opts = scenes[8].querySelectorAll(".opt");
+    let x = 1100, y = 1400;
+    const pos = k => { const o = opts[k]; return [o.offsetLeft + o.offsetWidth - 110, o.offsetTop + o.offsetHeight / 2 + 10]; };
+    if (L9 > 2.8) {
+      let a = pos(0), b = a;
+      for (let k = 0; k < 3; k++) if (L9 > targets[k][0] - .6) { a = b; b = pos(k); }
+      const seg = targets.findLastIndex ? targets.findLastIndex(tt => L9 > tt[0] - .6) : 0;
+      const kk = ease.inOut(clamp((L9 - (targets[Math.max(0, seg)][0] - .6)) / .5));
+      const from = seg <= 0 ? [1100, 1300] : pos(seg - 1), to = pos(Math.max(0, seg));
+      x = lerp(from[0], to[0], kk); y = lerp(from[1], to[1], kk);
+      const tap = targets.some(tt => L9 > tt[0] - .08 && L9 < tt[0] + .15) ? 8 : 0; y += tap;
+      if (L9 > 6.2) { const out = ease.inOut(clamp((L9 - 6.2) / .6)); x = lerp(x, 1150, out); y = lerp(y, 1450, out); }
+    }
+    if (STATIC) { x = 1200; }
+    fg.style.transform = `translate(${x}px, ${y}px) rotate(-12deg)`;
+  }
+}
+
+/* story bands */
+function buildStory() {
+  if (!STORY) return;
+  const top = document.getElementById("bandTop"), bot = document.getElementById("bandBot");
+  top.style.background = "#E84860"; bot.style.background = "#1F5E2B";
+  top.innerHTML = `<svg width="1080" height="285" viewBox="0 0 1080 285"><rect width="1080" height="285" fill="url(#dotsPink)"/>
+    <text x="80" y="140" font-family="IPAPGothic, sans-serif" font-size="64" font-weight="900" fill="#FFFDF5" stroke="#FFFDF5" stroke-width="2">『国家の決断』を読む</text>
+    <text x="80" y="210" font-family="IPAPGothic, sans-serif" font-size="34" font-weight="700" fill="#FFF1EE">在日台湾人の視線から ｜ 全10回 (1)</text>
+    <text x="1000" y="140" text-anchor="end" font-family="Hand" font-size="40" fill="#C4E86F">vol.1</text></svg>`;
+  bot.innerHTML = `<svg width="1080" height="285" viewBox="0 0 1080 285">
+    <rect x="80" y="70" width="920" height="16" rx="8" fill="#FFFDF5" opacity=".25"/><rect id="progBar" x="80" y="70" width="0" height="16" rx="8" fill="#C4E86F"/>
+    <text x="80" y="160" font-family="IPAPGothic, sans-serif" font-size="36" font-weight="900" fill="#FFFDF5">保存・シェアで一緒に考えよう 📌</text>
+    <text x="80" y="214" font-family="IPAPGothic, sans-serif" font-size="28" font-weight="700" fill="#C4E86F">「認識台灣」読書会 × Tokyo Taiwan Radar</text></svg>`;
+}
+
+/* ---------------- boot ---------------- */
+async function boot() {
+  buildStory(); buildBackgrounds(); buildChrome(); buildQR(); buildBook();
+  await document.fonts.ready;
+  await new Promise(r => setTimeout(r, 60));
+  buildRough(); buildCover(); buildMirror("mirror3", 3); buildMirror("mirror4", 4); buildSeesaw(); buildWindow(); buildIcons8(); buildTalk5(); buildSkyline(); buildCircle10();
+  collect();
+  window.__total = total; window.__seek = seek; window.__starts = starts;
+  window.__durs = scenes.map(s => parseFloat(s.dataset.dur));
+  if (STATIC) { const i = STATIC - 1; seek(starts[i] + parseFloat(scenes[i].dataset.dur) - 0.01); window.__ready = true; return; }
+  window.__ready = true;
+  if (RENDER) return;
+  // preview player — scale to fit window
+  const fr = document.getElementById("frame"); const H = STORY ? 1920 : 1350;
+  const fit = () => { const k = Math.min(innerWidth / 1080, innerHeight / H); fr.style.transform = `scale(${k})`; fr.style.marginRight = `${1080 * k - 1080}px`; fr.style.marginBottom = `${H * k - H}px`; };
+  fit(); addEventListener("resize", fit);
+  let playing = true, t0 = performance.now(), off = 0;
+  const loop = now => { if (playing) seek(off + (now - t0) / 1000); requestAnimationFrame(loop); };
+  requestAnimationFrame(loop);
+  const now = () => off + (performance.now() - t0) / 1000;
+  addEventListener("keydown", e => {
+    if (e.code === "Space") { if (playing) off = now(); else t0 = performance.now(); playing = !playing; seek(off); }
+    if (e.code === "ArrowRight" || e.code === "ArrowLeft") { const c = now() % total; let k = starts.findIndex((s, i) => c < s) - 1; if (k < 0) k = starts.length - 1; k += e.code === "ArrowRight" ? 1 : -1; k = (k + starts.length) % starts.length; off = starts[k] + .001; t0 = performance.now(); if (!playing) seek(off); }
+  });
+  fr.addEventListener("click", () => { if (playing) off = now(); else t0 = performance.now(); playing = !playing; });
+}
+boot();
+})();
+</script>
+</body>
+</html>
