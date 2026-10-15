@@ -292,6 +292,10 @@ worktree 外**（寫在裡面會跟著被刪掉）。
 不進入移除；等使用者關閉對應的終端機或 session 後重新觀測。這次重新觀測抓到了使用者 VS Code 整合終端機的
 zsh 行程，啟動時間晚於使用者先前的確認。
 
+**要關閉的是終端機分頁，不是 agent session。** agent session 結束（`/exit`）只結束 `claude`，分頁的外層
+zsh 仍以 worktree 為 cwd，下一次 `lsof -a -d cwd` 照樣命中。占用名單要把這個外層 shell 列為獨立的占用者，
+並明說請使用者**關閉分頁**，不是只 `/exit`。
+
 ### 給使用者的 push 指令：從主工作目錄執行
 
 交接時不要叫使用者 `cd` 進 worktree 再 push——他的終端機會停在 worktree 內，Phase D 的占用偵測就會命中。
@@ -422,6 +426,11 @@ per-model / per-slice 的 token 與成本 index **本階段不做**。凍結理�
 ## 腳本
 
 `scripts/campaign-closeout-audit.sh` 自動化 Phase A。
+
+**受稽核 worktree 裡的腳本可能比稽核邏輯舊。** campaign worktree 的 HEAD 可能早於腳本的新版（2026-10-13
+ai-portability：`ttr-ai-portability-worktree` 停在 `87c2b557`，那裡的腳本不認得 `--range`）。這時用已含新版
+腳本的 checkout 的**絕對路徑**呼叫，並以 `--worktree '<registered-path>'` 指向受稽核者。不要為了跑腳本去
+移動或 rebase `feat/<slug>`：branch tip 本來就是 A4 要觀測的值。
 
 * **唯讀**：不建檔、不動 ref、不 fetch。呼叫端必須在執行前自行
   `git -C '<worktree>' fetch origin main --quiet`，否則 ahead / behind 是對舊的

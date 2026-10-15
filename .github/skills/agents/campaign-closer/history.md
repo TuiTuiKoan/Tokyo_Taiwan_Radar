@@ -9,6 +9,34 @@ ms.date: 2026-08-12
 
 ---
 
+## 2026-10-14 — 補兩點實測缺口：腳本版本落後的 worktree、終端機分頁的 shell 占用
+
+**背景**：兩點都是 ai-portability 結案（2026-10-13）的 Phase A、D 實際經過，先記在 parked spec
+（`docs/specs/parked/ai-portability-followups.md` 的結案後新增項），這次寫進 agent 檔與 SKILL.md。對應規則在
+agent 檔 Phase A 與 D1，以及 SKILL.md § 重新觀測 session 占用、§ 腳本。
+
+### 1. 受稽核 worktree 裡的腳本比稽核邏輯舊
+
+**現象**：標準呼叫是從受稽核的 worktree 執行 `bash scripts/campaign-closeout-audit.sh`，但
+`ttr-ai-portability-worktree` 停在 `87c2b557`，那裡的腳本不認得 `--range`。
+
+**修正**：改用已含新版腳本的 checkout 的絕對路徑呼叫，並以 `--worktree` 指向受稽核者。不為了跑腳本去移動
+或 rebase `feat/<slug>`。
+
+**教訓**：腳本版本跟著被稽核的分支走，而被稽核的分支 tip 恰好是要觀測的值之一，兩者不能用同一個動作對齊。
+
+### 2. `/exit` 不釋放 cwd
+
+**現象**：agent session 結束後，終端機分頁的外層 zsh 仍以 worktree 為 cwd。SKILL 原本只說「關閉對應的
+終端機或 session」，沒有說明 session 結束後 shell 仍持有 cwd。
+
+**修正**：占用名單把分頁的外層 shell 列為獨立的占用者，請使用者**關閉分頁**，不是只 `/exit`。
+
+**教訓**：使用者以為「結束了 session」與作業系統看到的「還有行程以該目錄為 cwd」是兩件事。要求他做的動作
+必須對得上偵測所看的東西。
+
+---
+
 ## 2026-10-14 — exclude 對帳的目標清單：用物理路徑推導，並以 worktree 計數當 STALE 閘門
 
 **背景**：closeout-audit-multirange 退役的 D3，要把 `.git/info/exclude` 的 `ttr-*-worktree/` 區塊收斂到仍然存活

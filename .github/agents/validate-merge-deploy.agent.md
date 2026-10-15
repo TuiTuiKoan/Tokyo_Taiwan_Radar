@@ -52,7 +52,7 @@ handoffs:
 
 1. `cd` 進該 worktree，確認 `git rev-parse --abbrev-ref HEAD` 與路徑相符；不符 → STOP 回報。
 2. **接著照常走既有 Steps 1–5**（狀態分類、rebase、verify、push、deploy）——**不要**在此另做一套 rebase/build/push。
-3. Step 4 push 時 **branch-aware**：push 當前 worktree 的正確 HEAD（rebase 成 linear 後 `git push origin HEAD:main`），保留 explicit user approval 與既有 gitleaks/i18n gate；禁 `--no-ff`、禁 `--no-verify`。
+3. Step 4 push 時 **branch-aware**：要推的是當前 worktree 的 campaign／feature 分支（rebase 成 linear 後），不是本地 `main`。V-M-D 不自行 push：提供一條由使用者從**主工作目錄**執行的指令 `git -C '<主工作目錄>' push origin <分支>:main`，行尾不加註解，ref 明寫分支名（細節見 Step 4）。不要叫使用者 `cd` 進 worktree 再 push：他的終端機會停在 worktree 內，之後結案流程的占用偵測就會命中；agent 自己的 `git push origin HEAD:main` 也已被權限系統以 Production Deploy 拒絕。保留 explicit user approval 與既有 gitleaks/i18n gate；禁 `--no-ff`、禁 `--no-verify`。
 4. push 成功後，**先做 cleanup preflight，再提示使用者**：
    - 若本次工作有 campaign 結案記錄，該記錄必須已進入 `origin/main`。未進入前**不提示 removal**，
      因為記錄只存在於 worktree 內時，removal 會連它一起刪掉。
@@ -165,13 +165,18 @@ handoffs:
 ### Step 4: Commit & Push
 0. **已提交偵測（呼應 Step 1 分類）**：若本地為「`ahead N, working tree clean`」→ **跳過本步驟 1（commit）**，直接執行 2（push）。不要對空 index 重跑 `git commit`（會得到「no changes added」誤判）。
 1. 使用原子化、描述清楚的提交消息（僅在有 staged 變更時）
-2. 執行 `git push origin main`
-3. 確認推送成功（無被拒絕的更新）
+2. 推送由使用者執行，V-M-D 只提供指令與核准提示。依 commit 所在位置二選一，**兩者都從主工作目錄執行**，行尾不加註解：
+   - commit 在 campaign／feature 分支（Step 0.6 的常態）：`git -C '<主工作目錄>' push origin <分支>:main`。在主工作目錄裡 `HEAD` 是主工作目錄自己的 HEAD，所以 ref 要明寫分支名。
+   - commit 已在本地 `main`（主工作目錄的治理／文件變更）：`git -C '<主工作目錄>' push origin main`。這個形式推的是本地 `main`，不是任何 worktree 的 `HEAD`，所以對 campaign 分支是錯的，兩者不可互換。
+
+   提醒使用者 push 完關閉用過的終端機分頁（不是只 `/exit`）。
+3. 使用者回報 push 之後，確認推送成功（無被拒絕的更新）：fetch 後 `origin/main` 含該 commit。
 
 ### Step 5: Verify Deployment
 1. Push 後立即記錄 `PUSHED_SHA=$(git rev-parse HEAD)`，重新 fetch `origin/main`，確認 GitHub `main` 的 SHA 仍等於 `PUSHED_SHA`。若不相等，停止並先釐清遠端是否被並行 push 推進。
 2. 對每一次 push（不論是否觸及 `web/`），透過 GitHub commit status 與 Vercel dashboard／API，或 `gh api "repos/<owner>/<repo>/deployments?sha=$PUSHED_SHA"`，查詢綁定 `PUSHED_SHA` 的 **Production** deployment，記錄 exact-SHA deployment URL 與 status。觸及 `web/` 的 push 必須等到成功才算完成。不得用較舊 deployment 代替本次 SHA 的部署驗證。
   - **沒有觸及 `web/` 的 push 也可能產生 Production deployment**（2026-10-13 實測：四次 push 都沒有觸及 `web/`，commit `86fdc143`、`f6c2dad2`、`87c2b557`、`6672b320` 各產生 1 個 Production deployment，成因未調查）。不要預設記為 `NOT APPLICABLE`：一律以 exact-SHA 實查。有 deployment 就記錄其 id、環境與狀態，並等到成功；確實查不到，才記為 `NONE FOUND (non-web push)`，並寫明查詢指令與時間。不要把舊 web deployment 當成當前 SHA 的證據。
+  - **deployments API 在 build 完成前會回 `[]`。** 2026-10-13 `f321bc25` 的 push 實測：push 後約 1 分鐘內 `deployments?sha=<sha>` 回 `[]`，同時 commit status 仍是 pending（"Vercel is deploying your app"）；deployment 物件在 14:41:28Z 才出現並同時轉 success（deployment id `7041536267`）。在 pending 期間查詢就會誤記 `NONE FOUND`。查詢順序：先看 `gh api 'repos/<owner>/<repo>/commits/<sha>/status'` 的 combined state（逐筆見 `.../statuses`）；`pending` 就等待並重查，確認不是 pending 之後 deployments 仍為 `[]`，才可記 `NONE FOUND (non-web push)`，並寫明最後一次查詢時間與當時的 status。
   - 可選：以 `https://tokyo-taiwan-radar.vercel.app/` 作補充 app-level 檢查（production URL 含連字號 `tokyo-taiwan-radar`，不是 `tokyotaiwanradar`），但此 alias 不得取代 exact-SHA provenance。
 3. 若 immutable deployment URL 回傳 `302`、`_vercel_sso_nonce` 或平台 `X-Robots-Tag: noindex`，分類為 **Deployment Protection boundary**，不是 application failure。保留保護設定，以 GitHub／Vercel exact-SHA provenance 確認部署，並改用 <https://tokyotaiwanradar.com> 執行 app-level production smoke；不得為了測試而弱化 Deployment Protection。
 4. Security-sensitive web release 必須逐層回報驗證矩陣：

@@ -106,6 +106,12 @@ bash scripts/campaign-closeout-audit.sh \
 --head '<pushed-head-sha>'` 單獨使用即是單段相容形式。`--base`／`--head` 與 `--range` 並用時是
 完整範圍；`--head` 沒有 `--base` 是用法錯誤。
 
+**腳本版本不足時**：上面是從受稽核的 worktree 執行 `bash scripts/campaign-closeout-audit.sh`，但 campaign
+worktree 的 HEAD 可能早於腳本的新版（2026-10-13 ai-portability：`ttr-ai-portability-worktree` 停在
+`87c2b557`，那裡的腳本不認得 `--range`）。這時改用已含新版腳本的 checkout 的**絕對路徑**呼叫，並以
+`--worktree` 指向受稽核者：`bash '<含新版腳本的 checkout>/scripts/campaign-closeout-audit.sh' --worktree
+'<registered-path>' …`。不要為了跑腳本去移動或 rebase `feat/<slug>`：branch tip 本來就是 A4 要觀測的值。
+
 Exit code：`0` = RETIRE_CANDIDATE、`10` = HOLD、`20` = UNDETERMINED、`2` = 用法錯誤。
 
 * **A0** 進入指定 worktree。**禁止在主工作樹做判定**——主工作樹是 governance-only，它的
@@ -199,6 +205,9 @@ Phase A 輸出之後**結束本輪回覆，等使用者回應**。同一輪不�
   **絕不把先前的 PASS 帶進移除**。實例：`ttr-admin-qa-cleanup-worktree` 在同一個工作 session 內，
   相隔不到一小時就從「未註冊、分支已刪、五個檔案的殘骸」變回「已註冊、分支還原、逾千檔案的完整
   checkout」——依第一次觀測動手就會刪掉一個活的 worktree。
+  占用另以 `lsof -a -d cwd` 重新觀測，名單要把**終端機分頁的外層 shell（zsh）**列為獨立的占用者：agent
+  session 結束（`/exit`）只結束 `claude`，zsh 仍以 worktree 為 cwd，所以請使用者**關閉分頁**，不是只
+  `/exit`。細節見 SKILL.md § 重新觀測 session 占用。
 * **D2** Ignored artifact preflight：逐筆分類 `duplicated` / `exported` / `disposable` /
   `retain_worktree`，並記錄 SHA-256。`tmp/` 下的 baseline 與 rollback 快照經常是全機唯一副本。
 * **D2.5 Recovery capsule（移除前必做，寫在 worktree 外）** — 移除之後六值再也無法重新觀測，

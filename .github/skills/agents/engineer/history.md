@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-14 - V-M-D: an empty deployments lookup was recorded as absent, and the push command had three spellings
+
+**Error**: Two V-M-D rules did not match the flow that was actually run during the ai-portability close-out (2026-10-13). (1) Step 5 recorded `NONE FOUND (non-web push)` whenever `deployments?sha=<sha>` returned nothing. On the `f321bc25` push the API returned `[]` for about a minute while the commit status was still pending ("Vercel is deploying your app"); the deployment object (id `7041536267`) appeared only when the build finished, and a lookup in that window would have been recorded as `NONE FOUND`. (2) Step 0.6 point 3 said `git push origin HEAD:main` and Step 4 said `git push origin main`, while the push that was actually run was the user's `git -C '<main working directory>' push origin <campaign branch>:main`.
+
+**Fix**: Step 5 now reads the combined commit status (`commits/<sha>/status`) first and waits while it is `pending`; only when it is no longer pending and the lookup is still empty may `NONE FOUND (non-web push)` be recorded, with the time of the last lookup and the status at that moment. Step 0.6 point 3 and Step 4 now state one rule: V-M-D does not push itself, it hands the user a command to run from the main working directory, and the two forms (campaign branch `<branch>:main`, or `main` when the commits are already on local `main`) are named separately.
+
+**Lesson**: `git push origin main` pushes the local `main` branch, not the `HEAD` of any worktree, so a rule that names it is only correct when the commits are already on local `main`. An empty deployments list is evidence of absence only once the commit status is no longer pending. Both were found by comparing the agent file with a flow that had actually been run, not by re-reading the file.
+
+---
+
 ## 2026-10-13 - Correction: a push that touches no `web/` file still produced a Production deployment
 
 **Error**: The 2026-07-10 entry ("docs-only commit ... 不觸發 Vercel") and V-M-D Step 5 recorded such pushes as `NOT APPLICABLE (docs-only)`. Four pushes made on 2026-10-13 touched nothing under `web/`, and each produced one Production deployment: `86fdc143` (deployment id `7024731927`), `f6c2dad2` (`7025806771`), `87c2b557` (`7032193512`) and `6672b320` (`7033673184`). The hand-off for the last one, written in the same session, repeated the old claim ("no new Vercel deployment") without looking it up.

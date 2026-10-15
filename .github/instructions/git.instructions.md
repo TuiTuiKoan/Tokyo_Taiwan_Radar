@@ -159,7 +159,9 @@ Follow Conventional Commits:
 ```
 
 Types: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`  
-Scopes: `scraper`, `web`, `db`, `ci`, `agents`
+Scopes: `scraper`, `web`, `db`, `ci`, `agents`, `skills`, `ai`, `specs`, `slides`, `deps`  
+Report-style scopes seen in history, named after the directory or report the commit adds: `weekly_review`, `monthly_review`, `governance`, `evaluation`. Do not use them for ordinary hand-written changes.  
+No commit-msg hook checks scopes (`.githooks/` has only `pre-commit` and `pre-push`), so the list is a convention. Avoid repeating the type as the scope (`docs(docs)`).
 
 Examples:
 ```
