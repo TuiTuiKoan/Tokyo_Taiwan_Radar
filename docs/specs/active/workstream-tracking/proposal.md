@@ -25,10 +25,10 @@ tags: [governance, tracking, meta]
    session memory。
 
 2. **三個維度已經漂移**。A–E 是任務分類、worktree 是 git 隔離機制、spec 是文件單位，
-   三者從未設計成一對一。2026-10-20 live snapshot 有 18 個目錄位於
-   `docs/specs/active/`、2 個目錄位於 `docs/specs/archive/`，以及 19 個註冊 worktree
-   （1 個 main + 18 個 linked）。其中 13 個 linked worktree 沒有同 branch slug 的 active
-   spec；本次治理 worktree 另有明確指定的 `workstream-tracking` spec。不能把「無 dedicated
+   三者從未設計成一對一。2026-10-20 live snapshot（含退役 `ledger-topology-reconcile` 後）有 18 個目錄位於
+   `docs/specs/active/`、2 個目錄位於 `docs/specs/archive/`，以及 18 個註冊 worktree
+   （1 個 main + 17 個 linked）。其中 13 個 linked worktree 沒有同 branch slug 的 active
+   spec（治理對帳用的 worktree 曾明確指定 `workstream-tracking`，已退役）。不能把「無 dedicated
    worktree」或「無同名 spec」一律判成違規，必須辨識 grandfathered 與明確指定關係。
    目錄位置與 frontmatter `status` 是兩份證據；目前 6 個 spec 的兩者不一致（見 tasks.md inventory）。
 
@@ -67,7 +67,7 @@ Worktree 身分不得只用 basename。權威證據是 `git worktree list --porc
 
 2026-10-20 查證時 repo 實體根目錄已搬到 `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar`，
 舊路徑 `/Users/flyingship/Development/Tokyo Taiwan Radar`（及 `.worktrees`）成為 symlink。
-live 拓撲因此有三種註冊形態（共 19 個，含 main）：
+live 拓撲因此有三種註冊形態（共 18 個，含 main）：
 
 1. **新路徑註冊**：`ttr-ai-harness-worktree`、`ttr-iwafu-gate-worktree`（repo root 內，必須以
    `.git/info/exclude` 防止 `git add -A` 誤掃）與 `3-TTR/Tokyo Taiwan Radar.worktrees/` 下兩個
@@ -76,7 +76,7 @@ live 拓撲因此有三種註冊形態（共 19 個，含 main）：
    `/Users/flyingship/Development/Tokyo Taiwan Radar...`（`publication-policy` 為小寫
    `development`）。`pwd -P` 全部落在 `3-TTR/` 下，是同一套實體 repo 的 lexical alias；
    字串前綴 classifier 會把它們誤列為 `external`，需以 `pwd -P` containment 重新分類。
-3. **新慣例 `<repo>.worktrees/<slug>` + `agents/<slug>`**：共 10 個（8 個 alias 註冊、2 個新路徑註冊），
+3. **新慣例 `<repo>.worktrees/<slug>` + `agents/<slug>`**：共 9 個（7 個 alias 註冊、2 個新路徑註冊），
    在 repo root 外，不污染主工作樹 untracked 清單，也不需要 exclude。相對舊慣例的差異：
    分支前綴 `agents/`、位置為 sibling、無 exclude 條目。**建議**後續將其正式寫入 git 規則並界定
    使用時機；本次只提出建議，不改寫 `.github/instructions/git.instructions.md`。

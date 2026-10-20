@@ -6,9 +6,9 @@
 
 ## Snapshot 基準
 
-* 觀測日期：**2026-10-20**
+* 觀測日期：**2026-10-20**（對帳後同日退役 `ledger-topology-reconcile`，已反映）
 * `origin/main`：`f1a519fe`（docs(agents): add iwafu-taiwan-relevance-gate campaign close-out record）
-* 註冊拓撲：1 main + 18 linked（共 19；計數只描述本次快照）
+* 註冊拓撲：1 main + 17 linked（共 18；計數只描述本次快照）
 * repo 實體根目錄已由 `/Users/flyingship/Development/Tokyo Taiwan Radar` 搬到
   `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar`（`pwd -P`）；舊路徑現為 symlink
 * 下次更新時請一併更新本區塊，否則勾選狀態會腐化
@@ -82,7 +82,6 @@ Git 的 registered path 與檔案系統 physical path 是兩種不同證據。�
 | symlink-alias 註冊（root 外） | `/Users/flyingship/Development/Tokyo Taiwan Radar.worktrees/agent-handoff-and-worktree-cleanup` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar.worktrees/agent-handoff-and-worktree-cleanup` | `agents/agent-handoff-and-worktree-cleanup` |
 | symlink-alias 註冊（root 外） | `/Users/flyingship/Development/Tokyo Taiwan Radar.worktrees/anomaly-detection-workflow-integration` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar.worktrees/anomaly-detection-workflow-integration` | `agents/anomaly-detection-workflow-integration` |
 | symlink-alias 註冊（root 外） | `/Users/flyingship/Development/Tokyo Taiwan Radar.worktrees/error-resolution-guide` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar.worktrees/error-resolution-guide` | `agents/error-resolution-guide` |
-| symlink-alias 註冊（root 外） | `/Users/flyingship/Development/Tokyo Taiwan Radar.worktrees/ledger-topology-reconcile` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar.worktrees/ledger-topology-reconcile` | `agents/ledger-topology-reconcile` |
 | symlink-alias 註冊（root 外） | `/Users/flyingship/Development/Tokyo Taiwan Radar.worktrees/ledger-topology-reconciliation` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar.worktrees/ledger-topology-reconciliation` | `agents/ledger-topology-reconciliation` |
 | symlink-alias 註冊（root 外） | `/Users/flyingship/Development/Tokyo Taiwan Radar.worktrees/mobile-ssh-agent-remote-development` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar.worktrees/mobile-ssh-agent-remote-development` | `agents/mobile-ssh-agent-remote-development` |
 | symlink-alias 註冊（root 外） | `/Users/flyingship/Development/Tokyo Taiwan Radar.worktrees/publication-policy-workflow-rebuild` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar.worktrees/publication-policy-workflow-rebuild` | `agents/publication-policy-workflow-rebuild` |
@@ -119,7 +118,9 @@ inode `625519038`；實體目錄 inode `553836739`）。因此 14 個 linked wor
 `ttr-v8-worktree`（`feat/event-intake-wizard`）、`ai-portability`、`closeout-audit-multirange`
 等 campaign worktree 已於 2026-10-14 前後退役，且皆不在現行拓撲。各自的證據（退役 tip、
 exclude 重建、殘留檢查）以 `docs/evaluation/campaigns/2026-10-14-*.md` 的 close-out record 為準，
-本檔不複製。`ai-portability` spec 已於 2026-10-20 歸檔為
+本檔不複製。治理對帳用的 `agents/ledger-topology-reconcile`（tip `4e4d42cd`，已是 `origin/main` 祖先）
+於 2026-10-20 push 並部署後以非強制 `git worktree remove` + `git branch -d` 退役，recovery capsule 在本機
+`~/.ai-notes/ttr/`，無 close-out record（docs-only，無出貨行為）。`ai-portability` spec 已於 2026-10-20 歸檔為
 `docs/specs/archive/2026-10-ai-portability/`。
 
 ---
@@ -210,7 +211,6 @@ Eslite identity migration、PN-3a.0（`b4cb383f`）、F-1（`831871e0`）。
 | `agent-handoff-and-worktree-cleanup` | 0/95 | 0 | external alias；待決定治理歸屬 |
 | `anomaly-detection-workflow-integration` | 0/97 | 0 | external alias；待決定治理歸屬 |
 | `error-resolution-guide` | 0/84 | 0 | external alias；新登記，待決定治理歸屬 |
-| `ledger-topology-reconcile` | 0/88 | 0 | external alias；本次治理對帳（commit 前需 rebase） |
 | `ledger-topology-reconciliation` | 0/89 | 0 | external alias；待判定與本次治理線的關係 |
 | `mobile-ssh-agent-remote-development` | 0/97 | 0 | external alias；待決定治理歸屬 |
 | `publication-policy-workflow-rebuild` | 0/84 | 0 | external alias；新登記，名稱疑與 `publication-policy` 相關，待判定 |
@@ -241,7 +241,6 @@ Eslite identity migration、PN-3a.0（`b4cb383f`）、F-1（`831871e0`）。
 | 未編號 | `ttr-iwafu-gate-worktree` | 0/0 | 0 | 無 matching spec |
 | G4 | `ttr-deps-security-worktree` | 4/110 | 0 | 無 matching spec |
 | 未編號 | 其餘 9 個 `agents/*` worktree（見上表） | 見上表 | 0 | 無 matching spec |
-| 治理 | `ledger-topology-reconcile` | 0/88 | 0 | `active/workstream-tracking`（本次明確指定） |
 | —（主工作樹） | `Tokyo Taiwan Radar` | 2/1（本地領先未推送） | 0 | `active/workstream-tracking`（governance-only） |
 
 ### Spec 狀態 inventory（2026-10-20）
@@ -274,9 +273,9 @@ spec 不帶 `proposal.md`，未逐一核對 frontmatter。這是雙向 inventory
 
 ### G2: Linked worktree 缺 matching spec 目錄
 
-18 個 linked worktree 中，只有 `ttr-admin-qa-cleanup`、`ttr-authoritative-venue-repair`、
+17 個 linked worktree 中，只有 `ttr-admin-qa-cleanup`、`ttr-authoritative-venue-repair`、
 `ttr-evaluation-framework`、`ttr-publication-policy` 四個有同 slug 的 active spec；
-`ledger-topology-reconcile` 另有明確指定的 `workstream-tracking`。其餘 13 個需依規則生效時間與
+`ledger-topology-reconcile`（原指定 `workstream-tracking`）已於 2026-10-20 退役，不再計入。其餘 13 個需依規則生效時間與
 工作狀態分流（2026-10-20 觀測）：
 
 - [ ] `ttr-japan-scope-gate-worktree` 補建 spec 或明確指定既有 spec
@@ -379,7 +378,7 @@ push 觸發）作為繞道，讓驗證改在可連公開 npm 的 runner 上執�
 
 ### G5: Worktree 註冊路徑與外部 sibling 治理
 
-- [x] 保存 19 個 worktree 的完整 registered path、physical path 與 path class 證據
+- [x] 保存 19 個 worktree（2026-10-20 對帳當時；其後 `ledger-topology-reconcile` 退役，現為 18 個） 的完整 registered path、physical path 與 path class 證據
 - [x] 證明 `Development`／`development` 路徑解析到同一個 symlink／同一套實體 repo
 - [ ] 另案決定是否把 14 個以搬移前舊路徑（含小寫 `development`）註冊的 linked worktree
       正規化為 `3-TTR/` 實體路徑（`git worktree repair` 屬變更操作，需批准）
