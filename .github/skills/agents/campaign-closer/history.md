@@ -9,6 +9,34 @@ ms.date: 2026-08-12
 
 ---
 
+## 2026-10-20 — 寫 recovery capsule 之前，主工作樹 main 可能與 origin/main 分歧
+
+**事實**：`iwafu-taiwan-relevance-gate` 準備移除時，主工作樹 `main` 領先 `origin/main` 2 個、落後 1 個（別的 session 留下未推送的 commit）。`git pull --ff-only` 會失敗；而遠端分支刪除後，`git branch -d` 改以主工作樹 HEAD 判斷「已合併」（機制見下一則），`main` 不含分支 tip 就會被拒，`-D` 又被禁止。
+
+**規則**：寫 capsule 與給指令之前，先檢查 `git rev-list --left-right --count origin/main...main` 為 `0 0`，或至少 `main` 已含分支 tip；否則先停手，等該 session 推送完。已放進 agent 檔 D1 與 SKILL.md § Phase D 的 Cleanup 檢查。
+
+---
+
+## 2026-10-20 — rebase 合併後 `ahead>0` 是誤報，但 agent 不得自行放行
+
+**事實**：`fix/iwafu-taiwan-relevance-gate` 的兩個 commit 經 PR 295 以 rebase 方式合併，`main` 上 SHA 不同（28999b39→116203a3、294d3a50→7f8e75c9）。審核腳本回 `HOLD:ahead`（`ahead=2`），但內容已全部在 `main`。佐證：`git cherry origin/main <branch>` 只有 `-` 開頭、沒有 `+`；`git patch-id --stable` 兩邊逐一相同。使用者看過證據後接受例外，結案記錄的 Known risks 寫明例外，腳本判定不改。
+
+**規則**：`ahead>0` 仍是硬阻擋，agent 不得自行放行；附 cherry＋patch-id 證據交使用者決定。rebase 之後再提交記錄時，已合併的 commit 會被自動略過（"skipped previously applied commit"）。
+
+---
+
+## 2026-10-20 — 退役後 `git branch -d` 的判定基準會隨遠端刪除改變
+
+**背景**：`iwafu-taiwan-relevance-gate` 退役（記錄 `docs/evaluation/campaigns/2026-10-20-iwafu-taiwan-relevance-gate.md`）。該分支 `ahead=2`，兩個 commit 在 `main` 上已有等價 commit（內容等價但 SHA 不同）。
+
+**現象**：使用者先 `git push origin --delete`，再 `git branch -d`，後者通過。
+
+**原因**：遠端刪除同時移除了本地的 upstream tracking ref；沒有 upstream 時，`-d` 改以目前 checkout 的 HEAD 判定「已 merge」，而主工作樹包含該 tip，所以通過。順序顛倒（先 `-d` 後刪遠端）時，`-d` 以 upstream 為基準，可能因 SHA 不同而被拒。
+
+**教訓**：D3 給使用者的指令順序要寫明（remove worktree、刪遠端、`-d`），並說明 `-d` 通過是因為 tracking ref 已消失，不代表分支沒有獨有 commit；獨有 commit 的判定仍以 A2 / `git cherry` 為準，不以 `-d` 的結果代替。
+
+---
+
 ## 2026-10-14 — 補兩點實測缺口：腳本版本落後的 worktree、終端機分頁的 shell 占用
 
 **背景**：兩點都是 ai-portability 結案（2026-10-13）的 Phase A、D 實際經過，先記在 parked spec

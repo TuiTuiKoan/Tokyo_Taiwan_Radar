@@ -208,6 +208,8 @@ Phase A 輸出之後**結束本輪回覆，等使用者回應**。同一輪不�
   占用另以 `lsof -a -d cwd` 重新觀測，名單要把**終端機分頁的外層 shell（zsh）**列為獨立的占用者：agent
   session 結束（`/exit`）只結束 `claude`，zsh 仍以 worktree 為 cwd，所以請使用者**關閉分頁**，不是只
   `/exit`。細節見 SKILL.md § 重新觀測 session 占用。
+  另檢查主工作樹 `main` 是否與 `origin/main` 分歧：`git rev-list --left-right --count origin/main...main`
+  要 `0 0`，或至少 `main` 已含分支 tip；否則停手，等推送完再寫 capsule 與給指令。見 SKILL.md § Phase D。
 * **D2** Ignored artifact preflight：逐筆分類 `duplicated` / `exported` / `disposable` /
   `retain_worktree`，並記錄 SHA-256。`tmp/` 下的 baseline 與 rollback 快照經常是全機唯一副本。
 * **D2.5 Recovery capsule（移除前必做，寫在 worktree 外）** — 移除之後六值再也無法重新觀測，

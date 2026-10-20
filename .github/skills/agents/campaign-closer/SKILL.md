@@ -395,6 +395,18 @@ git 只拒絕有修改或未追蹤檔的 worktree。**不要為了 remove 預先
   終端機執行。
 * 刪遠端分支前，先請使用者用 `git cherry origin/main <branch>` 確認沒有獨有 commit（輸出沒有 `+` 開頭的行）。
 
+### `git branch -d` 通過不代表沒有獨有 commit
+
+遠端分支刪除會一併移除本地 upstream tracking ref；之後 `git branch -d` 改以目前 HEAD 判定，主工作樹含該 tip 就通過（2026-10-20 `iwafu-taiwan-relevance-gate`，`ahead=2` 但兩個 commit 在 `main` 上已有等價 commit）。給使用者的指令順序固定為：remove worktree、刪遠端、`-d`。獨有 commit 以 A2 與 `git cherry` 判定，不以 `-d` 的結果代替。
+
+### `ahead>0` 在 rebase 合併後是誤報，但仍是硬阻擋
+
+2026-10-20 `iwafu-taiwan-relevance-gate`：兩個 commit 經 PR 295 rebase 合併，`main` 上 SHA 不同（28999b39→116203a3、294d3a50→7f8e75c9），稽核腳本回 `HOLD:ahead`（`ahead=2`）但內容已全在 `main`。佐證是 `git cherry origin/main <branch>` 只有 `-`、沒有 `+`，且 `git patch-id --stable` 兩邊逐一相同。agent 不得自行放行：附 cherry＋patch-id 證據交使用者決定；使用者接受例外時，在結案記錄的 Known risks 寫明，不改寫腳本判定。rebase 之後再提交記錄時，已合併的 commit 會被自動略過（"skipped previously applied commit"）。
+
+### Cleanup 檢查：寫 capsule 之前，確認主工作樹 `main` 沒有與 `origin/main` 分歧
+
+同日準備移除時，主工作樹 `main` 領先 `origin/main` 2 個、落後 1 個（別的 session 留下未推送的 commit），`git pull --ff-only` 會失敗。上一節的 `-d` 以主工作樹 HEAD 判定，`main` 不含分支 tip 就被拒，`-D` 又被禁止。檢查 `git rev-list --left-right --count origin/main...main` 要 `0 0`，或至少 `main` 已含分支 tip；否則先停手，等該 session 推送完，再寫 capsule 與給指令。
+
 ---
 
 ## Metrics（Stage 2，已凍結）
