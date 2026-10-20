@@ -50,13 +50,13 @@ None.
 
 ## Worktree disposition
 
-`pending`. No decision to retire has been taken; this block is backfilled after the decision.
+`remove`, decided at 2026-10-20T13:01:30Z after the user approved retirement. The worktree directory and its branch were removed afterwards, without `--force` and with `git branch -d`.
 
-| Freshness value | Observed at 2026-10-20T12:50:18Z (Phase A, not a decision) |
+| Freshness value | Observed at the decision (2026-10-20T13:00:01Z) |
 |-----------------|--------------------------|
-| branch tip | `0badac5b640e73dd48dd23239110aa6f3e29f03e` |
+| branch tip | `b5eaa35ac814636837e81e91ee09999142dafe1c` |
 | ahead of `origin/main` | `0` |
-| behind `origin/main` | `0` |
+| behind `origin/main` | `1` |
 | dirty count | `0` |
 | ignored artifact set | none |
 | path identity | `canonical`, directory `ttr-vmd-summary-ai-scope-worktree`, branch `feat/vmd-summary-ai-scope` |
