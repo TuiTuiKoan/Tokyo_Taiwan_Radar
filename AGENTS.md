@@ -80,10 +80,10 @@ Claude Code 可直接叫用 `.claude/agents` 下的 subagent wrapper。Codex 沒
 | `vmd` | validate-merge-deploy | 禁用 Edit／Write／NotebookEdit；保留 Bash 執行 git 與驗證 |
 | `closer` | close-campaign-retire-worktree | 禁用 Edit／Write／NotebookEdit，沒有 web 工具；保留 Bash |
 | `readonly` | lianbu-spokesperson | 只有 Read、Grep、Glob、WebFetch |
-| 未投影 | architect、reviewer、researcher、scraper-expert | 權限衝突待裁決（`docs/specs/active/ai-portability/proposal.md` X1–X4），繼承全部工具 |
+| 未投影 | architect、reviewer、researcher、scraper-expert | 權限衝突待裁決（`docs/specs/archive/2026-10-ai-portability/proposal.md` X1–X4），繼承全部工具 |
 
 - 保留 Bash 的角色仍能經 Bash 重導寫入檔案。這是已接受的殘餘風險；上表只表示工具層禁用 Edit／Write／NotebookEdit，不代表沒有寫入能力。
-- 白名單在 `claude --agent <name>` 主執行緒與 subagent 兩種情境都已實測生效（Claude Code `2.1.292`、`2.1.295`，證據見 `docs/specs/active/ai-portability/notes.md`）。升級 Claude Code 後應重跑該實測。
+- 白名單在 `claude --agent <name>` 主執行緒與 subagent 兩種情境都已實測生效（Claude Code `2.1.292`、`2.1.295`，證據見 `docs/specs/archive/2026-10-ai-portability/notes.md`）。升級 Claude Code 後應重跑該實測。
 - macOS 上 Claude Code 預設不提供 Grep／Glob，保留 Bash 的角色改用 Bash 搜尋；白名單中的 Grep、Glob 只對沒有 Bash 的角色生效。
 - tester、plan-critic、lianbu-spokesperson 本文中「修正錯誤後更新 history.md／SKILL.md」的步驟無法以工具層寫檔完成：教訓以文字回報，交 Update History, Skill, Agent 或使用者寫入。
 - plan-critic 不在 Claude Code 的 plan mode 使用：plan mode 送出計畫需要 Write 與 ExitPlanMode，planner 白名單刻意不含這兩者。以一般模式啟動（`claude --agent plan-critic`），讀計畫檔後以文字回傳批評。

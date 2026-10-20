@@ -163,10 +163,9 @@ that reading at the Phase B reply.
 the push gate are checked, and the follow-up backlog is tracked in the parked
 specification.
 
-The move has **not happened**. The directory is still under `docs/specs/active/`
-when this record is written, so this is a decision, not a completed state. The
-owner asked for the move and the reference updates to be a separate commit after
-the worktree is removed, following the worktree lifecycle in `docs/specs/README.md`.
+The spec moved to `docs/specs/archive/2026-10-ai-portability/` on 2026-10-20 in a separate
+commit, after the worktree was removed. Live pointers in `AGENTS.md`, `scripts/`, and the
+Engineer skill were updated; historical records keep the old path on purpose.
 
 One consequence to check first: the audit script resolves a slug only under
 `docs/specs/active/<slug>` and `docs/specs/archive/<slug>`. The README names the

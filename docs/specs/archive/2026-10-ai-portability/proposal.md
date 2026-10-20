@@ -2,7 +2,7 @@
 slug: ai-portability
 title: AI 工具可攜性三階段 hardening（legacy state、角色工具限制、危險操作 hooks）
 description: 移除 Copilot-only legacy state path、把角色權限轉成 Claude 工具限制、建立危險操作 hooks；本版為部分 hardening
-status: active
+status: archived
 branch: feat/ai-portability
 created: 2026-10-06
 tags: [tooling, governance, ai, hardening]

@@ -21,7 +21,7 @@ ROLE_TOOLS: dict[str, tuple[str, ...] | None] = {
     "readonly": ("Read", "Grep", "Glob", "WebFetch"),
 }
 
-# Permission projection deferred (docs/specs/active/ai-portability, X1–X4):
+# Permission projection deferred (docs/specs/archive/2026-10-ai-portability, X1–X4):
 # no `claude-role`, wrapper inherits every tool.
 UNDECIDED_AGENTS = frozenset({"architect", "reviewer", "researcher", "scraper-expert"})
 

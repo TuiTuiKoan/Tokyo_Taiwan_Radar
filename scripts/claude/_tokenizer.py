@@ -7,7 +7,7 @@ every command that would run. Input outside the supported grammar raises
 Unsupported; callers must treat that as a deny.
 
 Budget: at most 250 lines excluding comments, docstrings and blank lines
-(docs/specs/active/ai-portability/plan.md §7). Do not grow this into a full
+(docs/specs/archive/2026-10-ai-portability/plan.md §7). Do not grow this into a full
 interpreter; stop and report instead.
 """
 from __future__ import annotations

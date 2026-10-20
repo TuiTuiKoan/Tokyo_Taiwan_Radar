@@ -1,6 +1,6 @@
 """Rule engine for the Claude Code PreToolUse guards.
 
-Specification: docs/specs/active/ai-portability/plan.md §7 and the H-C1
+Specification: docs/specs/archive/2026-10-ai-portability/plan.md §7 and the H-C1
 decisions in notes.md §4.23. Pure functions over the hook's stdin payload.
 This module never opens files: the masked-awk templates are constants, and
 their drift against the instruction files is checked by the tests.

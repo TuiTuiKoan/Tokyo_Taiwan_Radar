@@ -1864,7 +1864,7 @@ Add city and category pages to `sitemap.ts` with `priority: 0.7` and `changeFreq
 
 ## Claude Code harness — hooks、settings、spike 與使用者實測（2026-10 ai-portability 教訓）
 
-權威分工：哪些操作被擋、哪些不涵蓋（殘餘風險），以 `AGENTS.md` 的「角色工具限制（Claude Code）」與「Hooks 與 permissions（Claude Code 專屬防線）」為準；實測證據在 `docs/specs/active/ai-portability/notes.md`。本段只寫「怎麼改、怎麼驗」，不重複覆蓋聲明。這些行為綁定 Claude Code 版本，升級後依 `AGENTS.md` 重跑實測。
+權威分工：哪些操作被擋、哪些不涵蓋（殘餘風險），以 `AGENTS.md` 的「角色工具限制（Claude Code）」與「Hooks 與 permissions（Claude Code 專屬防線）」為準；實測證據在 `docs/specs/archive/2026-10-ai-portability/notes.md`。本段只寫「怎麼改、怎麼驗」，不重複覆蓋聲明。這些行為綁定 Claude Code 版本，升級後依 `AGENTS.md` 重跑實測。
 
 ### 新增或修改 PreToolUse hook
 
