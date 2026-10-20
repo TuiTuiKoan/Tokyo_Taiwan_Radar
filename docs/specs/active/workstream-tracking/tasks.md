@@ -307,74 +307,41 @@ git --no-pager cherry origin/main <branch>   # '-' 前綴 = 內容已在上游
       `ttr-deps-security`、`ttr-evaluation-framework`、`ttr-iwafu-gate`、`ttr-japan-scope-gate`、
       `ttr-publication-policy`），本次 append 0 行；`<repo>.worktrees/` 的 external worktree 不適用
       exclude。主工作樹 dirty 0（但本地領先 `origin/main` 2 個未推送 commit）。
-- [ ] Dependabot 回報 9 個依賴漏洞（8 high、1 moderate），與本專案工作無關但需處理。
-      **性質上不屬於工作線盤點**，僅暫置於此；建議另立資安維護歸屬
+- [ ] Dependabot 8 個依賴漏洞中 6 筆已 `fixed`（PR #304，2026-10-20），剩 #87、#89 共 2 筆 `open`
+      （均為刻意不處理，見下表），待決定接受風險或另案處理。**性質上不屬於工作線盤點**，僅暫置於此；建議另立資安維護歸屬
 
-#### G4 依賴維護：固定驗收集合（2026-08-10 重查，9 筆皆 `open`）
+#### G4 依賴維護：固定驗收集合（2026-10-20 重查 8 筆；21:17 複查 6 筆 `fixed`、2 筆 `open`）
 
-以 alert identity 作終局判定，不以 alert 總數代替。
+以 alert identity 作終局判定，不以 alert 總數代替。2026-08-10 的舊集合（#45–#63，9 筆：
+`sharp`、`postcss`、`nanoid`、`brace-expansion`、`js-yaml`）現已全部 `fixed`，不再追蹤。
 
-| Alert | GHSA | package | severity | first patched |
-|---|---|---|---|---|
-| #45 | GHSA-f88m-g3jw-g9cj | `sharp` | high | 0.35.0 |
-| #50 | GHSA-3jxr-9vmj-r5cp | `brace-expansion` | high | 1.1.16 |
-| #51 | GHSA-r28c-9q8g-f849 | `postcss` | high | 8.5.18 |
-| #53 | GHSA-mh99-v99m-4gvg | `brace-expansion` | high | 5.0.8 |
-| #54 | GHSA-rgw5-rvv9-x895 | `brace-expansion` | high | 5.0.9 |
-| #60 | GHSA-fxqj-rqcc-2cmp | `postcss` | medium | 8.5.23 |
-| #61 | GHSA-5p4m-2wfm-xmqj | `js-yaml` | high | 4.3.1 |
-| #62 | GHSA-5p4m-2wfm-xmqj | `js-yaml` | high | 3.15.1 |
-| #63 | GHSA-2v37-7h3g-55p8 | `nanoid` | high | 3.3.17 |
+| Alert | package | severity | first patched | 來源鏈 | 處置 |
+|---|---|---|---|---|---|
+| #74 | `js-yaml` 4.x | high | 4.3.2 | eslint（dev） | **已 fixed**（PR #304）：override `js-yaml@4 ^4.3.2` |
+| #75 | `js-yaml` 3.x | high | 3.15.2 | gray-matter（runtime） | **已 fixed**（PR #304）：override `js-yaml@3 ^3.15.2` |
+| #86 | `source-map-js` | high | 1.2.2 | postcss | **已 fixed**（PR #304）：override `source-map-js ^1.2.2` |
+| #83 | `brace-expansion` 1.x | medium | 1.1.21 | minimatch 3 ← eslint（dev） | **已 fixed**（PR #304）：override `brace-expansion@1 ^1.1.21` |
+| #84 | `dompurify` | low | 3.4.16 | mermaid | **已 fixed**（PR #304）：override `dompurify ^3.4.16` |
+| #88 | `dompurify` | low | 3.4.16 | mermaid | **已 fixed**（PR #304）：同 #84 |
+| #87 | `katex` | low | 0.18.2 | mermaid（要求 `^0.16.47`） | **不處理**：修補版跨 mermaid 的相依範圍，PR #258（mermaid 12.1.0）仍要求 `^0.16.47`；等 mermaid 放寬再升 |
+| #89 | `sprintf-js` | medium | **無** | gray-matter → js-yaml 3 → argparse 1.x | **不處理**：無修補版；僅建置期讀自家 markdown。可選解法是換掉 gray-matter |
 
-全 9 筆 manifest 皆為 `web/pnpm-lock.yaml`。
+全 8 筆 manifest 皆為 `web/pnpm-lock.yaml`。六筆 `fixed_at` 皆為 2026-10-20T11:31–11:34Z（PR #304 merge 後約 30 分鐘由 GitHub 重新掃描轉入）。
 
-#### G4 Phase 1：PR #205 驗證於本機環境受阻
+#### G4 進度（2026-10-20）
 
-- [ ] PR #205（`chore(deps)`，minor-and-patch group，15 updates）尚未驗證，**未 merge**
-
-已確認的事實：
-
-- exact `baseRefOid` `ebf3daae`、`headRefOid` `ec8a26c4`，changed files 僅
-  `web/package.json`、`web/pnpm-lock.yaml`，符合 scope 限制
-- dependency-file drift gate `ebf3daae..origin/main` 輸出為空，main 對這兩個檔案零漂移，
-  不需 `@dependabot rebase`
-
-阻擋原因為**本機 registry 不可達**，不是 PR 本身缺陷，也不構成 `BLOCKED_BY_UPSTREAM`：
-
-- 本機 npm registry 被 `~/.npmrc`、`/usr/local/etc/npmrc`、`/opt/homebrew/etc/npmrc`
-  設為 `https://packagefeedproxy.microsoft.io/npm/`；repo 未追蹤任何 `.npmrc`，
-  CI 與 Vercel 實際使用的目標 registry 是公開 npm
-- 該 proxy 對較新版本回 404（`electron-to-chromium@1.5.402`、`node-releases@2.0.53`、
-  `nanoid@3.3.18`、`postcss@8.5.26`），較舊版本（如 `electron-to-chromium@1.5.350`）則正常
-- **控制組證明屬環境問題**：`origin/main` 自己的 lockfile 走同一 proxy 亦
-  `ERR_PNPM_FETCH_404` 失敗，與 PR #205 無關
-- `registry.npmjs.org` 在 sandbox 內外皆不可達（`Recv failure: Socket is not connected`）
-
-因此 9 筆 identity 現況一律為 `OPEN`，無任何一筆可判為 `FIXED` 或 `BLOCKED_BY_UPSTREAM`。
-未使用 `dismissed`、未 ignore audit、未降低 audit level。
-
-下一步需先恢復對目標 registry 的存取（移除本機 proxy 設定或改用可達公開 npm 的環境），
-再重跑 Phase 1B 完整驗證。
-
-#### G4 Phase 1 後續：registry 存取的長期解
-
-短期已加入 `.github/workflows/deps-verify.yml`（手動 `workflow_dispatch` 與 `chore/deps-security`
-push 觸發）作為繞道，讓驗證改在可連公開 npm 的 runner 上執行。**該 workflow 尚未取得任何執行結果**，
-9 筆 alert identity 仍全數 `OPEN`。以下兩項為尚未著手的長期解：
-
-- [ ] **B（長期）**：請 1ES feed 擁有者 ingest 缺少的版本。後端為
-      `ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/`，
-      metadata 回 200 但特定版本 tarball 404，因為 packument 內根本沒有該版本
-      （例：nanoid `3.3.16` present → 303；`3.3.17`、`3.3.18` absent → 404）。
-      缺版含 `@types/node 26.2.0`，該版本已存在於 `origin/main` 現有 lockfile，
-      因此連 main 都無法本機 clean install。
-      **這是反覆性問題**：每次 Dependabot bump 都會再撞一次缺版，
-      需要建立常態的 ingest 流程或自動補版機制，一次性補件無法收斂
-- [ ] **C（長期）**：請裝置政策擁有者評估放行 `registry.npmjs.org`。
-      攔截發生在 TLS 層而非設定層——DNS 正常、TCP 443 可連，
-      但 Client Hello 之後連線即被切斷（`Recv failure: Socket is not connected`），
-      裝置裝有 Microsoft Defender。因此**修改 npmrc 無效**，
-      必須由裝置政策端處置
+- [x] 分支 `chore/deps-security-2026-10`（自 `origin/main` 新建；舊 `chore/deps-security` 的 PR #216 已 merge，
+      該分支落後 114 commit 不再使用）commit `7ac3831f` 調整 5 條 overrides，lockfile 僅 51 行變動
+- [x] 本機 `registry.npmjs.org` 已可連（HTTP 200）；先前的 proxy 阻擋已解除。**注意**：lockfile 須帶
+      `--registry https://registry.npmjs.org/` 重生，否則 `~/.npmrc` 的 Microsoft proxy 會把 232 筆
+      resolution 改寫成 `ms-feed-25` tarball URL 與 sha1 integrity，這種 lockfile 不可 commit
+- [x] 本機驗證：`pnpm install --frozen-lockfile` 通過；`pnpm audit` 剩 `braces`（#85，已 auto_dismissed，無修補版）、
+      `sprintf-js`、`katex`；`pnpm lint` 改動前後同為 218 problems（164 errors），為既有問題；
+      `prebuild`、compile、TypeScript 通過，`next build` 在靜態頁產生階段因本 worktree 缺 Supabase 環境變數失敗
+      （環境因素，需由 CI／Vercel 確認）
+- [x] 使用者 push 分支並開 PR #304；Vercel 與 gitleaks 通過，PR 於 2026-10-20 merge
+- [x] merge 後以 `gh api repos/:owner/:repo/dependabot/alerts` 確認 #74、#75、#83、#84、#86、#88 皆為 `fixed`（2026-10-20 21:17 複查）
+- [ ] #87、#89 決定接受風險（以 dismissed 附理由）或另案處理
 
 ### G5: Worktree 註冊路徑與外部 sibling 治理
 
