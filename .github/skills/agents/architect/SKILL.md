@@ -195,7 +195,7 @@ Reference incident: 2026-05-26 — event `25e27de9` co_organizers / sponsors 三
 | 3 | `web/messages/{zh,en,ja}.json` | `categories.<key>` + `categoryDesc.<key>`（三語各一）|
 | 4 | `web/lib/design/organicMotifs.tsx` | `case '<key>':` 5 個 SVG 變體（缺少則 fallback 為預設 blob，無報錯）↳ **同時自動涵蓋 CategoryThumbnail UI + category OG image + event OG image**（三者均動態呼叫 `getSemanticSymbol()`，無硬編碼列表）|
 | 5 | `web/app/api/{admin,account}/{extract-from-image,annotate-event}/route.ts` | **已自動化，不需手動同步**：`category:` 清單自 2026-05-30（`d0a10772`）起以 `CATEGORIES.join(...)` 從 types.ts 帶入；審核時只確認未被改回手寫枚舉 |
-| 6 | Sync Guard 驗證 | `python3 -c "from annotator import VALID_CATEGORIES, _check_category_sync; _check_category_sync()"` pass；另跑 `cd scraper && python -m pytest tests/test_taxonomy.py -q`（taxonomy.md 定義是否齊全只靠此測試）|
+| 6 | Sync Guard 驗證 | `python3 scripts/check_enum_parity.py` pass（雙向比對 `VALID_CATEGORIES`、`taxonomy.md` 定義行、三語 `categories.*` / `categoryDesc.*` 與 route 的 `CATEGORIES.join`；相關檔案 staged 時 pre-commit 自動執行）；另跑 `cd scraper && python -m pytest tests/test_taxonomy.py -q`（SYSTEM_PROMPT 是否已替換佔位符）|
 
 **步驟 4（縮圖）是最容易被遺漏的**：TypeScript 不報錯、build 不失敗、只有在 `/debug/motifs` 頁才能看到 fallback blob。計畫中必須明確標注 Engineer 要加 `case` 到 `organicMotifs.tsx`。
 
@@ -244,6 +244,8 @@ Architect 在「新增 enum 值」計畫**外**，遇到相關 admin route 修�
 | 4 | `web/lib/types.ts` | `EVENT_FORMS` array / `EventForm` type，前台與 admin form 共同依賴；步驟 5 四支 route 的 prompt 與 `sanitizeEventFormValues()` 也由它衍生 |
 | 5 | `web/app/api/{admin,account}/{extract-from-image,annotate-event}/route.ts` | **已自動化，不需手動同步**：`event_form:` 清單以 `EVENT_FORMS.join(...)` 從 types.ts 帶入（admin 兩支自 2026-05-30 `d0a10772`；account 兩支自建立時 2026-06-03 `49c305b3`）；審核時只確認未被改回手寫枚舉 |
 | 6 | `web/messages/{zh,en,ja}.json` | `eventForm.<key>`（三語各一）|
+
+**驗證**：`python3 scripts/check_enum_parity.py` 以步驟 4 的 `EVENT_FORMS` 為基準，比對步驟 1–3、6 與步驟 5 的 `EVENT_FORMS.join`，相關檔案 staged 時 pre-commit 自動執行。它不查 live DB 是否已套用 migration，也不查 Decision guides 有沒有新值的說明；這兩項計畫中要另外列出。
 
 **Reference incidents:**
 * 2026-05-20 — migration 047 加入 `broadcast`/`tasting`/`study_abroad` 等新值並重命名舊值（`concert`→`performance`、`lecture_seminar`→`lecture`、`film_screening`→`screening`、`festival`→ 移除、`sports`→ 移除）。annotator.py 跟上了，但兩個 admin API prompt 留在 pre-047 命名 → OCR 回傳舊值 → DB CHECK 拒絕 → 管理画面保存 400 失敗（commit `9ecaae6`）。教訓：建立此 checklist。（2026-05-30 `d0a10772` 起 route 改為 `EVENT_FORMS.join` 自動帶入，步驟 5 已不需手動同步。）

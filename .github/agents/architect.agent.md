@@ -532,11 +532,14 @@ Reference incident: 2026-05-07 — `b42977f3` / `09c26a2e`（日本台湾学会�
 - `_check_category_sync()`：annotator.py 啟動時讀取 types.ts 並比對。types.ts 有而 `VALID_CATEGORIES` 沒有時 `SystemExit(1)` 終止，CI 不會處理任何事件；反向（`VALID_CATEGORIES` 多出）只記 warning。
 - `human_category_map` 驗證：載入 category_corrections 後逐筆驗證，無效分類被剝離並記錄 warning。
 - `tests/test_taxonomy.py`：檢查 `taxonomy.md` PROMPT 區塊的定義行與 `VALID_CATEGORIES` 一一對應（不多不少），且 `SYSTEM_PROMPT` 已替換佔位符。
+- `scripts/check_enum_parity.py`（2026-10-20 新增）：以 types.ts `CATEGORIES` 為基準，雙向比對 `VALID_CATEGORIES`、`taxonomy.md` 定義行、三語 `categories.*` / `categoryDesc.*`，並確認四支 route 仍用 `CATEGORIES.join`。staged 檔案碰到這些路徑時，pre-commit 會自動執行並擋下 commit。
 
-> **盲點**：`_check_category_sync()` 只覆蓋 types.ts → `VALID_CATEGORIES`（單向）。`taxonomy.md` 漏寫定義在執行期沒有任何守衛，只靠 `tests/test_taxonomy.py` — 審核 PR 時必須確認該測試有跑且通過。
+> **盲點**：`_check_category_sync()` 只覆蓋 types.ts → `VALID_CATEGORIES`（單向），執行期沒有其他守衛。其餘方向與 `taxonomy.md` 由 `check_enum_parity.py` 在 commit 時檢查；以 `--no-verify` 提交，或 hooks 未安裝（`core.hooksPath` 不是 `.githooks`）時不會檢查，審核 PR 時要自己跑一次。
 
 **驗證命令**（在 scraper/ 目錄執行）：
 ```bash
+# every enum copy ↔ web/lib/types.ts (also runs in pre-commit):
+python3 ../scripts/check_enum_parity.py
 python3 -c "
 from annotator import VALID_CATEGORIES
 import re
@@ -558,7 +561,7 @@ Reference incidents:
 
 ## Event Form Sync Guard（DB constraint ↔ annotator.py ↔ database.py ↔ types.ts ↔ i18n）
 
-在審核**任何**新增 `event_form` 有效值的 PR 前，**必須**確認以下**六處**同步：
+新增 `event_form` 有效值時，以下六處**必須**在同一 commit 更新。是否一致不靠人工逐一核對，以 `python3 scripts/check_enum_parity.py` 驗證（相關檔案 staged 時 pre-commit 會自動執行）：
 
 1. **DB migration**：`events_event_form_check` CHECK constraint 允許清單新增新值（**authoritative source**）。
 2. **`annotator.py` → `VALID_EVENT_FORMS`** frozenset 包含新值。
@@ -575,9 +578,11 @@ Reference incidents:
 - 第 5 點：四支 route 的 GPT prompt 看不到新值，`sanitizeEventFormValues()` 也會把它濾掉；反向（`EVENT_FORMS` 有而 DB CHECK 沒有）則被 `events_event_form_check` 拒絕 → **管理画面保存 400 失敗，UI 卡住「保存中…」超過 1 分鐘**（2026-05-20 事故的失敗模式）。
 - 第 6 點：前端 event_form badge 顯示 raw key（如 `study_abroad`）而非翻譯文字。
 
-> **盲點**：`event_form` 沒有等同 `_check_category_sync()` 的啟動守衛，也沒有 types.ts ↔ `VALID_EVENT_FORMS` ↔ `_VALID_EVENT_FORMS` ↔ migration 的 parity 測試（`scraper/tests`、`web/tests` 中無 `VALID_EVENT_FORMS` / `EVENT_FORMS` 比對）。六處只能靠 PR 審核逐一核對。
+> **檢查範圍**（2026-10-20 起）：`scripts/check_enum_parity.py` 以 types.ts `EVENT_FORMS` 為基準，比對第 1–4、6 點（第 1 點取編號最大、含 `ADD CONSTRAINT events_event_form_check` 的 migration）與四支 route 的 `EVENT_FORMS.join`。`publication` 刻意不列在 SYSTEM_PROMPT 清單：它由出版物來源與 `_finalize_publication_update()` 指派，模型不選；腳本已把它宣告為例外，有人把它加進清單時會報錯。
+>
+> **盲點**：沒有等同 `_check_category_sync()` 的執行期守衛。腳本不涵蓋：(a) live DB 是否已套用 migration（2026-06-04 事故即屬此類，需另以唯讀 SELECT 查 `pg_constraint`）；(b) Decision guides 有沒有新值的說明行；(c) 以 `--no-verify` 提交或未安裝 hooks 的情況。
 
-**現有有效值（截至 2026-10-13，與 `web/lib/types.ts` `EVENT_FORMS`、migration 047 一致）**：
+**現有有效值（截至 2026-10-20，與 `web/lib/types.ts` `EVENT_FORMS`、migration 047、live DB 的 `events_event_form_check` 一致；live 為唯讀查證）**：
 `exhibition | screening | lecture | performance | market | workshop | conference | networking | screening_with_talk | tour | competition | tasting | broadcast | study_abroad | publication | other`
 
 > ⚠️ migration 047 重命名舊值：`concert` → `performance`、`lecture_seminar` → `lecture`、`film_screening` → `screening`；移除 `festival` / `sports`。任何引用舊命名的代碼或 prompt 都是 bug。
