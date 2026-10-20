@@ -138,25 +138,56 @@ campaign's shape, not defects to repair before removal.
 
 ## Worktree disposition
 
-`pending`. The owner has accepted the `ahead=2` exception and confirmed that
-there is no specification, after reading the Phase A output (2026-10-20T03:49Z).
-No removal decision exists yet. The decision time is written when the retirement
-preflight has re-observed the six values below and a recovery capsule exists
-outside the worktree.
+`remove`, decided at `2026-10-20T09:33:06Z`.
 
-| Freshness value | Observed at the close-out audit (2026-10-20T03:49Z) |
-|-----------------|-----------------------------------------------------|
-| branch tip | `294d3a509e4223e9071b4a675d9caff01e00c3f7` |
-| ahead of `origin/main` | 2 (both have an equivalent on `main`; see Delivered commits) |
-| behind `origin/main` | 45 |
+The decision time is when the recovery capsule was written outside the worktree,
+after the retirement preflight re-observed the six values below and found that no
+process held the worktree as its working directory (a scan of working
+directories, with 420 entries visible as a control). The owner had asked to retire
+the worktree, accepted the `ahead=2` exception and said the campaign has no
+specification after reading the Phase A output, and then replied that no other
+session uses the worktree and that the remote branch may be deleted. A window that
+only has the folder open cannot be seen by the scan; the owner's confirmation
+covers it for that moment.
+
+The owner ran the removal commands: `git pull --ff-only origin main`, remove the
+worktree without `--force`, delete the remote branch with `git push origin
+--delete`, delete the local branch with `-d` (it passed, because the remote
+deletion removed the upstream tracking ref and `-d` then judged the branch against
+the main checkout, which contains the tip), and rebuild the `ttr-*-worktree/`
+block of `.git/info/exclude` from the live worktrees. The residue check below was
+observed at 2026-10-20T09:36Z, after the owner reported the removal:
+
+| Residue check | Observed |
+|---------------|----------|
+| registered in `git worktree list` | `unregistered=ok` |
+| local branch `fix/iwafu-taiwan-relevance-gate` | `local_branch=deleted` |
+| remote branch `origin/fix/iwafu-taiwan-relevance-gate` | `remote_branch=deleted`; tracking ref gone |
+| line in `.git/info/exclude` | `exclude=removed` |
+| directory `ttr-iwafu-gate-worktree` | `directory=gone` |
+| administrative data under `.git/worktrees/` | `admin_metadata=gone` |
+| registered worktrees | 17, down from 18 |
+| record commit `f1a519fe` | ancestor of `origin/main` |
+
+The `ttr-*-worktree/` lines left in `.git/info/exclude` are the seven live
+worktrees whose physical paths resolve under the repository root. Stashes: 0.
+
+| Freshness value | Observed at the decision |
+|-----------------|--------------------------|
+| branch tip | `f1a519fed22c583ed1ba3c253b84fba4f70702f3` |
+| ahead of `origin/main` | 0 |
+| behind `origin/main` | 4 (`origin/main` advanced after the branch tip; not a branch change) |
 | dirty count | 0 |
 | ignored artifact set | 3 directories, 134 files, listed under Ignored artifacts |
 | path identity | `canonical`, directory `ttr-iwafu-gate-worktree`, branch `fix/iwafu-taiwan-relevance-gate` |
 
-Stashes: 0. No rebase, merge, cherry-pick, or revert was in progress. The
-branch has a remote counterpart at the same tip, so a remote deletion is owed
-at retirement, and `git branch -d` needs the upstream tip to contain the local
-tip (it does: 0 ahead, 0 behind the upstream).
+For reference, the observation at the close-out audit (2026-10-20T03:49Z): branch
+tip `294d3a509e4223e9071b4a675d9caff01e00c3f7`, ahead 2, behind 45, dirty 0,
+ignored artifact set 134 files, path identity the same. The branch was rebased
+onto `origin/main` afterwards, which dropped the two commits that were already on
+`main` and left only the record commit. The audit script's verdict was
+`HOLD:ahead`, accepted by the owner as described under Known risks; no later
+audit was run.
 
 ## Ignored artifacts and handling
 
