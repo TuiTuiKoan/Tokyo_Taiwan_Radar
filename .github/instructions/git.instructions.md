@@ -127,6 +127,10 @@ comm -23 <(printf '%s\n' "$want") <(grep -E '^ttr-.*-worktree/$' .git/info/exclu
 
 Empty output = converged. Any output = another session clobbered you; just re-run the reconcile.
 
+Because the reconcile rewrites the whole block, it also drops stale `ttr-*-worktree/` lines that other sessions left behind (worktrees already retired elsewhere). That is expected convergent behaviour, not an incident, and no live worktree's line is touched. The retirement report must still list every line removed beyond the campaign's own, so it is not mistaken for an accident (2026-10-20: retiring `ttr-vmd-summary-ai-scope-worktree/` also removed `ttr-deps-security-worktree/`).
+
+Under Claude Code with hooks enabled, the one-liner above (command substitution, `while`, `<(…)`) is blocked by the PreToolUse guard as `unsupported-syntax`. Run the split-into-simple-commands form instead (see `.github/skills/agents/campaign-closer/SKILL.md` § `.git/info/exclude` 對帳被 hook 擋下時); never bypass the hook with `--dangerously-skip-permissions` or `disableAllHooks`.
+
 Worktrees registered outside the repository root (for example `<repo>.worktrees/<slug>`) never appear in the main tree's untracked list, so they need no entry and must not be added.
 
 Incident 2026-08-14: a cleanup session ran `grep -vxF 'ttr-auth-smoke-worktree/' .git/info/exclude > tmp && mv tmp …`; a parallel session had appended a different entry seconds earlier, and that entry was silently lost, re-exposing a live worktree as untracked.

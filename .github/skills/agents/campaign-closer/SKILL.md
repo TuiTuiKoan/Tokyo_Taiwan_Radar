@@ -327,6 +327,21 @@ exclude 未變）。處理方式是拆成幾條簡單指令，演算法不變：
 
 這偏離該文件的字面腳本，但演算法等價。仍然**不可**盲刪單行。
 
+**回報規則**：對帳前先比對 exclude 區塊現況與 live 目標清單。區塊會多出來的行，除了本 campaign 退役的那一行，
+還可能有別的 session 已退役、遺留下來的過期行；整塊對帳會一併移除（2026-10-20：退役
+`ttr-vmd-summary-ai-scope-worktree/` 時，`ttr-deps-security-worktree/` 一併被移除）。這是對帳的預期行為，
+不是事故，也沒有碰 live worktree 的行。報告必須逐行列出「本 campaign 之外還移除了哪些行」並標明原因，
+避免使用者誤判為誤刪。
+
+**單行移除備案（非預設）**：2026-10-20 被 guard 擋下時，實際採用的是兩條簡單 grep 分開比對
+（`git worktree list --porcelain | grep '^worktree '` 與 `grep -E '^ttr-.*-worktree/$' .git/info/exclude`），
+確認區塊內其餘 live 行都已存在、只多出剛退役的那一行，再以單行
+`grep -vxF '<行>' .git/info/exclude > .git/info/exclude.tmp && mv .git/info/exclude.tmp .git/info/exclude`
+移除，最後再 grep 該區塊驗證與 live worktree 一一對應。這只在兩個條件**同時**成立時才與整塊對帳等價：
+區塊內其餘 live 行都已存在，且當下沒有別的 session 在寫 exclude。第二個條件無法可靠驗證
+（2026-08-14 單行刪除競態事故），所以它是備案、不是預設規則，事後的 grep 驗證不可省；條件有任何一項
+不成立，就照上面的拆開版做整塊對帳。這不放寬「不可盲刪單行」。
+
 ### exclude 對帳的目標清單：用物理路徑推導，並以 worktree 計數當閘門
 
 目標清單（要保留的 `ttr-*-worktree/` 行）是某一刻的快照，推導與使用各有一個陷阱：

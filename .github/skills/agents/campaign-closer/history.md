@@ -9,6 +9,30 @@ ms.date: 2026-08-12
 
 ---
 
+## 2026-10-20 — vmd-summary-ai-scope 退役：整塊對帳順帶移除過期行，且對帳指令被 guard 擋下
+
+**事實 A（順帶移除過期行）**：退役 `ttr-vmd-summary-ai-scope-worktree` 時，依 `git.instructions.md` 以 live worktree 推導目標清單、
+整塊重寫 `ttr-*-worktree/` 區塊。除了本 campaign 的那一行，`ttr-deps-security-worktree/` 也一併被移除——該 worktree 已被另一個
+session 退役，那行本就過期。這是對帳（convergent、idempotent）的預期行為，不是 bug，也沒有誤刪 live worktree 的行。
+
+**教訓 A**：退役報告要明確告知使用者「順帶移除了非本 campaign 的過期行」並逐行列出，否則會被誤認為事故。已寫入
+`git.instructions.md` § Reconciling 與 SKILL.md 「回報規則」。
+
+**事實 B（guard 擋下對帳 one-liner）**：`git.instructions.md` 的對帳 one-liner 含命令替換、`while` 與 process substitution
+（`comm -23 <(…) <(…)`）。Claude Code hooks 啟用時，guard 回報 `blocked [unsupported-syntax] the command uses syntax the guard
+cannot verify`，整條指令被擋（指令未執行，exclude 未變）。這一點與下方「### 3」是同一類事件，不重複其處置。
+
+**本次實際處置**：拆成簡單命令——先 `git worktree list --porcelain | grep '^worktree '` 與
+`grep -E '^ttr-.*-worktree/$' .git/info/exclude` 分開比對，確認區塊內其餘 live 行都已存在、只多出剛退役的一行，再用單行
+`grep -vxF '<行>' .git/info/exclude > .git/info/exclude.tmp && mv …` 移除，最後 grep 該區塊驗證與 live worktree 一一對應。
+
+**教訓 B**：這個單行移除只在「區塊內其餘 live 行都已存在」且「當下沒有別的 session 在寫 exclude」時才與整塊對帳等價；第二個
+條件無法可靠驗證（2026-08-14 事故），因此只記為備案，不升級為規則，也不放寬「不可盲刪單行」。被 guard 擋下時停下用拆開版，
+不得用 `--dangerously-skip-permissions`、`disableAllHooks` 繞過。`git.instructions.md` 先前完全沒提 hook 會擋對帳指令，已補一段指向
+本 SKILL.md。`pwd -P` 物理路徑推導（大小寫與 `3-TTR` 前綴變體路徑）已在 SKILL.md 「exclude 對帳的目標清單」記錄，這次不重複。
+
+---
+
 ## 2026-10-20 — 寫 recovery capsule 之前，主工作樹 main 可能與 origin/main 分歧
 
 **事實**：`iwafu-taiwan-relevance-gate` 準備移除時，主工作樹 `main` 領先 `origin/main` 2 個、落後 1 個（別的 session 留下未推送的 commit）。`git pull --ff-only` 會失敗；而遠端分支刪除後，`git branch -d` 改以主工作樹 HEAD 判斷「已合併」（機制見下一則），`main` 不含分支 tip 就會被拒，`-D` 又被禁止。
