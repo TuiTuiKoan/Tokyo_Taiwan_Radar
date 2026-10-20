@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-20 - Lockfile regenerated through the local npm proxy rewrote 232 resolutions
+
+**Error**: While preparing the `chore/deps-security-2026-10` overrides, a plain `pnpm install` read `~/.npmrc`, which points at a corporate package-feed proxy. The proxy returned 404 for newer versions (so the PR #205 check could not run) and, when the lockfile was regenerated through it, rewrote 232 resolutions to `ms-feed-25` tarball URLs with sha1 integrity values.
+
+**Fix**: Once `registry.npmjs.org` was reachable again, regenerate the lockfile with `--registry https://registry.npmjs.org/`; the resulting diff was 51 lines. A lockfile containing proxy tarball URLs is never committed.
+
+**Lesson**: Before committing `web/pnpm-lock.yaml`, grep the diff for non-npmjs hosts (`grep -c 'ms-feed\|packagefeedproxy'`); a 404 from the proxy for a recent version is an environment symptom, confirmed by running the same install on `origin/main` as a control.
+
+---
+
 ## 2026-10-14 - V-M-D: an empty deployments lookup was recorded as absent, and the push command had three spellings
 
 **Error**: Two V-M-D rules did not match the flow that was actually run during the ai-portability close-out (2026-10-13). (1) Step 5 recorded `NONE FOUND (non-web push)` whenever `deployments?sha=<sha>` returned nothing. On the `f321bc25` push the API returned `[]` for about a minute while the commit status was still pending ("Vercel is deploying your app"); the deployment object (id `7041536267`) appeared only when the build finished, and a lookup in that window would have been recorded as `NONE FOUND`. (2) Step 0.6 point 3 said `git push origin HEAD:main` and Step 4 said `git push origin main`, while the push that was actually run was the user's `git -C '<main working directory>' push origin <campaign branch>:main`.
