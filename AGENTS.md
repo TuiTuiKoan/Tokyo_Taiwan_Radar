@@ -40,7 +40,7 @@ Claude Code 可直接叫用 `.claude/agents` 下的 subagent wrapper。Codex 沒
 | Scraper Expert | `scraper-expert` | `.github/agents/scraper-expert.agent.md` | 建置、除錯與驗證 scraper，並分派來源 subagent。 |
 | Tester | `tester` | `.github/agents/tester.agent.md` | 執行 scraper / web 驗證並回報 pass/fail 與風險。 |
 | Update History, Skill, Agent | `update-history-skill-agent` | `.github/agents/update-history-agent.agent.md` | 依最近修改更新 history、skill 與 agent 文件。 |
-| Validate, Merge & Deploy | `validate-merge-deploy` | `.github/agents/validate-merge-deploy.agent.md` | 檢查衝突、rebase、commit、推送 main 與驗證部署；只有使用者明確同意後才 push。 |
+| Validate, Merge & Deploy | `validate-merge-deploy` | `.github/agents/validate-merge-deploy.agent.md` | 檢查衝突、rebase、commit，提供由使用者執行的 push 指令，使用者 push 後驗證部署；V-M-D 不自行 push。 |
 | Peatix Scraper | `peatix-scraper` | `.github/agents/subagents/scraper-peatix.agent.md` | Peatix 來源 scraper subagent。 |
 | TCC Scraper | `tcc-scraper` | `.github/agents/subagents/scraper-tcc.agent.md` | Taiwan Cultural Center 來源 scraper subagent。 |
 
