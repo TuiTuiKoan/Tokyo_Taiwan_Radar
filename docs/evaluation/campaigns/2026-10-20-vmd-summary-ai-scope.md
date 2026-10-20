@@ -28,8 +28,8 @@ The one-line summaries of Validate, Merge & Deploy in `AGENTS.md`, its agent fil
 | Branch holds no unique commit | PASS | `git cherry origin/main feat/vmd-summary-ai-scope` printed nothing; ahead 0, behind 0 |
 | Added lines carry no unfinished-work marker | PASS | Audit `range_todo=0` over `d1bf30de..0badac5b` ("docs(agents): record the proxy-rewritten lockfile incident in engineer history", 2026-10-20) |
 | Open issues naming the slug | PASS | Audit `open_issues=0`, excluding label `daily-review` |
-| Generated adapters match sources | NOT TESTED | `sync_ai_adapters.py --check` was not rerun for this record; the delivered commit touched a generated wrapper and its source together, so drift is unlikely but unproven |
-| Session contention | NOT TESTED | Audit reported `SOLE_OWNER (CLI-scope)`, but live `lsof` showed shells and a `claude` process with this worktree as cwd; their ownership is not confirmed (see Known risks) |
+| Generated adapters match sources | PASS | `sync_ai_adapters.py --check` exited 0 on `origin/main` at 2026-10-20 (rerun after the record was pushed) |
+| Session contention | PASS | Audit reported `SOLE_OWNER (CLI-scope)`; the user confirmed no other session used the worktree and closed the remaining terminal tab, and a fresh `lsof -a -d cwd` at 2026-10-20T13:00Z showed no holder (see Known risks) |
 
 ## Correction and supersession
 
@@ -38,7 +38,7 @@ None.
 ## Known risks
 
 * Spec sources 1 and 2 of the unhandled-work audit were `not_checked` because no spec directory exists for this slug. They are recorded as cleared on the user's confirmation at 2026-10-20 (relayed by the coordinating session after the user saw the Phase A output), not on a read of any file.
-* Session contention is CLI-scoped. Claude Code and VS Code sessions are not detectable by the audit. At 2026-10-20T12:56Z `lsof` still listed processes holding this worktree as cwd; the user plans to close the remaining terminal tab at retirement. Retirement stays blocked until a fresh `lsof -a -d cwd` shows no holder.
+* Session contention is CLI-scoped. Claude Code and VS Code sessions are not detectable by the audit. At 2026-10-20T12:56Z `lsof` still listed processes holding this worktree as cwd. Those were resolved before retirement: the user closed the terminal tabs, and a fresh `lsof -a -d cwd` at 2026-10-20T13:00Z showed no holder, so retirement went ahead.
 
 ## Deferred work
 
