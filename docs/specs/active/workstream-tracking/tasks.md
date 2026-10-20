@@ -75,7 +75,6 @@ Git 的 registered path 與檔案系統 physical path 是兩種不同證據。�
 | external（root 外） | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar.worktrees/web-based-financial-workshop-slides` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar.worktrees/web-based-financial-workshop-slides` | `agents/web-based-financial-workshop-slides` |
 | symlink-alias 註冊（root 內） | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-admin-qa-cleanup-worktree` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-admin-qa-cleanup-worktree` | `feat/admin-qa-cleanup` |
 | symlink-alias 註冊（root 內） | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-authoritative-venue-repair-worktree` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-authoritative-venue-repair-worktree` | `feat/authoritative-venue-repair` |
-| symlink-alias 註冊（root 內） | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-deps-security-worktree` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-deps-security-worktree` | `chore/deps-security` |
 | symlink-alias 註冊（root 內） | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-evaluation-framework-worktree` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-evaluation-framework-worktree` | `feat/evaluation-framework` |
 | symlink-alias 註冊（root 內） | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-japan-scope-gate-worktree` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-japan-scope-gate-worktree` | `feat/japan-scope-gate` |
 | symlink-alias 註冊（root 內，小寫 `development`） | `/Users/flyingship/development/Tokyo Taiwan Radar/ttr-publication-policy-worktree` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-publication-policy-worktree` | `feat/publication-policy` |
@@ -219,7 +218,6 @@ Eslite identity migration、PN-3a.0（`b4cb383f`）、F-1（`831871e0`）。
 | `web-based-financial-workshop-slides` | 0/61 | 0 | external（3-TTR.worktrees）；新登記，待決定治理歸屬 |
 | `ttr-ai-harness-worktree` | 0/1 | 4 | 進行中（`feat/ai-harness`，dirty 為活躍編輯）；無 matching spec |
 | `ttr-iwafu-gate-worktree` | 0/0 | 0 | `fix/iwafu-taiwan-relevance-gate`；close-out record 已在 `origin/main`，退役待 campaign-closer |
-| `ttr-deps-security-worktree` | 4/110 | 0 | G4 依賴維護 |
 | `ttr-evaluation-framework-worktree` | 0/99 | 0 | 待同步 |
 | `ttr-japan-scope-gate-worktree` | 11/158 | 16 | 活躍且 dirty，規模不小 |
 
@@ -239,7 +237,6 @@ Eslite identity migration、PN-3a.0（`b4cb383f`）、F-1（`831871e0`）。
 | 未編號 | `ttr-japan-scope-gate-worktree` | 11/158 | 16 | 無 matching spec |
 | 未編號 | `ttr-ai-harness-worktree` | 0/1 | 4 | 無 matching spec（計畫在本機 `~/.ai-notes/ttr/`） |
 | 未編號 | `ttr-iwafu-gate-worktree` | 0/0 | 0 | 無 matching spec |
-| G4 | `ttr-deps-security-worktree` | 4/110 | 0 | 無 matching spec |
 | 未編號 | 其餘 9 個 `agents/*` worktree（見上表） | 見上表 | 0 | 無 matching spec |
 | —（主工作樹） | `Tokyo Taiwan Radar` | 2/1（本地領先未推送） | 0 | `active/workstream-tracking`（governance-only） |
 
@@ -279,7 +276,6 @@ spec 不帶 `proposal.md`，未逐一核對 frontmatter。這是雙向 inventory
 工作狀態分流（2026-10-20 觀測）：
 
 - [ ] `ttr-japan-scope-gate-worktree` 補建 spec 或明確指定既有 spec
-- [ ] `ttr-deps-security-worktree` 決定是否以 G4 ledger 取代 dedicated spec
 - [ ] `ttr-ai-harness-worktree`、`ttr-iwafu-gate-worktree` 確認 spec 或 grandfathered 身分
       （後者的 close-out record 已落地，應走退役而非補 spec）
 - [ ] 9 個 `agents/*` worktree（`agent-handoff-and-worktree-cleanup`、
@@ -345,7 +341,7 @@ git --no-pager cherry origin/main <branch>   # '-' 前綴 = 內容已在上游
 
 ### G5: Worktree 註冊路徑與外部 sibling 治理
 
-- [x] 保存 19 個 worktree（2026-10-20 對帳當時；其後 `ledger-topology-reconcile` 退役，現為 18 個） 的完整 registered path、physical path 與 path class 證據
+- [x] 保存 19 個 worktree（2026-10-20 對帳當時；其後 `ledger-topology-reconcile` 與 `ttr-deps-security-worktree` 相繼退役，現為 17 個；完整計數對帳另交 `ledger-topology-reconcile` skill） 的完整 registered path、physical path 與 path class 證據
 - [x] 證明 `Development`／`development` 路徑解析到同一個 symlink／同一套實體 repo
 - [ ] 另案決定是否把 14 個以搬移前舊路徑（含小寫 `development`）註冊的 linked worktree
       正規化為 `3-TTR/` 實體路徑（`git worktree repair` 屬變更操作，需批准）
