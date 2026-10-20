@@ -79,7 +79,6 @@ Git 的 registered path 與檔案系統 physical path 是兩種不同證據。�
 | canonical child | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-evaluation-framework-worktree` | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-evaluation-framework-worktree` | `feat/evaluation-framework` |
 | canonical child | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-japan-scope-gate-worktree` | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-japan-scope-gate-worktree` | `feat/japan-scope-gate` |
 | external（case-split lexical alias） | `/Users/flyingship/development/Tokyo Taiwan Radar/ttr-publication-policy-worktree` | `/Users/flyingship/development/Tokyo Taiwan Radar/ttr-publication-policy-worktree` | `feat/publication-policy` |
-| external（case-split lexical alias） | `/Users/flyingship/development/Tokyo Taiwan Radar/ttr-v8-worktree` | `/Users/flyingship/development/Tokyo Taiwan Radar/ttr-v8-worktree` | `feat/event-intake-wizard` |
 
 大小寫兩條 repo parent path 在目前檔案系統解析到相同 device/inode：
 `/Users/flyingship/Development` 與 `/Users/flyingship/development` 都是
@@ -194,7 +193,6 @@ Eslite identity migration、PN-3a.0（`b4cb383f`）、F-1（`831871e0`）。
 | `ttr-deps-security-worktree` | 4/21 | 0 | G4 依賴維護 |
 | `ttr-evaluation-framework-worktree` | 0/10 | 0 | 待同步 |
 | `ttr-japan-scope-gate-worktree` | 11/69 | 16 | 活躍且 dirty，規模不小 |
-| `ttr-v8-worktree` | 0/189 | 3 | 嚴重停滯；case-split lexical alias |
 
 ---
 
@@ -210,7 +208,6 @@ Eslite identity migration、PN-3a.0（`b4cb383f`）、F-1（`831871e0`）。
 | E（venue repair） | `ttr-authoritative-venue-repair-worktree` | 1/43 | 0 | `active/authoritative-venue-repair` |
 | 未編號 | `ttr-evaluation-framework-worktree` | 0/10 | 0 | `active/evaluation-framework` |
 | 未編號 | `ttr-japan-scope-gate-worktree` | 11/69 | 16 | 無 matching spec |
-| 未編號 | `ttr-v8-worktree` | 0/189 | 3 | 無 matching spec |
 | G4 | `ttr-deps-security-worktree` | 4/21 | 0 | 無 matching spec |
 | 未編號 | `agent-handoff-and-worktree-cleanup` | 0/6 | 0 | 無 matching spec |
 | 未編號 | `anomaly-detection-workflow-integration` | 0/8 | 0 | 無 matching spec |
@@ -248,23 +245,20 @@ Eslite identity migration、PN-3a.0（`b4cb383f`）、F-1（`831871e0`）。
 
 ### G2: Linked worktree 缺 matching spec 目錄
 
-13 個 linked worktree 中有 9 個沒有同 branch slug 的 active spec；本次治理 worktree
-已明確指定 `workstream-tracking`，其餘 8 個仍需依規則生效時間與工作狀態分流：
+12 個 linked worktree 中有 8 個沒有同 branch slug 的 active spec；本次治理 worktree
+已明確指定 `workstream-tracking`，其餘 7 個仍需依規則生效時間與工作狀態分流：
 
 - [ ] `ttr-japan-scope-gate-worktree` 補建 spec 或明確指定既有 spec
 - [ ] `ttr-deps-security-worktree` 決定是否以 G4 ledger 取代 dedicated spec
-- [ ] `ttr-v8-worktree` 先走 G3；未決定繼續前不追建 spec
 - [ ] `agent-handoff-and-worktree-cleanup`、`anomaly-detection-workflow-integration`、
       `ledger-topology-reconciliation`、`mobile-ssh-agent-remote-development`、
       `tokyo-taiwan-radar-agents-repo` 分別確認 spec 或 grandfathered 身分
 
 ### G3: 停滯 worktree 去留
 
-2026-08-14 仍有一筆既有停滯工作線待決定：
-
-- [ ] `ttr-v8-worktree`（behind 189，dirty 3；case-split lexical alias）
-
-決定前必須查證各分支是否有未推送且未合併的 commit：
+2026-08-14 的唯一停滯項 `ttr-v8-worktree`（`feat/event-intake-wizard`）已於 2026-10-14
+退役，證據見 `docs/evaluation/campaigns/2026-10-14-event-intake-wizard.md`。目前無待決停滯項；
+日後出現時，決定前必須查證各分支是否有未推送且未合併的 commit：
 
 ```bash
 git -C <worktree> log origin/main..HEAD --oneline
@@ -350,7 +344,7 @@ push 觸發）作為繞道，讓驗證改在可連公開 npm 的 runner 上執�
 
 - [x] 保存 14 個 worktree 的完整 registered path、physical path 與 path class 證據
 - [x] 證明 `Development`／`development` 解析為相同 inode，不是兩套實體 repo
-- [ ] 另案決定是否將 publication-policy、v8 的 Git lexical registration 正規化為
+- [ ] 另案決定是否將 publication-policy 的 Git lexical registration 正規化為
       canonical `Development` 路徑
 - [ ] 決定是否把 `<repo>.worktrees/<slug>` + `agents/<slug>` 正式納入命名規則；
       此慣例不污染主工作樹 untracked 清單，也不需要 exclude
