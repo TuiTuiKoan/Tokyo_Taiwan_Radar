@@ -677,6 +677,8 @@ router.push('/admin');
 - Never set `autoInstrumentServerFunctions: false` — it silently disables server-side error capture.
 - Gate source map upload: `sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN }`.
 
+- **Lockfile 不可帶本機 proxy 的 URL（2026-10-20 教訓）:** `~/.npmrc` 可能把 registry 指向公司 proxy；經它重生的 `web/pnpm-lock.yaml` 會把 resolution 改寫成 proxy tarball URL 與 sha1。重生時帶 `--registry https://registry.npmjs.org/`，commit 前 grep diff 確認沒有非 npmjs 的主機。
+
 ## API Route JSON Safety Guard（Safari SyntaxError 防護）
 
 **所有 API route POST handler 必須用 try/catch 包整個函式體，確保任何情況下都回傳 JSON。**
