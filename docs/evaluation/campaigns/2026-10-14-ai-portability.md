@@ -163,14 +163,49 @@ that reading at the Phase B reply.
 the push gate are checked, and the follow-up backlog is tracked in the parked
 specification.
 
-The spec moved to `docs/specs/archive/2026-10-ai-portability/` on 2026-10-20 in a separate
-commit, after the worktree was removed. Live pointers in `AGENTS.md`, `scripts/`, and the
-Engineer skill were updated; historical records keep the old path on purpose.
+The move has **not happened**. The directory is still under `docs/specs/active/`
+when this record is written, so this is a decision, not a completed state. The
+owner asked for the move and the reference updates to be a separate commit after
+the worktree is removed, following the worktree lifecycle in `docs/specs/README.md`.
 
 One consequence to check first: the audit script resolves a slug only under
 `docs/specs/active/<slug>` and `docs/specs/archive/<slug>`. The README names the
 archive directory with a date prefix, so after the move a re-audit would report
 the spec sources as `not_checked` unless the directory keeps the bare slug.
+
+### Update after the move (2026-10-22)
+
+This section is appended; the two paragraphs above are left as written and were
+true when this record was made. This section brings them up to date and does not
+replace them.
+
+* **The spec has moved.** The ten files now live in
+  `docs/specs/archive/2026-10-ai-portability/`, and the `status` field in its
+  `proposal.md` frontmatter is `archived`. The live pointers in `AGENTS.md`,
+  `scripts/`, and the Engineer skill were updated to the new directory.
+  Historical records keep the old path on purpose, because it was true when they
+  were written.
+* **Two commits carry the move, not one.** On 2026-10-20 the commit with subject
+  `docs(specs): archive ai-portability and repoint live references` changed the
+  `status` field and repointed the live references. The `git mv` of the ten files
+  itself was recorded earlier in history, the same day, inside a commit whose subject is
+  `docs(specs): drop the retired ttr-v8 worktree from the workstream ledger`,
+  which is unrelated to this campaign by its subject. To find both, run
+  `git log --follow --format='%h %ad %s' --date=short -- docs/specs/archive/2026-10-ai-portability/proposal.md`;
+  it prints the archive commit, the ledger commit, and the commit that first
+  added the spec skeleton, and the same command with `--diff-filter=R` prints only
+  the ledger commit, which holds the rename. This record cites subjects and dates,
+  not hashes, because a rebase can change a hash.
+* **The audit limitation named above is gone.** The audit script resolved a slug
+  only under `active/<slug>` and `archive/<slug>`, and so would have reported the
+  spec as `not_checked` for a date-prefixed directory. The commit with subject
+  `fix(agents): campaign closeout audit resolves date-prefixed archive
+  directories` (2026-10-22) made it resolve `archive/<YYYY-MM>-<slug>` as well.
+  Running the audit with `--slug ai-portability` now resolves
+  `docs/specs/archive/2026-10-ai-portability/tasks.md` and reports `spec_tasks=0`.
+* **The deferred work did not move.** The follow-up backlog is still in
+  `docs/specs/parked/ai-portability-followups.md`, whose header now points to the
+  archive directory for the section references in its items.
 
 ## Worktree disposition
 

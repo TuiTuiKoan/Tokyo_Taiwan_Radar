@@ -16,7 +16,7 @@ tags: [tooling, governance, ai, hardening]
 - 內容取自上述 commit 的 `tasks.md` L187–205；可用 `git show 6b404ea3a4b029cf9c157d9773442b40d7fee5a8:docs/specs/active/ai-portability/tasks.md | sed -n '187,205p' | shasum -a 256` 重算，預期 `ab5d37fafa5d249ce2dec613992759ce33d1c4f53f8cfaad26791901b2593f89`。
 - 19 條逐字搬入，只改位置；每條仍是未完成項目，搬移不代表任何一條已處理。
 - 下列五個分組標題是搬移時新增，不在原文；組內保持原順序。
-- 條目中的 `notes.md §…`、`plan §…` 等章節引用，指的是 `docs/specs/active/ai-portability/` 內的同名檔案；該目錄若已依 `docs/specs/README.md` 歸檔，改到 `docs/specs/archive/` 下對應子目錄查。
+- 條目中的 `notes.md §…`、`plan §…` 等章節引用，指的是 `docs/specs/active/ai-portability/` 內的同名檔案；該目錄若已依 `docs/specs/README.md` 歸檔，改到 `docs/specs/archive/` 下對應子目錄查。該目錄已於 2026-10-20 歸檔，章節引用現在位於 `docs/specs/archive/2026-10-ai-portability/`；L14、L16 與本行的舊路徑 `docs/specs/active/ai-portability/` 是撰寫當時的歷史引用，不要改（L16 的 `git show <sha>:…` 讀的是舊 commit 的樹）。
 - 檔末「搬移後新增」小節的項目是搬移之後才加入的，不在原 19 條內。該小節的兩項已於 2026-10-13 處理並標為 `[x]`；第二項裡「`ai` scope 是否列入」的決定不是文件錯字，已拆成一條新的未完成項。因此到 2026-10-13 為止全檔 `^- \[ \] ` 共 20 條（原 19 條加上拆出的 1 條）。檔末另有「結案後新增」小節，是 2026-10-14 補記的 4 條，全檔 `^- \[ \] ` 因此共 24 條。原 19 條的排序 digest 以該小節之前的內容重算：`sed '/^## 搬移後新增/,$d' docs/specs/parked/ai-portability-followups.md | grep '^- \[ \] ' | LC_ALL=C sort | shasum -a 256`，預期 `c2388828dc3d64cd5821e61ca680cd1473ffee59541a35ce50c40cb0f0c9408c`。
 
 ## ① CI 接線
