@@ -56,7 +56,7 @@ Close Campaign & Retire Worktree（closer）在 Phase B 取得使用者一次同
 
 ## References
 
-- [plan.md](./plan.md)（rev.3）
+- [plan.md](./plan.md)（rev.4）
 - [notes.md](./notes.md)
 - `docs/evaluation/campaigns/README.md` § Recovery capsule、§ Freshness、§ Cleanup checklist
 - `.github/skills/agents/campaign-closer/SKILL.md` § Recovery capsule

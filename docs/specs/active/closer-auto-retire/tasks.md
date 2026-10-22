@@ -1,13 +1,13 @@
 # Tasks
 
-進度真值。規格與裁決見 [plan.md](./plan.md)（rev.3），試跑證據見 [notes.md](./notes.md)。
+進度真值。規格與裁決見 [plan.md](./plan.md)（rev.4），試跑證據見 [notes.md](./notes.md)。
 
 ## 目前狀態（2026-10-22）
 
 | Phase | 狀態 |
 |-------|------|
 | Phase 0 worktree 確認 | 完成 |
-| Phase 1 回填腳本與測試 | **進行中**：腳本與測試已寫好、驗證通過，尚未 commit |
+| Phase 1 回填腳本與測試 | **已 commit**：`1ac845d4`（spec）、`6616abbf`（腳本與測試），待使用者 push |
 | Phase 2 試跑（plan.md §8） | **暫停**（2026-10-22），等 pr-flow-tiering 試行結果 |
 | Phase 3 規則文件（plan.md §7 #1–#6） | **暫停**（2026-10-22），同上；且必須先通過 Phase 2 的決策閘門 |
 
@@ -19,13 +19,13 @@ Phase 2。恢復前先依 plan.md §11 把本分支 rebase 到當時的 `origin/
 ## Phase 0：Worktree
 
 - [x] 使用者確認在 `ttr-closer-auto-retire-worktree`（`feat/closer-auto-retire`）進行
-- [ ] 工作樹乾淨時 `git -C '<worktree>' fetch origin && git -C '<worktree>' rebase origin/main`（2026-10-22 本分支落後
-      `origin/main` 25 顆，spec 目錄尚未追蹤；Phase 1 沒有 rebase，留到 commit 前處理）
+- [x] 工作樹乾淨時 `git -C '<worktree>' fetch origin && git -C '<worktree>' rebase origin/main`（2026-10-22 V-M-D commit 後
+      rebase 到 `b78510bb`，無衝突）
 
 ## Phase 1：回填腳本與測試（plan.md §4.7、§6）
 
 - [x] 新增 `scripts/campaign-disposition-backfill.py`
-  - [x] apply：`--record <path> --block <file> --capsule <file>`，只替換 `## Worktree disposition` 到下一個 `## ` 之間
+  - [x] apply：`--record <path> --block <file> --capsule <file>`，只替換 `## Worktree disposition` 區塊（範圍見下方裁決）
   - [x] 三種結果：`applied`（印 diff）、`already_applied`、`unexpected_state`（exit 3）
   - [x] 重跑冪等：第二次執行為 `already_applied`，檔案逐位元不變
   - [x] verify：`--verify --capsule <file>`，從 stdin 讀記錄，只檢查 disposition 區塊
@@ -37,7 +37,8 @@ Phase 2。恢復前先依 plan.md §11 把本分支 rebase 到當時的 `origin/
 - [x] `python3 -m pytest scripts/claude/tests scripts/tests -q` 通過
 - [x] `python3 scripts/sync_ai_adapters.py --check` 無漂移
 - [x] 建立 `proposal.md`、`tasks.md`
-- [ ] commit（交 V-M-D；本 spec 目錄與腳本一起）
+- [x] commit（V-M-D，2026-10-22：`1ac845d4` spec、`6616abbf` 腳本與測試）
+- [ ] 使用者 push 到 `origin/main`，確認 Secret Scan 與部署
 
 ## Phase 2：試跑（plan.md §8）— 暫停中
 
