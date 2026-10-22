@@ -1,6 +1,6 @@
 """
 Scrapers for TTCG (Tokyo Theatres Company Group) Kansai venues:
-  - テアトル梅田 (T-Joy Umeda / Teatoru Umeda), Osaka
+  - テアトル梅田 (Theatre Umeda, Tokyo Theatres), Osaka — not T・ジョイ梅田, a different cinema
   - シネ・リーブル神戸 (Cine Libre Kobe), Kobe
 
 Both use the same TTCG CMS as ヒューマントラストシネマ有楽町.
