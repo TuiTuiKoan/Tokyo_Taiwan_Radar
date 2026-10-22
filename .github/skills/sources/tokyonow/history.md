@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-10-23 — Events API 404 since ~2026-09; site is now a news media (#376)
+
+**Error:** `scraper_runs` shows no output since 2026-09-14; dry-run: `404 Client Error` on `/wp-json/tribe/events/v1/events`. The failure was logged but `_fetch_page` returned `None`, `scrape()` returned `[]`, so every weekly run was recorded as `success=True, 0 events`.
+
+**Root cause:** tokyonow.tokyo removed The Events Calendar and became an entertainment news site. No event post type, sitemap or HTML list exists any more (checked `wp-json`, `wp/v2/types`, `sitemap.xml`, `/events/` → `/information/`, `event_area` taxonomy empty).
+
+**Fix:** `_fetch_page` no longer swallows errors: HTTP errors and payloads without `events` raise, so the run is recorded as failed. No rewrite is possible; retiring the source is the follow-up.
+
+**Retired (2026-10-23, user decision):** removed from `SCRAPERS` in `main.py` (same pattern as TokyoArtBeat in b352f5a0) and from `source_expectations.json`; the module and its tests stay.
+
+**Lesson:** a scraper that catches its own list/API failure and returns `[]` is indistinguishable from "no events" in `scraper_runs`. List/API errors must raise; only per-detail-page failures may be skipped.
+
+---
+
 ## 2026-04-26 — Initial implementation: API keyword search returns 0
 
 **Error:** `GET /wp-json/tribe/events/v1/events?search=台湾` returns 0 results despite Taiwan events existing on the site.

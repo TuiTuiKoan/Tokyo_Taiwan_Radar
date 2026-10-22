@@ -127,13 +127,21 @@ class BookandbeerScraper(BaseScraper):
                     try:
                         page.goto(url, timeout=30000)
                         page.wait_for_load_state("networkidle", timeout=15000)
-                    except PWTimeout:
+                    except PWTimeout as exc:
+                        if page_num == 1:
+                            raise RuntimeError(f"bookandbeer: listing page 1 timed out: {url}") from exc
                         logger.warning("Timeout loading %s; skipping page", url)
                         continue
 
                     cards = page.locator(CARD_SELECTOR)
                     count = cards.count()
                     if count == 0:
+                        if page_num == 1:
+                            # The listing always shows upcoming events; none means the layout
+                            # changed or the page was blocked, not "no Taiwan events" (#377).
+                            raise RuntimeError(
+                                f"bookandbeer: no {CARD_SELECTOR} cards on listing page 1"
+                            )
                         logger.info("No cards on page %d; end of pagination", page_num)
                         break
 

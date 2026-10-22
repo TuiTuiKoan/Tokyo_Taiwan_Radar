@@ -1,5 +1,15 @@
 # taipei-fukuoka — History
 
+## 2026-10-23 — CI always 0 posts: roc-taiwan.org blocks GitHub Actions IPs (#378)
+
+**Error:** production log `0 posts to process`; 「台湾映画祭 in Kumamoto 2026」 (10/31–11/1) never ingested. Local dry-run found 2 events.
+
+**Root cause:** CloudFront redirects data-center IPs to `/Embassy_Error/error-vpn_data_url.html` (200 HTML after redirect). No `.news-item`, so the scraper saw an empty list and returned `[]` → recorded as success.
+
+**Fix:** list page without `.news-item` raises. Backfilled once from a local IP on 2026-10-23.
+
+**Lesson:** measure from the CI runner (curl + requests) before touching headers; here every endpoint and UA was blocked. Compare response *size/title* too — a 200 can be a block page.
+
 ## 2026-04-26 — Initial implementation
 
 - **Dry-run results**: 3 events from 5 posts on main page

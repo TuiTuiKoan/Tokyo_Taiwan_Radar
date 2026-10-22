@@ -1,5 +1,16 @@
 # 台北駐大阪経済文化弁事処 Scraper — Implementation History
 
+## 2026-10-23 — CI 0 events in 0.08 s: block page parsed as an empty feed (#378)
+
+**Error:** production `0 events found`, recorded as success; local dry-run found 3 events.
+
+**Root cause:** roc-taiwan.org redirects GitHub Actions IPs to `/Embassy_Error/error-vpn_data_url.html`; `requests` returned 200 HTML, `_parse_rss_items` found no `<item>` and the loop broke quietly.
+
+**Fix:** page 1 of a feed raises on request failure or when it has no RSS items. Page > 1 failures still just end pagination.
+
+**Lesson:** validate the *shape* of a feed response (has `<item>`), not just the status code.
+
+
 ## 2026-04-26 — jposa_ja: initial implementation
 
 **Context:** User requested a scraper for the Osaka TECO. The office's jurisdiction covers

@@ -19,17 +19,47 @@ import requests
 
 from .base import BaseScraper, Event
 
+logger = logging.getLogger(__name__)
+
 CONTENTFUL_SPACE = "j05yk38inose"
 CONTENTFUL_ENV = "master"
 # 公開 Content Delivery API トークン（読み取り専用）— loaded from .env
 CONTENTFUL_TOKEN = os.environ.get("CONTENTFUL_TOKEN", "")
+# Since ~2026-08-19 the live event data is served by TAB's own Contentful-compatible CDA
+# proxy. The old https://cdn.contentful.com/spaces/<space> endpoint is frozen at 18 stale
+# events (HTTP 200, so it looked like "no Taiwan exhibitions"). The same CONTENTFUL_TOKEN
+# works on the proxy (verified from CI, #375).
 CONTENTFUL_BASE = (
-    f"https://cdn.contentful.com/spaces/{CONTENTFUL_SPACE}"
-    f"/environments/{CONTENTFUL_ENV}/entries"
+    "https://cdn.prod.tabdev.net/api/cda/published"
+    f"/spaces/{CONTENTFUL_SPACE}/environments/{CONTENTFUL_ENV}/entries"
 )
 TAB_EVENT_BASE = "https://www.tokyoartbeat.com/events/-/"
 
 TAIWAN_QUERIES = ["台湾", "Taiwan"]
+
+# TAB lists ~1,700 upcoming events. Far fewer means the space moved or froze again,
+# which must be a failed run rather than "no Taiwan exhibitions".
+_MIN_UPCOMING_EVENTS = 100
+
+
+def _cda_get(params: dict) -> dict:
+    """GET the CDA and return the JSON body.
+
+    Raises RuntimeError on any HTTP/network failure so main.py records success=False.
+    The message carries only the error type and status: requests' own message embeds the
+    URL, which contains access_token.
+    """
+    try:
+        r = requests.get(
+            CONTENTFUL_BASE, params={**params, "access_token": CONTENTFUL_TOKEN}, timeout=20
+        )
+        r.raise_for_status()
+        return r.json()
+    except (requests.RequestException, ValueError) as exc:
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+        raise RuntimeError(
+            f"Tokyo Art Beat CDA request failed: {type(exc).__name__} status={status}"
+        ) from None
 
 
 class TokyoArtBeatScraper(BaseScraper):
@@ -40,27 +70,21 @@ class TokyoArtBeatScraper(BaseScraper):
     def scrape(self) -> list[Event]:
         today = date.today().isoformat()
 
+        self._assert_space_is_live(today)
+
         # Collect unique events across both queries (dedup by sys.id)
         seen_ids: set[str] = set()
         raw_items: list[tuple[dict, dict]] = []  # (item, linked_entries_map)
 
         for query in TAIWAN_QUERIES:
-            params = {
+            data = _cda_get({
                 "content_type": "event",
                 "locale": "*",
                 "query": query,
                 "fields.scheduleEndsOn[gte]": today,
                 "limit": 200,
                 "include": 1,  # resolve venue links (depth=1)
-                "access_token": CONTENTFUL_TOKEN,
-            }
-            try:
-                r = requests.get(CONTENTFUL_BASE, params=params, timeout=20)
-                r.raise_for_status()
-                data = r.json()
-            except Exception as e:
-                self.logger.warning("Contentful query '%s' failed: %s", query, e)
-                continue
+            })
 
             includes = data.get("includes", {})
             linked_map: dict[str, dict] = {
@@ -82,6 +106,21 @@ class TokyoArtBeatScraper(BaseScraper):
         return events
 
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _assert_space_is_live(today: str) -> None:
+        """Raise unless the CDA reports a plausible number of upcoming events."""
+        data = _cda_get({
+            "content_type": "event",
+            "fields.scheduleEndsOn[gte]": today,
+            "limit": 1,
+        })
+        total = data.get("total", 0)
+        if total < _MIN_UPCOMING_EVENTS:
+            raise RuntimeError(
+                f"Tokyo Art Beat CDA reports only {total} upcoming events "
+                f"(< {_MIN_UPCOMING_EVENTS}); the space moved or is frozen"
+            )
 
     def _parse_event(
         self, item: dict, linked_map: dict[str, dict]
@@ -213,7 +252,7 @@ class TokyoArtBeatScraper(BaseScraper):
                 official_url=official_url,
             )
         except Exception as e:
-            self.logger.warning(
+            logger.warning(
                 "Failed to parse event %s: %s", item.get("sys", {}).get("id"), e
             )
             return None

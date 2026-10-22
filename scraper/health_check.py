@@ -48,6 +48,8 @@ NON_DAILY_SOURCES: frozenset[str] = frozenset({
     "oaff", "tokyo_filmex", "tiff", "tiff_jp",
     "ifi", "waseda_icl", "tuat_global",
     "tokyo_now", "fukuoka_now", "hankyu_umeda",
+    # Blocked from GitHub Actions IPs; run weekly from a home IP (#378)
+    "mot", "taipei_fukuoka", "jposa_ja",
     "hankyu_hakata", "hankyu_kobe", "hanshin_umeda",
     "hanshin_nishinomiya", "hanshin_mikage", "hanshin_amagasaki",
     "nagano_aioiza", "maruhiro", "whitestone_gallery",
