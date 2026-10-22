@@ -8,8 +8,9 @@ Read-only. Sections:
     2. Field completeness: share of active parent events created in the window
        with each quality_fields.TRACKED_FIELDS value filled. Pure publication
        records skip the fields the publication policy keeps empty.
-    3. Correction rate: field_corrections per 100 events, human (corrected_by or
-       report_id set) separately from script locks, which are most rows (#373).
+    3. Correction rate: field_corrections per 100 events, human (corrected_by set)
+       separately from script locks, which are most rows (#373). A report_id alone
+       is not human: auto-QA reports carry one and qa_auto_fix settles them.
     4. DOM drift: scrape-time parsed_fields_median from scraper_runs.notes
        (written by main.py since #354). Alert when the last 3 runs are all more
        than 30% below the median of the earlier runs.
@@ -201,7 +202,10 @@ def completeness_score(table: dict[str, dict]) -> float | None:
 
 
 def is_human_correction(fc: dict) -> bool:
-    return bool(fc.get("corrected_by")) or bool(fc.get("report_id"))
+    """Only the admin UI sets corrected_by. Rows with just a report_id come from
+    qa_auto_fix settling auto-QA reports (all 86 such rows in the 90 days to
+    2026-10-22 were system reports)."""
+    return bool(fc.get("corrected_by"))
 
 
 def correction_rates(fc_rows: list[dict], source_by_event: dict[str, str], events_by_source: dict[str, int]) -> dict:
@@ -370,7 +374,7 @@ def write_report(rows: list[dict], now: datetime, output: Path) -> None:
     lines += [
         "## 3. 修正率（每 100 筆事件）",
         "",
-        "人工：`corrected_by` 或 `report_id` 有值。腳本：annotator、qa_auto_fix、publication-policy 等自動鎖定，不代表錯誤（#373）。",
+        "人工：`corrected_by` 有值（後台編輯）。腳本：annotator、qa_auto_fix、publication-policy 等自動寫入，只有 `report_id` 的列也屬此類，不代表錯誤（#373）。",
         "",
         "| source | 事件 | 人工 | 人工／100 | 腳本 | 腳本／100 |",
         "|---|---|---|---|---|---|",
