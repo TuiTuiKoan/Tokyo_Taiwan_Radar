@@ -1,7 +1,7 @@
 ---
 slug: japan-open-data-integration
 title: 日本政府公開資料整合路線圖（e-Stat / JNTO / 法務省 在留統計）
-status: done
+status: archived
 branch: feat/japan-open-data-integration
 created: 2026-05-06
 tags: [data, external, government, business, report]

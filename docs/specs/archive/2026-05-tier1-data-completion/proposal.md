@@ -1,7 +1,7 @@
 ---
 slug: tier1-data-completion
 title: Tier 1+1.5 資料基礎設施完成路徑（P4 缺口、location_prefectures、performer Tier 2）
-status: done
+status: archived
 branch: feat/tier1-data-completion
 created: 2026-05-05
 completed: 2026-05-10

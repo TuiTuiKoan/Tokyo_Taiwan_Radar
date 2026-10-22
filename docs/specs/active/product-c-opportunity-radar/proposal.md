@@ -127,6 +127,6 @@ tags: [product, business, line, weekly-report]
 ## References
 
 - `docs/specs/active/market-positioning-strategy/`（戰略上層）
-- `docs/specs/active/tier1-data-completion/`（資料前置條件）
+- `docs/specs/archive/2026-05-tier1-data-completion/`（資料前置條件）
 - `scraper/weekly_line_broadcast.py`（既有 baseline）
 - `.github/skills/agents/architect/SKILL.md` § LINE Broadcast Query Guard（必須遵守的過濾規則）
