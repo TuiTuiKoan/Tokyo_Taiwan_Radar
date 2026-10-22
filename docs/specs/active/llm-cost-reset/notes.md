@@ -73,3 +73,9 @@ M1 移除 researcher（1）、discovery_accounts（2）、qa_auto_fix 備援（1
 - `llm_cost_daily` 為 `security_invoker=true`；三張表 RLS 開啟；非 admin 的 authenticated 讀到 0 列。
 - 第一次試跑發現 anon 有 28 項權限（Supabase 10/30 前的 default privileges 仍會自動授權）。已在 migration 加 `REVOKE ALL … FROM anon, authenticated`；重跑後 anon 無權限，authenticated 只有 SELECT。
 - 每次試跑後以 `to_regclass` 確認四個物件都不存在。
+
+## M3 套用（2026-10-22，使用者核准）
+
+- `apply_migration` 套用 `099_llm_usage`（commit `2671f162` 的版本）；migration 紀錄 `20261022135429 099_llm_usage`。
+- 讀回：`llm_usage`／`llm_pricing`／`llm_cache` 為 table 且 RLS 開啟，`llm_cost_daily` 為 view 且 `security_invoker=true`；`llm_pricing` 2 列；`llm_usage` 0 列；anon 無權限；authenticated 只有三個物件的 SELECT；policy 為兩條 admin read。
+- Security advisor：新物件只有 INFO `rls_enabled_no_policy`（`llm_cache`，刻意只給 service_role）。其餘警告為既有項目，與本 migration 無關，已另行口頭回報使用者（repo 公開，不在 issue 寫細節）。
