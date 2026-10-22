@@ -3,16 +3,21 @@ from __future__ import annotations
 from copy import deepcopy
 import json
 import stat
+import sys
 
 import pytest
 
 import _oneoff_deactivate_non_japan_scope as cleanup
+
+PARENT_PREFIX = "3f693869"
+CHILD_PREFIXES = ("7c6c1e7f", "fe47a25c", "a62ce9e1", "47262b02")
 
 
 @pytest.fixture(autouse=True)
 def _fixed_provenance(monkeypatch):
     monkeypatch.setattr(cleanup, "current_git_head", lambda: "test-head")
     monkeypatch.setattr(cleanup, "current_script_sha256", lambda: "a" * 64)
+    monkeypatch.setattr(cleanup, "current_migration_sha256", lambda: "b" * 64)
 
 
 def _event_id(prefix: str, index: int) -> str:
@@ -26,17 +31,24 @@ def _target_rows() -> list[dict]:
             "id": _event_id(spec.prefix, index),
             "source_name": f"source_{index}",
             "raw_title": "",
-            "raw_description": "",
+            "raw_description": f"body {index}",
             "location_address": "",
             "location_prefectures": ["台北"],
             "is_active": True,
             "annotation_status": "annotated",
             "parent_event_id": None,
+            "deactivated_at": None,
+            "deactivated_reason": None,
+            "deactivated_by_pass": None,
             "updated_at": "2026-08-04T00:00:00+00:00",
         }
         for evidence in spec.evidence:
             row[evidence.field] = f"{row.get(evidence.field) or ''} {evidence.contains} verified"
         rows.append(row)
+    parent_id = next(row["id"] for row in rows if row["id"].startswith(PARENT_PREFIX))
+    for row in rows:
+        if row["id"].startswith(CHILD_PREFIXES):
+            row["parent_event_id"] = parent_id
     return rows
 
 
@@ -49,8 +61,6 @@ class _Query:
     def __init__(self, client, table):
         self.client = client
         self.table = table
-        self.operation = "select"
-        self.patch = None
         self.filters = []
         self.in_filters = []
         self.start = None
@@ -59,32 +69,16 @@ class _Query:
     def select(self, _columns="*", *_args, **_kwargs):
         return self
 
-    def update(self, patch):
-        if self.client.forbid_mutations:
-            raise AssertionError("snapshot attempted a mutation")
-        self.operation = "update"
-        self.patch = deepcopy(patch)
-        return self
+    def update(self, _patch):
+        raise AssertionError("the CLI must not write through PostgREST")
+
+    insert = upsert = delete = update
 
     def eq(self, column, value):
         self.filters.append((column, value))
         return self
 
-    def is_(self, column, value):
-        assert value == "null"
-        self.filters.append((column, None))
-        return self
-
-    def filter(self, column, operator, criteria):
-        assert operator == "eq"
-        assert criteria.startswith("{") and criteria.endswith("}")
-        inner = criteria[1:-1]
-        value = json.loads(f"[{inner}]") if inner else []
-        self.filters.append((column, value))
-        return self
-
     def in_(self, column, values):
-        self.client.in_query_count += 1
         self.in_filters.append((column, tuple(values)))
         return self
 
@@ -92,72 +86,66 @@ class _Query:
         return self
 
     def range(self, start, end):
-        if self.client.forbid_ranges:
-            raise AssertionError("apply preflight attempted offset pagination")
-        self.start = start
-        self.end = end
+        self.start, self.end = start, end
         return self
-
-    def _matches(self, row):
-        return all(row.get(column) == value for column, value in self.filters) and all(
-            row.get(column) in values for column, values in self.in_filters
-        )
 
     def execute(self):
         rows = self.client.tables.setdefault(self.table, [])
-        if self.operation == "update":
-            matched = [row for row in rows if self._matches(row)]
-            self.client.write_attempts.append(
-                {
-                    "table": self.table,
-                    "patch": deepcopy(self.patch),
-                    "filters": list(self.filters),
-                    "matched": len(matched),
-                }
-            )
-            if self.client.update_results:
-                override = self.client.update_results.pop(0)
-                if isinstance(override, Exception):
-                    raise override
-                return _Result(deepcopy(override))
-            for row in matched:
-                row.update(self.patch)
-            return _Result([{"id": row["id"]} for row in matched])
-        selected = [deepcopy(row) for row in rows if self._matches(row)]
-        if self.start is not None and self.end is not None:
+        selected = [
+            deepcopy(row)
+            for row in rows
+            if all(row.get(c) == v for c, v in self.filters)
+            and all(row.get(c) in vs for c, vs in self.in_filters)
+        ]
+        if self.start is not None:
             selected = selected[self.start : self.end + 1]
         return _Result(selected)
 
 
+class _Rpc:
+    def __init__(self, client, name, params):
+        self.client, self.name, self.params = client, name, params
+
+    def execute(self):
+        self.client.rpc_calls.append((self.name, self.params["p_mode"], deepcopy(self.params["p_manifest"])))
+        response = self.client.rpc_responses.get(self.params["p_mode"], {"ok": True, "status": "valid", "target_count": 22})
+        if isinstance(response, Exception):
+            raise response
+        return _Result(deepcopy(response))
+
+
 class _Client:
-    def __init__(self, events, *, forbid_mutations=False, forbid_ranges=False):
-        self.tables = {"events": deepcopy(events)}
-        self.forbid_mutations = forbid_mutations
-        self.forbid_ranges = forbid_ranges
-        self.write_attempts = []
-        self.update_results = []
-        self.in_query_count = 0
+    def __init__(self, events, **tables):
+        self.tables = {"events": deepcopy(events), **{k: deepcopy(v) for k, v in tables.items()}}
+        self.rpc_calls = []
+        self.rpc_responses = {}
 
     def table(self, name):
         return _Query(self, name)
 
-    def event(self, event_id):
-        return next(row for row in self.tables["events"] if row["id"] == event_id)
+    def rpc(self, name, params):
+        return _Rpc(self, name, params)
+
+    def modes(self):
+        return [mode for _name, mode, _manifest in self.rpc_calls]
+
+
+def _snapshot(rows=None, **tables):
+    client = _Client(rows or _target_rows(), **tables)
+    return client, cleanup.build_snapshot(client, created_at_utc="2026-08-04T00:00:00Z")
 
 
 def _manifest(rows=None):
-    return cleanup.build_manifest_from_rows(
-        deepcopy(rows or _target_rows()), created_at_utc="2026-08-04T00:00:00Z"
-    )
+    return _snapshot(rows)[1]
 
 
-def _last_journal_statuses(path):
-    statuses = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        record = json.loads(line)
-        if record.get("record_type") == "target":
-            statuses[record["id"]] = record["status"]
-    return statuses
+def _rebound(manifest, mutate):
+    changed = deepcopy(manifest)
+    mutate(changed)
+    return cleanup.bind_manifest_digest(changed)
+
+
+# ----------------------------------------------------------- target resolution
 
 
 def test_prefixes_resolve_to_22_unique_full_uuids():
@@ -189,7 +177,10 @@ def test_evidence_contradiction_stops_snapshot():
     rows[0]["raw_title"] = "different title"
 
     with pytest.raises(RuntimeError, match="evidence contradiction"):
-        cleanup.build_manifest_from_rows(rows)
+        cleanup.build_snapshot(_Client(rows))
+
+
+# ------------------------------------------------------------------- digest
 
 
 def test_canonical_digest_is_deterministic_and_payload_changes_it():
@@ -249,186 +240,372 @@ def test_manifest_write_is_read_only_and_digest_round_trips(tmp_path):
 
     assert stat.S_IMODE(path.stat().st_mode) == stat.S_IRUSR
     loaded = cleanup.load_manifest(path)
-    assert cleanup.verify_manifest_digest(loaded, manifest["manifest_digest"]) == manifest["manifest_digest"]
+    assert cleanup.verified_manifest(loaded, manifest["manifest_digest"]) == manifest
 
 
-def test_snapshot_uses_only_select_queries():
-    client = _Client(_target_rows(), forbid_mutations=True)
-
-    manifest = cleanup.build_snapshot(client, created_at_utc="2026-08-04T00:00:00Z")
-
-    assert manifest["target_count"] == cleanup.TARGET_COUNT
-    assert client.write_attempts == []
-    assert client.in_query_count == 1
+# ---------------------------------------------------------------- snapshot
 
 
-def test_inactive_child_is_recorded_as_warning_and_manifest_relation():
-    rows = _target_rows()
-    child = {
-        "id": "ffffffff-0000-4000-8000-000000000001",
-        "parent_event_id": rows[0]["id"],
-        "is_active": False,
-    }
-    rows.append(child)
+def test_snapshot_reads_only_and_validates_the_exact_payload_live():
+    client, manifest = _snapshot()
 
-    manifest = cleanup.build_manifest_from_rows(rows)
+    assert client.modes() == ["validate"]
+    _name, _mode, sent = client.rpc_calls[0]
+    assert sent == cleanup.rpc_payload(manifest)
+    assert set(sent) == {"schema_version", "manifest_digest", "target_count", "targets", "external_children"}
+    assert sent["schema_version"] == 2
+    assert all(set(t) == {"id", "category", "before"} for t in sent["targets"])
+    assert all(set(t["before"]) == set(cleanup.BEFORE_FIELDS) for t in sent["targets"])
+    assert manifest["project_ref"] == cleanup.PROJECT_REF
+    assert manifest["operator"] == {"git_head": "test-head", "script_sha256": "a" * 64, "migration_sha256": "b" * 64}
 
-    assert manifest["relations"]["inactive_children"] == [child]
-    assert manifest["warnings"] == [f"inactive_child={child['id']} parent={rows[0]['id']}"]
 
-
-@pytest.mark.parametrize(
-    "tamper, expected_error",
-    [
-        ("category", "category mismatch"),
-        ("reason", "reason mismatch"),
-        ("evidence_empty", "evidence mismatch"),
-        ("evidence_malformed", "evidence mismatch"),
-        ("evidence_extra_key", "evidence item"),
-        ("evidence_field", "evidence field mismatch"),
-        ("evidence_substring", "evidence expected_substring mismatch"),
-        ("evidence_excerpt", "evidence observed_excerpt"),
-        ("evidence_excerpt_missing_substring", "evidence observed_excerpt"),
-        ("before_inactive", "before-image is_active"),
-        ("before_missing", "before-image missing fields"),
-    ],
-)
-def test_rebound_digest_does_not_bypass_manifest_contract(tamper, expected_error):
+def test_before_image_hashes_the_description_and_keeps_deactivation_fields():
     manifest = _manifest()
-    target = manifest["targets"][0]
-    if tamper == "category":
-        target["category"] = "tampered"
-    elif tamper == "reason":
-        target["reason"] = "tampered"
-    elif tamper == "evidence_empty":
-        target["evidence"] = []
-    elif tamper == "evidence_malformed":
-        target["evidence"] = [{}]
-    elif tamper == "evidence_extra_key":
-        target["evidence"][0]["extra"] = "tampered"
-    elif tamper == "evidence_field":
-        target["evidence"][0]["field"] = "raw_description"
-    elif tamper == "evidence_substring":
-        target["evidence"][0]["expected_substring"] = "tampered"
-    elif tamper == "evidence_excerpt":
-        target["evidence"][0]["observed_excerpt"] = ""
-    elif tamper == "evidence_excerpt_missing_substring":
-        target["evidence"][0]["observed_excerpt"] = "unrelated evidence"
-    elif tamper == "before_inactive":
-        target["before"]["is_active"] = False
-    else:
-        del target["before"]["source_name"]
-    manifest = cleanup.bind_manifest_digest(manifest)
+    first = manifest["targets"][0]["before"]
 
-    cleanup.verify_manifest_digest(manifest, manifest["manifest_digest"])
+    assert first["raw_description_sha256"] == cleanup.raw_description_sha256("body 1")
+    assert first["deactivated_at"] is None and first["deactivated_reason"] is None
+    assert cleanup.raw_description_sha256(None) is None
+
+
+def test_snapshot_records_reference_counts():
+    rows = _target_rows()
+    first, second = rows[0]["id"], rows[1]["id"]
+    client, manifest = _snapshot(
+        rows,
+        event_reports=[
+            {"event_id": first, "status": "pending"},
+            {"event_id": first, "status": "confirmed"},
+        ],
+        saved_events=[{"event_id": second}],
+        announcement_events=[{"event_id": second}, {"event_id": second}],
+    )
+
+    assert manifest["reference_counts"][first] == {"pending_reports": 1, "saved_events": 0, "announcement_events": 0}
+    assert manifest["reference_counts"][second] == {"pending_reports": 0, "saved_events": 1, "announcement_events": 2}
+
+
+def test_snapshot_fails_closed_when_live_validate_is_not_ok():
+    client = _Client(_target_rows())
+    client.rpc_responses["validate"] = {"ok": False, "problems": [{"id": "x", "problem": "drift"}]}
+
+    with pytest.raises(RuntimeError, match="live validate failed; zero writes performed"):
+        cleanup.build_snapshot(client)
+
+
+def test_family_with_all_members_in_the_set_is_accepted():
+    manifest = _manifest()
+    by_prefix = {t["prefix"]: t for t in manifest["targets"]}
+    parent_id = by_prefix[PARENT_PREFIX]["id"]
+
+    assert by_prefix[PARENT_PREFIX]["before"]["parent_event_id"] is None
+    assert {by_prefix[p]["before"]["parent_event_id"] for p in CHILD_PREFIXES} == {parent_id}
+    assert manifest["external_children"] == []
+
+
+def test_inactive_external_child_is_recorded_active_one_blocks():
+    rows = _target_rows()
+    parent_id = next(r["id"] for r in rows if r["id"].startswith(PARENT_PREFIX))
+    inactive = {"id": "99999999-0000-4000-8000-000000000001", "parent_event_id": parent_id, "is_active": False}
+    client = _Client([*rows, inactive])
+    manifest = cleanup.build_snapshot(client)
+    assert manifest["external_children"] == [{"id": inactive["id"], "parent_event_id": parent_id}]
+
+    active = {**inactive, "is_active": True}
+    with pytest.raises(RuntimeError, match="active child"):
+        cleanup.build_snapshot(_Client([*rows, active]))
+
+
+def test_parent_outside_the_set_and_inactive_target_block_the_snapshot():
+    rows = _target_rows()
+    rows[0]["parent_event_id"] = "88888888-0000-4000-8000-000000000001"
+    with pytest.raises(RuntimeError, match="outside the set"):
+        cleanup.build_snapshot(_Client(rows))
+
+    rows = _target_rows()
+    rows[0]["is_active"] = False
+    with pytest.raises(RuntimeError, match="is not active"):
+        cleanup.build_snapshot(_Client(rows))
+
+
+def test_reason_marker_uses_the_first_twelve_digest_characters():
+    assert cleanup.reason_for("A4_x", "0123456789abcdef" * 4) == "out_of_scope: A4_x - scope cleanup 0123456789ab"
+
+
+# ------------------------------------------------------------ contract
+
+
+@pytest.mark.parametrize("mutate,expected_error", [
+    (lambda m: m.update(project_ref="other"), "project_ref mismatch"),
+    (lambda m: m.update(schema_version="non-japan-scope-deactivation.v1"), "unsupported manifest schema_version"),
+    (lambda m: m.update(extra=1), "manifest keys mismatch"),
+    (lambda m: m["targets"][0]["before"].update(is_active=False), "is_active must be true"),
+    (lambda m: m["targets"][0]["before"].update(deactivated_reason="x"), "must not be deactivated"),
+    (lambda m: m["targets"][0]["before"].pop("updated_at"), "before-image fields mismatch"),
+    (lambda m: m["targets"][0]["before"].update(raw_description_sha256="zz"), "raw_description_sha256 invalid"),
+    (lambda m: m["targets"][0]["before"].update(parent_event_id="77777777-0000-4000-8000-000000000001"), "parent outside the set"),
+    (lambda m: m["targets"][0].update(category="A1_other"), "does not match the reviewed spec"),
+    (lambda m: m["targets"][0].update(id=m["targets"][1]["id"]), "UUID/prefix mismatch"),
+    (lambda m: m["targets"].pop(), "exactly 22 rows"),
+    (lambda m: m["reference_counts"].popitem(), "reference_counts must cover"),
+    (lambda m: m["operator"].update(script_sha256="c" * 64), "current script does not match"),
+    (lambda m: m["operator"].update(migration_sha256="c" * 64), "current migration does not match"),
+    (lambda m: m["external_children"].append({"id": "a" * 8 + "-0000-4000-8000-000000000001", "parent_event_id": "66666666-0000-4000-8000-000000000001"}), "parent is not a target"),
+])
+def test_rebound_digest_does_not_bypass_manifest_contract(mutate, expected_error):
+    manifest = _manifest()
+    tampered = _rebound(manifest, mutate)
+
     with pytest.raises(RuntimeError, match=expected_error):
-        cleanup.validate_manifest_contract(manifest)
+        cleanup.verified_manifest(tampered, tampered["manifest_digest"])
 
 
-@pytest.mark.parametrize("drift", ["stable", "inactive", "active_child", "target_parent"])
-def test_apply_preflight_drift_and_relations_stop_before_writes(tmp_path, drift):
+# --------------------------------------------------------------------- apply
+
+
+def _apply(client, manifest, tmp_path, confirm=lambda _m: True):
+    path = tmp_path / "manifest.json"
+    if not path.exists():
+        cleanup.write_manifest(path, manifest)
+    return cleanup.apply_manifest(
+        client, manifest, manifest_path=path, expected_digest=manifest["manifest_digest"], confirm=confirm
+    )
+
+
+def test_apply_validates_then_confirms_then_calls_the_rpc_once(tmp_path):
+    client, manifest = _snapshot()
+    client.rpc_calls.clear()
+    client.rpc_responses["apply"] = {"status": "applied", "applied_count": 22, "targets": []}
+
+    report = _apply(client, manifest, tmp_path)
+
+    assert client.modes() == ["validate", "apply"]
+    assert report["status"] == "applied" and report["applied_count"] == 22
+    journal = json.loads(report["journal_path"].read_text(encoding="utf-8"))
+    assert journal["manifest_digest"] == manifest["manifest_digest"]
+    assert journal["result"]["status"] == "applied"
+    assert stat.S_IMODE(report["journal_path"].stat().st_mode) == stat.S_IRUSR
+
+
+def test_apply_without_confirmation_makes_no_apply_call(tmp_path):
+    client, manifest = _snapshot()
+    client.rpc_calls.clear()
+
+    with pytest.raises(RuntimeError, match="not confirmed; zero writes performed"):
+        _apply(client, manifest, tmp_path, confirm=lambda _m: False)
+
+    assert client.modes() == ["validate"]
+
+
+def test_apply_stops_when_live_validate_fails(tmp_path):
+    client, manifest = _snapshot()
+    client.rpc_calls.clear()
+    client.rpc_responses["validate"] = {"ok": False, "problems": [{"problem": "drift"}]}
+
+    with pytest.raises(RuntimeError, match="live validate failed"):
+        _apply(client, manifest, tmp_path)
+
+    assert client.modes() == ["validate"]
+
+
+def test_apply_checks_digest_and_contract_before_any_database_call(tmp_path):
+    client, manifest = _snapshot()
+    client.rpc_calls.clear()
+    path = tmp_path / "manifest.json"
+    cleanup.write_manifest(path, manifest)
+
+    with pytest.raises(RuntimeError, match="expected digest mismatch"):
+        cleanup.apply_manifest(client, manifest, manifest_path=path, expected_digest="d" * 64, confirm=lambda _m: True)
+    tampered = _rebound(manifest, lambda m: m.update(project_ref="other"))
+    with pytest.raises(RuntimeError, match="project_ref mismatch"):
+        cleanup.apply_manifest(client, tampered, manifest_path=path,
+                               expected_digest=tampered["manifest_digest"], confirm=lambda _m: True)
+
+    assert client.rpc_calls == []
+
+
+def test_apply_surfaces_rpc_error_code_and_records_no_journal(tmp_path):
+    class ApiError(Exception):
+        code = "40001"
+        message = "scope cleanup preconditions failed"
+        details = '[{"problem": "drift"}]'
+
+    client, manifest = _snapshot()
+    client.rpc_responses["apply"] = ApiError()
+
+    with pytest.raises(RuntimeError, match=r"code=40001 message=scope cleanup preconditions failed"):
+        _apply(client, manifest, tmp_path)
+
+    assert list(tmp_path.glob("*.apply-*.json")) == []
+
+
+def test_apply_records_a_noop_retry(tmp_path):
+    client, manifest = _snapshot()
+    client.rpc_responses["apply"] = {"status": "noop", "applied_count": 0}
+
+    assert _apply(client, manifest, tmp_path)["status"] == "noop"
+
+
+def test_apply_rejects_unexpected_status(tmp_path):
+    client, manifest = _snapshot()
+    client.rpc_responses["apply"] = {"status": "weird"}
+
+    with pytest.raises(RuntimeError, match="unexpected apply status"):
+        _apply(client, manifest, tmp_path)
+
+
+def test_postgrest_client_is_never_used_to_write():
+    client = _Client(_target_rows())
+    with pytest.raises(AssertionError):
+        client.table("events").update({"is_active": False})
+
+
+# ------------------------------------------------------------------ readback
+
+
+def _applied_rows(manifest):
     rows = _target_rows()
-    manifest = _manifest(rows)
-    client = _Client(rows)
-    first_id = rows[0]["id"]
-    if drift == "stable":
-        client.event(first_id)["location_address"] = "changed"
-    elif drift == "inactive":
-        client.event(first_id)["is_active"] = False
-    elif drift == "active_child":
-        client.tables["events"].append(
-            {
-                "id": "ffffffff-0000-4000-8000-000000000002",
-                "parent_event_id": first_id,
-                "is_active": True,
-            }
-        )
-    else:
-        client.event(first_id)["parent_event_id"] = "eeeeeeee-0000-4000-8000-000000000001"
-
-    with pytest.raises(RuntimeError, match="preflight failed"):
-        cleanup.preflight_apply(client, manifest["targets"])
-    assert client.write_attempts == []
+    reasons = {t["id"]: cleanup.reason_for(t["category"], manifest["manifest_digest"]) for t in manifest["targets"]}
+    for row in rows:
+        row.update(is_active=False, deactivated_reason=reasons[row["id"]],
+                   deactivated_by_pass="admin_manual", deactivated_at="2026-10-23T00:00:00+00:00")
+    return rows
 
 
-def test_apply_preflight_relations_do_not_use_offset_pagination():
-    rows = _target_rows()
-    manifest = _manifest(rows)
-    client = _Client(rows, forbid_ranges=True)
+def test_readback_passes_for_a_clean_result_and_reports_each_problem():
+    manifest = _manifest()
+    assert cleanup.readback(_Client(_applied_rows(manifest)), manifest) == []
 
-    warnings = cleanup.preflight_apply(client, manifest["targets"])
-
-    assert warnings == []
-
-
-def test_updated_at_only_drift_warns_in_preflight(tmp_path):
-    rows = _target_rows()
-    manifest = _manifest(rows)
-    client = _Client(rows)
-    first_id = rows[0]["id"]
-    client.event(first_id)["updated_at"] = "2026-08-04T01:00:00+00:00"
-
-    warnings = cleanup.preflight_apply(client, manifest["targets"])
-
-    assert warnings == [
-        f"updated_at_only_drift={first_id} before=2026-08-04T00:00:00+00:00 current=2026-08-04T01:00:00+00:00"
-    ]
-    assert client.write_attempts == []
+    rows = _applied_rows(manifest)
+    rows[0]["is_active"] = True
+    rows[1]["deactivated_reason"] = "something else"
+    rows[2]["deactivated_by_pass"] = "merger"
+    rows[3]["deactivated_at"] = "2026-10-23T00:00:09+00:00"
+    problems = cleanup.readback(_Client(rows), manifest)
+    assert any("still active" in p for p in problems)
+    assert any("deactivated_reason" in p for p in problems)
+    assert any("deactivated_by_pass" in p for p in problems)
+    assert any("deactivated_at differs" in p for p in problems)
 
 
-class _ForbiddenMutationClient:
-    def table(self, _name):
-        raise AssertionError("disabled apply touched the database")
+def test_readback_flags_an_active_child():
+    manifest = _manifest()
+    rows = _applied_rows(manifest)
+    parent_id = next(r["id"] for r in rows if r["id"].startswith(PARENT_PREFIX))
+    rows.append({"id": "99999999-0000-4000-8000-000000000002", "parent_event_id": parent_id, "is_active": True})
+
+    assert any("active child" in p for p in cleanup.readback(_Client(rows), manifest))
 
 
-def test_direct_apply_helpers_block_before_database_or_manifest_access(tmp_path):
-    client = _ForbiddenMutationClient()
-
-    with pytest.raises(RuntimeError, match="production apply is disabled"):
-        cleanup.cas_deactivate(client, {}, "2026-08-04T02:00:00Z")
-
-    with pytest.raises(RuntimeError, match="production apply is disabled"):
-        cleanup.apply_manifest(
-            client,
-            {},
-            manifest_path=tmp_path / "missing-manifest.json",
-            expected_digest="not-a-digest",
-        )
-
-    assert list(tmp_path.iterdir()) == []
+# ------------------------------------------------------ rollback and package
 
 
-def test_cli_requires_complete_apply_contract_and_mutually_exclusive_modes():
-    with pytest.raises(SystemExit) as missing_contract:
-        cleanup.main(["--apply"])
-    assert missing_contract.value.code == 2
+def test_rollback_sql_restores_exactly_the_manifest_rows_behind_compare_and_swap():
+    manifest = _manifest()
+    sql = cleanup.render_rollback_sql(manifest)
 
-    with pytest.raises(SystemExit) as missing_out:
-        cleanup.main(["--snapshot"])
-    assert missing_out.value.code == 2
+    assert sql == cleanup.render_rollback_sql(manifest), "deterministic"
+    assert sql.count("::uuid") == 2 * cleanup.TARGET_COUNT
+    for target in manifest["targets"]:
+        assert target["id"] in sql
+        assert cleanup.reason_for(target["category"], manifest["manifest_digest"]) in sql
+    assert "lock table public.events in share row exclusive mode" in sql
+    assert "e.is_active is false" in sql
+    assert "e.deactivated_by_pass = 'admin_manual'" in sql
+    assert "e.deactivated_reason = b.expect_reason" in sql
+    assert "count(distinct e.deactivated_at)" in sql
+    assert f"if n <> {cleanup.TARGET_COUNT} then" in sql
+    assert sql.rstrip().endswith("commit;")
 
-    with pytest.raises(SystemExit) as conflicting_modes:
-        cleanup.main(["--snapshot", "--apply", "--out", "manifest.json"])
-    assert conflicting_modes.value.code == 2
+
+def test_sql_literals_escape_quotes():
+    assert cleanup.sql_literal("it's") == "'it''s'"
+    assert cleanup.sql_literal(None) == "null"
+    assert cleanup.sql_literal(False) == "false"
 
 
-def test_cli_blocks_apply_before_manifest_or_database_access(monkeypatch, capsys):
-    def unexpected_access(*_args, **_kwargs):
-        raise AssertionError("disabled apply accessed production dependencies")
+def test_approval_package_lists_every_event_with_a_clickable_link():
+    client, manifest = _snapshot(
+        event_reports=[{"event_id": _target_rows()[0]["id"], "status": "pending"}],
+    )
+    text = cleanup.render_approval_package(manifest)
 
-    monkeypatch.setattr(cleanup, "load_manifest", unexpected_access)
-    monkeypatch.setattr(cleanup, "get_supabase", unexpected_access)
+    for target in manifest["targets"]:
+        assert f"https://tokyotaiwanradar.com/ja/events/{target['id']}" in text
+    assert manifest["manifest_digest"] in text
+    assert "rollback SQL sha256" in text
+    assert "apply_scope_cleanup('apply'" in text
+    assert text.count("| 1 |") >= 1 and "| 22 |" in text
 
-    with pytest.raises(SystemExit) as blocked:
-        cleanup.main(
-            [
-                "--apply",
-                "--manifest",
-                "manifest.json",
-                "--expect-digest",
-                "0" * 64,
-            ]
-        )
 
-    assert blocked.value.code == 2
-    assert cleanup.APPLY_DISABLED_MESSAGE in capsys.readouterr().err
+# ----------------------------------------------------------------------- CLI
+
+
+def test_project_ref_assertion():
+    cleanup.assert_project_ref(f"https://{cleanup.PROJECT_REF}.supabase.co")
+    for bad in (None, "", "https://other.supabase.co", f"https://{cleanup.PROJECT_REF}.evil.com"):
+        with pytest.raises(RuntimeError, match="does not point at project"):
+            cleanup.assert_project_ref(bad)
+
+
+def test_cli_modes_are_mutually_exclusive_and_require_their_inputs(capsys):
+    parser = cleanup.build_parser()
+    for argv in (
+        [],
+        ["--snapshot"],
+        ["--snapshot", "--out", "x", "--manifest", "m"],
+        ["--snapshot", "--apply", "--out", "x"],
+        ["--validate"],
+        ["--validate", "--manifest", "m"],
+        ["--rollback-sql", "--manifest", "m", "--expect-digest", "a" * 64],
+        ["--readback", "--manifest", "m", "--expect-digest", "a" * 64, "--out", "x"],
+    ):
+        with pytest.raises(SystemExit) as exc:
+            args = parser.parse_args(argv)
+            cleanup.validate_cli_args(parser, args)
+        assert exc.value.code == 2, argv
+
+
+def test_apply_needs_a_terminal_before_any_database_access(monkeypatch):
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
+    monkeypatch.setattr(cleanup, "get_supabase", lambda: pytest.fail("database must not be reached"))
+    monkeypatch.setattr(cleanup, "load_manifest", lambda _p: pytest.fail("manifest must not be read"))
+
+    with pytest.raises(SystemExit) as exc:
+        cleanup.main(["--apply", "--manifest", "m.json", "--expect-digest", "a" * 64])
+    assert exc.value.code == 2
+
+
+def test_typed_confirmation_must_match_the_digest_prefix(monkeypatch, capsys):
+    manifest = _manifest()
+    digest12 = manifest["manifest_digest"][:12]
+    monkeypatch.setattr("builtins.input", lambda _prompt: digest12)
+    assert cleanup.confirm_on_terminal(manifest) is True
+    monkeypatch.setattr("builtins.input", lambda _prompt: "yes")
+    assert cleanup.confirm_on_terminal(manifest) is False
+
+
+def test_snapshot_cli_refuses_a_dirty_script_before_database_access(monkeypatch):
+    monkeypatch.setattr(cleanup, "assert_provenance_clean", lambda: (_ for _ in ()).throw(RuntimeError("dirty")))
+    monkeypatch.setattr(cleanup, "get_supabase", lambda: pytest.fail("database must not be reached"))
+
+    with pytest.raises(SystemExit) as exc:
+        cleanup.main(["--snapshot", "--out", "unused.json"])
+    assert exc.value.code == 2
+
+
+def test_offline_modes_write_files_without_database_access(tmp_path, monkeypatch, capsys):
+    manifest = _manifest()
+    path = tmp_path / "manifest.json"
+    cleanup.write_manifest(path, manifest)
+    monkeypatch.setattr(cleanup, "get_supabase", lambda: pytest.fail("offline modes must not connect"))
+    base = ["--manifest", str(path), "--expect-digest", manifest["manifest_digest"]]
+
+    cleanup.main(["--rollback-sql", *base, "--out", str(tmp_path / "rollback.sql")])
+    cleanup.main(["--approval-package", *base, "--out", str(tmp_path / "package.md")])
+    cleanup.main(["--approval-package", *base])
+
+    assert (tmp_path / "rollback.sql").read_text(encoding="utf-8").startswith("-- Rollback of japan-scope-gate")
+    assert "approval package" in (tmp_path / "package.md").read_text(encoding="utf-8")
+    assert "approval package" in capsys.readouterr().out

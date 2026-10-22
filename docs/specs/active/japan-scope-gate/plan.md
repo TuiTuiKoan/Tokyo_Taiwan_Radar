@@ -74,11 +74,17 @@ DB 不重算 digest（無法重現 Python canonical JSON）；digest 對 DB 只�
 
 ## Manifest v2 與核准包
 
-- 綁定 project ref `cjtndektjjpvvjofdvzr`（斷言 `SUPABASE_URL`）、`git_head`（乾淨的 `origin/main` exact SHA）、script SHA、migration 檔 SHA、RPC 定義 md5。script 或 RPC 定義變更後必須重新 capture 與核准。
+- 綁定 project ref `cjtndektjjpvvjofdvzr`（斷言 `SUPABASE_URL`）、`git_head`（乾淨的 `origin/main` exact SHA）、script SHA、migration 檔 SHA（RPC 定義 md5 無法經 PostgREST 取得，改以 migration SHA 加使用者的 read-back 綁定）。script 或 migration 變更後必須重新 capture 與核准。
 - 每筆含完整 before-image（新增 `deactivated_*` 與 `raw_description_sha256`）、evidence 摘錄；加 `external_children`；pending `event_reports`、`saved_events`、`announcement_events` 計數（僅供核准參考）。
 - 沿用 `a18e1a49`：no-replace 發布、0400、strict contract、digest 內嵌與外部比對。v1 從未產出 manifest，升版沒有相容成本。輸出另備份到 `~/.ai-notes/ttr/japan-scope-gate/`。
 - 核准包：新 digest、22 筆 full UUID 加 `https://tokyotaiwanradar.com/ja/events/<id>` 連結、before-image 與 evidence、`validate` 結果、影響計數、writer 盤點與 drain 證據、rollback SQL 與 SHA。核准句須複述動作（新 digest、disable／drain／resume、lock、22 筆停用、子事件家族範圍）；簡短的「好」不算。
 - 上線前必查：公開事件頁、首頁、sitemap 的實際 active 篩選行為（`web/app/[locale]/page.tsx` 的清單沒有 `parent_event_id IS NULL` 過濾，與 `database.instructions.md` 不符）。
+
+## CLI v2（`scraper/_oneoff_deactivate_non_japan_scope.py`，#401）
+
+模式：`--snapshot`（捕捉 v2 manifest，live `validate` 通過才寫檔）、`--validate`、`--approval-package`（離線）、`--rollback-sql`（離線）、`--apply`、`--readback`。只有 `--apply` 會寫入，且只經 RPC。`--apply` 需要：digest 與 manifest 契約驗證、script 與 migration SHA 吻合、`SUPABASE_URL` 指向 `cjtndektjjpvvjofdvzr`、live `validate` 通過、**互動終端機上輸入 digest 前 12 碼**（沒有 TTY 直接拒絕，所以 agent 無法代跑）；成功後寫不可覆蓋的 journal。snapshot 要求 script 與 migration 已 commit 且無修改。
+
+回滾 SQL 可在 apply 前預先產生：不需要知道 `deactivated_at`，改為要求 22 筆共用同一個 `deactivated_at`，並比對 `is_active=false`、`deactivated_by_pass`、本 manifest 的 reason 標記，任一列不符整批中止。
 
 ## Apply 後 read-back 與回滾
 
