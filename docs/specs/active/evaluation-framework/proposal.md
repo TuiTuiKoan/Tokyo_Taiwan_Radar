@@ -188,9 +188,9 @@ inventory 的唯一 authority 是 `workstream-tracking`；結案記錄只引用�
 ## Success Criteria（驗收標準）
 
 - [ ] P1：golden set ≥ 100 筆 fixture，CI 在 annotator PR 自動跑並 comment per-field diff
-- [ ] P1：`monthly_health_check.py` 輸出 4 個新指標（recurrence rate / protect hit rate / first-pass accuracy / repair latency）
-- [ ] P2：每週生成 per-source scraper quality 報表，可一眼看出「最該重寫的 3 個 source」
-- [ ] P2：一次性歷史回測產出三類報表（沉默漂移 / 保護命中 / GPT 倒退）
+- [x] P1：`monthly_health_check.py` 輸出 4 個新指標（recurrence rate / protect hit rate / first-pass accuracy / repair latency）（A2／A3 分母於 #324 修正，A1／A4 見 #373）
+- [x] P2：每週生成 per-source scraper quality 報表，可一眼看出「最該重寫的 3 個 source」（「需要處理」段，#354）
+- [x] P2：一次性歷史回測產出三類報表（沉默漂移 / 保護命中 / GPT 倒退）（#355）
 - [ ] P3：所有 SKILL.md Guards 配有 Detection SQL，月度報告統計觸發次數
 - [ ] 6 個月後：使用者「每天花幾小時手修」的時間有可量化的下降（基準：當前約 2–3 小時/天）
 
