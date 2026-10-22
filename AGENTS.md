@@ -107,7 +107,7 @@ Claude Code 可直接叫用 `.claude/agents` 下的 subagent wrapper。Codex 沒
 
 | 規則 | 處理 |
 | --- | --- |
-| 任何 `git push`（含 `git -C … push`、`env X=1 git push`、`bash -c 'git push …'`） | 要求核准 |
+| 目的端可能是 `main` 的 `git push`：沒有 refspec、來源是 `HEAD`／`@`、目的端是 `main`／`refs/heads/main`、`--all`／`--branches`／`--tags`／`--follow-tags`、目的端在 `refs/tags/`、refspec 含變數或命令替換、`--no-verify`；多個 refspec 取最嚴格；`git -C … push`、`env X=1 git push`、`bash -c 'git push …'` 等包裝解包後同表處理 | 要求核准。目的端確定不是 `main` 的 push（例：`git push -u origin feat/x`、`main:feat/x`、`feat/main-fix`）hook 放行；但 `.claude/settings.json` 的 `permissions.ask`（`Bash(git push:*)`）未修改前，直接以 `git push …` 開頭的命令仍會提示（官方文件：ask 規則不受 hook allow 影響）。settings 修改方案見 `docs/specs/active/pr-flow-tiering/notes.md` § B2 |
 | `--force`、`-f`、`--force-with-lease`、`--force-if-includes`、`+refspec`、刪除遠端 ref（`--delete`、`-d`、`:ref`）、`--mirror`、`--prune` 的 push | 阻擋 |
 | `git reset --hard`；沒有 `-n`／`--dry-run` 的 `git clean`；`git branch -D`（含 `--delete --force`）；`git worktree remove --force`；`git worktree add --force` | 阻擋 |
 | `.env`、`.env.*`（`.env.example`、`.env.sample`、`.env.template` 除外）的讀取、搜尋、複製、寫入、刪除與重導 | 阻擋。例外：單一路徑的 `git check-ignore -v`、`git ls-files --error-unmatch`、`test -f`、`stat`、`ls -l`、`wc -l`，以及 `.github/instructions/token-rotation.instructions.md`、`docs/GITHUB_TOKEN_SYNC_CHECKLIST.md` 的 masked awk 模板（逐字相同、不在 pipeline 內） |
