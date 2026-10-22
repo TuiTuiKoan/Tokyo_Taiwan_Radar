@@ -61,7 +61,7 @@ None.
 
 ## Worktree disposition
 
-`pending`. The decision timestamp is not recorded yet. Removal waits until this record is on `origin/main`, `main` matches `origin/main`, and the six freshness values are re-observed in the recovery capsule outside the worktree.
+`remove`. Decision timestamp: 2026-10-23T04:26:23+0900. Worktree removed after confirming six freshness values (see recovery capsule `/Users/flyingship/.ai-notes/ttr/capsules/2026-10-23-person-name-eval.md`): branch tip 14ee516d, ahead 0 (content), behind 1 (squash SHA), dirty count 0, no cwd occupancy, registered and physical paths identical.
 
 ## Ignored artifacts and handling
 
