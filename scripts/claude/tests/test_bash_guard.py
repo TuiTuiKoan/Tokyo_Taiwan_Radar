@@ -129,25 +129,132 @@ MUST_ALLOW = [
     "git commit --message \"$(cat <<'EOF'\nfix: message\nEOF\n)\"",
 ]
 
-PUSH_ASK = [
-    "git push",
-    "git push origin main",
-    "git push --dry-run origin main",
-    "git -C . push --dry-run origin main",
-    'git -C "/tmp/a b" push origin HEAD:main',
-    "env X=1 git push origin main",
-    "X=1 git push",
-    "bash -c 'git push origin main'",
-    'bash -c "git push --dry-run origin main"',
-    "sh -c 'git -C . push'",
-    "git push -u origin feat/x",
-    "git push origin $(git branch --show-current)",
-    "git status && git push",
-    "timeout 30 git push",
-    "sudo git push",
-    "nohup git push",
-    "git push -o ci.skip origin main",
+# check_push decision table (docs/specs/active/pr-flow-tiering/proposal.md). One
+# label per table row; the deny row (R11) lives in DENY under git-force-push.
+# (row, expected kind, command)
+PUSH_TABLE = [
+    # R1 no refspec: the destination depends on the current branch and its upstream
+    ("R1-no-refspec", "ask", "git push"),
+    ("R1-no-refspec", "ask", "git push origin"),
+    ("R1-no-refspec", "ask", "git push -u origin"),
+    ("R1-no-refspec", "ask", "git push --dry-run"),
+    ("R1-no-refspec", "ask", "git push -o ci.skip origin"),
+    ("R1-no-refspec", "ask", "git push -uo ci.skip origin"),
+    ("R1-no-refspec", "ask", "git push --push-option ci.skip origin"),
+    ("R1-no-refspec", "ask", "git push --push-option=ci.skip origin"),
+    ("R1-no-refspec", "ask", "git push --receive-pack x origin"),
+    ("R1-no-refspec", "ask", "git push --repo origin feat/x"),  # argv[0] is the repository
+    ("R1-no-refspec", "ask", "git push origin ''"),
+    # R2 HEAD / @ (or any source the hook cannot resolve) without an explicit destination
+    ("R2-head", "ask", "git push origin HEAD"),
+    ("R2-head", "ask", "git push origin @"),
+    ("R2-head", "ask", "git push -u origin HEAD"),
+    ("R2-head", "ask", "git push origin HEAD~1"),
+    ("R2-head", "ask", "git push origin @{u}"),
+    ("R2-head", "ask", "git push origin HEAD:HEAD"),
+    ("R2-head", "ask", "git push origin $(git branch --show-current)"),
+    ("R2-head", "ask", 'git push origin "$BRANCH"'),
+    ("R2-head", "ask", 'git push origin feat/"$X"'),
+    # R3 the destination is a feature branch
+    ("R3-feature", "allow", "git push origin feat/x"),
+    ("R3-feature", "allow", "git push -u origin feat/x"),
+    ("R3-feature", "allow", "git push --set-upstream origin feat/x"),
+    ("R3-feature", "allow", "git push origin feat/x:feat/x"),
+    ("R3-feature", "allow", "git push origin HEAD:feat/x"),
+    ("R3-feature", "allow", "git push origin HEAD:refs/heads/feat/x"),
+    ("R3-feature", "allow", "git push origin fix/y"),
+    ("R3-feature", "allow", "git push origin feat/pr-flow-tiering"),
+    ("R3-feature", "allow", "git push -uo ci.skip origin feat/x"),
+    ("R3-feature", "allow", "git push -o ci.skip -u origin feat/x"),
+    ("R3-feature", "allow", "git push --push-option=ci.skip origin feat/x"),
+    ("R3-feature", "allow", "git push -q --porcelain origin feat/x"),
+    # R4 main is the source, a feature branch is the destination
+    ("R4-main-src", "allow", "git push origin main:feat/x"),
+    ("R4-main-src", "allow", "git push origin main:refs/heads/feat/x"),
+    ("R4-main-src", "allow", "git push origin refs/heads/main:feat/x"),
+    # R5 the destination is main (full ref name match)
+    ("R5-main-dst", "ask", "git push origin main"),
+    ("R5-main-dst", "ask", "git push -u origin main"),
+    ("R5-main-dst", "ask", "git push origin HEAD:main"),
+    ("R5-main-dst", "ask", "git push origin feat/x:main"),
+    ("R5-main-dst", "ask", "git push origin x:refs/heads/main"),
+    ("R5-main-dst", "ask", "git push origin HEAD:refs/heads/main"),
+    ("R5-main-dst", "ask", "git push origin refs/heads/main"),
+    ("R5-main-dst", "ask", "git push origin main:main"),
+    ("R5-main-dst", "ask", "git push origin heads/main"),
+    ("R5-main-dst", "ask", "git push -o ci.skip origin main"),
+    # R6 names that merely contain "main"
+    ("R6-substring", "allow", "git push origin feat/main-fix"),
+    ("R6-substring", "allow", "git push origin maintenance"),
+    ("R6-substring", "allow", "git push origin HEAD:feat/main-fix"),
+    ("R6-substring", "allow", "git push origin main:maintenance"),
+    ("R6-substring", "allow", "git push origin mainline"),
+    ("R6-substring", "allow", "git push origin feat/x:refs/heads/domain"),
+    # R7 bulk flags, tags and wildcard refspecs
+    ("R7-bulk", "ask", "git push --all origin"),
+    ("R7-bulk", "ask", "git push origin --all"),
+    ("R7-bulk", "ask", "git push --branches origin"),
+    ("R7-bulk", "ask", "git push --tags origin"),
+    ("R7-bulk", "ask", "git push --tags origin feat/x"),
+    ("R7-bulk", "ask", "git push --follow-tags origin feat/x"),
+    ("R7-bulk", "ask", "git push origin HEAD:refs/tags/v1"),
+    ("R7-bulk", "ask", "git push origin refs/tags/v1"),
+    ("R7-bulk", "ask", "git push origin v1:refs/tags/v1"),
+    ("R7-bulk", "ask", "git push origin 'refs/heads/*:refs/heads/*'"),
+    ("R7-bulk", "ask", "git push origin refs/heads/*:refs/heads/*"),
+    # R8 several refspecs: the strictest wins (deny cases are in DENY)
+    ("R8-multi", "allow", "git push origin feat/x feat/y"),
+    ("R8-multi", "allow", "git push origin feat/x HEAD:feat/y main:feat/z"),
+    ("R8-multi", "ask", "git push origin feat/x main"),
+    ("R8-multi", "ask", "git push origin main feat/x"),
+    ("R8-multi", "ask", "git push origin feat/x HEAD"),
+    ("R8-multi", "ask", "git push origin feat/x HEAD:refs/tags/v1"),
+    # R9 URL remotes and --repo: the remote never changes the destination
+    ("R9-url", "allow", "git push https://github.com/o/r.git feat/x"),
+    ("R9-url", "allow", "git push git@github.com:o/r.git feat/x"),
+    ("R9-url", "allow", "git push --repo=https://github.com/o/r.git origin feat/x"),
+    ("R9-url", "allow", "git push --repo https://github.com/o/r.git origin feat/x"),
+    ("R9-url", "ask", "git push https://github.com/o/r.git main"),
+    ("R9-url", "ask", "git push git@github.com:o/r.git HEAD:main"),
+    ("R9-url", "ask", "git push https://github.com/o/r.git"),
+    ("R9-url", "ask", "git push --repo=https://github.com/o/r.git origin main"),
+    ("R9-url", "ask", "git push --repo=https://github.com/o/r.git"),
+    # R10 --dry-run / -n is judged like the real push
+    ("R10-dry-run", "allow", "git push --dry-run origin feat/x"),
+    ("R10-dry-run", "allow", "git push -n origin feat/x"),
+    ("R10-dry-run", "allow", "git push -nu origin feat/x"),
+    ("R10-dry-run", "ask", "git push --dry-run origin main"),
+    ("R10-dry-run", "ask", "git push -n origin main"),
+    ("R10-dry-run", "ask", "git push -n origin HEAD"),
+    # R12 wrappers are unwrapped first, then the same table applies
+    ("R12-wrapped", "allow", "git -C . push origin feat/x"),
+    ("R12-wrapped", "allow", 'git -C "/tmp/a b" push -u origin feat/x'),
+    ("R12-wrapped", "allow", "env X=1 git push origin feat/x"),
+    ("R12-wrapped", "allow", "X=1 git push origin feat/x"),
+    ("R12-wrapped", "allow", "bash -c 'git push origin feat/x'"),
+    ("R12-wrapped", "allow", 'bash -c "git push -u origin feat/x"'),
+    ("R12-wrapped", "allow", "sh -c 'git -C . push origin feat/x'"),
+    ("R12-wrapped", "allow", "git status && git push origin feat/x"),
+    ("R12-wrapped", "allow", "timeout 30 git push origin feat/x"),
+    ("R12-wrapped", "allow", "git fetch origin && git rebase origin/main && git push -u origin feat/x"),
+    ("R12-wrapped", "ask", "git -C . push --dry-run origin main"),
+    ("R12-wrapped", "ask", 'git -C "/tmp/a b" push origin HEAD:main'),
+    ("R12-wrapped", "ask", "env X=1 git push origin main"),
+    ("R12-wrapped", "ask", "X=1 git push"),
+    ("R12-wrapped", "ask", "bash -c 'git push origin main'"),
+    ("R12-wrapped", "ask", 'bash -c "git push --dry-run origin main"'),
+    ("R12-wrapped", "ask", "sh -c 'git -C . push'"),
+    ("R12-wrapped", "ask", "git status && git push"),
+    ("R12-wrapped", "ask", "timeout 30 git push"),
+    ("R12-wrapped", "ask", "sudo git push"),
+    ("R12-wrapped", "ask", "nohup git push"),
+    ("R12-wrapped", "ask", "git push origin feat/x && git push origin main"),
+    # X (not in the table): --no-verify skips the gitleaks pre-push hook, so it still asks
+    ("X-no-verify", "ask", "git push --no-verify origin feat/x"),
+    ("X-no-verify", "ask", "git push --no-verify -u origin feat/x"),
 ]
+PUSH_ASK = [command for _, kind, command in PUSH_TABLE if kind == "ask"]
+PUSH_ALLOW = [command for _, kind, command in PUSH_TABLE if kind == "allow"]
 
 DENY = [
     # 1 git-force-push
@@ -170,6 +277,27 @@ DENY = [
     ("env X=1 git push -f", "git-force-push"),
     ("echo ok && git push --force", "git-force-push"),
     ("git push -o ci.skip --force", "git-force-push"),
+    # R11 of the check_push table: deny beats allow and ask, whatever the destination
+    ("git push --force origin feat/x", "git-force-push"),
+    ("git push -f origin feat/x", "git-force-push"),
+    ("git push -fn origin feat/x", "git-force-push"),
+    ("git push -nd origin feat/x", "git-force-push"),
+    ("git push --force-with-lease origin feat/x", "git-force-push"),
+    ("git push --force-if-includes origin feat/x", "git-force-push"),
+    ("git push --delete origin feat/x", "git-force-push"),
+    ("git push origin :feat/x", "git-force-push"),
+    ("git push origin +feat/x", "git-force-push"),
+    ("git push origin +feat/x:feat/x", "git-force-push"),
+    ("git push origin feat/x :old", "git-force-push"),
+    ("git push origin feat/x +feat/y", "git-force-push"),
+    ("git push origin main :old", "git-force-push"),
+    ("git push --all --force origin", "git-force-push"),
+    ("git push --tags -f origin", "git-force-push"),
+    ("git push --prune origin feat/x", "git-force-push"),
+    ("git push --mirror https://github.com/o/r.git", "git-force-push"),
+    ("git push -uf origin feat/x", "git-force-push"),
+    ("bash -c 'git push -f origin feat/x'", "git-force-push"),
+    ("git -C . push --force-with-lease=feat/x origin feat/x", "git-force-push"),
     # 2 git-reset-hard
     ("git reset --hard", "git-reset-hard"),
     ("git reset --hard HEAD~1", "git-reset-hard"),
@@ -407,10 +535,26 @@ def test_must_allow(command):
     assert decision.kind == "allow", (command, decision)
 
 
-@pytest.mark.parametrize("command", PUSH_ASK)
-def test_push_variants_ask(command):
+@pytest.mark.parametrize(
+    ("row", "kind", "command"), PUSH_TABLE, ids=[f"{row}:{command}" for row, _, command in PUSH_TABLE]
+)
+def test_push_table(row, kind, command):
     decision = _policy.evaluate_command(command)
-    assert (decision.kind, decision.rule) == ("ask", "push-gate"), (command, decision)
+    expected = ("ask", "push-gate") if kind == "ask" else ("allow", "")
+    assert (decision.kind, decision.rule) == expected, (row, command, decision)
+
+
+def test_push_table_covers_every_row_both_ways():
+    rows = {row for row, _, _ in PUSH_TABLE}
+    assert rows == {
+        "R1-no-refspec", "R2-head", "R3-feature", "R4-main-src", "R5-main-dst", "R6-substring",
+        "R7-bulk", "R8-multi", "R9-url", "R10-dry-run", "R12-wrapped", "X-no-verify",
+    }
+    kinds = {row: {kind for r, kind, _ in PUSH_TABLE if r == row} for row in rows}
+    # rows whose decision is fixed get one kind; rows that depend on the destination get both
+    assert all(kinds[row] == {"ask"} for row in ("R1-no-refspec", "R2-head", "R5-main-dst", "R7-bulk", "X-no-verify"))
+    assert all(kinds[row] == {"allow"} for row in ("R3-feature", "R4-main-src", "R6-substring"))
+    assert all(kinds[row] == {"allow", "ask"} for row in ("R8-multi", "R9-url", "R10-dry-run", "R12-wrapped"))
 
 
 @pytest.mark.parametrize(("command", "rule"), DENY)
@@ -482,7 +626,7 @@ def test_policy_never_opens_files(monkeypatch):
     monkeypatch.setattr(os, "open", spy(os.open))
     heredocs = [(HEREDOC / f"{n}.txt").read_text(encoding="utf-8") for n in HEREDOC_EXPECTED]
     opened.clear()
-    for command in MUST_ALLOW + PUSH_ASK + [c for c, _ in DENY] + heredocs:
+    for command in MUST_ALLOW + PUSH_ASK + PUSH_ALLOW + [c for c, _ in DENY] + heredocs:
         _policy.evaluate_command(command)
     assert opened == []
 
