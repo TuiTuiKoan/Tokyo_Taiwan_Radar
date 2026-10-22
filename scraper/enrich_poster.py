@@ -18,14 +18,23 @@ Guards:
   are applied.
 - All applied fields are immediately locked via field_corrections to
   prevent future annotator overwrites.
+
+Each image goes to the model once (#317): its sha256 is recorded in
+llm_cache (step "poster_ocr") with the outcome, and later runs skip it.
+Until 2026-10-22 every run resent the same ~80 images and applied 0
+(36 below the confidence threshold, 31 with nothing new, 12 unparseable
+replies on 2026-10-21). --dry-run neither writes nor records, so it can be
+repeated; --model and --detail let a dry-run compare cheaper settings.
 """
 
 import argparse
+import hashlib
 import json
 import logging
 import os
 import re
 import sys
+from collections import Counter
 from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import unquote, urlsplit
@@ -33,6 +42,7 @@ from urllib.parse import unquote, urlsplit
 import requests
 from dotenv import load_dotenv
 
+import llm_cache
 from publication_rules import is_pure_publication_record
 
 load_dotenv()
@@ -41,6 +51,9 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
 _CONFIDENCE_THRESHOLD = 0.8
+CACHE_STEP = "poster_ocr"
+DEFAULT_MODEL = "gpt-4o"
+DEFAULT_DETAIL = "high"
 _MAX_IMAGE_BYTES = 4 * 1024 * 1024  # 4 MB safety cap
 _GUARD_SELECT = "id,event_form,source_name,image_url,raw_description"
 _HANMOTO_PLACEHOLDER_RE = re.compile(
@@ -177,8 +190,14 @@ Set to 0.9+ only when the image is clear and dates/venue are unambiguous.
 Set null for any field not clearly visible."""
 
 
-def _extract_from_poster(client, image_bytes: bytes, image_url: str) -> Optional[dict]:
-    """Call GPT-4o Vision to extract structured data from poster image.
+def _extract_from_poster(
+    client,
+    image_bytes: bytes,
+    image_url: str,
+    model: str = DEFAULT_MODEL,
+    detail: str = DEFAULT_DETAIL,
+) -> Optional[dict]:
+    """Call the Vision model to extract structured data from poster image.
     Returns parsed dict or None on failure.
     """
     import base64
@@ -194,7 +213,9 @@ def _extract_from_poster(client, image_bytes: bytes, image_url: str) -> Optional
     b64 = base64.b64encode(image_bytes).decode()
     try:
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model=model,
+            # JSON mode: free-form replies failed to parse 12 of 79 times on 2026-10-21.
+            response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": _VISION_SYSTEM},
                 {
@@ -204,7 +225,7 @@ def _extract_from_poster(client, image_bytes: bytes, image_url: str) -> Optional
                             "type": "image_url",
                             "image_url": {
                                 "url": f"data:{mime};base64,{b64}",
-                                "detail": "high",
+                                "detail": detail,
                             },
                         },
                         {
@@ -223,7 +244,7 @@ def _extract_from_poster(client, image_bytes: bytes, image_url: str) -> Optional
         raw = re.sub(r"\s*```$", "", raw)
         return json.loads(raw)
     except Exception as exc:
-        logger.warning("GPT-4o Vision call failed: %s", exc)
+        logger.warning("Vision call failed (%s): %s", model, exc)
         return None
 
 
@@ -243,6 +264,9 @@ def _lock_fields_via_corrections(sb, event_id: str, update: dict) -> None:
             logger.warning("field_corrections lock failed for %s.%s: %s", event_id, field, exc)
 
 
+APPLIED_OUTCOMES = frozenset({"applied", "would_apply"})
+
+
 def _apply_if_confident(
     sb,
     event: dict,
@@ -253,22 +277,37 @@ def _apply_if_confident(
     """Apply extracted fields to event if confidence is sufficient.
 
     Returns True if any field was applied (or would be in dry_run).
+    """
+    return _apply(sb, event, extracted, fc_protected, dry_run=dry_run) in APPLIED_OUTCOMES
+
+
+def _apply(
+    sb,
+    event: dict,
+    extracted: dict,
+    fc_protected: set,
+    dry_run: bool = False,
+) -> str:
+    """Apply extracted fields to event if confidence is sufficient.
+
+    Returns the outcome: "applied", "would_apply" (dry run), "guarded",
+    "gone", "low_confidence" or "no_new_fields".
     Blog/Creator Source Thin Content Guard: for thin-content events
     (raw_description < 100 chars), organizer is NOT applied.
     """
     guard_reason = _poster_guard_reason(event)
     if guard_reason:
         logger.info("  Skip %s - %s", event["id"][:8], guard_reason)
-        return False
+        return "guarded"
 
     current = _read_current_event(sb, event["id"])
     if not current:
         logger.info("  Skip %s - event no longer exists", event["id"][:8])
-        return False
+        return "gone"
     guard_reason = _poster_guard_reason(current)
     if guard_reason:
         logger.info("  Skip %s - %s after Vision", event["id"][:8], guard_reason)
-        return False
+        return "guarded"
     event = {**event, **current}
 
     confidence = float(extracted.get("confidence") or 0)
@@ -277,7 +316,7 @@ def _apply_if_confident(
             "  Skip %s \u2014 confidence %.2f < %.2f",
             event["id"][:8], confidence, _CONFIDENCE_THRESHOLD,
         )
-        return False
+        return "low_confidence"
 
     raw_desc = event.get("raw_description") or ""
     thin = len(raw_desc) < 100  # Blog/Creator Source Thin Content Guard
@@ -315,11 +354,11 @@ def _apply_if_confident(
 
     if not update:
         logger.info("  Skip %s \u2014 no new fields to apply", event["id"][:8])
-        return False
+        return "no_new_fields"
 
     if dry_run:
         logger.info("  [DRY-RUN] Would apply to %s: %s", event["id"][:8], update)
-        return True
+        return "would_apply"
 
     sb.table("events").update(update).eq("id", event["id"]).execute()
     _lock_fields_via_corrections(sb, event["id"], update)
@@ -327,24 +366,27 @@ def _apply_if_confident(
         "  Applied to %s: %s (confidence=%.2f)",
         event["id"][:8], list(update.keys()), confidence,
     )
-    return True
+    return "applied"
 
 
 def run(
     dry_run: bool = False,
     event_id: Optional[str] = None,
     max_events: Optional[int] = None,
-) -> None:
-    """Main entry point for the enrich_poster pipeline."""
+    model: str = DEFAULT_MODEL,
+    detail: str = DEFAULT_DETAIL,
+    resend: bool = False,
+) -> Counter:
+    """Main entry point for the enrich_poster pipeline. Returns the outcome counts."""
     sb = _get_supabase()
     openai_client = _get_openai()
     session = requests.Session()
     session.headers.update({"User-Agent": "TokyoTaiwanRadar/1.0 (+https://tokyotaiwanradar.com)"})
 
     candidates = _fetch_candidates(sb, max_events=max_events, event_id=event_id)
-    logger.info("[enrich_poster] candidates: %d", len(candidates))
+    logger.info("[enrich_poster] candidates: %d (model=%s, detail=%s)", len(candidates), model, detail)
 
-    processed = applied = skipped_confidence = skipped_download = 0
+    counts: Counter = Counter()
 
     for event in candidates:
         logger.info(
@@ -357,27 +399,43 @@ def run(
         image_bytes = _download_image(img_url)
         if not image_bytes:
             logger.debug("  Download failed, skipping")
-            skipped_download += 1
+            counts["download_failed"] += 1
             continue
 
-        extracted = _extract_from_poster(openai_client, image_bytes, img_url)
+        image_sha = hashlib.sha256(image_bytes).hexdigest()
+        if not resend and llm_cache.seen(sb, CACHE_STEP, [image_sha]):
+            logger.info("  Skip %s - image already processed", event["id"][:8])
+            counts["already_processed"] += 1
+            continue
+
+        counts["sent"] += 1
+        extracted = _extract_from_poster(openai_client, image_bytes, img_url, model=model, detail=detail)
         if not extracted:
-            skipped_confidence += 1
+            # Not recorded: a failed call is retried on the next run.
+            counts["failed"] += 1
             continue
 
         fc_protected = _get_fc_protected_fields(sb, event["id"])
-        was_applied = _apply_if_confident(sb, event, extracted, fc_protected, dry_run=dry_run)
-
-        processed += 1
-        if was_applied:
-            applied += 1
-        else:
-            skipped_confidence += 1
+        outcome = _apply(sb, event, extracted, fc_protected, dry_run=dry_run)
+        counts[outcome] += 1
+        if not dry_run:
+            llm_cache.record(
+                sb,
+                CACHE_STEP,
+                image_sha,
+                outcome,
+                {"event_id": event["id"], "image_url": img_url, "model": model, "detail": detail,
+                 "extracted": extracted},
+            )
 
     logger.info(
-        "[enrich_poster] processed=%d applied=%d skipped(confidence)=%d skipped(download)=%d",
-        processed, applied, skipped_confidence, skipped_download,
+        "[enrich_poster] %s",
+        " ".join(f"{k}={counts[k]}" for k in (
+            "sent", "applied", "would_apply", "low_confidence", "no_new_fields", "failed",
+            "already_processed", "download_failed", "guarded", "gone",
+        )),
     )
+    return counts
 
 
 if __name__ == "__main__":
@@ -385,10 +443,16 @@ if __name__ == "__main__":
     parser.add_argument("--dry-run", action="store_true", help="Show what would be applied without writing to DB")
     parser.add_argument("--event-id", metavar="UUID", help="Process a single event by UUID")
     parser.add_argument("--max", type=int, metavar="N", help="Process at most N events")
+    parser.add_argument("--model", default=DEFAULT_MODEL, help=f"Vision model (default {DEFAULT_MODEL})")
+    parser.add_argument("--detail", default=DEFAULT_DETAIL, choices=["low", "high", "auto"],
+                        help=f"Image detail (default {DEFAULT_DETAIL})")
+    parser.add_argument("--resend", action="store_true",
+                        help="Send images already in llm_cache again (for comparing settings)")
     args = parser.parse_args()
 
     load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
-    run(dry_run=args.dry_run, event_id=args.event_id, max_events=args.max)
+    run(dry_run=args.dry_run, event_id=args.event_id, max_events=args.max,
+        model=args.model, detail=args.detail, resend=args.resend)
 
     from llm_client import finish
     finish()
