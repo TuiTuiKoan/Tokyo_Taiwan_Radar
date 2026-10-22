@@ -66,3 +66,10 @@ M1 移除 researcher（1）、discovery_accounts（2）、qa_auto_fix 備援（1
 - 單價來源：OpenAI 模型頁（2026-10-22 查詢）。gpt-4o $2.50／$1.25 cached／$10.00，gpt-4o-mini $0.15／$0.075／$0.60（每百萬 tokens）。web search 單價未填，目前沒有呼叫者；#366 若加回時再補。
 - 既有 `account_usage` 表（migration 086/087）已記帳號 API 每日 annotate 次數；M5 做 #322 限流前先確認它的現況，避免重複。
 - 本機沒有 Postgres，Docker daemon 未啟動，pip 的私有來源抓不到 `pglast`，所以 SQL 只做了人工語法檢查。
+
+## M3 production 試跑（2026-10-22，BEGIN … RAISE，整批 rollback）
+
+- 成本：gpt-4o-mini 1M input（700k cached）＋100k output → $0.1575；gpt-4o 2M input＋500k output 加一次 error → $10.00、errors=1；無單價模型 → `unpriced_calls=1`、cost 0。與手算一致。
+- `llm_cost_daily` 為 `security_invoker=true`；三張表 RLS 開啟；非 admin 的 authenticated 讀到 0 列。
+- 第一次試跑發現 anon 有 28 項權限（Supabase 10/30 前的 default privileges 仍會自動授權）。已在 migration 加 `REVOKE ALL … FROM anon, authenticated`；重跑後 anon 無權限，authenticated 只有 SELECT。
+- 每次試跑後以 `to_regclass` 確認四個物件都不存在。

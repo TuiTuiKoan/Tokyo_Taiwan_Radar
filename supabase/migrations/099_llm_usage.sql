@@ -132,6 +132,12 @@ create policy "Admins read llm_pricing"
 
 -- The scraper and web server write with the service role, which bypasses RLS
 -- but needs table grants. Admins read through RLS. No anon access.
+-- Until 2026-10-30 Supabase default privileges still grant ALL on new public
+-- tables to anon and authenticated (a rollback-only dry run on 2026-10-22
+-- showed 28 anon grants). RLS already denies them, but revoke first so the
+-- grants below are the whole story.
+revoke all on public.llm_usage, public.llm_pricing, public.llm_cache, public.llm_cost_daily
+  from anon, authenticated;
 grant select, insert on public.llm_usage to service_role;
 grant select on public.llm_usage to authenticated;
 grant select, insert, update on public.llm_pricing to service_role;
