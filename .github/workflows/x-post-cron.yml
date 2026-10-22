@@ -1,11 +1,10 @@
 name: X (Twitter) Auto-Post
 
+# Schedule paused 2026-10-22: every run failed from 2026-10-20 because the four
+# X_* secrets were missing (#313), and the user wants to redesign posting by city
+# or category first. Manual runs still work. The former slots were 08:00, 12:30
+# and 20:00 JST (cron "0 23 * * *", "30 3 * * *", "0 11 * * *").
 on:
-  schedule:
-    # Japan prime hours (JST = UTC+9). Three slots per day.
-    - cron: "0 23 * * *"   # 08:00 JST  (commute)
-    - cron: "30 3 * * *"   # 12:30 JST  (lunch)
-    - cron: "0 11 * * *"   # 20:00 JST  (evening peak)
   workflow_dispatch:
     inputs:
       mode:
