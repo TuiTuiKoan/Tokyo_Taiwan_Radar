@@ -170,3 +170,30 @@ git -c remote.origin.push=refs/heads/feat/x:refs/heads/main push origin feat/x
 - `git config --remove-section remote.origin`／`--rename-section`：刪除或改名只會讓 push 設定消失，不會把 feature push 導向 main。
 - 不分析 `-c` 的 key 做白名單（例如放行 `-c core.pager=cat push …`）：協調者要求一律 ask，且 push 前很少需要 `-c`。
 - 未動 `proposal.md`、`tasks.md`、`critique.md`。
+
+## B4 使用者實測 U-B1～U-B3（2026-10-22，Claude Code 2.1.304）
+
+由使用者在 VS Code 外的 terminal，從 worktree 根目錄以 `claude --permission-mode auto` 啟動，settings 未改。
+
+| 步驟 | 命令 | 結果 | 解讀 |
+|---|---|---|---|
+| U-B1 | `git push --dry-run origin feat/pr-flow-tiering` | 兩次都跳出核准提示，使用者選 No | hook 對此命令回 allow（launcher 端到端已確認），提示來自 `permissions.ask` 的 `Bash(git push:*)` |
+| U-B2 | `git -C . push --dry-run origin feat/pr-flow-tiering` | 兩次都不提示，dry-run 執行，gitleaks 掃 10 個 commit 無洩漏，輸出 `* [new branch] feat/pr-flow-tiering -> feat/pr-flow-tiering`，未實際推送 | 舊版 hook 對所有 push 都 ask，因此這一條證明 session 載入的是 worktree 的新版 hook，且 hook allow 確實生效 |
+| U-B3 | `git -C . push --dry-run origin HEAD:main` | 跳出核准提示，使用者選 No | 命令不以 `git push` 開頭，settings 規則比對不到，提示只可能來自 hook 的 ask |
+
+結論：官方文件「ask 規則不受 hook allow 影響」在 2.1.304 成立。採用方案 B，並擴充為 hook 失效時的保底：
+
+```json
+"ask": [
+  "Bash(git push)",
+  "Bash(git push origin)",
+  "Bash(git push *main)",
+  "Bash(git push *main *)",
+  "Bash(git push *HEAD)",
+  "Bash(git push *HEAD *)"
+]
+```
+
+擴充的理由：`git push`、`git push origin`、`git push -u origin HEAD` 的目的端取決於當前 branch，可能是 main。hook 本來就對它們 ask，所以 settings 多比對這些形式不會增加平常的提示次數，只在 hook 不存在時補上保底。推 feature branch 的常見寫法（`feat/x`、`HEAD:feat/x`、`main:feat/x`、`feat/main-fix`）都不會命中。
+
+**套用方式**：協調者以 agent 身分修改 `.claude/settings.json` 時，auto mode 分類器以 `[Self-Modification]` 拒絕，連讀取該檔也被拒。這符合「agent 不得自行修改權限設定」的設計，因此 settings、`scripts/tests/test_claude_settings.py` 與 `AGENTS.md` 的對應說明做成 patch，由使用者檢查後套用並 commit。套用後跑 U-B4：重複 U-B1 應不再提示，重複 U-B3 應仍提示。
