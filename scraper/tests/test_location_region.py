@@ -17,6 +17,11 @@ def test_normalized_and_english_japanese_addresses():
 
 def test_taiwan_other_foreign_and_unknown_addresses():
     assert classify_region("台北市中山区楽群三路") == TAIWAN
+    assert classify_region("花蓮県寿豊郷大学路二段1号") == TAIWAN
+    assert classify_region("新竹県竹北市光明六路") == TAIWAN
+    assert classify_region("台東県台東市中山路") == TAIWAN
+    assert classify_region("Hualien County, Taiwan") == TAIWAN
+    assert classify_region("Taipei City, Taiwan") == TAIWAN
     assert classify_region("香港MOM Livehouse") == OTHER_FOREIGN
     assert classify_region(None) == UNKNOWN
     assert classify_region("オンライン") == UNKNOWN

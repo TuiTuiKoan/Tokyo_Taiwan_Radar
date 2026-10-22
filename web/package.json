@@ -6,13 +6,14 @@
   "scripts": {
     "dev": "next dev",
     "test:publication": "tsx --test tests/publication-policy.test.ts tests/publication-rendering-structured-data.test.ts",
+    "test:scope-reports": "tsx --test tests/report-types-scope.test.ts tests/report-actions-cas.test.ts tests/scope-report-migration.test.ts",
     "test:e2e:dark-smoke": "playwright test tests/e2e/darkmode-navbar-related.smoke.spec.ts",
     "test:e2e:security-headers": "playwright test tests/e2e/security-headers.smoke.spec.ts",
     "e2e:auth-state": "tsx scripts/e2e-auth-state.ts",
     "test:e2e:auth-smoke": "tsx scripts/e2e-auth-state.ts --admin && playwright test tests/e2e/authenticated-intake.smoke.spec.ts",
     "test:security:jsonld": "tsx scripts/assert-json-ld-security.ts",
     "build-specs-snapshot": "tsx scripts/build-specs-snapshot.ts",
-    "prebuild": "tsx scripts/assert-i18n-parity.ts && pnpm run test:security:jsonld && tsx scripts/build-specs-snapshot.ts",
+    "prebuild": "tsx scripts/assert-i18n-parity.ts && pnpm run test:security:jsonld && pnpm run test:scope-reports && tsx scripts/build-specs-snapshot.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

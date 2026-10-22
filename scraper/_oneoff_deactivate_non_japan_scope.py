@@ -24,7 +24,6 @@ from uuid import UUID
 SCHEMA_VERSION = "non-japan-scope-deactivation.v1"
 TARGET_COUNT = 22
 PAGE_SIZE = 500
-DEACTIVATED_BY_PASS = "admin_manual"
 APPLY_DISABLED_MESSAGE = (
     "production apply is disabled until a transactional database RPC atomically "
     "validates and deactivates parent/child targets"
@@ -667,60 +666,8 @@ def preflight_apply(sb: Any, targets: list[dict[str, Any]]) -> list[str]:
     return warnings
 
 
-def journal_path_for(manifest_path: Path) -> Path:
-    return manifest_path.with_name(manifest_path.name + ".apply-journal.jsonl")
-
-
-class ApplyJournal:
-    def __init__(self, path: Path):
-        self.path = path
-        self.handle: Any = None
-
-    def __enter__(self) -> ApplyJournal:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        file_descriptor = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        self.handle = os.fdopen(file_descriptor, "w", encoding="utf-8")
-        return self
-
-    def write(self, payload: dict[str, Any]) -> None:
-        self.handle.write(json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n")
-        self.handle.flush()
-        os.fsync(self.handle.fileno())
-
-    def __exit__(self, _exc_type: Any, _exc: Any, _traceback: Any) -> None:
-        if self.handle is not None:
-            self.handle.flush()
-            os.fsync(self.handle.fileno())
-            self.handle.close()
-        self.path.chmod(0o400)
-
-
 def cas_deactivate(sb: Any, target: dict[str, Any], apply_timestamp: str) -> list[dict[str, Any]]:
-    payload = {
-        "is_active": False,
-        "deactivated_reason": f"out_of_scope: {target['reason']} — not a Japan event",
-        "deactivated_at": apply_timestamp,
-        "deactivated_by_pass": DEACTIVATED_BY_PASS,
-    }
-    query = (
-        sb.table("events")
-        .update(payload)
-        .eq("id", target["id"])
-        .eq("is_active", True)
-    )
-    for field in STABLE_FIELDS:
-        value = target["before"][field]
-        if value is None:
-            query = query.is_(field, "null")
-        elif isinstance(value, list):
-            escaped = [
-                '"' + item.replace("\\", "\\\\").replace('"', '\\"') + '"'
-                for item in value
-            ]
-            query = query.filter(field, "eq", "{" + ",".join(escaped) + "}")
-        else:
-            query = query.eq(field, value)
-    return execute_rows(query.select("id"))
+    raise RuntimeError(APPLY_DISABLED_MESSAGE)
 
 
 def apply_manifest(
@@ -731,51 +678,7 @@ def apply_manifest(
     expected_digest: str,
     apply_timestamp: str | None = None,
 ) -> dict[str, Any]:
-    digest = verify_manifest_digest(manifest, expected_digest)
-    targets = validate_manifest_contract(manifest)
-    warnings = preflight_apply(sb, targets)
-    journal_path = journal_path_for(manifest_path)
-    timestamp = apply_timestamp or utc_now()
-    applied_ids: list[str] = []
-    with ApplyJournal(journal_path) as journal:
-        journal.write(
-            {
-                "record_type": "header",
-                "schema_version": SCHEMA_VERSION,
-                "manifest_digest": digest,
-                "apply_timestamp": timestamp,
-                "target_count": TARGET_COUNT,
-                "status_contract": "last status per id is authoritative",
-            }
-        )
-        for target in targets:
-            journal.write({"record_type": "target", "id": target["id"], "status": "unapplied"})
-        for target in targets:
-            event_id = target["id"]
-            journal.write({"record_type": "target", "id": event_id, "status": "applying"})
-            try:
-                rows = cas_deactivate(sb, target, timestamp)
-                if len(rows) != 1:
-                    raise RuntimeError(f"CAS affected {len(rows)} rows for {event_id}")
-            except Exception as exc:
-                journal.write(
-                    {
-                        "record_type": "target",
-                        "id": event_id,
-                        "status": "error",
-                        "error": str(exc),
-                    }
-                )
-                raise
-            journal.write({"record_type": "target", "id": event_id, "status": "applied"})
-            applied_ids.append(event_id)
-    return {
-        "manifest_digest": digest,
-        "journal_path": str(journal_path),
-        "apply_timestamp": timestamp,
-        "applied_ids": applied_ids,
-        "warnings": warnings,
-    }
+    raise RuntimeError(APPLY_DISABLED_MESSAGE)
 
 
 def get_supabase() -> Any:

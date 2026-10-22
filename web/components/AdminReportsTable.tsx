@@ -13,6 +13,7 @@ import {
   SCOPE_REPORT_TYPE,
   isBulkConfirmEligible,
   isConfirmationOnlyReport,
+  parseScopeReportEvidence,
   isScopeMetadataToken,
   isSecurityMetadataToken,
 } from "@/lib/reportTypes";
@@ -263,6 +264,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
   async function handleConfirm(row: ReportRow, acknowledgeScope: boolean) {
     setSaving(row.id);
     try {
+    const scopeEvidence = parseScopeReportEvidence(row.report_types);
     const isScopeReport = row.report_types.includes(SCOPE_REPORT_TYPE);
     // Re-parse user-submitted fieldEdit suggestions so we can use them as fallback
     // when the admin has not explicitly overridden a value in the input box.
@@ -331,6 +333,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
       adminNotes: notes[row.id] ?? "",
       reportTypes: row.report_types,
       scopeAcknowledged: isScopeReport && acknowledgeScope ? true : undefined,
+      expectedScopeHash: scopeEvidence?.hash,
       eventName: getEventName(row),
       sourceName: row.events?.source_name ?? null,
       currentCategory: row.events?.category ?? [],

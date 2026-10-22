@@ -3,6 +3,8 @@ import {
   BROKEN_LINK_REPORT_TYPE,
   SCOPE_REPORT_TYPE,
   isConfirmationOnlyReport,
+  isScopeMetadataToken,
+  parseScopeReportEvidence,
   shouldWriteScraperHistory,
 } from "@/lib/reportTypes";
 
@@ -39,6 +41,7 @@ export interface ConfirmReportInput {
   adminNotes: string;
   reportTypes: string[];
   scopeAcknowledged?: boolean;
+  expectedScopeHash?: string;
   eventName: string;
   sourceName: string | null;
   currentCategory?: string[] | null;
@@ -93,18 +96,60 @@ export async function runConfirmReport(
     return { ok: false, githubUpdated: false, error: "Multiple pending reports for id" };
   }
   const report = reportRows[0] as {
+    id: string;
     event_id: string;
     report_types: string[] | null;
     admin_notes: string | null;
   };
   const eventId = report.event_id;
   const reportTypes = report.report_types ?? [];
-  const isScopeReport = reportTypes.includes(SCOPE_REPORT_TYPE);
-  if (isScopeReport && input.scopeAcknowledged !== true) {
+  const hasScopeClaims = reportTypes.some(
+    (type) => type === SCOPE_REPORT_TYPE || isScopeMetadataToken(type),
+  );
+  const scopeEvidence = parseScopeReportEvidence(reportTypes);
+  if (hasScopeClaims && !scopeEvidence) {
     return {
       ok: false,
       githubUpdated: false,
-      error: "scope report requires per-row review",
+      error: "invalid scope report evidence",
+    };
+  }
+  const isScopeReport = scopeEvidence !== null;
+  if (
+    scopeEvidence &&
+    (input.scopeAcknowledged !== true || input.expectedScopeHash !== scopeEvidence.hash)
+  ) {
+    return {
+      ok: false,
+      githubUpdated: false,
+      error: "scope report evidence changed; review the current row again",
+    };
+  }
+
+  if (scopeEvidence) {
+    const { data: rpcRows, error: rpcError } = await supabase.rpc(
+      "confirm_scope_report",
+      {
+        p_report_id: report.id,
+        p_expected_scope_hash: scopeEvidence.hash,
+        p_admin_notes: input.adminNotes || null,
+      },
+    );
+    if (rpcError) {
+      return { ok: false, githubUpdated: false, error: rpcError.message };
+    }
+    if (!Array.isArray(rpcRows) || rpcRows.length !== 1) {
+      return { ok: false, githubUpdated: false, error: "scope confirmation affected an unexpected row count" };
+    }
+    const rpcRow = rpcRows[0] as { report_id?: string; event_id?: string };
+    if (rpcRow.report_id !== report.id || rpcRow.event_id !== eventId) {
+      return { ok: false, githubUpdated: false, error: "scope confirmation returned unexpected identities" };
+    }
+    return {
+      ok: true,
+      githubUpdated: false,
+      historyStatus: "not_applicable",
+      wasReviewed: false,
     };
   }
 

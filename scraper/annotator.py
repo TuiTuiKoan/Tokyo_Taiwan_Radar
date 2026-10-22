@@ -32,6 +32,7 @@ from urllib.request import Request, urlopen
 UTC = timezone.utc
 from pathlib import Path
 from typing import Any
+from uuid import UUID, uuid5
 
 from dotenv import load_dotenv
 
@@ -1436,6 +1437,7 @@ SECURITY_REPORT_TYPE = "auto_security_prompt_injection"
 SCOPE_REPORT_TYPE = "scopeReviewNonJapan"
 _VALID_SCOPE_DECISIONS = frozenset({"in_scope", "out_of_scope", "uncertain"})
 _SCOPE_REASON_MAX = 300
+_SCOPE_REPORT_NAMESPACE = UUID("5dfa7510-7497-4c5b-a9c5-20c4cbd37bb8")
 
 
 def build_event_user_content(raw_title: str | None, raw_description: str | None) -> str:
@@ -1566,7 +1568,7 @@ def _validate_scope_decision(value: Any) -> str:
     return (
         value
         if isinstance(value, str) and value in _VALID_SCOPE_DECISIONS
-        else "in_scope"
+        else "uncertain"
     )
 
 
@@ -1598,7 +1600,7 @@ def _build_scope_finding(
         _normalize_address(effective_address) if effective_address else ""
     )
     fingerprint = hashlib.sha256(
-        f"{decision} | {region} | {normalized_address}".encode("utf-8")
+        f"{decision} | {region} | {normalized_address} | {reason or ''}".encode("utf-8")
     ).hexdigest()[:16]
     report_types = [
         "irrelevant",
@@ -1663,7 +1665,7 @@ def _persist_scope_finding(
     *,
     dry_run: bool,
     in_run_seen: set,
-) -> None:
+) -> bool:
     event_id = event["id"]
     logger.info(
         "scope evaluation for %s: decision=%s region=%s address=%r",
@@ -1672,8 +1674,8 @@ def _persist_scope_finding(
         finding["region"],
         finding["effective_address"],
     )
-    if not finding["should_queue"] or event_id in in_run_seen:
-        return
+    if event_id in in_run_seen:
+        return True
 
     try:
         existing = _latest_scope_report(sb, event_id)
@@ -1683,8 +1685,51 @@ def _persist_scope_finding(
             event_id[:8],
             error,
         )
+        return False
+
+    if not finding["should_queue"]:
+        if existing and existing.get("status") == "pending":
+            if dry_run:
+                logger.info(
+                    "[DRY-RUN] would close cleared scope report for %s",
+                    event_id[:8],
+                )
+            else:
+                try:
+                    response = (
+                        sb.table("event_reports")
+                        .update(
+                            {
+                                "status": "dismissed",
+                                "confirmed_at": datetime.now(UTC).isoformat(),
+                                "admin_notes": (
+                                    "Auto-closed after re-evaluation found no current "
+                                    "scope finding. Previous evidence: "
+                                    f"{existing.get('hash') or 'unknown'}"
+                                ),
+                            }
+                        )
+                        .eq("id", existing["id"])
+                        .eq("event_id", event_id)
+                        .eq("status", "pending")
+                        .select("id")
+                        .execute()
+                    )
+                    rows = response.data or []
+                    if len(rows) != 1:
+                        raise RuntimeError(
+                            f"cleared scope report close affected {len(rows)} rows"
+                        )
+                except Exception as error:
+                    logger.warning(
+                        "failed to close cleared scope report for %s: %s",
+                        event_id[:8],
+                        error,
+                    )
+                    return False
         in_run_seen.add(event_id)
-        return
+        return True
+
     if existing:
         if existing.get("status") == "pending":
             if existing.get("hash") != finding["fingerprint"]:
@@ -1728,8 +1773,9 @@ def _persist_scope_finding(
                             event_id[:8],
                             error,
                         )
+                        return False
             in_run_seen.add(event_id)
-            return
+            return True
         if existing.get("hash") == finding["fingerprint"]:
             handled_at = _parse_injection_ts(
                 existing.get("confirmed_at") or existing.get("created_at")
@@ -1737,9 +1783,51 @@ def _persist_scope_finding(
             updated_at = _parse_injection_ts(event.get("updated_at"))
             if handled_at and updated_at and updated_at <= handled_at:
                 in_run_seen.add(event_id)
-                return
+                return True
+
+        if dry_run:
+            logger.info(
+                "[DRY-RUN] would reopen scope report for %s payload=%s",
+                event_id[:8],
+                json.dumps(
+                    {
+                        "report_types": finding["report_types"],
+                        "admin_notes": finding["admin_notes"],
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                ),
+            )
+            in_run_seen.add(event_id)
+            return True
+        try:
+            response = (
+                sb.table("event_reports")
+                .update(
+                    {
+                        "report_types": finding["report_types"],
+                        "status": "pending",
+                        "confirmed_at": None,
+                        "admin_notes": finding["admin_notes"],
+                    }
+                )
+                .eq("id", existing["id"])
+                .eq("event_id", event_id)
+                .eq("status", existing["status"])
+                .select("id")
+                .execute()
+            )
+            rows = response.data or []
+            if len(rows) != 1:
+                raise RuntimeError(f"scope report reopen affected {len(rows)} rows")
+        except Exception as error:
+            logger.warning("failed to reopen scope report for %s: %s", event_id[:8], error)
+            return False
+        in_run_seen.add(event_id)
+        return True
 
     payload = {
+        "id": str(uuid5(_SCOPE_REPORT_NAMESPACE, event_id)),
         "event_id": event_id,
         "report_types": finding["report_types"],
         "status": "pending",
@@ -1752,7 +1840,7 @@ def _persist_scope_finding(
             json.dumps(payload, ensure_ascii=False, sort_keys=True),
         )
         in_run_seen.add(event_id)
-        return
+        return True
 
     try:
         sb.table("event_reports").insert(payload).execute()
@@ -1763,8 +1851,56 @@ def _persist_scope_finding(
             finding["region"],
         )
     except Exception as error:
-        logger.warning("failed to queue scope report for %s: %s", event_id[:8], error)
+        try:
+            concurrent = _latest_scope_report(sb, event_id)
+        except Exception:
+            concurrent = None
+        if not (
+            concurrent
+            and concurrent.get("status") == "pending"
+            and concurrent.get("hash") == finding["fingerprint"]
+        ):
+            logger.warning("failed to queue scope report for %s: %s", event_id[:8], error)
+            return False
     in_run_seen.add(event_id)
+    return True
+
+
+def _persist_scope_finding_or_retry(
+    sb,
+    event: dict[str, Any],
+    update_data: dict[str, Any],
+    annotation: dict[str, Any],
+    *,
+    dry_run: bool,
+    in_run_seen: set,
+) -> bool:
+    event_id = event["id"]
+    try:
+        finding = _build_scope_finding(event, update_data, annotation)
+        persisted = _persist_scope_finding(
+            sb,
+            event,
+            finding,
+            dry_run=dry_run,
+            in_run_seen=in_run_seen,
+        )
+    except Exception as error:
+        logger.warning("scope evaluation failed for %s: %s", event_id[:8], error)
+        persisted = False
+
+    if persisted:
+        return True
+    if dry_run:
+        logger.info(
+            "  [DRY-RUN] would restore annotation_status=pending for id=%s",
+            event_id,
+        )
+    else:
+        sb.table("events").update(
+            {"annotation_status": "pending"}
+        ).eq("id", event_id).execute()
+    return False
 
 
 def _annotate_one(client: OpenAI, raw_title: str, raw_description: str, feedback_prompt: str = "", sr_feedback_prompt: str = "") -> dict:
@@ -3529,25 +3665,24 @@ def annotate_pending_events(
                     eid,
                     sorted(update_data.keys()),
                 )
-                events_ok += 1
             else:
                 sb.table("events").update(update_data).eq("id", eid).execute()
                 if _is_pure_publication:
                     _verify_publication_postcondition(sb, eid, _human_protected)
-                events_ok += 1
 
-            try:
-                _scope_finding = _build_scope_finding(event, update_data, annotation)
-                _persist_scope_finding(
-                    sb,
-                    event,
-                    _scope_finding,
-                    dry_run=dry_run,
-                    in_run_seen=_scope_in_run_seen,
-                )
-            except Exception as _scope_error:
-                logger.warning("scope evaluation failed for %s: %s", eid[:8], _scope_error)
-            logger.info("  ✓ annotated (categories: %s)", categories)
+            _scope_persisted = _persist_scope_finding_or_retry(
+                sb,
+                event,
+                update_data,
+                annotation,
+                dry_run=dry_run,
+                in_run_seen=_scope_in_run_seen,
+            )
+            if _scope_persisted:
+                events_ok += 1
+                logger.info("  ✓ annotated (categories: %s)", categories)
+            else:
+                logger.warning("  ⚠ annotation left pending until scope evidence persists")
 
             # Apply localized location/hours fields separately — columns were added
             # in migration 010 and may not exist on older DB schemas.

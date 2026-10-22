@@ -5,8 +5,11 @@ import {
   BROKEN_LINK_REPORT_TYPE,
   SECURITY_REPORT_TYPE,
   SCOPE_REPORT_TYPE,
+  arePublicReportTypesAllowed,
   isBulkConfirmEligible,
   isConfirmationOnlyReport,
+  isMachineOwnedReportToken,
+  parseScopeReportEvidence,
   isSecurityOnly,
   isScopeMetadataToken,
   shouldWriteScraperHistory,
@@ -37,6 +40,42 @@ test("scope metadata helper recognizes only canonical metadata prefixes", () => 
   assert.equal(isScopeMetadataToken(SCOPE_REPORT_TYPE), false);
   assert.equal(isScopeMetadataToken("scopeDecision"), false);
   assert.equal(isScopeMetadataToken("securityHash:abc123"), false);
+});
+
+test("canonical scope evidence requires the exact machine payload", () => {
+  const canonical = [
+    "irrelevant",
+    SCOPE_REPORT_TYPE,
+    "scopeDecision:out_of_scope",
+    "scopeRegion:taiwan",
+    "scopeHash:0123456789abcdef",
+  ];
+  assert.deepEqual(parseScopeReportEvidence(canonical), {
+    decision: "out_of_scope",
+    region: "taiwan",
+    hash: "0123456789abcdef",
+  });
+  assert.equal(parseScopeReportEvidence(canonical.slice(0, -1)), null);
+  assert.equal(parseScopeReportEvidence([...canonical, "wrongCategory"]), null);
+  assert.equal(
+    parseScopeReportEvidence(canonical.map((type) =>
+      type.startsWith("scopeHash:") ? "scopeHash:not-a-hash" : type
+    )),
+    null,
+  );
+});
+
+test("public report guard reserves all machine-owned tokens", () => {
+  assert.equal(isMachineOwnedReportToken(SCOPE_REPORT_TYPE), true);
+  assert.equal(isMachineOwnedReportToken("scopeHash:0123456789abcdef"), true);
+  assert.equal(isMachineOwnedReportToken(SECURITY_REPORT_TYPE), true);
+  assert.equal(isMachineOwnedReportToken("securitySeverity:4"), true);
+  assert.equal(isMachineOwnedReportToken("wrongCategory"), false);
+  assert.equal(arePublicReportTypesAllowed(["wrongCategory", "field:name"]), true);
+  assert.equal(arePublicReportTypesAllowed([]), false);
+  assert.equal(arePublicReportTypesAllowed(["wrongCategory", 7]), false);
+  assert.equal(arePublicReportTypesAllowed([SCOPE_REPORT_TYPE]), false);
+  assert.equal(arePublicReportTypesAllowed(["scopeHash:0123456789abcdef"]), false);
 });
 
 test("scope tokens do not loosen security or confirmation-only allowlists", () => {

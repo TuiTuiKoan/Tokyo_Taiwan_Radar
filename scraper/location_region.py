@@ -46,16 +46,35 @@ _CITY_TO_PREF: dict[str, str] = {
 
 _EN_TO_PREF: dict[str, str] = {"tokyo": "東京都", "osaka": "大阪府", "kyoto": "京都府"}
 
+_JP_PREFECTURES = (
+    "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県",
+    "茨城県", "栃木県", "群馬県", "埼玉県", "千葉県", "東京都", "神奈川県",
+    "新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県", "岐阜県",
+    "静岡県", "愛知県", "三重県", "滋賀県", "京都府", "大阪府", "兵庫県",
+    "奈良県", "和歌山県", "鳥取県", "島根県", "岡山県", "広島県", "山口県",
+    "徳島県", "香川県", "愛媛県", "高知県", "福岡県", "佐賀県", "長崎県",
+    "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県",
+)
 _JP_PREF_RE = re.compile(
-    r"^(北海道|東京都|大阪府|京都府|大阪市|京都市|[^\s都道府県\d〒-]{2,3}県)"
+    r"^(" + "|".join(map(re.escape, (*_JP_PREFECTURES, "大阪市", "京都市"))) + r")"
 )
 
 _TW_ALIASES = (
     r"[臺台]北|新北|桃園|[臺台]中|[臺台]南|高雄|基隆|新竹|苗栗|彰化|"
     r"南投|雲林|嘉義|屏東|宜蘭|花蓮|[臺台]東|澎湖|金門|連江"
 )
-_TW_START_RE = re.compile(rf"^({_TW_ALIASES})(?:[市縣區]|[\s　]|$|[0-9０-９])")
-_TW_SUFFIX_RE = re.compile(rf"({_TW_ALIASES})[市縣]")
+_TW_START_RE = re.compile(rf"^({_TW_ALIASES})(?:[市縣県區]|[\s　]|$|[0-9０-９])")
+_TW_SUFFIX_RE = re.compile(rf"({_TW_ALIASES})[市縣県]")
+_TW_EN_RE = re.compile(
+    r"(?:^|,\s*)(?:Taiwan|Taipei(?: City)?|New Taipei(?: City)?|Taoyuan(?: City)?|"
+    r"Taichung(?: City)?|Tainan(?: City)?|Kaohsiung(?: City)?|Keelung(?: City)?|"
+    r"Hsinchu(?: City| County)?|Miaoli(?: County)?|Changhua(?: County)?|"
+    r"Nantou(?: County)?|Yunlin(?: County)?|Chiayi(?: City| County)?|"
+    r"Pingtung(?: County)?|Yilan(?: County)?|Hualien(?: County)?|"
+    r"Taitung(?: County)?|Penghu(?: County)?|Kinmen(?: County)?|"
+    r"Lienchiang(?: County)?)(?=,|$)",
+    re.IGNORECASE,
+)
 
 _LABEL_PREFIX_RE = re.compile(
     r"^(?:会場住所|会場所在地|開催場所|開催地|所在地|住所|会場|場所)(?:は|:|：)?[\s　、,]*"
@@ -110,6 +129,8 @@ def extract_prefecture(address: str | None) -> str | None:
     for key, prefecture in _EN_TO_PREF.items():
         if key in lower_address:
             return prefecture
+    if _TW_EN_RE.search(normalized):
+        return "台灣"
     return None
 
 
