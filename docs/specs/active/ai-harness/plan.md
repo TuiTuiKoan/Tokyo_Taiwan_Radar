@@ -141,7 +141,7 @@ Layer 2  專案層（TTR repo）
 - [x] D4'：worktree 不帶正式 secrets（使用者 2026-10-23 裁決採用）；Phase 2a 的條件已成立。
 - [x] D8：使用者 2026-10-23 裁決採用建議版：`harness.lock` 為來源版本紀錄，缺 plugin 時只警告，Phase 3 擴大（3b）之前不搬 hooks；只在 3b 才需要。
 
-### Phase 1 — 模型分級（狀態：程式碼完成並 commit `361d17c1`；仍有實作、文件與使用端驗證未完成）
+### Phase 1 — 模型分級（狀態：程式碼完成並 commit `361d17c1`；使用端驗證已於 2026-10-23 完成（含一項限制）；文件與配額量測未完成）
 已完成（本機實測或靜態核對）：
 1. [x] `tier` 欄位、sync 投影、`.codex/agents/*.toml`、`--check` 驗證；`pinned_models()` 不放寬（§1.3）。
 2. [x] AGENTS.md「模型政策」改寫，含執行前模型評估規則。
@@ -151,7 +151,12 @@ Layer 2  專案層（TTR repo）
 未完成：
 - 文件：Architect 計畫範本與 handoff 規則加「建議模型與 effort」欄位（AGENTS.md 已寫規則，範本未改）。
 - 評估：`ANTHROPIC_DEFAULT_OPUS_MODEL` 讓規劃段走 Fable。**延後**，未實測前不採用（會連帶改變所有 `model: opus` 的 subagent）。
-- 使用端驗證，**仍為 NOT TESTED**：Codex 是否讀取 `.codex/agents/*.toml` 並套用 effort；`claude --agent plan-critic` 的 Opus 實測；`opusplan` 在 plan mode 與執行段的切換；Haiku wrapper 的 `effort: low` 是否生效（只證明了模型是 Haiku），以及 grunt 任務的輸出品質。
+- 使用端驗證（2026-10-23，本機實測，證據與限制見 notes.md §8）：
+  - [x] Codex 讀取 `.codex/agents/tester.toml` 並套用 effort：子 thread 的角色是 tester，effort 為 low（父 thread 為 medium）；模型沿用 gpt-6-luna。
+  - [x] `claude --agent plan-critic` 實際用 `claude-opus-5-5`。
+  - [x] `opusplan`：執行段用 `claude-sonnet-5-5`，plan mode 用 `claude-opus-5-5`。
+  - [x] Haiku wrapper：以 subagent 委派時，每個 API 請求都是 `claude-haiku-5-5` 加 `effort: low`。**限制**：以 `claude --agent <name>` 當主執行緒時，effort 沿用 session（實測為 medium），frontmatter 的 effort 不生效。
+  - [x] grunt 品質（極有限的探測）：在有標準答案的 20 筆事件 JSON 統計題上，Haiku-low tester 3/3 正確，與 Sonnet 3/3 相同。這只涵蓋計數與日期比較，**不代表**選擇器除錯、日文貼文撰寫等任務的品質，那些仍未驗證。
 - 量測：配額記錄見 §3.1。Phase 1 之前沒有配額基準。
 
 ### Phase 2 — 平行開發（Orca + Claude 原生，不改治理規則）
@@ -238,7 +243,7 @@ Layer 2  專案層（TTR repo）
 | 進入 | 必要條件（全部成立才 go） |
 |---|---|
 | Phase 2a（housekeeping 與一個 spike） | (a) Phase 1 commit 存在（`361d17c1`，已成立）。(b) D4' 已裁決（2026-10-23，已成立）。 |
-| Phase 2b（正式平行開發，即日常同時跑多個 agent session） | 2a 的條件，加上：(c) Phase 1 的 NOT TESTED 項目已驗證，或使用者明確接受留作未驗證。(d) 第一週配額基準已記錄，且沒有因平行 session 在重置前耗盡配額；若耗盡即 no-go，降低平行度後重評。(e) spike 已依停止條件結案並記入 notes.md。 |
+| Phase 2b（正式平行開發，即日常同時跑多個 agent session） | 2a 的條件，加上：(c) Phase 1 的 NOT TESTED 項目已驗證，或使用者明確接受留作未驗證（**已成立，2026-10-23，見 notes.md §8**）。(d) 第一週配額基準已記錄，且沒有因平行 session 在重置前耗盡配額；若耗盡即 no-go，降低平行度後重評。(e) spike 已依停止條件結案並記入 notes.md。 |
 | Phase 3a（試點） | Phase 2b 的條件，加上：至少兩週配額紀錄可比較。 |
 | Phase 3b（擴大與防線搬遷） | 3a 有明確復用收益；D8 已裁決；ai-portability-followups ① 的 CI 接線完成。 |
 | Phase 4 | 不依賴 Phase 3。條件：先逐檔量測 `/context` 的 Memory files。 |
@@ -279,7 +284,7 @@ Layer 2  專案層（TTR repo）
 1. D4' 已裁決（Phase 2a 的條件 b 已成立）。
 2. Phase 2a 可以開始（housekeeping 與一個受限 spike），建議模型：Sonnet、medium effort。
 3. 開始每週配額記錄（§3.1）；第一週結束才有觀測基準。
-4. Phase 1 的四項 NOT TESTED：使用者要求驗證（2026-10-23），結果記在 notes.md；全部驗證前，Phase 2b 的條件 c 不成立。
+4. Phase 1 的四項 NOT TESTED 已驗證（notes.md §8），Phase 2b 的條件 (c) 成立；仍須滿足 (d) 配額基準與 (e) spike 結案。
 5. Phase 2b 與 Phase 3a 依 §3.1 的條件逐一放行；D8 已裁決，只在 3b 生效。
 6. Phase 4 的量測與 `AGENTS.md` 精簡可獨立進行，不必等 Phase 3。
 

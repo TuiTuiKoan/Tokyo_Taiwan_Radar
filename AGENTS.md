@@ -88,6 +88,7 @@ Claude Code 可直接叫用 `.claude/agents` 下的 subagent wrapper。Codex 沒
 | `grunt` | 機械性、低風險任務 | `model: haiku`、`effort: low` | `"low"` | tester、history-teller、update-history-skill-agent、lianbu-spokesperson、peatix-scraper、tcc-scraper |
 
   - Claude Code：投影寫入 `.claude/agents/<kebab>.md`。subagent 的模型優先序是呼叫參數、frontmatter、`CLAUDE_CODE_SUBAGENT_MODEL`、主對話模型（Claude Code 2.1.251 起）。
+  - **`effort` 只在該 agent 被當作 subagent 委派時生效**。以 `claude --agent <name>` 當主執行緒啟動時，模型別名會套用，但 effort 沿用 session 設定（2026-10-23 實測，Claude Code 2.1.308：`--agent tester` 的 API 請求是 `medium`，委派的 tester subagent 是 `low`）。主執行緒的 effort 用 `/effort` 或 `modelSettings` 調整。
   - Codex：投影寫入 `.codex/agents/<kebab>.toml`，只含 effort，不含 `model`；Codex 的 custom agent 不能改 `model_provider`，模型沿用 session 或 profile。
   - VS Code Copilot：不投影，模型在 Chat 的模型選單選擇。
   - 改 `tier` 或對照表後執行 `python3 scripts/sync_ai_adapters.py`。調整某個 agent 的 tier 是治理決定，需使用者核准。

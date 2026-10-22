@@ -29,7 +29,8 @@
 - [x] 驗證：`sync --check` exit 0、pytest 492 passed、`claude -p --agent tester` 實測用 Haiku
 - [ ] 記錄 Phase 1 之後每週的 cc-statusline 配額。注意：Phase 1 之前沒有留下配額基準，`/context` 的 token 數不是配額；比較只能是指標，不是證明
 - [x] `codex -p plan` 載入 profile：`codex exec -p plan` 的執行標頭顯示 gpt-6.1-sol、effort high（2026-10-23）
-- [ ] 驗證仍為 NOT TESTED 的項目（使用者 2026-10-23 要求驗證；能以非互動命令做的先做，其餘請使用者在互動 session 做）：Codex 是否讀取 `.codex/agents/*.toml` 並套用 effort；`claude --agent plan-critic` 實測 Opus；`opusplan` 的切換；Haiku wrapper 的 `effort: low` 是否生效與 grunt 任務品質
+- [x] Phase 1 的四項驗證（2026-10-23，非互動命令完成，證據與限制見 notes.md §8）：Codex 讀取 `.codex/agents/*.toml` 並套用 effort low；`--agent plan-critic` 用 Opus；`opusplan` 在執行段 Sonnet、plan mode Opus；Haiku wrapper 以 subagent 委派時 effort low（`--agent` 主執行緒不生效）；grunt 品質探測 3/3（極有限）
+- [ ] 決定是否要補驗 grunt 的其他任務（選擇器除錯、日文貼文）；目前未驗證
 
 ## Phase 2：Orca 與平行開發治理
 
@@ -45,7 +46,7 @@
 - [ ] 治理文件補三句（git 建立、git 清理、結案後以跨 session 訊息通知）
 - [ ] Spike（一次性）：**一個**工作流、**一個**工具（Orca orchestration 或 agent teams 擇一），事先寫下成功與停止條件；一次執行後無明確收益即停止
 
-### 2b（條件：2a 條件；Phase 1 NOT TESTED 已驗證或使用者明確接受；第一週配額基準已記錄且沒有耗盡配額；spike 已結案）
+### 2b（條件：2a 條件；Phase 1 NOT TESTED 已驗證〔已成立〕；第一週配額基準已記錄且沒有耗盡配額；spike 已結案）
 
 - [ ] Orca 安裝並釘版本、設定 worktree 建立後的安裝命令、不使用 Delete
 - [ ] 驗證（NOT TESTED，通過前不得稱相容）：Orca 內 `claude` 的 `/hooks` 與 push ask 生效；`/list-agents` 可見其他 worktree

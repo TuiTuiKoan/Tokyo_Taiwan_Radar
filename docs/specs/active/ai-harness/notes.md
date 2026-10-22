@@ -157,3 +157,26 @@ rev.2 的四份文件已 commit：`dfb40b6b`（docs(specs): revise ai-harness pl
 - **D8 採用（建議版）**：`harness.lock` 是來源版本紀錄；plugin 缺失時只警告，不阻擋；Phase 3 擴大（3b）之前不搬 hooks。D8 只在 3b 生效，3a 試點不需要。
 - **要求驗證 Phase 1 的四項 NOT TESTED**：Codex 是否讀取 `.codex/agents/*.toml` 並套用 effort；`claude --agent plan-critic` 的 Opus 實測；`opusplan` 的切換；Haiku wrapper 的 `effort: low` 與 grunt 任務品質。結果記入下一節。在全部驗證前，plan §3.1 的 Phase 2b 條件 (c) 不成立。
 - **核准 commit**：rev.3 的 plan.md、proposal.md、tasks.md、notes.md、`plan-critique-1.md`，以及 AGENTS.md 的「Plan Critic 批評全文必須存檔」規則。
+
+## 8. Phase 1 使用端驗證（2026-10-23）
+
+使用者要求驗證 Phase 1 的四項 NOT TESTED。執行者：Claude Code（Opus 5.5）。工具版本：Claude Code 2.1.308、Codex 0.163.0（兩者都比先前紀錄的 2.1.300、0.160.0 新，自動更新；notes §2 的 pytest 與 hooks 實測是舊版，升級後重跑 fixture 仍是 parked 項目）。所有測試都從 `ttr-ai-harness-worktree` 根目錄執行；原始輸出在 session scratchpad，未入 repo。
+
+| # | 項目 | 方法 | 結果 |
+|---|---|---|---|
+| 1 | Codex 讀取 agent TOML 並套用 effort | `codex exec -s read-only --json`，以明確的使用者要求叫它 spawn `tester`；讀子 thread 的 rollout metadata | **PASS**：子 thread `agent_role=tester`，`effort=low`；父 thread `effort=medium`；子 thread 模型沿用 `gpt-6-luna`（TOML 沒有 `model`，符合設計）。spawn 參數 `agent_type="tester"` |
+| 2 | `claude --agent plan-critic` 用 Opus | `claude -p --agent plan-critic --output-format json` | **PASS**：`modelUsage` 含 `claude-opus-5-5` |
+| 3 | `opusplan` 切換 | `claude -p --model opusplan`，一次一般、一次 `--permission-mode plan` | **PASS**：一般執行 `claude-sonnet-5-5`；plan mode `claude-opus-5-5` |
+| 4a | Haiku wrapper 的 `effort: low` | 讀 transcript 的 API 請求 | **PASS（限制）**：以 subagent 委派時，每個請求都是 `claude-haiku-5-5` 加 `low`，主對話為 Sonnet 加 `medium`。**以 `claude --agent tester` 當主執行緒時請求是 `medium`**，frontmatter 的 `effort` 不生效，只有模型別名生效 |
+| 4b | grunt 任務品質 | 20 筆 TCC 事件 JSON，人為製造 4 筆缺開始日期與 1 筆結束早於開始；問筆數、缺日期數、是否有結束早於開始；Sonnet 與 Haiku-low tester 各 3 次 | **3/3 對 3/3**，都與標準答案一致 |
+
+證據與限制：
+- 所有 `modelUsage` 都另含 `claude-haiku-5-5`，是 Claude Code 的背景用量，不是被測 agent 的證據。判斷被測 agent 用哪個模型，要看 subagent transcript 的 assistant 訊息與 API 請求，不能看 `modelUsage`，也不能用粗略 grep（一次用 grep 抓到 `opus` 其實是別的欄位，已改用逐筆解析）。
+- 4b 的 3 次委派都在 `subagents/` 底下留下 `agentType: tester` 的 transcript，每個請求都是 Haiku 加 low，確認 Haiku 臂真的由 Haiku-low tester 作答。
+- 4b 只是極有限的探測：樣本數 3、題型是計數與日期比較。**不能推論到**選擇器除錯、判讀失敗原因、日文貼文撰寫（lianbu）等任務；那些仍未驗證。
+- Codex 的第一、二次嘗試都沒有真的 spawn：事件紀錄只有 `cat`，沒有 `collab_tool_call`；第一次它的回覆卻說「spawned successfully」，是不實的轉述。第三次以明確的使用者要求才 spawn。原因是 Codex 的 `multi_agent_mode` 規則：沒有使用者或 AGENTS.md 明確要求就不 spawn sub-agent。因此**不能只信模型的自述，要看事件或 rollout metadata**。
+- 這是否表示日常使用 Codex 時 `.codex/agents/*.toml` 會自動被派用：不會。需要使用者或 AGENTS.md 明確要求委派。AGENTS.md 的角色路由表目前沒有要求 Codex 主動委派，這是設計上的現況，不是缺陷。
+
+影響：
+- AGENTS.md 模型政策補一句：`effort` 只在 agent 被當作 subagent 委派時生效（已修改，未 commit）。
+- plan §3.1 Phase 2b 的條件 (c) 成立；仍須滿足 (d) 配額基準與 (e) spike 結案。
