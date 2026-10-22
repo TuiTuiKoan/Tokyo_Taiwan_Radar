@@ -61,7 +61,7 @@ disappearing, so a reader can tell silence apart from omission.
 | Known risks | Residual risk accepted at publication, or `None` |
 | Deferred work | Work consciously not done, and where it is now tracked, or `None` |
 | Spec disposition | One of `active`, `parked`, `archive`, `none`, with the reason |
-| Worktree disposition | One of `remove`, `retain`, `already_removed`, with the decision timestamp and the six freshness values |
+| Worktree disposition | One of `remove`, `retain`, `already_removed`, with the decision timestamp and the six freshness values. The decision line and the six-value table come first; any `###` subsection, such as `### Gates at the close-out audit`, follows the table. The section holds exactly one six-value table, the one bound to the decision; earlier observations, such as a Phase A re-run, are described in prose |
 | Ignored artifacts and handling | One of `duplicated`, `exported`, `disposable`, `retain_worktree` per artifact, with a digest |
 | Evidence anchors | Every telemetry anchor and ledger, one entry per session slice |
 
@@ -129,6 +129,12 @@ reciprocal pointer if a separate record supersedes this one.>
 | dirty count | `<n>` |
 | ignored artifact set | `<count, or none>` |
 | path identity | `<canonical, divergent, or external>`, directory `ttr-<slug>-worktree`, branch `feat/<slug>` |
+
+<Optional subsections, such as `### Gates at the close-out audit`, go here, after the table.
+`scripts/campaign-disposition-backfill.py` reads and replaces only the part before the first
+`###`, and refuses a record whose six-value table sits inside a subsection. Keep exactly one
+six-value table in this section; describe any earlier observation, such as a Phase A re-run,
+in prose.>
 
 ## Ignored artifacts and handling
 
