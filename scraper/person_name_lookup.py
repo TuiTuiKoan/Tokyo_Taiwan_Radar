@@ -16,8 +16,10 @@ Rate limiting: LOOKUP_DELAY_SEC between requests (polite crawl).
 Failures are silenced and return empty dict so they never break scrapers.
 """
 
+import atexit
 import logging
 import re
+import threading
 import time
 from dataclasses import dataclass
 from urllib.parse import quote
@@ -78,6 +80,73 @@ _movie_cache: dict[str, dict[str, "PersonInfo"]] = {}
 # Cache: eiga.com person URL → (name_en, name_zh)
 _person_cache: dict[str, tuple[str | None, str | None]] = {}
 
+# Lookup counters (spec people-ground-truth, milestone 0): measure how many
+# requests leave the process, as a baseline for the DB-first rewrite.
+# The DB-related names are reserved and stay 0 until the people tables exist.
+# memory_hit counts the in-process caches above, which the DB layer will not replace.
+_COUNTER_NAMES = (
+    "external_request",
+    "external_error",
+    "memory_hit",
+    "verified_hit",
+    "db_hit",
+    "cache_hit",
+    "cache_negative_hit",
+    "offline_miss",
+)
+_counters: dict[str, int] = dict.fromkeys(_COUNTER_NAMES, 0)
+_counters_lock = threading.Lock()
+
+
+def _count(name: str) -> None:
+    with _counters_lock:
+        _counters[name] += 1
+
+
+def lookup_counters() -> dict[str, int]:
+    """Return a snapshot of the lookup counters."""
+    with _counters_lock:
+        return dict(_counters)
+
+
+def reset_lookup_counters() -> None:
+    with _counters_lock:
+        for name in _counters:
+            _counters[name] = 0
+
+
+def log_lookup_counters() -> None:
+    """Log the counters once, skipping runs that never touched the lookup."""
+    snapshot = lookup_counters()
+    if not any(snapshot.values()):
+        return
+    logger.info(
+        "person_name_lookup counters: %s",
+        " ".join(f"{k}={v}" for k, v in snapshot.items()),
+    )
+
+
+atexit.register(log_lookup_counters)
+
+
+def _counted_get(url: str, *, session: "requests.Session | None" = None, **kwargs):
+    """GET through ``session`` (or plain requests) and count the request.
+
+    An exception or an HTTP status >= 400 counts as an error. The response is
+    returned and exceptions propagate exactly as before, so callers keep their
+    existing behaviour.
+    """
+    _count("external_request")
+    try:
+        resp = (session or requests).get(url, **kwargs)
+    except Exception:
+        _count("external_error")
+        raise
+    status = getattr(resp, "status_code", None)
+    if isinstance(status, int) and status >= 400:
+        _count("external_error")
+    return resp
+
 
 @dataclass
 class PersonInfo:
@@ -92,7 +161,7 @@ def _find_movie_url(name_ja: str) -> str | None:
     search_url = _SEARCH_URL_TMPL.format(encoded)
 
     time.sleep(LOOKUP_DELAY_SEC)
-    resp = _session.get(search_url, timeout=15)
+    resp = _counted_get(search_url, session=_session, timeout=15)
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
 
@@ -109,7 +178,7 @@ def _extract_cast_crew(movie_url: str) -> list[tuple[str, str, str]]:
     Returns list of (role, ja_name, person_url) tuples.
     """
     time.sleep(LOOKUP_DELAY_SEC)
-    resp = _session.get(movie_url, timeout=15)
+    resp = _counted_get(movie_url, session=_session, timeout=15)
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
 
@@ -153,7 +222,7 @@ def _extract_cast_crew(movie_url: str) -> list[tuple[str, str, str]]:
 def _lookup_person_en_and_origin(person_url: str) -> tuple[str | None, str | None]:
     """Fetch eiga.com person page and extract the English name and origin country."""
     time.sleep(LOOKUP_DELAY_SEC)
-    resp = _session.get(person_url, timeout=15)
+    resp = _counted_get(person_url, session=_session, timeout=15)
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
 
@@ -205,7 +274,7 @@ def _lookup_zh_via_wikipedia(
         "srlimit": "5",
         "format": "json",
     }
-    resp = requests.get(
+    resp = _counted_get(
         _WIKI_ZH_API,
         params=params,
         timeout=10,
@@ -271,7 +340,7 @@ def _lookup_zh_via_ja_wikipedia(
         "srlimit": "1",
         "format": "json",
     }
-    resp = requests.get(
+    resp = _counted_get(
         _WIKI_JA_API,
         params=params,
         timeout=10,
@@ -300,7 +369,7 @@ def _lookup_zh_via_ja_wikipedia(
             "lllang": "zh",
             "format": "json",
         }
-        resp2 = requests.get(
+        resp2 = _counted_get(
             _WIKI_JA_API,
             params=params2,
             timeout=10,
@@ -319,6 +388,7 @@ def _lookup_zh_via_ja_wikipedia(
 def _resolve_person(person_url: str, ja_name: str = "") -> tuple[str | None, str | None]:
     """Get (name_en, name_zh) for a person, with caching."""
     if person_url in _person_cache:
+        _count("memory_hit")
         return _person_cache[person_url]
 
     try:
@@ -357,6 +427,7 @@ def lookup_person_names(name_ja: str) -> dict[str, PersonInfo]:
 
     key = name_ja.strip()
     if key in _movie_cache:
+        _count("memory_hit")
         return _movie_cache[key]
 
     try:
@@ -441,7 +512,7 @@ def _search_person_eiga(ja_name: str) -> str | None:
     search_url = _PERSON_SEARCH_URL_TMPL.format(encoded)
     time.sleep(LOOKUP_DELAY_SEC)
     try:
-        resp = _session.get(search_url, timeout=15)
+        resp = _counted_get(search_url, session=_session, timeout=15)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
         for a in soup.select("a[href^='/person/']"):
@@ -466,6 +537,7 @@ def lookup_single_person(ja_name: str) -> PersonInfo | None:
     """
     cache_key = f"single:{ja_name}"
     if cache_key in _person_cache:
+        _count("memory_hit")
         en, zh = _person_cache[cache_key]
         return PersonInfo(name_zh=zh, name_en=en, role="") if (zh or en) else None
 
