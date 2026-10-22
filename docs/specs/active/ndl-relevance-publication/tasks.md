@@ -33,13 +33,13 @@
       開／閉標記與仿造 `RECORD_TYPE` 的負向案例；標記變體（大小寫、全形、空白）與不該改寫的
       相近字串；含標記的非出版物回歸案例（其餘文字逐字相同）；`test_injection_guard.py` 原測試不改仍通過
 - [x] commit C1
-- [ ] C2：`_publication_gate_eligible(event, fc_fields, fc_loaded)` 與原因代碼；
+- [x] C2：`_publication_gate_eligible(event, fc_fields, fc_loaded)` 與原因代碼；
       `PUBLICATION_RELEVANCE_GATE_ENABLED = False`
-- [ ] C2：`_load_human_field_map()` 失敗時記錄 `fc_loaded=False`，出版物不進 gate
-- [ ] C2 測試：proposal 2.3 的十種情況各自的 eligible 與原因代碼；非出版物 gate 行為不變；
+- [x] C2：`_load_human_field_map()` 失敗時記錄 `fc_loaded=False`，出版物不進 gate
+- [x] C2 測試：proposal 2.3 的十種情況各自的 eligible 與原因代碼；非出版物 gate 行為不變；
       projection fake client 斷言 `event_form`、`annotated_at` 在查詢結果中
-- [ ] Tester：`python -m pytest scraper/tests -q`
-- [ ] commit C2
+- [x] Tester：`python -m pytest scraper/tests -q`
+- [x] commit C2
 
 ## Phase B: 量測工具（C3）
 

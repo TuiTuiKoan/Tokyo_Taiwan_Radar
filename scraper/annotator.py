@@ -2392,11 +2392,65 @@ RELEVANCE_GATE_REASON = "auto-deactivated: annotator Taiwan relevance gate"
 _RELEVANCE_GATE_EXEMPT_SOURCES = {"user_submission"}
 
 
+# P5 (D9): the relevance gate may only deactivate a first-pass pure publication
+# after the offline measurement and holdout pass (C6 flips this to True in its
+# own PR). Until then no publication is ever deactivated by the gate.
+PUBLICATION_RELEVANCE_GATE_ENABLED = False
+
+
+def _publication_gate_eligible(
+    event: dict,
+    fc_fields: dict | None,
+    fc_loaded: bool,
+) -> tuple[bool, str]:
+    """Decide whether the relevance gate may act on this publication record.
+
+    Every condition must hold (fail closed); the first failing one is returned
+    as the reason code and logged by the caller.
+
+      1. PUBLICATION_RELEVANCE_GATE_ENABLED is True           -> flag_off
+      2. field_corrections loaded successfully                -> fc_not_loaded
+      3. exact pure publication (event_form == [publication]) -> not_pure_publication
+      4. first pass: "annotated_at" key present and None      -> annotated_at_missing / already_annotated
+      5. annotation_status != reviewed                        -> reviewed
+      6. FC field set is EXACTLY PUBLICATION_NULL_FIELDS,
+         all with empty values                                -> fc_extra_fields / fc_missing_sentinel / fc_sentinel_not_empty
+
+    Why 6: every FC (including the 7 empty sentinels written with each pure
+    publication) is indistinguishable from a human lock in _load_human_field_map,
+    so the old "any FC -> skip" rule silently disabled the gate for ndl. Only a
+    record carrying nothing but its own sentinels is a first-pass record.
+    """
+    if not PUBLICATION_RELEVANCE_GATE_ENABLED:
+        return False, "flag_off"
+    if not fc_loaded:
+        return False, "fc_not_loaded"
+    if not is_pure_publication_record(event):
+        return False, "not_pure_publication"
+    if "annotated_at" not in event:
+        return False, "annotated_at_missing"
+    if event["annotated_at"] is not None:
+        return False, "already_annotated"
+    if event.get("annotation_status") == "reviewed":
+        return False, "reviewed"
+    fields = fc_fields or {}
+    expected = set(PUBLICATION_NULL_FIELDS)
+    present = set(fields)
+    if present - expected:
+        return False, "fc_extra_fields"
+    if expected - present:
+        return False, "fc_missing_sentinel"
+    if any(fields[name] != "" for name in expected):
+        return False, "fc_sentinel_not_empty"
+    return True, "eligible"
+
+
 def _relevance_gate_update(
     event: dict,
     annotation: dict,
     human_protected: dict | None,
     fix_reviewed: bool,
+    fc_loaded: bool = True,
 ) -> dict | None:
     """Return {is_active: False, deactivated_reason} when the annotator is
     confident the event has no Taiwan connection, else None.
@@ -2404,8 +2458,20 @@ def _relevance_gate_update(
     Never acts on human-reviewed events (any field_corrections lock, or a
     fix-reviewed re-annotation) or on human-curated sources — those follow the
     prompt's SCOPE rule and are handled manually.
+
+    Pure publications are judged by _publication_gate_eligible() instead of the
+    "any FC -> skip" rule: they carry 7 empty sentinel FCs from birth, so that
+    rule would never let the gate act on them.
     """
-    if fix_reviewed or human_protected:
+    if is_pure_publication_record(event):
+        eligible, reason = _publication_gate_eligible(event, human_protected, fc_loaded)
+        logger.info(
+            "  Publication relevance gate for %s: %s",
+            str(event.get("id", "?"))[:8], reason,
+        )
+        if not eligible or fix_reviewed:
+            return None
+    elif fix_reviewed or human_protected:
         return None
     if (event.get("source_name") or "") in _RELEVANCE_GATE_EXEMPT_SOURCES:
         return None
@@ -2867,9 +2933,11 @@ def annotate_pending_events(
     # Falls back to empty dict when the table doesn't exist yet (pre-migration).
     # Uses pagination to load ALL rows (Supabase default limit is 1000 per call).
     human_field_map: dict[str, set[str]] = {}
+    fc_loaded = True
     try:
         human_field_map = _load_human_field_map(sb)
     except Exception as fc_err:
+        fc_loaded = False  # publications must not enter the relevance gate on an empty fallback map
         logger.debug("field_corrections table not available (run migration 038b): %s", fc_err)
     # Used as fallback when GPT returns organizer=null.
     _default_org_map = _load_default_organizer_map(sb)
@@ -3649,7 +3717,7 @@ def annotate_pending_events(
                 update_data["selection_reason"] = selection_reason
 
             # Taiwan relevance gate: act on the model's structured verdict.
-            _gate = _relevance_gate_update(event, annotation, _human_protected, fix_reviewed)
+            _gate = _relevance_gate_update(event, annotation, _human_protected, fix_reviewed, fc_loaded)
             if _gate:
                 update_data.update(_gate)
                 logger.info(
