@@ -8,6 +8,8 @@ applyTo: .github/agents/architect.agent.md
 
 Read this at the start of every session before producing any plan.
 
+> Guard 的資料症狀每月由 `scraper/guard_detections.py` 計數（#356）。新增或修改會留下資料症狀的 guard 時，同步在 `DETECTIONS` 加一條；類型盤點見 `docs/evaluation/guards/README.md`。
+
 ## Planning
 - Always check whether a new feature requires a DB schema change. If yes, mark Step 1 as a manual migration with verification SQL.
 - Identify all code paths affected by a data model change — not just the obvious one (a new column needs both the table AND every writer that populates it).

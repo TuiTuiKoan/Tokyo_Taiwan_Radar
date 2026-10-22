@@ -1,0 +1,207 @@
+{
+  "month": "2026-10",
+  "generated_at": "2026-10-22T13:47:19.756016+00:00",
+  "results": [
+    {
+      "id": "merged_but_active",
+      "guard": "Manual Merge Completeness Guard",
+      "proxy": false,
+      "count": 0,
+      "error": null
+    },
+    {
+      "id": "reviewed_missing_title_translation",
+      "guard": "Reviewed Event Translation Guard",
+      "proxy": false,
+      "count": 0,
+      "error": null
+    },
+    {
+      "id": "failed_run_without_notes_30d",
+      "guard": "Scraper Failure Notes Guard",
+      "proxy": false,
+      "count": 18,
+      "error": null
+    },
+    {
+      "id": "online_with_physical_fields",
+      "guard": "Pure-online / Hybrid planning guard",
+      "proxy": false,
+      "count": 26,
+      "error": null
+    },
+    {
+      "id": "report_prefix_injected",
+      "guard": "Report Prefix Injection Guard",
+      "proxy": false,
+      "count": 3,
+      "error": null
+    },
+    {
+      "id": "name_ja_report_suffix_lost",
+      "guard": "Annotator name_ja Suffix Omission Guard",
+      "proxy": false,
+      "count": 4,
+      "error": null
+    },
+    {
+      "id": "official_url_eiga",
+      "guard": "Movie Lookup Official URL Guard",
+      "proxy": false,
+      "count": 0,
+      "error": null
+    },
+    {
+      "id": "official_url_ticket",
+      "guard": "Cinema Official URL Extraction",
+      "proxy": false,
+      "count": 0,
+      "error": null
+    },
+    {
+      "id": "placeholder_cover_image",
+      "guard": "Derived enrichment candidate audit",
+      "proxy": false,
+      "count": 42,
+      "error": null
+    },
+    {
+      "id": "tv_location_not_standard",
+      "guard": "TV / Non-Physical Location Standard",
+      "proxy": false,
+      "count": 280,
+      "error": null
+    },
+    {
+      "id": "note_creators_with_organizer",
+      "guard": "Blog/Creator Source Thin Content Guard",
+      "proxy": false,
+      "count": 62,
+      "error": null
+    },
+    {
+      "id": "yebizo_location_not_venue",
+      "guard": "Collection Attribution Guard",
+      "proxy": false,
+      "count": 1,
+      "error": null
+    },
+    {
+      "id": "ks_cinema_active_sub1",
+      "guard": "Cinema Series Sub-Event Sub_Events Guard",
+      "proxy": false,
+      "count": 0,
+      "error": null
+    },
+    {
+      "id": "organizer_missing_translation",
+      "guard": "Organizer Multilingual Fields Guard",
+      "proxy": false,
+      "count": 722,
+      "error": null
+    },
+    {
+      "id": "person_missing_translation",
+      "guard": "Performer Multilingual Fields Guard",
+      "proxy": false,
+      "count": 377,
+      "error": null
+    },
+    {
+      "id": "inactive_person_missing_translation",
+      "guard": "Known Person Map Guard",
+      "proxy": false,
+      "count": 113,
+      "error": null
+    },
+    {
+      "id": "tcc_kanji_time_missing_hours",
+      "guard": "Kanji Time Format business_hours Guard",
+      "proxy": false,
+      "count": 10,
+      "error": null
+    },
+    {
+      "id": "museum_source_missing_organizer",
+      "guard": "Venue = Organizer Default Guard",
+      "proxy": false,
+      "count": 0,
+      "error": null
+    },
+    {
+      "id": "organizer_type_without_organizer",
+      "guard": "organizer_type Batch Inference Guard",
+      "proxy": false,
+      "count": 90,
+      "error": null
+    },
+    {
+      "id": "implemented_without_scraper_key",
+      "guard": "Auto-Generate Promotion Checklist",
+      "proxy": false,
+      "count": 0,
+      "error": null
+    },
+    {
+      "id": "lowsignal_rejected_above_threshold",
+      "guard": "Auto-Research Low-Signal Policy Guard",
+      "proxy": false,
+      "count": 14,
+      "error": null
+    },
+    {
+      "id": "venue_name_without_address",
+      "guard": "Address Regex Prefecture-Optional Guard",
+      "proxy": true,
+      "count": 574,
+      "error": null
+    },
+    {
+      "id": "performer_null_with_guest_title",
+      "guard": "Performer Null Guard",
+      "proxy": true,
+      "count": 0,
+      "error": null
+    },
+    {
+      "id": "organizer_with_slash",
+      "guard": "Joint Distributor Split Guard",
+      "proxy": true,
+      "count": 10,
+      "error": null
+    },
+    {
+      "id": "organizer_fk_unresolved",
+      "guard": "Entity Normalization Guard",
+      "proxy": true,
+      "count": 1473,
+      "error": null
+    },
+    {
+      "id": "reviewed_missing_hours",
+      "guard": "reviewed 保護邊界 Guard",
+      "proxy": true,
+      "count": 77,
+      "error": null
+    },
+    {
+      "id": "inactive_without_pass",
+      "guard": "Database Safety Rules",
+      "proxy": true,
+      "count": 113,
+      "error": null
+    },
+    {
+      "id": "missing_address_reports_dismissed",
+      "guard": "auto_qa False Positive Guard",
+      "proxy": true,
+      "count": 88,
+      "error": null
+    }
+  ],
+  "trends": {
+    "prune_candidates": [],
+    "rising": [],
+    "months_of_history": 0
+  }
+}

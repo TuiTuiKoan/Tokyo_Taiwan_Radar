@@ -69,6 +69,18 @@ jobs:
           echo "2. 輸入：請進行本月治理復盤，分析爬蟲健康、Skills 新鮮度與 Agent scope overlap。上月（${PREV_MONTH}）數據型月報已由 docs_report.py 自動生成於 docs/monthly_review/${PREV_MONTH}.md，請在其基礎上補充深度治理分析。" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
+      # #356 — count the data symptoms named by architect Guards. Writes
+      # docs/evaluation/guards/YYYY-MM.{md,json}; the evaluation commit step below
+      # picks them up, and the next months read them back for the 3-month trend.
+      - name: Run guard detections
+        working-directory: scraper
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          python guard_detections.py --out-dir ../docs/evaluation/guards >> $GITHUB_STEP_SUMMARY
+
       - name: Generate monthly docs report
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
