@@ -1,0 +1,57 @@
+name: Historical Backtest
+
+# #355 — scraper/eval_historical.py on demand and on PRs that change it.
+# The monthly run lives in monthly_health_check.yml, which commits the report.
+# Each run re-annotates up to 100 stored events with gpt-4o-mini (~$0.26) and
+# writes nothing to the database.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sample:
+        description: 'Events to sample'
+        default: '100'
+  pull_request:
+    paths:
+      - 'scraper/eval_historical.py'
+      - '.github/workflows/eval-historical.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: 'scraper/requirements.txt'
+
+      - name: Install Python dependencies
+        run: pip install -r scraper/requirements.txt
+
+      - name: Run backtest
+        working-directory: scraper
+        env:
+          OPENAI_API_KEY: "${{ secrets.OPENAI_API_KEY }}"
+          SUPABASE_URL: "${{ secrets.SUPABASE_URL }}"
+          SUPABASE_SERVICE_ROLE_KEY: "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
+          SAMPLE: ${{ github.event.inputs.sample || '100' }}
+        run: |
+          python eval_historical.py --sample "$SAMPLE" \
+            --output historical_report.md --json-output historical_report.json
+          cat historical_report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: historical-backtest
+          path: |
+            scraper/historical_report.md
+            scraper/historical_report.json
+          if-no-files-found: ignore

@@ -152,6 +152,23 @@ jobs:
             head -30 "../docs/evaluation/annotator/${MONTH}-monthly.md" >> $GITHUB_STEP_SUMMARY
           fi
 
+      # #355 — re-annotate 100 stored events (dry run) and classify the diffs.
+      # About $0.26 a month; eval_historical.py refuses to run above --budget-usd.
+      - name: Run monthly historical backtest
+        working-directory: scraper
+        continue-on-error: true
+        env:
+          OPENAI_API_KEY: "${{ secrets.OPENAI_API_KEY }}"
+          SUPABASE_URL: "${{ secrets.SUPABASE_URL }}"
+          SUPABASE_SERVICE_ROLE_KEY: "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
+        run: |
+          MONTH=$(date +%Y-%m)
+          mkdir -p ../docs/evaluation/historical
+          python eval_historical.py --output "../docs/evaluation/historical/${MONTH}-monthly.md"
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          head -25 "../docs/evaluation/historical/${MONTH}-monthly.md" >> $GITHUB_STEP_SUMMARY
+
       - name: Commit monthly evaluation outputs
         run: |
           if [ "${{ github.ref }}" = "refs/heads/main" ] && [ -n "$(git status --porcelain docs/evaluation/)" ]; then
