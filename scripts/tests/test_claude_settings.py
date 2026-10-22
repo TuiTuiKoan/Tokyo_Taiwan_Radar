@@ -5,8 +5,41 @@ import re
 
 import pytest
 
-PUSH_ASK_RULE = "Bash(git push:*)"
-PUSH_COMMANDS = ("git push", "git push origin main", "git push --force origin main")
+# Fallback for sessions without the hook (pr-flow-tiering notes.md B2 plan B, B4): ask for pushes whose
+# destination looks like main or cannot be read from the command. The hook makes the full decision.
+PUSH_ASK_RULES = (
+    "Bash(git push)",
+    "Bash(git push origin)",
+    "Bash(git push *main)",
+    "Bash(git push *main *)",
+    "Bash(git push *HEAD)",
+    "Bash(git push *HEAD *)",
+)
+PUSH_COMMANDS = (
+    "git push",
+    "git push origin",
+    "git push origin main",
+    "git push -u origin main",
+    "git push origin HEAD:main",
+    "git push origin x:refs/heads/main",
+    "git push --dry-run origin HEAD:main",
+    "git push origin main --dry-run",
+    "git push --force origin main",
+    "git push origin HEAD",
+    "git push -u origin HEAD",
+    "git push origin feat/x main",
+)
+# Pushes the hook allows; the settings fallback must not prompt for them.
+FEATURE_PUSH_COMMANDS = (
+    "git push origin feat/x",
+    "git push -u origin feat/x",
+    "git push --dry-run origin feat/pr-flow-tiering",
+    "git push origin feat/main-fix",
+    "git push origin maintenance",
+    "git push origin HEAD:feat/x",
+    "git push origin main:feat/x",
+    "git push origin feat/x:feat/x",
+)
 HOOK_TIMEOUT = 30
 
 
@@ -68,9 +101,16 @@ def bash_rule_matches(rule: str, command: str) -> bool:
     return re.fullmatch(regex, command) is not None
 
 
-def test_push_ask_rule_present(settings):
-    assert PUSH_ASK_RULE in settings["permissions"]["ask"]
-    assert all(bash_rule_matches(PUSH_ASK_RULE, command) for command in PUSH_COMMANDS)
+def test_push_ask_rules_cover_main_like_pushes(settings):
+    rules = settings["permissions"]["ask"]
+    for command in PUSH_COMMANDS:
+        assert any(bash_rule_matches(rule, command) for rule in rules), command
+
+
+def test_push_ask_rules_skip_feature_pushes(settings):
+    rules = settings["permissions"]["ask"]
+    for command in FEATURE_PUSH_COMMANDS:
+        assert not any(bash_rule_matches(rule, command) for rule in rules), command
 
 
 def test_no_allow_rule_covers_git_push(settings):
@@ -86,9 +126,9 @@ def test_no_bypass_or_hook_disabling(settings):
 
 
 def test_settings_exact_shape(settings):
-    # Phase B's permissions stay unchanged; Phase C adds exactly these hooks (notes.md §4.23).
+    # Hooks from ai-portability (notes.md §4.23); ask rules narrowed by pr-flow-tiering plan B (notes.md B4).
     assert set(settings) == {"permissions", "hooks"}
-    assert settings["permissions"] == {"ask": [PUSH_ASK_RULE]}
+    assert settings["permissions"] == {"ask": list(PUSH_ASK_RULES)}
     assert settings["hooks"] == EXPECTED_HOOKS
 
 

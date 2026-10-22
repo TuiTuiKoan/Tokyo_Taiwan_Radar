@@ -1,7 +1,12 @@
 {
   "permissions": {
     "ask": [
-      "Bash(git push:*)"
+      "Bash(git push)",
+      "Bash(git push origin)",
+      "Bash(git push *main)",
+      "Bash(git push *main *)",
+      "Bash(git push *HEAD)",
+      "Bash(git push *HEAD *)"
     ]
   },
   "hooks": {
