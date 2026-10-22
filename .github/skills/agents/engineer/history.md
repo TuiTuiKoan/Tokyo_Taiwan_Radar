@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-10-23 - Runner pin is a stopgap: the real blocker was our own Playwright version
+
+**Error**: GitHub moved `ubuntu-latest` to Ubuntu 26.04 on 2026-10-21 and `playwright install chromium` failed with "Playwright does not support chromium on ubuntu26.04-x64". Commit `488fd7b5` pinned 14 jobs in 12 workflows to `ubuntu-24.04` and its comments said "unpin once Playwright supports 26.04". The pin outlived its reason by months: Playwright 1.61.0 (2026-06-15, microsoft/playwright#41025) already supported 26.04, but `scraper/requirements.txt` stayed on `playwright==1.60.0`, whose driver has no `ubuntu26.04` entries. The `web` side was already on `@playwright/test` 1.63.0.
+
+**Fix**: Bumped scraper playwright to 1.64.0 and set the 14 jobs back to `ubuntu-latest` (issue #315).
+
+**Lesson**:
+1. Before pinning a runner, find out whether the browser tool's own newer release already supports the new image. Check the installed version's driver (`grep -o "ubuntu26.04-x64"` in `playwright/driver/package/lib`) and the upstream release notes, not just the failing log line.
+2. A runner pin is a stopgap. Open the tracking issue in the same session, name the exact unpin condition (a version number, not "once supported"), and keep the comment on every pinned line.
+3. `PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=<os> playwright install --dry-run` does not prove support: 1.60.0 also printed a download URL. Verify with the driver source or a real CI run.
+
+---
+
 ## 2026-10-22 - Archiving a spec: the dashboard path follows the frontmatter `status`, not the directory
 
 **Error**: The ai-portability spec was archived on 2026-10-20 in two commits that carry the same timestamp and are both on `origin/main`: the `git mv` of the ten files was carried by the commit with subject `docs(specs): drop the retired ttr-v8 worktree from the workstream ledger`, and the `status: active` to `status: archived` flip by `docs(specs): archive ai-portability and repoint live references`. Between the two, the tree held a directory under `docs/specs/archive/` whose `proposal.md` still said `active`. I did not observe the dashboard in that state; the effect is derived from the code. In `web/scripts/build-specs-snapshot.ts`, `loadSpecFromDir()` takes `finalStatus` from the frontmatter `status` when it is a valid value and uses the scanned directory's status only as a fallback (lines 270–271), then sets `relativePath` to `${STATUS_DIR_MAP[finalStatus]}/${slug}` (line 290). A directory moved without the flip therefore gets `relativePath: active/<dir>`, a path that does not exist, and `buildCopilotPrompt()` in `web/lib/specs/reader.ts` writes that path into the "continue this spec" prompt.
