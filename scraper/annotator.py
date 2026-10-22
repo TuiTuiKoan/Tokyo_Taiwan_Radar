@@ -4249,6 +4249,7 @@ def enrich_movie_titles(
     dry_run: bool = False,
     source: str | None = None,
     limit: int | None = None,
+    event_ids: list[str] | None = None,
 ) -> None:
     """Look up official zh/en movie titles from eiga.com and overwrite all
     AI-translated names.
@@ -4280,6 +4281,8 @@ def enrich_movie_titles(
     )
     if source:
         res_query = res_query.eq("source_name", source)
+    if event_ids:
+        res_query = res_query.in_("id", list(event_ids))
     if limit is not None:
         res_query = res_query.limit(limit)
 

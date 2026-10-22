@@ -312,6 +312,12 @@ SCRAPERS = [
 # ---------------------------------------------------------------------------
 _RUN_ALL: bool = os.getenv("SCRAPER_RUN_ALL", "0") == "1"
 
+# Sources whose sites block GitHub Actions (Azure) IPs, see #378. mot.py gets 403 and
+# roc-taiwan.org redirects to /Embassy_Error/. They run weekly from a home IP
+# (scripts/launchd/) with an explicit --source, so the CI daily run skips them.
+HOME_IP_ONLY_SOURCES: frozenset[str] = frozenset({"mot", "taipei_fukuoka", "jposa_ja"})
+_ON_GITHUB_ACTIONS: bool = os.getenv("GITHUB_ACTIONS", "") == "true"
+
 WEEKLY_SOURCES: frozenset[str] = frozenset({
     "oaff", "tokyo_filmex", "tiff", "tiff_jp",
     "ifi", "waseda_icl", "tuat_global",
@@ -385,15 +391,31 @@ def _ensure_scrapers_registered() -> None:
         logger.warning("research_sources auto-register skipped: %s", exc)
 
 
+def _enrichment_scope(
+    source: str | None, rescrape_ids: list[str] | None, new_event_ids: list[str]
+) -> list[str] | None:
+    """Which events the movie-title / person-name enrichment should touch.
+
+    None  = every eligible event (the daily full run, or any --rescrape-ids run).
+    list  = only these ids, for a single-source run; an empty list means nothing to do.
+    """
+    if source and not rescrape_ids:
+        return list(new_event_ids)
+    return None
+
+
 def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str] | None = None) -> None:
     active_scrapers = SCRAPERS
 
     if source:
-        active_scrapers = [s for s in SCRAPERS if _scraper_key(s) == source]
-        if not active_scrapers:
-            available = ", ".join(_scraper_key(s) for s in SCRAPERS)
-            logger.error("Unknown source %r. Available: %s", source, available)
+        wanted = [name.strip() for name in source.split(",") if name.strip()]
+        known = {_scraper_key(s) for s in SCRAPERS}
+        unknown = [name for name in wanted if name not in known]
+        if unknown or not wanted:
+            available = ", ".join(sorted(known))
+            logger.error("Unknown source %r. Available: %s", ",".join(unknown) or source, available)
             sys.exit(1)
+        active_scrapers = [s for s in SCRAPERS if _scraper_key(s) in wanted]
 
     all_events = []
     rescrape_force_keys: set[tuple[str, str]] = set()
@@ -427,6 +449,9 @@ def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str
     for scraper in active_scrapers:
         source_label = type(scraper).__name__
         source_key = _scraper_key(scraper)
+        if source is None and _ON_GITHUB_ACTIONS and source_key in HOME_IP_ONLY_SOURCES:
+            logger.info("Skipping %s (blocked from GitHub Actions IPs; runs weekly from a home IP)", source_key)
+            continue
         if source is None and not _RUN_ALL and source_key in WEEKLY_SOURCES and not _is_monday_utc:
             logger.info("Skipping %s (weekly-only, today is not Monday UTC)", source_key)
             continue
@@ -490,11 +515,21 @@ def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str
     logger.info("Running AI annotator on pending events...")
     annotate_pending_events()
 
-    # Enrich movie titles and person names (same as CI pipeline steps)
-    logger.info("Enriching movie titles from eiga.com...")
-    enrich_movie_titles()
-    logger.info("Enriching person names via eiga.com + Wikipedia...")
-    enrich_person_names()
+    # Enrich movie titles and person names (same as CI pipeline steps).
+    # A single-source manual run only enriches the events it just inserted; the
+    # full pass over every eligible event took 25+ minutes per run (#395).
+    scope_ids = _enrichment_scope(source, rescrape_ids, all_new_event_ids)
+    if scope_ids is None:
+        logger.info("Enriching movie titles from eiga.com...")
+        enrich_movie_titles()
+        logger.info("Enriching person names via eiga.com + Wikipedia...")
+        enrich_person_names()
+    elif scope_ids:
+        logger.info("Enriching %d new event(s) from --source %s...", len(scope_ids), source)
+        enrich_movie_titles(event_ids=scope_ids)
+        enrich_person_names(event_ids=scope_ids)
+    else:
+        logger.info("No new events from --source %s; skipping movie/person enrichment.", source)
 
     # Ended events are no longer auto-archived here.
     # Public visibility is controlled by frontend time filters (timeMode/end_date).
@@ -521,7 +556,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--source",
         metavar="NAME",
-        help="Only run the named scraper (e.g. peatix, taiwan_cultural_center)",
+        help="Only run the named scraper(s), comma-separated (e.g. peatix, or mot,taipei_fukuoka)",
     )
     parser.add_argument(
         "--rescrape-ids",
