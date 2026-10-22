@@ -87,8 +87,19 @@ def one_line(value: object) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()
 
 
-def is_generated(text: str) -> bool:
-    return MARKER in text or TOML_MARKER in text
+def is_generated(text: str, suffix: str) -> bool:
+    """A file is generated only if the marker for its own type is a whole line.
+
+    Substring matching treated any hand-written file that quoted the marker in a
+    sentence as generated and deleted it; the two marker kinds are not interchangeable.
+    """
+    marker = TOML_MARKER if suffix == ".toml" else MARKER
+    return any(line.strip() == marker for line in text.splitlines())
+
+
+def tier_value(meta: dict[str, object]) -> str:
+    """The `tier` value with an inline YAML comment (`build # note`) removed."""
+    return re.split(r"\s+#", one_line(meta.get("tier")), maxsplit=1)[0].strip()
 
 
 def yaml_quote(value: object) -> str:
@@ -269,7 +280,8 @@ def resolved_skill_names(root: Path) -> dict[Path, str]:
 
 
 def toml_string(value: str) -> str:
-    return json.dumps(value, ensure_ascii=False)
+    # json.dumps escapes U+0000-U+001F but leaves DEL, which TOML forbids unescaped.
+    return json.dumps(value, ensure_ascii=False).replace("\x7f", "\\u007f")
 
 
 def codex_agent(
@@ -307,10 +319,17 @@ def agent_outputs(root: Path) -> dict[Path, str]:
         for path, meta in metas.items()
     }
     outputs: dict[Path, str] = {}
+    owners: dict[str, Path] = {}
     for path in sources:
         meta = metas[path]
         original_name = one_line(meta.get("name") or path.stem.removesuffix(".agent"))
         out_name = name_map[original_name]
+        if out_name in owners:
+            raise SystemExit(
+                f"duplicate agent output name {out_name}: "
+                f"{rel(owners[out_name], root)} and {rel(path, root)}"
+            )
+        owners[out_name] = path
         description = one_line(meta.get("description") or original_name)
         source = rel(path, root)
         lines = [
@@ -319,7 +338,7 @@ def agent_outputs(root: Path) -> dict[Path, str]:
             f"description: {yaml_quote(description)}",
         ]
         role_tools = ROLE_TOOLS.get(one_line(meta.get("claude-role")))
-        tier = TIERS.get(one_line(meta.get("tier")))
+        tier = TIERS.get(tier_value(meta))
         if role_tools:
             lines.append(f"tools: {', '.join(role_tools)}")
         if tier:
@@ -429,7 +448,7 @@ def generated_files(root: Path) -> list[Path]:
             continue
         for path in [*base.rglob("*.md"), *base.rglob("*.toml")]:
             try:
-                if is_generated(path.read_text(encoding="utf-8")):
+                if is_generated(path.read_text(encoding="utf-8"), path.suffix):
                     files.append(path)
             except UnicodeDecodeError:
                 continue
@@ -456,12 +475,32 @@ def check(root: Path, expected: dict[Path, str]) -> int:
 
 
 def write_outputs(root: Path, expected: dict[Path, str]) -> None:
+    """Write every expected file; touch nothing unless the whole set can be written.
+
+    Conflicts with hand-written files and unencodable text are detected first. The old
+    order deleted every generated file and only then refused, leaving a half-built tree.
+    """
+    def is_hand_written(path: Path) -> bool:
+        full = root / path
+        if not full.exists():
+            return False
+        try:
+            return not is_generated(full.read_text(encoding="utf-8"), path.suffix)
+        except UnicodeDecodeError:
+            return True
+
+    conflicts = sorted(path.as_posix() for path in expected if is_hand_written(path))
+    if conflicts:
+        raise SystemExit("refusing to overwrite non-generated file: " + ", ".join(conflicts))
+    for path, content in sorted(expected.items()):
+        try:
+            content.encode("utf-8")
+        except UnicodeEncodeError as error:
+            raise SystemExit(f"cannot write {path.as_posix()}: {error.reason} at position {error.start}")
     for path in generated_files(root):
         path.unlink()
     for path, content in sorted(expected.items()):
         full = root / path
-        if full.exists() and not is_generated(full.read_text(encoding="utf-8")):
-            raise SystemExit(f"refusing to overwrite non-generated file: {path}")
         full.parent.mkdir(parents=True, exist_ok=True)
         full.write_text(content, encoding="utf-8")
 
@@ -542,7 +581,7 @@ def tier_problems(root: Path) -> list[str]:
     for path in agent_sources(root):
         meta = parse_frontmatter(path)
         source = rel(path, root)
-        tier = one_line(meta.get("tier"))
+        tier = tier_value(meta)
         if not tier:
             problems.append(f"missing tier {source}")
         elif tier not in TIERS:

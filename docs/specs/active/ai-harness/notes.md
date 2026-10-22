@@ -376,3 +376,45 @@ spike 發現的 Phase 1 程式碼問題與測試缺口已列在 tasks.md，未�
 ### 12.7 後續（等使用者決定）
 
 兩次 spike 共同指向的 Phase 1 程式碼問題與測試缺口已更新在 tasks.md，未動手修。Phase 2b 的條件現況：(c) 已成立，(d) 第一週配額基準尚未開始記錄，(e) spike 已結案；所以 2b 仍差 (d)。
+
+## 13. Phase 1 後續修正：先紅後綠（2026-10-23）
+
+使用者核准依兩次 spike 的共同發現，先寫會失敗的測試再修。執行者：Claude Code（Opus 5.5）；這類實作用 Sonnet 加 medium 就夠。起點：`5b3165f5`。
+
+### 13.1 先寫測試，先紅
+
+新增 `scripts/tests/test_sync_hardening.py`，共 39 個測試。修程式碼前執行：**9 個失敗、29 個通過**。失敗的正好是已重現的缺陷；通過的是鎖定現有正確行為的測試（B、C、T4 等，本來就綠，這是預期）。
+
+| 先紅的測試 | 對應發現 |
+|---|---|
+| `test_hand_written_same_name_toml_aborts_before_deleting_anything`、`test_hand_edit_that_removes_the_marker_blocks_the_next_write` | A、T5、T6：寫入失敗後少了生成檔 |
+| `test_marker_text_in_prose_does_not_make_a_file_generated`、`test_a_marker_for_the_other_file_type_does_not_make_a_file_generated` | E：子字串比對與跨副檔名 marker |
+| `test_tier_value_boundaries[inline-comment]`、`test_a_tier_with_an_inline_comment_still_projects_its_tier` | #13：`tier: build # note` |
+| `test_toml_string_round_trips[del]` | D：DEL 未跳脫 |
+| `test_an_unencodable_description_aborts_before_any_file_changes` | #7：孤立 surrogate 在刪檔後才崩潰 |
+| `test_duplicate_output_names_are_rejected_without_touching_files` | #8：名稱碰撞靜默覆蓋 |
+
+### 13.2 修改（`scripts/sync_ai_adapters.py`）
+
+- `write_outputs`：先檢查所有衝突（無法解碼的檔案也算衝突）與所有輸出能否編碼，通過後才刪除與寫入；任何一項失敗就一個檔案都不動。
+- `is_generated(text, suffix)`：只認「整行等於該副檔名對應的 marker」；`.md` 只認 HTML marker，`.toml` 只認 TOML marker。
+- `toml_string`：把 DEL 換成 `\u007f`。其餘控制字元原本就由 `json.dumps` 跳脫。
+- `tier_value`：去掉行內 YAML 註解；`tier_problems` 與投影都使用它。
+- `agent_outputs`：兩個來源 kebab 後同名時，以 `duplicate agent output name …` 中止。
+- 孤立 surrogate 無法表示成 TOML（TOML 只接受 Unicode scalar value），所以不嘗試轉義，而是在任何檔案變動前以明確訊息中止。
+
+### 13.3 結果
+
+| 檢查 | 結果 |
+|---|---|
+| 新測試 | 39 passed（含修完後另補的「無法解碼檔案是衝突而非崩潰」） |
+| 全部測試 `scripts/tests scripts/claude/tests` | **531 passed**（先前 492） |
+| `python3 scripts/sync_ai_adapters.py` 重新生成 | 175 個檔案，`git status` 只有腳本與新測試檔，生成物無差異 |
+| `--check` | exit 0 |
+
+### 13.4 未處理與限制
+
+- 未做：T10（`conftest` 的 `copytree` 對缺少 `.codex` 的情況）、T11（`len(sources) * 2` 寫死）、T12（`MODEL_ID_PREFIXES` 冗餘，是維護成本）、G（symlink 行為，未確認）、第二次報告 #10 到 #12 的其餘缺口。
+- `is_generated` 改為整行比對後，若有人把 marker 單獨一行貼進手寫檔（例如文件中的 fenced code block），仍會被當成 generated。這比子字串比對窄很多，但不是零。
+- 這些修正以 spike 的讀碼推論為起點，除 A、D、#7、#8、#13 在 spike 核對時已重現外，其餘缺口是以測試鎖定行為，不是缺陷證明。
+- 尚未 commit，等使用者核准。
