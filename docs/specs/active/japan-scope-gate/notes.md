@@ -35,3 +35,9 @@ updated: 2026-10-23
 
 - 使用者聲明沒有 GitHub Actions 以外的 events 寫入者（2026-10-23），未獨立驗證。
 - 同日 main 新增 launchd job `com.ttr.home-ip-scrape`（commit `27b9539e`，每週一 15:00 JST 在使用者的 Mac 跑 `main.py`，寫 events）；`launchctl list` 顯示已安裝。因此上一句的聲明已不成立，runbook 須納入此 job（見 plan.md）。
+
+## 2026-10-23 migration 103 套用
+
+使用者在 Dashboard 以 postgres 先做 rollback-only 試跑（成功），再正式套用（成功）。read-back：`prosecdef=false`、owner `postgres`、`proconfig` = `["search_path=pg_catalog","lock_timeout=5s"]`、ACL `{postgres=X/postgres,service_role=X/postgres}`。ACL 沒有 `anon`、`authenticated` 或 PUBLIC 條目，所以它們沒有 EXECUTE。尚未用 `has_function_privilege` 與匿名呼叫實測 `42501`，進 production `--snapshot` 前不需要；cleanup 仍未執行。
+
+套用後 migration 檔頭只改了註解（APPLY STATUS），函式本體不變；`operator.migration_sha256` 以此後的檔案為準。
