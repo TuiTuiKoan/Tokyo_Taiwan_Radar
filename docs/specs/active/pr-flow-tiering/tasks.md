@@ -37,8 +37,9 @@
 
 - [ ] 使用者核准後開啟 `allow_auto_merge`、`delete_branch_on_merge`，關閉 merge commit
 - [ ] 為 `main` 建立只要求 status checks、repo owner 可 bypass 的 ruleset；先驗證沒有 required checks 時 `gh pr merge --auto` 的行為（Plan Critic P1）
-- [ ] 前提：roadmap 的 enrich_poster 暫停已完成
-- [ ] 新增 `.github/labeler.yml` 與 Tier 0 auto-merge workflow，路徑清單照 proposal 白名單
+- [ ] 前提：roadmap 的 enrich_poster 暫停已完成（commit `e3cadbe0`，待使用者 push）
+- [x] 新增 PR Tier workflow 與分類程式：`.github/workflows/pr-tier.yml`（`pull_request_target`，只讀檔名）、`scripts/ci/pr_tier.py`、`scripts/tests/test_pr_tier.py`（37 passed，actionlint 通過）
+- [ ] 使用者核准後建立 `tier:0`、`tier:1`、`tier:2` 三個 label
 - [ ] 用一個只改 `docs/` 的測試 PR 驗證 Tier 0 自動合併，用一個改 `web/` 的 PR 驗證落入 Tier 2
 
 ## Phase E: 試行兩週

@@ -45,7 +45,7 @@ tags: [tooling, infra, governance]
 
 | 層級 | 路徑條件 | 合併方式 |
 |---|---|---|
-| Tier 0 自動合併 | 只動到 `docs/**`（`docs/specs/**` 除外）、`.github/skills/**/history.md`、`docs/weekly_review/**`、`docs/monthly_review/**`、dependabot 的 semver-patch | `actions/labeler` 依路徑貼 `tier:0`，沿用 `dependabot-auto-merge.yml` 的 `gh pr merge --auto --squash` 模式，required checks 綠燈就合併 |
+| Tier 0 自動合併 | 只動到 `docs/**`（`docs/specs/**`、`docs/architecture/**` 除外，兩者在 web build 時被讀進 admin specs 頁）、`.github/skills/**/history.md`；dependabot 的 semver-patch 沿用既有 workflow | PR Tier workflow 貼 `tier:0`，以 `gh pr merge --auto --squash` 開啟自動合併，等 ruleset 要求的 checks 綠燈才合併 |
 | Tier 1 一鍵 | 只動到單一 `scraper/sources/<source>.py` 及其 skill、tests；tests 綠且 dry-run 有產出 | 貼 `tier:1` 並推播通知，使用者在手機或網頁按 merge |
 | Tier 2 完整 review | 任何 `web/**`、`supabase/**`、`scraper/annotator.py`、寫入 production DB 的 script、`.github/workflows/**`、`scripts/claude/**`、`.claude/**`、`AGENTS.md`、`.github/instructions/**`、`.github/agents/**` | 現有 V-M-D 驗證加 Vercel preview，使用者親自看 |
 
@@ -82,7 +82,11 @@ tags: [tooling, infra, governance]
 
 1. 開啟 `allow_auto_merge` 與 `delete_branch_on_merge`；merge method 只留 squash 與 rebase，關閉 merge commit。這符合既有「禁 `--no-ff`，避免 secret scan 重掃整段歷史」的規則。
 2. 為 `main` 建立 ruleset，**只要求 status checks，不要求 PR**，並把 repo owner 列入 bypass。這樣 Tier 0 的 auto-merge 必須等 checks 綠燈，使用者在試行期間仍能直接 push main。先驗證：沒有 required checks 時 `gh pr merge --auto` 是否會立即合併；有 ruleset 時是否確實等待。（Plan Critic P1）
-3. 新增 `actions/labeler` 設定與 Tier 0 auto-merge workflow。順序不得早於第 2 步。
+3. 新增 PR Tier workflow（`.github/workflows/pr-tier.yml`）與分類程式 `scripts/ci/pr_tier.py`。順序不得早於第 2 步。
+   - **改用 `pull_request_target`，不用 `actions/labeler`。** 一般的 `pull_request` 執行的是 PR 自己帶的 workflow 與程式，PR 改掉分類規則就能讓自己被自動合併。`pull_request_target` 固定執行 base branch 上的 workflow 與程式，job 只透過 API 讀檔名，絕不 checkout 或執行 PR 的內容。
+   - 分類程式有單元測試（`scripts/tests/test_pr_tier.py`），不需要第三方 action。
+   - 只處理同 repo、非 dependabot 的 PR；只有 repo owner 開的非 draft PR 才會開啟自動合併。
+   - 由 `GITHUB_TOKEN` 完成的合併不會觸發 main 上以 push 觸發的 workflow；Tier 0 只有文件，可接受。
 4. 「要求 PR」的保護放到最後。一旦要求 PR，使用者就不能再直接 push main，必須等 Phase E 試行通過、D1 裁決之後才開。
 
 以上設定會改動對外的 repo 狀態，每一步都由使用者核准或親自操作。
@@ -104,7 +108,7 @@ tags: [tooling, infra, governance]
 - `scripts/claude/_policy.py`、`scripts/claude/tests/test_bash_guard.py`
 - `.claude/settings.json`（需使用者核准）
 - `AGENTS.md` 的「Hooks 與 permissions」一節
-- 新增 `.github/labeler.yml`、Tier 0 auto-merge workflow
+- 新增 `.github/workflows/pr-tier.yml`、`scripts/ci/pr_tier.py`、`scripts/tests/test_pr_tier.py`
 - Phase F 才動：`.github/instructions/git.instructions.md`、`.github/agents/validate-merge-deploy.agent.md`、`.github/agents/campaign-closer.agent.md`，以及 `python3 scripts/sync_ai_adapters.py` 生成的 wrapper
 
 ### Worktree & Spec Tracking

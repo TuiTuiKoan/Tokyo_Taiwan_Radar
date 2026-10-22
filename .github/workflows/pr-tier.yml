@@ -1,0 +1,72 @@
+name: PR Tier
+
+# Labels each same-repo PR tier:0, tier:1 or tier:2 and enables auto-merge for
+# tier 0 (spec docs/specs/active/pr-flow-tiering, Phase D).
+#
+# pull_request_target runs this file and scripts/ci/pr_tier.py from the base
+# branch, so a PR cannot rewrite its own classification. Never check out or run
+# the PR's code here: the job reads file names through the API and nothing else.
+# Auto-merge still waits for the checks the main ruleset requires (gitleaks).
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: write        # gh pr merge --auto
+  pull-requests: write   # labels, auto-merge
+  issues: write          # labels live on the issue side of a PR
+
+concurrency:
+  group: pr-tier-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  tier:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the base branch (never the PR head)
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Classify changed paths
+        id: tier
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh api --paginate "repos/$REPO/pulls/$PR/files" \
+            --jq '.[] | .filename, (.previous_filename // empty)' > "$RUNNER_TEMP/paths.txt"
+          tier=$(python3 scripts/ci/pr_tier.py < "$RUNNER_TEMP/paths.txt")
+          case "$tier" in 0|1|2) ;; *) echo "unexpected tier: $tier"; exit 1 ;; esac
+          echo "tier=$tier" >> "$GITHUB_OUTPUT"
+          echo "PR #$PR -> tier:$tier ($(wc -l < "$RUNNER_TEMP/paths.txt") paths)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Set the tier label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          TIER: ${{ steps.tier.outputs.tier }}
+        run: |
+          for t in 0 1 2; do
+            if [ "$t" != "$TIER" ]; then gh pr edit "$PR" --repo "$REPO" --remove-label "tier:$t" || true; fi
+          done
+          gh pr edit "$PR" --repo "$REPO" --add-label "tier:$TIER"
+
+      - name: Enable auto-merge for tier 0
+        if: >-
+          steps.tier.outputs.tier == '0' &&
+          github.event.pull_request.user.login == github.repository_owner &&
+          !github.event.pull_request.draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: gh pr merge "$PR" --repo "$REPO" --auto --squash
