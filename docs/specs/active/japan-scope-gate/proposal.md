@@ -3,9 +3,9 @@ slug: japan-scope-gate
 title: Japan Scope Gate
 description: Add a consumable non-Japan audience decision and a review-safe admin action path
 status: active
-branch: feat/japan-scope-gate
+branch: feat/japan-scope-gate-6b
 created: 2026-08-04
-updated: 2026-08-06
+updated: 2026-10-23
 tags:
   - scraper
   - admin
@@ -103,7 +103,7 @@ Production 唯讀 snapshot 曾使用預定輸出路徑 `tmp/scope_manifest_20260
 
 Snapshot 在寫檔前 STOP，因此該 path 不存在，也沒有 manifest digest。Review remediation 已把 target stable before-image 綁入每筆 CAS，並將 relation read 改為 target-scoped query；但 sequential PostgREST calls 無法原子保證 parent 與 children 在驗證後不漂移。Web maintenance lock 也不能阻擋 service-role scraper writers。
 
-因此本版 CLI 在讀 manifest 或建立 Supabase client 前即拒絕 `--apply`。解除限制需要另一個 cleanup workstream：建立 service-role-only transaction/RPC，在單一 transaction 中驗證完整 before-images、parent/child relations 並更新整個 action set；同時 pause、drain、resume 所有 service-role writers。RPC 完成後仍須重新產生 immutable manifest，並以新 digest 取得當下的 production apply 明確核准。
+因此本版 CLI 在讀 manifest 或建立 Supabase client 前即拒絕 `--apply`。解除限制需要另一個 cleanup workstream：建立 service-role-only transaction/RPC，在單一 transaction 中驗證完整 before-images、parent/child relations 並更新整個 action set；同時 pause、drain、resume 所有 service-role writers。RPC 完成後仍須重新產生 immutable manifest，並以新 digest 取得當下的 production apply 明確核准。設計見 `plan.md`：cleanup 本身的原子性由 DB 表鎖加逐欄比對保證，pause／drain 只用於降低停用後被 in-flight 寫入者蓋回去的機率（2026-10-23 使用者決定）。
 
 目前沒有 production DB mutation。Code PR、merge 與 deploy 不構成 cleanup apply 核准，spec 維持 active。
 
