@@ -8,7 +8,10 @@ contains the word `pending` on purpose, as real records do.
 
 The section ends at the first heading after `## Worktree disposition`: a `###`
 subsection such as `### Gates at the close-out audit`, or the next `## `
-(user decision, 2026-10-22). Subsections are kept as they are and never rewritten.
+(user decision, 2026-10-22). Subsections are kept as they are and never rewritten,
+but both modes refuse a record whose subsections hold a six-value table (user
+decision, 2026-10-22): such a record departs from the README template, which puts
+the table directly under `decided at`.
 
 The committed records under docs/evaluation/campaigns/ are also verified directly.
 Committed records are not rewritten (README § Correction), so they are stable
@@ -454,15 +457,87 @@ def test_verify_fails_on_duplicated_freshness_table(backfill, capsys, files):
     assert "reason=row `branch tip` appears 2 times" in out.splitlines()
 
 
+SUBSECTION_REASON = (
+    "reason=six-value table found inside a `###` subsection; "
+    "the table must precede the first subsection"
+)
+
+TABLE_ONLY = APPLIED_SECTION[APPLIED_SECTION.index("| Freshness"):]
+TABLE_HEADER_ONLY = "| Freshness value | Observed at the close-out audit |\n|---|---|\n"
+TABLE_ONE_ROW = "| Check | Value |\n|---|---|\n| behind `origin/main` | `4` |\n"
+
+
 def test_verify_does_not_read_freshness_table_after_subsection(backfill, capsys, files):
     """The shape of the 2026-10-13 senses-taxonomy record: table after `### Gates`."""
     _, _, capsule = files(PENDING_RECORD)
     split = APPLIED_SECTION.index("| Freshness")
-    before, table = APPLIED_SECTION[:split], APPLIED_SECTION[split:]
-    text = HEAD + before + GATES + table + "\n" + TAIL
+    before = APPLIED_SECTION[:split]
+    text = HEAD + before + GATES + TABLE_ONLY + "\n" + TAIL
     code, out, _ = verify(backfill, capsys, capsule, text)
     assert code == 1
-    assert "reason=row `branch tip` appears 0 times" in out.splitlines()
+    lines = out.splitlines()
+    assert "reason=row `branch tip` appears 0 times" in lines
+    assert lines[-1] == SUBSECTION_REASON
+
+
+@pytest.mark.parametrize("table", [TABLE_ONLY, TABLE_HEADER_ONLY, TABLE_ONE_ROW])
+def test_six_value_table_inside_subsection_is_refused(backfill, capsys, files, table):
+    gates = GATES + table + "\n"
+    pending_record = HEAD + PENDING_SECTION + gates + TAIL
+    record, block, capsule = files(pending_record)
+    code, out, err = apply(backfill, capsys, record, block, capsule)
+    assert code == 3, err
+    assert out.splitlines() == ["result=unexpected_state", SUBSECTION_REASON]
+    assert record.read_text(encoding="utf-8") == pending_record
+
+    applied_record = HEAD + APPLIED_SECTION + "\n" + gates + TAIL
+    record.write_text(applied_record, encoding="utf-8")
+    code, out, _ = apply(backfill, capsys, record, block, capsule)
+    assert code == 3
+    assert out.splitlines() == ["result=unexpected_state", SUBSECTION_REASON]
+    assert record.read_text(encoding="utf-8") == applied_record
+
+    code, out, _ = verify(backfill, capsys, capsule, applied_record)
+    assert code == 1
+    assert out.splitlines() == ["verify=fail", SUBSECTION_REASON]
+
+
+def test_six_value_table_in_a_later_subsection_is_refused(backfill, capsys, files):
+    later = "### Removal\n\nObserved again after removal.\n\n" + TABLE_ONLY + "\n"
+    _, _, capsule = files(PENDING_RECORD)
+    code, out, _ = verify(backfill, capsys, capsule, HEAD + APPLIED_SECTION + "\n" + GATES + later + TAIL)
+    assert code == 1
+    assert out.splitlines() == ["verify=fail", SUBSECTION_REASON]
+
+
+def test_ordinary_tables_and_prose_in_gates_are_not_refused(backfill, capsys, files):
+    gates = (
+        "### Gates at the close-out audit\n\n"
+        "The branch tip, ahead and behind counts, dirty count, ignored artifact set and\n"
+        "path identity were observed again; see the Freshness value table above.\n\n"
+        "| Unhandled-work source | Run 1 | Run 2 |\n"
+        "|-----------------------|-------|-------|\n"
+        "| `tasks.md` unchecked items | 0 | 0 |\n"
+        "| Work-marker words on lines added | 0 | branch tip `ca569d8d` |\n"
+        "| Script verdict | `HOLD` | behind 6, dirty count 0 |\n\n"
+        "| Residue check | Observed |\n|---|---|\n| directory | `directory=gone` |\n\n"
+        "```text\n| branch tip | `quoted in a fence` |\n```\n\n"
+    )
+    record, block, capsule = files(HEAD + PENDING_SECTION + gates + TAIL)
+    code, out, err = apply(backfill, capsys, record, block, capsule)
+    assert code == 0, out + err
+    assert out.splitlines()[-1] == "result=applied"
+    applied = HEAD + APPLIED_SECTION + "\n" + gates + TAIL
+    assert record.read_text(encoding="utf-8") == applied
+    assert verify(backfill, capsys, capsule, applied)[:2] == (0, "verify=pass\n")
+
+
+def test_six_value_table_in_next_h2_section_is_not_a_subsection(backfill, capsys, files):
+    tail = TAIL.replace("## Evidence anchors\n", "## Evidence anchors\n\n" + TABLE_ONLY + "\n")
+    assert tail != TAIL
+    record, block, capsule = files(HEAD + PENDING_SECTION + GATES + tail)
+    code, out, err = apply(backfill, capsys, record, block, capsule)
+    assert code == 0, out + err
 
 
 def test_verify_missing_heading_is_an_error(backfill, capsys, files):
@@ -536,9 +611,9 @@ REAL_RECORDS = {
     },
 }
 
-# Legacy format, accepted as an exception (user decision, 2026-10-22): the
-# freshness table sits after `### Gates at the close-out audit`, so it is outside
-# the checked section and this record does not verify even with the right capsule.
+# Departs from the README template (user decision, 2026-10-22): the freshness
+# table sits after `### Gates at the close-out audit`, inside a subsection, so the
+# record is refused even with the right capsule.
 LEGACY_RECORD = "2026-10-13-senses-taxonomy.md"
 LEGACY_CAPSULE = {
     "decided_at": "2026-10-12T22:39:21Z",
@@ -572,12 +647,41 @@ def test_committed_records_reject_wrong_capsule(backfill, capsys, tmp_path, name
     assert any(line.startswith("reason=row `dirty count`") for line in out.splitlines())
 
 
-def test_legacy_record_with_table_after_subsection_does_not_verify(backfill, capsys, tmp_path):
+def test_record_departing_from_template_does_not_verify(backfill, capsys, tmp_path):
     code, out = verify_committed(backfill, capsys, tmp_path, LEGACY_RECORD, LEGACY_CAPSULE)
     assert code == 1
     lines = out.splitlines()
     assert lines[0] == "verify=fail"
-    assert lines[1:] == [f"reason=row `{label}` appears 0 times" for label in (
+    assert lines[-1] == SUBSECTION_REASON
+
+
+# Departs from the README template (user decision, 2026-10-22): its disposition
+# section holds two six-value tables, the decision table and a Phase A reference
+# table. One section carries exactly one table; reference observations are prose.
+TWO_TABLE_RECORD = "2026-10-22-authoritative-venue-repair.md"
+TWO_TABLE_CAPSULE = {
+    "decided_at": "2026-10-22T08:11:18Z",
+    "branch_tip": "aadac0fe780136cdeddeed20bf906abdd1ee779e",
+    "ahead": "0", "behind": "0", "dirty_count": "0",
+    "ignored_artifact_set": "9",
+    "path_identity": "divergent, directory ttr-authoritative-venue-repair-worktree, "
+                     "branch feat/authoritative-venue-repair",
+}
+
+
+def test_record_with_two_six_value_tables_does_not_verify(backfill, capsys, tmp_path):
+    code, out = verify_committed(backfill, capsys, tmp_path, TWO_TABLE_RECORD, TWO_TABLE_CAPSULE)
+    assert code == 1
+    assert out.splitlines() == ["verify=fail"] + [f"reason=row `{label}` appears 2 times" for label in (
         "branch tip", "ahead of origin/main", "behind origin/main",
         "dirty count", "ignored artifact set", "path identity",
     )]
+
+
+def test_record_departing_from_template_is_refused_by_apply(backfill, capsys, files):
+    original = (CAMPAIGNS / LEGACY_RECORD).read_text(encoding="utf-8")
+    record, block, capsule = files(original)
+    code, out, _ = apply(backfill, capsys, record, block, capsule)
+    assert code == 3
+    assert out.splitlines() == ["result=unexpected_state", SUBSECTION_REASON]
+    assert record.read_text(encoding="utf-8") == original

@@ -31,8 +31,18 @@ Modes:
       above: no `pending`, disposition `remove`, `decided at` equal to the capsule's
       decided_at, and the six freshness rows matching the capsule. Text outside the
       section, subsections included, may contain `pending` legitimately and is not
-      inspected. The freshness table must therefore come before the first `###`;
-      the 2026-10-13 senses-taxonomy record predates that rule and does not verify.
+      inspected. The freshness table must therefore come before the first `###`,
+      as the README template places it.
+
+Both modes also scan the subsections of `## Worktree disposition` (from the first
+`###` to the next `## `, fences skipped) for a freshness table: a table row whose
+first cell is `Freshness value` or one of the six row labels (`branch tip`,
+`ahead of ...`, `behind ...`, `dirty count`, `ignored artifact set`,
+`path identity`). Prose and other tables there do not count. A table inside a
+subsection means the record departs from the template; apply would leave it
+behind next to the new one and verify would not see it, so apply reports
+unexpected_state (exit 3, nothing written) and verify fails. The 2026-10-13
+senses-taxonomy record departs from the template this way.
 
 Capsule format: one `key: value` per line. Blank lines and lines starting with `#`
 are skipped; any other line that is not `key: value` is an error. Keys read here
@@ -92,6 +102,10 @@ FRESHNESS_ROWS = {
 VERIFY_KEYS = ("decided_at", *FRESHNESS_ROWS.values())
 APPLY_KEYS = (*VERIFY_KEYS, "record")
 
+SUBSECTION_TABLE_REASON = (
+    "six-value table found inside a `###` subsection; the table must precede the first subsection"
+)
+
 EXIT_OK = 0
 EXIT_VERIFY_FAILED = 1
 EXIT_INPUT_ERROR = 2
@@ -134,9 +148,8 @@ def parse_capsule(text: str, required: tuple[str, ...]) -> dict[str, str]:
     return capsule
 
 
-def heading_lines(lines: list[str]) -> list[tuple[int, int]]:
-    """(index, level) of every ATX heading outside fenced code blocks."""
-    found: list[tuple[int, int]] = []
+def unfenced(lines: list[str]):
+    """(index, line without line ending) for lines outside fenced code blocks."""
     fence: str | None = None
     for index, line in enumerate(lines):
         bare = line.rstrip("\r\n")
@@ -149,15 +162,25 @@ def heading_lines(lines: list[str]) -> list[tuple[int, int]]:
                 fence = None
             continue
         if fence is None:
-            heading = ATX_HEADING_RE.match(bare)
-            if heading:
-                found.append((index, len(heading.group(1))))
+            yield index, bare
+
+
+def heading_lines(lines: list[str]) -> list[tuple[int, int]]:
+    """(index, level) of every ATX heading outside fenced code blocks."""
+    found: list[tuple[int, int]] = []
+    for index, bare in unfenced(lines):
+        heading = ATX_HEADING_RE.match(bare)
+        if heading:
+            found.append((index, len(heading.group(1))))
     return found
 
 
-def find_section(text: str) -> tuple[int, int]:
-    """Character offsets [start, end) of the disposition section: from its heading
-    to the first heading after it (a `###` subsection or the next `## `)."""
+def find_section(text: str) -> tuple[int, int, int]:
+    """Character offsets of the disposition section: (start, end, whole_end).
+
+    [start, end) runs from its heading to the first heading after it (a `###`
+    subsection or the next `## `); [end, whole_end) holds its subsections, up to
+    the next heading of level 1 or 2."""
     lines = text.splitlines(keepends=True)
     headings = heading_lines(lines)
     starts = [i for i, level in headings if level == 2 and lines[i].rstrip() == HEADING]
@@ -168,10 +191,32 @@ def find_section(text: str) -> tuple[int, int]:
     start_line = starts[0]
     following = [i for i, _ in headings if i > start_line]
     end_line = following[0] if following else len(lines)
+    parents = [i for i, level in headings if i > start_line and level <= 2]
+    whole_end_line = parents[0] if parents else len(lines)
     offsets = [0]
     for line in lines:
         offsets.append(offsets[-1] + len(line))
-    return offsets[start_line], offsets[end_line]
+    return offsets[start_line], offsets[end_line], offsets[whole_end_line]
+
+
+def is_freshness_row(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped.startswith("|"):
+        return False
+    first = plain(stripped[1:].split("|", 1)[0]).lower()
+    return (
+        first == "freshness value"
+        or first in FRESHNESS_ROWS
+        or first.startswith("ahead of")
+        or first.startswith("behind")
+    )
+
+
+def subsection_problems(subsections: str) -> list[str]:
+    lines = subsections.splitlines(keepends=True)
+    if any(is_freshness_row(bare) for _, bare in unfenced(lines)):
+        return [SUBSECTION_TABLE_REASON]
+    return []
 
 
 def plain(cell: str) -> str:
@@ -258,8 +303,15 @@ def apply(record_path: str, block_path: str, capsule: dict[str, str]) -> int:
 
     text = read_text(record_path, "record")
     block = load_block(block_path)
-    start, end = find_section(text)
+    start, end, whole_end = find_section(text)
     old = text[start:end]
+
+    misplaced = subsection_problems(text[end:whole_end])
+    if misplaced:
+        print("result=unexpected_state")
+        for problem in misplaced:
+            print(f"reason={problem}")
+        return EXIT_UNEXPECTED_STATE
 
     if not PENDING_RE.search(old):
         problems = verify_section(old, capsule)
@@ -294,8 +346,8 @@ def apply(record_path: str, block_path: str, capsule: dict[str, str]) -> int:
 
 
 def verify(text: str, capsule: dict[str, str]) -> int:
-    start, end = find_section(text)
-    problems = verify_section(text[start:end], capsule)
+    start, end, whole_end = find_section(text)
+    problems = verify_section(text[start:end], capsule) + subsection_problems(text[end:whole_end])
     if problems:
         print("verify=fail")
         for problem in problems:
