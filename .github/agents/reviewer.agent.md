@@ -62,6 +62,16 @@ for r in (res.data or []):
 PY
 ```
 
+### 功能 1b：Guards 元評估（唯讀，#356）
+
+讀取 `docs/evaluation/guards/` 最新月份的 `YYYY-MM.md`（由 `monthly_health_check.yml` 執行 `scraper/guard_detections.py` 產生）：
+
+1. 「違規計數」不為 0 的 guard：判斷是 guard 沒有被程式碼套用，還是資料殘留，列入建議行動。
+2. 「連續 3 個月為 0」的候選：判斷規則是否已內化進程式碼、可以從 SKILL.md 精簡，或只是偵測條件寫錯。
+3. 「比上月增加」的 guard：優先排查。
+
+代理指標是待審清單，不是違規數；不要據此提議精簡。盤點與類型見 `docs/evaluation/guards/README.md`。
+
 ### 功能 2：Skills 新鮮度檢查
 
 1. 讀取 `.github/skills/` 下所有 `SKILL.md`（使用 `list_dir` 列出目錄，再 `read_file` 讀取各檔案的 frontmatter）
@@ -174,6 +184,10 @@ esac
 ## 3. Agent Scope 分析
 
 [無重疊 / 發現重疊說明]
+
+## 3b. Guards 元評估
+
+[非 0 的違規計數 / 候選精簡 / 比上月增加]
 
 ## 4. 建議行動清單（最多 5 項，依優先順序）
 
