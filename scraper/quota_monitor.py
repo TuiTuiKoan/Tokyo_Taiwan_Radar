@@ -18,13 +18,14 @@ import argparse
 import logging
 import math
 import os
-import re
 import sys
 from datetime import datetime, timedelta, timezone
 
 import requests
 from dotenv import load_dotenv
 from supabase import create_client
+
+import llm_cost
 
 load_dotenv(".env")
 
@@ -266,65 +267,55 @@ def build_line_message(db_check: dict, gh_check: dict, today: str,
 # Budget guard (used by eval-annotator-stage2.yml)
 # ---------------------------------------------------------------------------
 
-def check_budget(budget_usd: float) -> int:
-    """Pre-flight check: estimate 30d OpenAI annotator spend vs budget.
+JST = timezone(timedelta(hours=9))
+BUDGET_CALLER_PREFIX = "eval.annotator"
+BUDGET_DAYS = 7
 
-    Scans scraper_runs.notes for cost=$X.XXXX entries (source='annotator')
-    in the past 30 days. If any cost data is logged AND the sum exceeds
-    `budget_usd`, returns exit code 1 (skip eval). Otherwise returns 0.
 
-    If no cost data is logged yet, returns 0 (graceful pass) — the Stage 2
-    eval uses 14 frozen cases ≈ $0.001/run so this is mostly forward-compat.
-    Plan v6 Phase 2.B: integrate with quota_monitor before Stage 2 cron.
+def check_budget(budget_usd: float, *, sb=None, today=None) -> int:
+    """Pre-flight check: the annotator eval's OpenAI spend over the last 7 JST days vs budget.
+
+    Reads llm_cost_daily for callers starting with "eval.annotator" (the Stage 2
+    golden-set eval and its stage 3). Returns exit code 1 (skip the eval) when
+    the spend exceeds `budget_usd`, else 0. A missing or failing database
+    passes through, as before.
+
+    Until #322 this scanned scraper_runs.notes for "cost=$", which the annotator
+    never writes, so the check always passed.
     """
-    supabase_url = os.environ.get("SUPABASE_URL")
-    supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-    if not supabase_url or not supabase_key:
-        logger.warning("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set — skipping budget check")
-        return 0
+    if sb is None:
+        supabase_url = os.environ.get("SUPABASE_URL")
+        supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        if not supabase_url or not supabase_key:
+            logger.warning("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set — skipping budget check")
+            return 0
+        sb = create_client(supabase_url, supabase_key)
 
-    sb = create_client(supabase_url, supabase_key)
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    today = today or datetime.now(JST).date()
+    start = today - timedelta(days=BUDGET_DAYS - 1)
     try:
-        rows = (
-            sb.table("scraper_runs")
-            .select("notes")
-            .eq("source", "annotator")
-            .gte("ran_at", cutoff)
-            .execute()
-            .data or []
+        spend = llm_cost.window_cost(
+            sb, start, today + timedelta(days=1), caller_prefix=BUDGET_CALLER_PREFIX
         )
     except Exception as exc:
-        logger.warning("check_budget: scraper_runs fetch failed: %s — passing through", exc)
+        logger.warning("check_budget: llm_cost_daily read failed: %s — passing through", exc)
         return 0
 
-    total = 0.0
-    found_any = False
-    pat = re.compile(r"cost=\$?([0-9]+\.[0-9]+)")
-    for r in rows:
-        notes = r.get("notes") or ""
-        m = pat.search(notes)
-        if m:
-            found_any = True
-            try:
-                total += float(m.group(1))
-            except ValueError:
-                continue
-
+    total = spend["total"]
     logger.info(
-        "Budget check: 30d annotator spend ≈ $%.4f (budget $%.2f, cost_logs=%s)",
-        total, budget_usd, "yes" if found_any else "none-yet",
+        "Budget check: %s* spend %s..%s = $%.4f over %d call(s) (budget $%.2f)",
+        BUDGET_CALLER_PREFIX, start, today, total, spend["calls"], budget_usd,
     )
-    if found_any and total > budget_usd:
-        logger.error(
-            "Budget exceeded: $%.4f > $%.2f — skipping Stage 2 eval",
-            total, budget_usd,
-        )
+    if spend["unpriced_calls"]:
+        logger.warning("Budget check: %d call(s) have no llm_pricing row; their cost is missing",
+                       spend["unpriced_calls"])
+    if total > budget_usd:
+        logger.error("Budget exceeded: $%.4f > $%.2f — skipping Stage 2 eval", total, budget_usd)
         # Best-effort LINE alert (no failure if creds missing).
         try:
             from line_notify import send_line_message
             send_line_message(
-                f"⚠️ Stage 2 eval skipped: 30d annotator spend "
+                f"⚠️ Stage 2 eval skipped: {BUDGET_DAYS}-day {BUDGET_CALLER_PREFIX} spend "
                 f"${total:.4f} > budget ${budget_usd:.2f}"
             )
         except Exception:
@@ -423,8 +414,8 @@ if __name__ == "__main__":
     parser.add_argument("--always", action="store_true",
                         help="Send LINE report even when below threshold")
     parser.add_argument("--check-budget", action="store_true",
-                        help="Pre-flight budget guard. Exit 1 if estimated 30d "
-                             "OpenAI annotator spend exceeds --budget-usd. "
+                        help="Pre-flight budget guard. Exit 1 if the last 7 days' "
+                             "eval.annotator* OpenAI spend exceeds --budget-usd. "
                              "Used by eval-annotator-stage2.yml before running Stage 2.")
     parser.add_argument("--budget-usd", type=float, default=0.50,
                         help="USD budget cap for --check-budget (default 0.50).")

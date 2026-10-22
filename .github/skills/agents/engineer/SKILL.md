@@ -1422,6 +1422,7 @@ ALTER TABLE research_sources
 - Call `llm_client.finish()` at the end of a script's `__main__`; it exits non-zero when most calls failed.
 - A new LLM step in `scraper.yml` gets an `id`, `continue-on-error: true`, and a line in the final "Fail on LLM step errors" step.
 - Source health is judged by output (`scraper/source_health.py`), not by run success.
+- OpenAI cost in reports comes from `scraper/llm_cost.py` (the `llm_cost_daily` view, JST days, paged), never from `scraper_runs.cost_usd`, which only covered the annotator. Any Supabase read that can pass 1000 rows goes through `db_paging.fetch_all(lambda: query)` with a stable order.
 - Supabase reads that can exceed 1000 rows use `db_paging.fetch_all(lambda: <query>)`. Pass a factory: postgrest-py's `.range()` appends params, so reusing one builder for several pages sends duplicate offset/limit.
 
 ### OpenAI Org-Level Quota Monitoring (separate concern from per-call budget)
