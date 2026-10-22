@@ -35,6 +35,11 @@ OUTPUT_DECISIONS = frozenset({"ask"})
 MESSAGE_PREFIX = "ttr-hook:"
 INTERNAL_ERROR = "ttr-hook: internal error, blocked"
 ASK_REASON = "ttr-hook: git push to main, or to a destination the hook cannot determine, requires explicit user approval [push-gate]"
+ASK_CONFIG_REASON = (
+    "ttr-hook: changing git configuration that redirects pushes or disables hooks "
+    "requires explicit user approval [git-config-gate]"
+)
+ASK_REASONS = {"push-gate": ASK_REASON, "git-config-gate": ASK_CONFIG_REASON}
 
 BASH_TOOLS = frozenset({"Bash", "Monitor"})
 FILE_FIELDS = {
@@ -132,13 +137,14 @@ class Decision:
 
     def message(self) -> str:
         if self.kind == "ask":
-            return ASK_REASON
+            return ASK_REASONS[self.rule]
         reason, alternative = RULES[self.rule]
         return f"{MESSAGE_PREFIX} blocked [{self.rule}] {reason}. Safer: {alternative}"
 
 
 ALLOW = Decision("allow")
 ASK_PUSH = Decision("ask", "push-gate")
+ASK_CONFIG = Decision("ask", "git-config-gate")
 
 
 def deny(rule: str) -> Decision:
@@ -234,6 +240,35 @@ def file_decision(payload: object) -> Decision:
             raise ValueError(key)
         if is_sensitive(value, glob=key == INPUT_GLOB):
             return deny(rule)
+        if tool in WRITE_TOOLS and is_git_config_path(value):
+            return ASK_CONFIG
+    return ALLOW
+
+
+# --- git configuration files (pr-flow-tiering Phase C) ---------------------
+
+# .git/config, .git/config.worktree, .git/worktrees/<name>/config[.worktree], .git/modules/<path>/config
+GIT_CONFIG_RE = re.compile(r"(?:^|.*/)\.git/(?:worktrees/[^/]+/|modules/.+/)?config(?:\.worktree)?")
+
+
+def is_git_config_path(text: str) -> bool:
+    return bool(GIT_CONFIG_RE.fullmatch(text))
+
+
+def check_git_config_file(cmd: Command, name: str, args: list[Word]) -> Decision:
+    """Shell writes into a git config file ask: they can redirect pushes or disable hooks."""
+    for redirect in cmd.redirects:
+        op = redirect.op.lstrip("0123456789")
+        if not redirect.heredoc and op in WRITE_REDIRECTS and is_git_config_path(redirect.target.text):
+            return ASK_CONFIG
+    texts = [w.text for w in args]
+    writes = (
+        name in WRITE_VERBS
+        or (name == "sed" and any(t.startswith(("-i", "--in-place")) for t in texts))
+        or (name in ("awk", "gawk") and "inplace" in texts)
+    )
+    if writes and any(is_git_config_path(t) for t in texts):
+        return ASK_CONFIG
     return ALLOW
 
 
@@ -450,7 +485,7 @@ def evaluate_command(command: str, depth: int = 0) -> Decision:
 
 def check_command(cmd: Command) -> Decision:
     name, args, early = unwrap(cmd.words)
-    decisions = [check_env_file(cmd, name, args)]
+    decisions = [check_env_file(cmd, name, args), check_git_config_file(cmd, name, args)]
     if early:
         decisions.append(early)
     elif name:
@@ -553,16 +588,67 @@ PUSH_OPT_ARG = frozenset({"-o", "--push-option", "--repo", "--receive-pack", "--
 PUSH_DESTRUCTIVE = frozenset({"--force", "--force-if-includes", "--delete", "--mirror", "--prune"})
 # Pushes that may carry main or publish tags, and --no-verify (skips the gitleaks pre-push hook).
 PUSH_ASK_FLAGS = frozenset({"--all", "--branches", "--tags", "--follow-tags", "--no-verify"})
+# Known options that do not change the destination. Anything else asks (Phase C P2).
+PUSH_FLAGS = frozenset({
+    "--verbose", "--quiet", "--dry-run", "--set-upstream", "--thin", "--no-thin", "--porcelain",
+    "--progress", "--no-progress", "--atomic", "--no-atomic", "--signed", "--no-signed",
+    "--no-recurse-submodules", "--ipv4", "--ipv6", "--verify", "--no-force-with-lease",
+    "--no-force-if-includes", "--",
+})
+PUSH_FLAGS_WITH_VALUE = ("--signed=", "--recurse-submodules=", "--push-option=", "--repo=", "--receive-pack=", "--exec=")
+PUSH_SHORT = frozenset("vqnu46")  # -o is handled separately, -f/-d deny
 MAIN_REFS = frozenset({"main", "refs/heads/main", "heads/main"})
+
+CONFIG_READ = frozenset({
+    "--get", "--get-all", "--get-regexp", "--get-urlmatch", "--get-color", "--get-colorbool",
+    "--list", "-l", "--show-origin", "--show-scope",
+})
+CONFIG_OPT_ARG = frozenset({"--file", "-f", "--blob", "--type", "--default", "--comment", "--value"})
+CONFIG_EDIT = frozenset({"--edit", "-e", "edit"})
+# Keys whose value changes where a later push goes or whether the pre-push hook runs.
+CONFIG_GATE_RE = re.compile(
+    r"remote\..+\.(?:push|mirror)|push\..+|core\.hookspath|url\..+\.(?:push)?insteadof|alias\..+",
+    re.IGNORECASE,
+)
+
+
+def check_git_config(args: list[Word]) -> Decision:
+    """Reads allow; writes to a push-relevant key (any scope or file) ask; -e/--edit asks."""
+    positional, i = [], 0
+    while i < len(args):
+        word, text = args[i], args[i].text
+        if text in CONFIG_READ:
+            return ALLOW
+        if text in CONFIG_EDIT:
+            return ASK_CONFIG
+        if text in CONFIG_OPT_ARG:
+            i += 2
+            continue
+        if not text.startswith("-"):
+            positional.append(word)
+        i += 1
+    if positional and positional[0].text in ("get", "list"):
+        return ALLOW
+    if positional and positional[0].text in ("set", "unset", "rename-section", "remove-section"):
+        positional = positional[1:]
+    if any(_dynamic(w) or CONFIG_GATE_RE.fullmatch(w.text) for w in positional):
+        return ASK_CONFIG
+    return ALLOW
 
 
 def check_git(args: list[Word]) -> Decision:
-    i = 0
+    # Global options other than -C and the pager-style flags (-c, --config-env, --git-dir,
+    # --work-tree, --namespace, --exec-path, --super-prefix) can change where a push goes
+    # (remote.<name>.push, push.default, url.*.pushInsteadOf), read another repository's
+    # configuration, or disable the pre-push hook (core.hooksPath). A push behind them asks.
+    i, reconfigured = 0, False
     while i < len(args):
         text = args[i].text
         if text in GIT_OPT_ARG:
+            reconfigured = reconfigured or text != "-C"
             i += 2
         elif text.startswith("--") and text.split("=", 1)[0] in GIT_OPT_ARG:
+            reconfigured = True
             i += 1
         elif text in GIT_FLAGS:
             i += 1
@@ -580,7 +666,12 @@ def check_git(args: list[Word]) -> Decision:
         return dynamic
     texts, flags = [w.text for w in rest], _short_flags(rest)
     if sub == "push":
-        return check_push(rest)
+        decision = check_push(rest)
+        return ASK_PUSH if reconfigured and decision.kind == "allow" else decision
+    if sub == "config":
+        return check_git_config(rest)
+    if sub == "remote" and texts[:1] == ["add"] and any(t == "--mirror" or t.startswith("--mirror=") for t in texts):
+        return ASK_CONFIG
     if sub == "reset" and "--hard" in texts:
         return deny("git-reset-hard")
     if sub == "clean" and not ("--dry-run" in texts or "n" in flags):
@@ -620,7 +711,7 @@ def check_push(args: list[Word]) -> Decision:
     deny beats ask beats allow. Allow only when every refspec names a destination
     that is certainly not main; otherwise ask.
     """
-    i, positional, bulk = 0, [], False
+    i, positional, unresolved = 0, [], False
     while i < len(args):
         word, text = args[i], args[i].text
         if text in PUSH_OPT_ARG:
@@ -629,20 +720,26 @@ def check_push(args: list[Word]) -> Decision:
         if text in PUSH_DESTRUCTIVE or text.startswith("--force-with-lease"):
             return deny("git-force-push")
         if text in PUSH_ASK_FLAGS:
-            bulk = True
-        elif text.startswith("-") and not text.startswith("--") and len(text) > 1:
+            unresolved = True
+        elif text in PUSH_FLAGS or (text.startswith(PUSH_FLAGS_WITH_VALUE) and text.split("=", 1)[1]):
+            pass
+        elif text.startswith("--") or text == "-":
+            unresolved = True  # unknown option: its effect on the destination is unknown
+        elif text.startswith("-"):
             group, has_o, value = text[1:].partition("o")  # -o takes the rest of the group as its value
             if "f" in group or "d" in group:
                 return deny("git-force-push")
+            if not set(group) <= PUSH_SHORT:
+                unresolved = True
             if has_o and not value:
                 i += 1  # -uo <value>: the value is the next argument
-        elif not text.startswith("-"):
+        else:
             positional.append(word)
         i += 1
     if any(w.text.startswith(("+", ":")) for w in positional):
         return deny("git-force-push")
     refspecs = positional[1:]  # positional[0] is always the repository (builtin/push.c)
-    if bulk or not refspecs or any(_dynamic(w) for w in positional):
+    if unresolved or not refspecs or any(_dynamic(w) for w in positional):
         return ASK_PUSH
     destinations = [_push_destination(w) for w in refspecs]
     if None in destinations or any(dst in MAIN_REFS for dst in destinations):
