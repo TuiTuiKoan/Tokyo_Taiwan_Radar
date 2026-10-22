@@ -227,5 +227,7 @@ Phase A 輸出之後**結束本輪回覆，等使用者回應**。同一輪不�
 
 ## 完成後
 
+結案與退役完成後，依 `git.instructions.md` § Telling other running sessions，向同 repo 其他 Claude Code session 傳一則純文字通知（被退役的 worktree 與分支、結案記錄的 commit 主旨與日期）。不等回覆；通知不是核准；送不出去不算結案失敗。
+
 回報：A2 兩張表、A4 六值、A3 verdict 與覆蓋邊界、所有 `not_checked` 項、記錄檔路徑、
 anchor 與 ledger 路徑、以及 worktree 的最終處置。若處置為 `pending`，明確說明缺什麼、由誰補。

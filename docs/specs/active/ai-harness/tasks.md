@@ -38,13 +38,16 @@
 
 ### 2a（條件：Phase 1 commit 存在；D4' 已裁決。兩項都已成立）
 
-- [ ] `.gitignore` 加 `.claude/worktrees/`
+- [x] `.gitignore` 加 `.claude/worktrees/`
 - [ ] 不建立會複製 `scraper/.env`、`web/.env.local` 的 `.worktreeinclude`（D4 已撤回）；若建立，只列審過的非 secrets 檔案
 - [ ] agent worktree 的 dry-run 驗證只限已確認不需憑證的來源（目前僅 TCC）；其他來源 NOT TESTED，用 fixture、mock 或使用者自行驗證（靜態核對反例：`gguide_tv`、`cinemaclair`、`tokyoartbeat`）
-- [ ] 驗證 web build 能否以佔位值（命令列傳入）通過；不行則另案補 `web/.env.example`（需讀 `web.instructions.md`）
-- [ ] 修正 `git.instructions.md` 的 exclude reconcile 片段（macOS bash 3.2 的 `case` pattern 要寫成 `("$root"/*)`）
-- [ ] 治理文件補三句（git 建立、git 清理、結案後以跨 session 訊息通知）
-- [ ] Spike（一次性）：**一個**工作流、**一個**工具（Orca orchestration 或 agent teams 擇一），事先寫下成功與停止條件；一次執行後無明確收益即停止
+- [x] 驗證 web build 以佔位值（命令列傳入）通過：`pnpm --dir web run build` exit 0、250 個靜態頁（notes.md §9）；不需補 `web/.env.example`。執行階段（連線、登入）仍 NOT TESTED
+- [x] 修正 `git.instructions.md` 的 exclude reconcile 片段（macOS bash 3.2 的 `case` pattern 要寫成 `("$root"/*)`）；先前以修正版實測 converged
+- [x] 治理文件補三句：`git.instructions.md` 新增兩節（建立與清理只走 git、不複製 secrets；推送與結案後以跨 session 訊息通知），並在 `validate-merge-deploy.agent.md`（Step 5 第 7 項）與 `campaign-closer.agent.md`（完成後）加一條通知指示
+- [x] Spike 方案已寫好（使用者選 Claude agent teams）：[spike-agent-teams.md](./spike-agent-teams.md)，含啟動指令、提示詞、成功與停止條件、判定規則
+- [x] Spike 已由使用者執行一次（2026-10-23）；完整報告 `spike-result.md`，核對與判定見 notes.md §10
+- [x] Spike 重跑完成（相同提示詞，補量測 S3）：用量前後皆 15%／29%／7%（差 0 點）；無污染；S4 成立；第一次報告已還原為 `spike-result-run1.md`（SHA-256 相符）。**最終判定：可列入 Phase 2b 考慮，不是採用**（notes.md §12）
+- [ ] Phase 1 後續修正（兩次 spike 的共同發現，使用者決定是否做；先寫會失敗的測試再修）：`write_outputs` 先檢查衝突再刪除（A，已重現，兩次都出現）；`is_generated` 只認首個非空行並依副檔名對應 marker（E，兩次都出現）；補測 tier 的寫入模式拒絕（B）、缺 tier 的輸出契約（C）、`--check` 對殘留 `.toml`（T4）、手寫同名 `.toml`（T5）、tier 邊界值與行內註解（T7、#13，已重現）、description 特殊字元 round-trip（D、#5）；`toml_string` 對 DEL（D，已重現）與孤立 surrogate（#7，已重現）；kebab 名稱碰撞偵測（#8，已重現）
 
 ### 2b（條件：2a 條件；Phase 1 NOT TESTED 已驗證〔已成立〕；第一週配額基準已記錄且沒有耗盡配額；spike 已結案）
 

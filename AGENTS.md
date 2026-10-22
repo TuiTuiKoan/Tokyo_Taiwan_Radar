@@ -64,11 +64,19 @@ Claude Code 可直接叫用 `.claude/agents` 下的 subagent wrapper。Codex 沒
 | Peatix Scraper | `peatix-scraper` | `.github/agents/subagents/scraper-peatix.agent.md` | Peatix 來源 scraper subagent。 |
 | TCC Scraper | `tcc-scraper` | `.github/agents/subagents/scraper-tcc.agent.md` | Taiwan Cultural Center 來源 scraper subagent。 |
 
+### Codex 委派
+
+Codex 不會因為 `.codex/agents/*.toml` 存在就自動派用 subagent（2026-10-23 實測：前兩次只讀了檔案、沒有啟動 subagent，其中一次還回報「spawned successfully」）。所以日常使用 Codex 時：
+
+- 需要某個角色（例如 tester 驗證改動）時，**明確**寫出「用 `<kebab>` subagent 執行 …」；使用者沒講、但本檔或 agent 檔的流程要求該角色時，Codex 自己也要照此明確委派，不可略過。
+- 判斷 subagent 是否真的啟動，看事件紀錄（`codex exec --json` 的事件或 session 紀錄），不要只信模型自己說「已啟動」。事件紀錄看不到 subagent 啟動時，向使用者如實回報「未委派，由本 session 自行執行」。
+- 做不到委派（無 subagent 能力、被拒絕）時，讀對應 agent 檔後自行執行，並在報告中註明。
+
 ## Copilot 對照表
 
 | Copilot / VS Code 機制 | Claude Code / Codex 對應方式 |
 | --- | --- |
-| `runSubagent` | Claude Code：呼叫對應 `.claude/agents/<kebab>.md` subagent（Task）。Codex：若有 subagent 能力則使用對應 subagent，否則讀原始 agent 檔後依序自行執行。 |
+| `runSubagent` | Claude Code：呼叫對應 `.claude/agents/<kebab>.md` subagent（Task）。Codex：**必須明確要求才會啟動 subagent**（見下方「Codex 委派」）；沒有明確要求時不會自動派用 `.codex/agents/*.toml`，只能讀原始 agent 檔後依序自行執行。 |
 | `vscode_askQuestions` / `ask_user` | 在對話中直接向使用者提問並等待回答。 |
 | `/memories/session/plan.md`（legacy 路徑，僅供閱讀舊檔） | 優先寫到 `docs/specs/active/<slug>/`；沒有 slug 時寫到本機 `~/.ai-notes/ttr/plan.md` 並告知使用者。舊檔讀不到時，向使用者要 slug 或內容，不改讀其他位置。 |
 | `semantic_search` / `grep_search` / `read_file` / `fetch_webpage` / `get_errors` | 使用 Claude Code / Codex 內建的對應搜尋、讀檔、網頁抓取與診斷工具。 |

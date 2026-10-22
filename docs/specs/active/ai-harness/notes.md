@@ -180,3 +180,199 @@ rev.2 的四份文件已 commit：`dfb40b6b`（docs(specs): revise ai-harness pl
 影響：
 - AGENTS.md 模型政策補一句：`effort` 只在 agent 被當作 subagent 委派時生效（已修改，未 commit）。
 - plan §3.1 Phase 2b 的條件 (c) 成立；仍須滿足 (d) 配額基準與 (e) spike 結案。
+
+## 9. Phase 2a（2026-10-23）
+
+使用者核准開始 Phase 2，spike 選 Claude agent teams（不測 Orca orchestration）。執行者：Claude Code，Opus 5.5。起點：`2f5021e0`。
+
+完成的 housekeeping：
+
+| 項目 | 變更 |
+|---|---|
+| `.gitignore` | 加 `.claude/worktrees/` |
+| `git.instructions.md` | exclude reconcile 片段的 `case` pattern 改為 `("$root"/*)`，並說明 macOS bash 3.2 的原因；新增 § Tools that show or create worktrees（只用 git 建立與清理、不使用工具的 Delete、不複製 secrets）與 § Telling other running sessions（Claude Code 專屬，純文字，不等回覆，不是核准） |
+| `validate-merge-deploy.agent.md` | Step 5 新增第 7 項：部署驗證後通知其他 session |
+| `campaign-closer.agent.md` | 「完成後」加一段：結案後通知其他 session |
+
+驗證：`python3 scripts/sync_ai_adapters.py` 重生成成功，`--check` exit 0，生成的 `.claude/agents` 沒有變動（只改了本文，沒改 frontmatter）。主工作樹 `git status` 乾淨，沒有與這三個檔案衝突的未提交修改。exclude 片段的修正版先前已在 bash 3.2 下實測 converged（§1）；這次沒有重跑，因為 guard 會擋直接以 `/bin/bash` 執行檔案的檢查命令。
+
+Spike：agent teams 在非互動模式（`claude -p`）不會 spawn teammate（官方文件），而且需要實驗旗標，所以無法由我代跑。方案、啟動指令、提示詞、成功與停止條件、判定規則已寫在 [spike-agent-teams.md](./spike-agent-teams.md)，執行前寫定、事後不改。待使用者執行並回報後，結果記在本檔的下一節。
+
+不在 2a 範圍：Orca 安裝、`.worktreeinclude`（D4' 決定不建立）、web 佔位值 build 驗證、agent worktree 的 dry-run 範圍限定。後兩項是 2a 的待辦，尚未做；見 tasks.md。
+
+### 9.1 web build 以佔位值驗證（2026-10-23，本機實測）
+
+方法：在 `ttr-ai-harness-worktree`（沒有任何 env 檔，用 `test -f` 確認 scraper 端沒有；web 端未讀取任何 env 檔）執行 `pnpm --dir web install --frozen-lockfile`，再以命令列傳入三個佔位值執行 `pnpm --dir web run build`：
+
+| 變數 | 值 |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://placeholder.invalid` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `placeholder-anon-key` |
+| `NEXT_PUBLIC_SITE_URL` | `http://localhost:3000` |
+
+結果：exit 0；`prebuild`（i18n parity、JSON-LD security、specs snapshot）通過；Next.js 編譯成功並產生 250 個靜態頁。`git status` 沒有因 build 而新增或修改被追蹤的檔案（`web/node_modules/`、`web/.next/` 是 ignored）。
+
+意義：D4' 的 web 部分成立，web build 不需要 secrets，也不需要補 `web/.env.example`。
+限制：build 以外沒有驗證。需要真實 Supabase 的執行階段行為（`next dev`、登入、Admin CRUD、帶資料的頁面）仍 NOT TESTED，且依 D4' 不在 agent worktree 內做。這次 build 沒有觸及真實 Supabase，所以也沒有驗證「佔位值是否讓有資料的靜態頁變成空頁」。
+
+### 9.2 工作樹上他人的修改
+
+04:21（本 session 的 Phase 2a 工作期間），`AGENTS.md` 出現一段不是本 session 寫的修改：新增「Codex 委派」小節並改寫 Copilot 對照表的 `runSubagent` 列，內容引用 §8 的 Codex 發現（必須明確要求才會 spawn、以事件紀錄而非模型自述判斷）。修改者不明，內容與 §8 一致，本 session 當作現況保留，未 commit，等使用者確認後一併 commit。
+
+## 10. Spike 結果：agent teams（2026-10-23）
+
+使用者依 [spike-agent-teams.md](./spike-agent-teams.md) 執行一次。完整報告：[spike-result.md](./spike-result.md)（lead 寫入，6,514 bytes，未修改）。核對者：Claude Code（Opus 5.5），事後獨立查證。
+
+### 10.1 這是真正的 agent team
+
+報告自己寫「本環境沒有 team 建立工具，以兩個具名 Plan 類型 subagent 加 SendMessage 模擬」。**這是 lead 對機制的誤解**：官方文件說，啟用 agent teams 後，以 `name` 啟動的 subagent 就是以 teammate 方式啟動。證據（本機）：`~/.claude/teams/session-092ec819/config.json` 存在，成員為 `team-lead`、`correctness`（agentType `Plan`、model `sonnet`）、`tests`（`Plan`、`sonnet`），並有 `inboxes/team-lead.json` 與 `inboxes/tests.json`。所以 spike 有效，只是 lead 的自我描述不可信，與 §8 Codex 的情形同型：**判斷要看紀錄，不看模型自述**。
+
+### 10.2 客觀數據（來自 session transcript，不是 `/usage`）
+
+| 項目 | 值 |
+|---|---|
+| 耗時 | 04:35:59 到 04:37:27，約 1.5 分鐘（上限 15 分鐘） |
+| 模型與 effort | lead、correctness、tests 全為 `claude-sonnet-5-5`、effort `medium` |
+| lead | 16 則 assistant 訊息；輸出 17.2k；cache 寫入 163k；cache 讀取 946k |
+| correctness | 7 則；輸出 9.1k；cache 寫入 82k；cache 讀取 342k |
+| tests | 6 則；輸出 8.8k；cache 寫入 144k；cache 讀取 242k |
+| 合計 | 輸出約 35k；cache 寫入約 389k；cache 讀取約 1.53M |
+
+用量百分比（S3）：使用者沒有提供開始與結束的 `/usage`，我無法觀測；token 數不能換算成方案百分比，所以 **S3 未成立也未失敗，維持待確認**。
+
+### 10.3 發現的核對（lead 事後逐項）
+
+| # | 發現 | 核對方式與結果 |
+|---|---|---|
+| A | `write_outputs` 先 `unlink` 全部生成檔，才逐檔檢查 "refusing to overwrite" | **已重現**：在拋棄式副本放一個無 marker 的 `.codex/agents/tester.toml`，`sync` exit 1 並報 refusing to overwrite；失敗後 175 個生成檔少了 2 個（排序在 tester 之後的 `update-history-skill-agent.toml`、`validate-merge-deploy.toml`），其餘已被重寫。手寫檔本身完好。影響：`git restore` 或修好後重跑即可復原，所以是順序缺陷，不是資料遺失；嚴重度 low 到 medium。此排序在加入 `.codex` 之前就存在，`.codex` 增加了被觸發的機會 |
+| B | 缺 tier 時寫入模式拒絕寫檔沒有測試 | **靜態核對成立**：測試檔只有 `test_write_mode_refuses_when_roles_are_broken`，沒有 tier 版本 |
+| C | `tier=None` 時 `agent_outputs` 靜默省略欄位 | 靜態核對成立；`main()` 兩種模式都先擋，所以不是缺陷，是缺測。兩位各自獨立提出 |
+| D | `json.dumps(ensure_ascii=False)` 不跳脫 DEL（U+007F） | **已重現**：DEL 使 `tomllib` 報 `Illegal character '\x7f'`；引號、反斜線、tab、換行、U+2028、emoji、NUL、U+0085 都能 round-trip。實際 agent 的 description 不會含 DEL，所以嚴重度 low。兩位各自獨立提出（但 correctness 評 low、tests 評 high，lead 的 low 較貼近實況） |
+| E | `is_generated` 用子字串比對，兩種 marker 跨副檔名互通 | 靜態核對成立（`MARKER in text or TOML_MARKER in text`）；手寫檔只要引用 marker 文字就會被視為生成檔。low |
+| F | handoffs 全被略過時仍輸出空標題 | 靜態核對成立；既有行為，現在也出現在 Codex 檔。low |
+| G | `rglob` 對 symlink 的行為隨 Python 版本改變 | 未確認，維持 uncertain |
+| T4–T13 | 測試缺口 | 靜態核對：T4、T5、T6、T7、T8、T9、T10、T11、T12、T13 描述與測試檔相符；T12 報告自己也說只是維護成本。未逐項寫測試重現 |
+
+「兩位皆未找到可確認的 high 級程式缺陷」：同意，除了 tests 把 B、C、D 評為 high（缺測的重要性），核對後 D 是 low、C 是缺測、B 是真實測試缺口。
+
+### 10.4 判定規則的套用
+
+| 條件 | 結果 |
+|---|---|
+| S1 兩位 15 分鐘內交出附檔案與行號的發現 | **成立**（約 1.5 分鐘；行號由 diff 推算，報告自己註明可能差 1 到 2 行） |
+| S2 至少一項經確認的真實問題，且兩人的發現不全重複 | **成立**：A 與 D 已重現；A 只有 correctness 提出，B 與 T4 到 T13 只有 tests 提出；重疊只有 C、D |
+| S3 用量消耗 ≤ 5 個百分點 | **待使用者提供** |
+| S4 結束後 `git status` 只多出 `spike-result.md` | **成立**：`scripts/` 無任何修改；新增的未追蹤檔只有 `spike-agent-teams.md`（本 session 的方案）與 `spike-result.md` |
+| 停止條件 | 無觸發：沒有超時、teammate 沒要求寫入權限（`Plan` 類型沒有 Edit／Write）、lead 沒有自己實作 |
+
+**暫定判定**：S3 確認前不下最終判定。若使用者回報的用量消耗 ≤ 5 個百分點，記為「可列入 Phase 2b 考慮」，**不是採用**。
+
+### 10.5 這次結果能與不能說明什麼
+
+- 能：agent teams 在 Claude Code 2.1.308 可用；兩位 Sonnet teammate 在 1.5 分鐘內完成唯讀審查並找到至少兩個真實問題；全程沒有寫入。
+- 不能：沒有單一 agent 的對照組，所以不知道單一 session 是否也會找到同樣的問題，也不知道團隊的 token 成本相對單一 agent 是多少。三個 agent 合計約 1.53M cache 讀取，是否值得，需要與一次單 agent 審查的用量比較才能下結論，那是另一次實驗，本 spike 依停止規則不重跑。
+- 已知缺陷：lead 的自我描述不可信（§10.1）；報告行號是推算；teammate 回報被截斷時要靠 SendMessage 補送。
+
+### 10.6 後續（等使用者決定）
+
+spike 發現的 Phase 1 程式碼問題與測試缺口已列在 tasks.md，未動手修。
+
+### 10.7 S3 的量測缺口（2026-10-23）
+
+使用者貼上 spike 結束後的 `/usage`（只有「結束後」，沒有「開始前」的數字）：
+
+| 項目 | 值 |
+|---|---|
+| 該 session 的 API 等值花費 | $0.85（claude-sonnet-5-5：輸入 2.1k、輸出 16.7k、快取讀取 1.2m、快取寫入 192.3k；claude-haiku-5-5 $0.0006）。這是 lead session 的數字，與 transcript 合計的三個 agent（快取讀取約 1.53M、寫入約 389k）不完全相同，差異未查明，所以只當量級參考 |
+| Current session | 13% used（8:39am 重置） |
+| Current week（all models） | 28% used |
+| Current week（Fable） | 7% used |
+
+這些百分比是**帳號層、跨所有 session 的累計**，包含當時其他 session（含本 session 的規劃與驗證）的用量，所以無法從「結束後」單一數字反推 spike 自己消耗了幾個百分點。找過本機是否有開始前的歷史紀錄：`~/.claude/cc-statusline/` 只有 session 計時與訊息計數，沒有配額歷史；`~/.claude` 內其他命中只是舊 transcript 的文字。**S3 因此未量測，不是失敗**。
+
+上界：該 5 小時 session 視窗目前是 13%，spike 消耗必然 ≤ 13 個百分點，這不足以確認 ≤ 5。
+
+依事先寫定的判定規則，S1 到 S4 必須全部成立才記為「可列入 Phase 2b 考慮」；S3 未成立，故**最終判定暫記為：無法確認明確收益，不採用**，直到有量測到的 S3。不因結果不理想而重跑；若重跑只是為了補量測，必須使用相同提示詞與條件，並在開始前記下用量，同時保留本次結果。這個選擇留給使用者。
+
+/usage 面板自己的提示（近 24 小時，僅本機 session，百分比互相重疊）：「給簡單的 subagent 較便宜的模型」68%、「同時開太多 session」46%（最多同時 16 個）、「超過 8 小時還沒停的 session」56%。前兩項與 Phase 1 的 tier 分級、Phase 2b 的配額門檻方向一致，但這是近似歸因，不是 spike 的證據。
+
+## 11. Spike 重跑的事前登記（2026-10-23）
+
+使用者選擇選項二：用完全相同的提示詞重跑一次，補上 S3 的量測。條件寫在 [spike-agent-teams.md](./spike-agent-teams.md) 的「第二次執行」一節，執行前已寫定。
+
+檔案處理（追加式更正，§10 的原文不改）：§10 與 tasks.md 提到的 `spike-result.md` 指**第一次**的報告。第一次的報告已移到 `~/.ai-notes/ttr/ai-harness-spike-run1-result.md`（SHA-256 `dad945c6b515112e1d31a467ae3397ed5d86360d0091faed3fa0193a4d5e6bfd`，移動前後相同），第二次結束後還原為 `docs/specs/active/ai-harness/spike-result-run1.md`；第二次 lead 寫入的 `spike-result.md` 是第二次的報告。
+
+已知風險：`notes.md` §10 含第一次的核對結果，teammate 若去讀它會被污染。防止方式是提示詞限定範圍；事後檢查方式是讀 teammate 的 transcript。S4 的基準是目前 9 行的 `git status --short` 快照。
+
+## 12. Spike 重跑結果與最終判定（2026-10-23）
+
+使用者依 §11 的登記執行第二次（相同提示詞、全新 session）。核對者：Claude Code（Opus 5.5）。第二次的報告：[spike-result.md](./spike-result.md)（6,009 bytes，lead 寫入，未修改）；第一次的報告已還原為 [spike-result-run1.md](./spike-result-run1.md)（SHA-256 `dad945c6…e6bfd`，與移出前相同）。§10 與 tasks 先前提到的 `spike-result.md` 指第一次，現為 `spike-result-run1.md`。
+
+### 12.1 S3：用量
+
+| | session | 週（all models） | 週（Fable） |
+|---|---|---|---|
+| 開始前（全新 session，$0.0000） | 15% | 29% | 7% |
+| 結束後（$0.73） | 15% | 29% | 7% |
+| 差值 | 0 | 0 | 0 |
+
+意義：**S3 成立**（上限 5 個百分點）。限制：`/usage` 的解析度是 1 個百分點，所以真實消耗小於約 1 到 2 點；百分比是帳號層累計，使用者確認重跑期間沒有其他 session 的活動；只有一次量測。lead session 的 API 等值花費 $0.73。
+
+### 12.2 客觀數據（來自 transcript）
+
+| 項目 | 第一次 | 第二次 |
+|---|---|---|
+| 耗時 | 約 1.5 分鐘 | 約 1.6 分鐘 |
+| 輸出 tokens（三個 agent 合計） | 約 35k | 約 32k |
+| cache 寫入 | 約 389k | 約 427k |
+| cache 讀取 | 約 1.53M | 約 843k |
+| 模型與 effort | 全為 Sonnet 5.5、medium | 同左 |
+| 團隊 | `session-092ec819`：team-lead、correctness、tests | `session-0a094a35`：同左（`~/.claude/teams/…/config.json` 證實） |
+
+兩次 lead 的報告都自稱「不是原生 team、是具名 subagent」，兩次都被設定檔推翻。這是 lead 對機制的誤解；再次提醒：判斷看紀錄，不看模型自述。
+
+### 12.3 污染檢查與 S4
+
+- 污染：兩位 teammate 各只有 2 與 3 次工具呼叫，**沒有任何一次涉及** `docs/specs/active/ai-harness/`、`spike-result` 或 `notes.md`。lead 共 4 次工具呼叫，唯一涉及該目錄的是寫入 `spike-result.md`。結論：第二次沒有受第一次污染。
+- S4：`git status --short` 與基準快照相比，唯一差異是多出 `?? docs/specs/active/ai-harness/spike-result.md`。`scripts/` 沒有任何修改。成立。
+
+### 12.4 兩次結果的比較（只報告）
+
+第二次的主要發現幾乎全部與第一次獨立重現，說明這組發現是訊號而不是雜訊：
+
+| 主題 | 第一次 | 第二次 |
+|---|---|---|
+| `write_outputs` 先刪後檢查 | A（已重現） | #2 |
+| `is_generated` 子字串與跨副檔名 | E | #1（兩位都提出） |
+| tier 寫入模式缺測 | B | #3 |
+| 缺 tier 輸出契約缺測 | C | #4 |
+| DEL 未跳脫 | D（已重現） | #6 |
+| description 特殊字元缺測 | T 系列 | #5 |
+| handoffs 空標題 | F | #9 |
+| 第二次新增、已重現 | | #7 孤立 surrogate 使寫檔丟 `UnicodeEncodeError`；#8 兩個名稱 kebab 後相同會靜默覆蓋（`Foo Bar` 與 `foo-bar` 同為 `foo-bar`）；#13 `tier: build # note` 因 `parse_scalar` 不去除行內註解而報 unknown tier |
+| 第二次新增、未重現 | | #10、#11、#12（測試缺口，靜態判斷）；#14 是資訊項，與已有的 haiku 實測一致 |
+
+兩次都沒有高嚴重度缺陷。第二次報告自己列出「不列入」項目與「檢查後判定無問題」項目，條理比第一次完整；差異不影響判定。
+
+### 12.5 最終判定
+
+| 條件 | 結果 |
+|---|---|
+| S1 15 分鐘內交出附檔案與行號的發現 | 成立（約 1.6 分鐘） |
+| S2 至少一項經確認的真實問題且不全重複 | 成立（#2 即 A 已重現；#7、#8、#13 本次重現） |
+| S3 用量消耗 ≤ 5 個百分點 | 成立（0 點，解析度 1 點） |
+| S4 只多出 `spike-result.md` | 成立 |
+| 停止條件 | 無觸發 |
+
+**判定：可列入 Phase 2b 考慮。這不是採用。**
+
+### 12.6 這個結果能與不能說明什麼
+
+- 能：agent teams 在 Claude Code 2.1.308 可用；一次兩位 Sonnet teammate 的唯讀審查約 1.5 分鐘、對帳號用量的影響小於約 1 到 2 個百分點，並兩次獨立找到同一組真實問題；全程沒有寫入，沒有污染。
+- 不能：沒有單一 agent 的對照組，所以不知道單一 session 是否也會找到同樣的問題，也不知道團隊相對單一 agent 的成本差。兩次的 token 總量不小（cache 寫入約 400k），只是在這個方案的用量視窗裡看不出來。**一次 1.5 分鐘的小審查不代表長時間、多人的正式平行開發的成本**，那要等 Phase 2b 的配額記錄。
+- 可複製性：兩次一致是好訊號，但樣本只有兩次、同一個標的、同一個提示詞。
+- 已知缺陷：lead 的自我描述不可信；行號由 diff 推算；Plan 類型的 teammate 仍有 Bash，唯讀只靠類型與提示詞，工具層沒有阻擋重導寫入。
+
+### 12.7 後續（等使用者決定）
+
+兩次 spike 共同指向的 Phase 1 程式碼問題與測試缺口已更新在 tasks.md，未動手修。Phase 2b 的條件現況：(c) 已成立，(d) 第一週配額基準尚未開始記錄，(e) spike 已結案；所以 2b 仍差 (d)。

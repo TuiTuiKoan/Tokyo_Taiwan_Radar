@@ -160,6 +160,8 @@ Layer 2  專案層（TTR repo）
 - 量測：配額記錄見 §3.1。Phase 1 之前沒有配額基準。
 
 ### Phase 2 — 平行開發（Orca + Claude 原生，不改治理規則）
+狀態（2026-10-23）：2a 的 housekeeping 與 web 佔位值 build 驗證已完成；spike（Claude agent teams，見 [spike-agent-teams.md](./spike-agent-teams.md)）已執行兩次（第二次補量測 S3），S1 到 S4 全部成立，判定「可列入 Phase 2b 考慮」（不是採用）；2b 尚未開始。
+
 分成兩段，准入條件不同（§3.1）：**2a 受限工作**（housekeeping 與一個 spike）與 **2b 正式平行開發**（日常同時跑多個 agent session）。
 
 **2a（不需要配額門檻）**
@@ -170,7 +172,7 @@ Layer 2  專案層（TTR repo）
    - **證據界線（本機實測）**：2026-10-23 在沒有 `scraper/.env` 的 `ttr-ai-harness-worktree` 執行 `python main.py --dry-run --source taiwan_cultural_center`，exit 0 並輸出事件 JSON。這只證明 **TCC 這一個來源**可行。
    - **不可推廣（靜態核對）**：`main.py` 先對每個來源執行 `scrape()`，才處理 dry-run 輸出（約第 433 行）；`gguide_tv.py` 會建立 Supabase client；`cinemaclair.py` 在有 `OPENAI_API_KEY` 時會呼叫 OpenAI；`tokyoartbeat.py` 讀取 `CONTENTFUL_TOKEN`。因此「dry-run 跳過 orchestrator 的寫入與後續 annotation」成立，但各來源內部是否需要憑證**需逐一確認，其他來源 NOT TESTED**。
    - 做法（較簡單的替代）：agent worktree 的驗證只限已確認不需憑證的來源（目前僅 TCC）；其他來源用 fixture、mock 或由使用者在自己的環境驗證；不為此另建 secrets 系統。
-   - web 驗證（NOT TESTED）：程式讀取 `NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY`、`NEXT_PUBLIC_SITE_URL` 等；repo 沒有 `web/.env.example`。Phase 2 驗證 build 能否以命令列傳入佔位值通過；不行則另案補 `web/.env.example`（只含佔位值），需讀 `web.instructions.md`。
+   - web 驗證（本機實測，2026-10-23）：在沒有任何 env 檔的 worktree，以命令列傳入 `NEXT_PUBLIC_SUPABASE_URL=https://placeholder.invalid`、`NEXT_PUBLIC_SUPABASE_ANON_KEY=placeholder-anon-key`、`NEXT_PUBLIC_SITE_URL=http://localhost:3000` 執行 `pnpm --dir web run build`，exit 0，250 個靜態頁產生，prebuild 的 i18n 與 JSON-LD 檢查通過，沒有改動任何被追蹤的檔案。所以 web build 不需要 secrets，也不需要補 `web/.env.example`。限制：這只證明 build；執行階段（`next dev` 連線、登入、Admin CRUD）仍需真實 Supabase，NOT TESTED，且不在 agent worktree 內做。
    - 需要正式 secrets 的操作（非 dry-run 的爬蟲、`annotator.py`、DB 寫入、連線 production 的 web）不在 agent 的 worktree 內做。
 3. 修正 `git.instructions.md` 的 exclude reconcile 片段：macOS 預設 bash 3.2 對 `$(… case … esac …)` 內的 `case` pattern 語法錯誤，pattern 需寫成 `("$root"/*)`（notes.md §1）。
 4. 治理文件補三句：（a）worktree 一律用 git 指令建立，Orca 只「顯示」；（b）清理只走 git；（c）V-M-D 推送、Close Campaign 結案後，用跨 session 訊息通知仍在跑的 worktree session。
