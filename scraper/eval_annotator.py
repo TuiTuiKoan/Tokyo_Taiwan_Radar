@@ -267,8 +267,8 @@ async def semantic_scores_for(
     """Embed expected vs produced free text and return per-case cosine scores.
 
     Returns ``(scores_per_case, negative_control, usage)``. ``negative_control``
-    maps each field to the mean cosine between a case's expected text and the
-    *next* case's output for the same field: the score two unrelated texts get,
+    maps each field to the cosines between a case's expected text and the
+    *next* case's output for the same field: the scores two unrelated texts get,
     which tells the reader how far above chance SEMANTIC_THRESHOLD sits.
     An empty or missing output scores 0.0 without an embedding call.
     """
@@ -298,12 +298,13 @@ async def semantic_scores_for(
         scores[i][field] = _cosine(exp_vec, got_vec)
         by_field.setdefault(field, []).append((exp_vec, got_vec))
 
-    negative: dict[str, float] = {}
+    negative: dict[str, list[float]] = {}
     for field, vecs in by_field.items():
         if len(vecs) < 2:
             continue
-        sims = [_cosine(vecs[k][0], vecs[(k + 1) % len(vecs)][1]) for k in range(len(vecs))]
-        negative[field] = round(sum(sims) / len(sims), 4)
+        negative[field] = [
+            round(_cosine(vecs[k][0], vecs[(k + 1) % len(vecs)][1]), 4) for k in range(len(vecs))
+        ]
 
     return scores, negative, resp.usage
 
@@ -384,7 +385,7 @@ def build_snapshot(
     runtime_s: float,
     usages: list,
     embedding_usage=None,
-    negative_control: dict[str, float] | None = None,
+    negative_control: dict[str, list[float]] | None = None,
 ) -> dict:
     """Build a machine-readable snapshot of eval results.
 
@@ -419,6 +420,21 @@ def build_snapshot(
         "lookup_tested": lk_tested,
         "lookup_passed": lk_passed,
         "semantic_negative_control": negative_control or {},
+        # Per-entry scores, so thresholds can be calibrated from a run's artifact.
+        "entries": [
+            {
+                "case_id": case.get("case_id"),
+                "source_name": case.get("source_name"),
+                "field": e["field"],
+                "tier": e["tier"],
+                "bucket": e.get("bucket"),
+                "method": e.get("method"),
+                "score": e.get("score"),
+                "match": e["match"],
+            }
+            for case, diff_list in zip(cases, diffs)
+            for e in diff_list
+        ],
         "cost_usd": round(_estimate_cost(usages, embedding_usage), 6),
         "runtime_s": round(runtime_s, 2),
         "ran_at": datetime.now(tz=JST).isoformat(),
@@ -451,7 +467,7 @@ def write_report(
     runtime_s: float,
     usages: list,
     embedding_usage=None,
-    negative_control: dict[str, float] | None = None,
+    negative_control: dict[str, list[float]] | None = None,
 ) -> None:
     """Write markdown accuracy report."""
     now_jst = datetime.now(tz=JST).strftime("%Y-%m-%d %H:%M JST")
@@ -507,18 +523,19 @@ def write_report(
         s = (tier1.get(field) or tier2.get(field))
         if not s or "semantic" not in s["method"]:
             continue
-        neg = negative_control.get(field)
+        neg = negative_control.get(field) or []
+        neg_mean = f"{_mean(neg):.2f}" if neg else "n/a"
+        neg_max = f"{max(neg):.2f}" if neg else "n/a"
         semantic_rows.append(
-            f"| {field} | {SEMANTIC_THRESHOLD} | "
-            f"{s['mean_score']:.2f} | {f'{neg:.2f}' if neg is not None else 'n/a'} |"
+            f"| {field} | {SEMANTIC_THRESHOLD} | {s['mean_score']:.2f} | {neg_mean} | {neg_max} |"
         )
     if semantic_rows:
         lines += [
             "## 語意比對校準",
             "負對照是期望值與「下一筆 case 的輸出」之間的平均 cosine，代表兩段無關文字會拿到的分數。",
             "",
-            "| Field | 門檻 | 平均 cosine | 負對照平均 |",
-            "|---|---|---|---|",
+            "| Field | 門檻 | 平均 cosine | 負對照平均 | 負對照最高 |",
+            "|---|---|---|---|---|",
             *semantic_rows,
             "",
         ]
