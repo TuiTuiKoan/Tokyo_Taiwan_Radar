@@ -54,6 +54,10 @@ The filter is for **event posts** (not diplomatic meeting reports):
 
 roc-taiwan.org (CloudFront) answers GitHub Actions IPs with `302 → /Embassy_Error/error-vpn_data_url.html` ("The website is under repair", 135,213 bytes) for **every** path (list, `/feed/`, `wp-json`, `sitemap.xml`, `robots.txt`), regardless of User-Agent. `requests` follows the redirect and gets a **200 HTML page**, which used to parse as "0 posts". The scraper now raises when the list page has no `.news-item`, so a blocked run is recorded as failed. Local (Japan residential) IPs work. Getting data in CI needs a non-GitHub runner; headers cannot fix it.
 
+## Runs weekly from a home IP (since 2026-10-23)
+
+`main.py` skips this source on GitHub Actions (`HOME_IP_ONLY_SOURCES`). A launchd job on the maintainer's Mac runs `main.py --source mot,taipei_fukuoka,jposa_ja` every Monday 15:00 JST (`scripts/launchd/`). Check `~/Library/Logs/ttr-home-ip-scrape.log` and `scraper_runs` if the source looks stale.
+
 ## Troubleshooting
 
 | Problem | Fix |

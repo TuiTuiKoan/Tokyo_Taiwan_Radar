@@ -68,6 +68,10 @@ Priority order in `_extract_date_from_body()`:
 
 Same block as `taipei_fukuoka`: roc-taiwan.org redirects GitHub Actions IPs to `/Embassy_Error/error-vpn_data_url.html` (200 HTML, no `<item>`). That is why production showed `0 events found` after 0.08 s. Page 1 of each feed now raises if the request fails or the body has no RSS items; a 404 on a later `?paged=N` still ends pagination normally (WordPress returns 404 past the last page).
 
+## Runs weekly from a home IP (since 2026-10-23)
+
+`main.py` skips this source on GitHub Actions (`HOME_IP_ONLY_SOURCES`). A launchd job on the maintainer's Mac runs `main.py --source mot,taipei_fukuoka,jposa_ja` every Monday 15:00 JST (`scripts/launchd/`). Check `~/Library/Logs/ttr-home-ip-scrape.log` and `scraper_runs` if the source looks stale.
+
 ## Troubleshooting
 
 | Symptom | Likely Cause | Fix |
