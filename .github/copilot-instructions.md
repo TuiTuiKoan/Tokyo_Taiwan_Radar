@@ -16,6 +16,7 @@ The progress entry is the GitHub Project **TTR Roadmap**: https://github.com/use
 - When reporting back, list the links of issues you opened.
 - Tick a milestone in `tasks.md` and commit when it is done; a sub-task is done when its issue is closed.
 - Existing checkboxes already in a `tasks.md` stay as they are; only new sub-tasks go to issues.
+- Leftover work when a spec closes or pauses: independent items become issues (group them by theme with a checklist) and the parked file notes which issues took them; an ordered runbook with user approval gates stays in `docs/specs/parked/<slug>-followups.md`, with one card on the board linking to it.
 - The same rule lives in `AGENTS.md` for Claude Code and Codex; change both together.
 
 ## Event Link Output Rule

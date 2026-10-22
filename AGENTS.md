@@ -39,6 +39,7 @@
 - 里程碑完成時在 `tasks.md` 打勾並 commit；細項以關閉 issue 為完成。
 - 換 session 或換工具接續時，先看該 spec 的 open issue（`label:spec:<slug>`），再讀 `tasks.md` 的里程碑。
 - 既有 `tasks.md` 裡已經存在的細項 checkbox 保留原狀，不搬移；新增的細項才開 issue。
+- spec 結案或暫停時剩下的待辦，依性質分兩種：彼此獨立的項目開 issue（可依主題合併成幾張，用 checklist 列出），並在 parked 檔開頭註明搬到哪些 issue；有先後順序或需要使用者核准關卡的執行手冊，留在 `docs/specs/parked/<slug>-followups.md`，看板上只開一張代表卡連到該檔。
 - VS Code Copilot 讀的是 `.github/copilot-instructions.md`，該檔有同一段規則；修改時兩處一起改。
 
 ## 角色路由表

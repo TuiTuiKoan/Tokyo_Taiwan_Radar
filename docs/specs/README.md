@@ -12,7 +12,7 @@ ms.date: 2026-05-05
 ```
 docs/specs/
 ├── _template/          ← Copilot 新建 spec 時抄這裡
-├── parked/             ← 暫存的 idea，單一 .md 檔
+├── parked/             ← 暫存的 idea，或暫停工作線的後續清單，單一 .md 檔
 ├── active/<slug>/      ← 進行中（proposal.md + tasks.md [+ notes.md]）
 └── archive/            ← 完成後 git mv 進來（單一 .md 或子目錄）
 ```
@@ -59,6 +59,7 @@ parked → active → archived
 | 過程中增生的細項、評審意見、測試發現的 bug、之後要處理的待辦 | GitHub issue，貼 `spec:<slug>` label |
 
 - 每個 active spec 都有一個 `spec:<slug>` label；新 spec 在 `parked` → `active` 時建立。
+- **parked 裡的後續清單**：spec 結案或暫停時剩下的待辦，依性質分兩種：彼此獨立的項目開 issue（可依主題合併成幾張，用 checklist 列出），並在 parked 檔開頭註明搬到哪些 issue；有先後順序或需要使用者核准關卡的執行手冊，留在 `docs/specs/parked/<slug>-followups.md`，看板上只開一張代表卡連到該檔。範例：`ai-portability-followups.md` 的五類已搬成 #334～#338；`authoritative-venue-repair-followups.md` 是有 Gate 的手冊，代表卡是 #339。
 - 既有 `tasks.md` 裡已經存在的細項 checkbox 保留原狀，不搬移；新增的細項才開 issue。
 - 同一套規則寫在 `AGENTS.md`（Claude Code、Codex）與 `.github/copilot-instructions.md`（VS Code Copilot），agent 會自動遵守。
 
