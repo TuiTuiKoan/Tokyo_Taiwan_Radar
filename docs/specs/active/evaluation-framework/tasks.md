@@ -7,7 +7,8 @@ spec: evaluation-framework
 > **對帳紀錄（最後對帳 2026-10-22）**：本清單先前長期未更新，P1 實際上大致已完成卻仍全部標為未勾選，
 > 導致「P2 卡在 P1 沒做完」的錯誤判斷。2026-08-06 首次逐項比對程式碼與 CI 實況後修正；
 > 2026-08-11 與 2026-10-22 複查下列四項全數維持原判定。2026-10-22 起剩餘工作改由 issue 追蹤（#353–#356），
-> 量尺修正見 #324，地點分段 eval 見下方 G 段。
+> 量尺修正見 #324，地點分段 eval 見下方 G 段。2026-10-22 晚間 P2、P3 合併後重新對帳，勾選見各段；
+> 下列四項是對帳前的歷史判定，P2／P3 已不再適用。
 >
 > - **P1-A**：4 個指標全部存在於 `monthly_health_check.py`，輸出已產出（`docs/monthly_review/2026-06-evaluation.md`）
 > - **P1-B**：golden set、`eval_annotator.py`、2 個 CI workflow、README 均已存在；
@@ -42,21 +43,21 @@ spec: evaluation-framework
 ## P2 — Scraper Quality + 歷史回測（~1 週）
 
 ### C. per-Scraper 品質報表
-- [ ] 撰寫 `scraper/eval_scraper_quality.py`（或擴展 daily_quality.py）
-- [ ] 指標 1：欄位完整度（per source × per field non-null 率）
-- [ ] 指標 2：annotator 修正率（GPT 比 raw 多填的欄位數中位數）
-- [ ] 指標 3：DOM drift 偵測（parsed_fields_per_event 連 3 天 -30% 告警）
-- [ ] 指標 4：錯填率（field_corrections per 100 events per source）
-- [ ] 輸出 `scraper/reports/scraper_quality_YYYY-MM-DD.md`
-- [ ] CI workflow 每週日 09:00 JST 排程
+- [x] 撰寫 `scraper/eval_scraper_quality.py`（或擴展 daily_quality.py）（PR #379）
+- [x] 指標 1：欄位完整度（per source × per field non-null 率）
+- [x] 指標 2：annotator 修正率（GPT 比 raw 多填的欄位數中位數）：「annotator 補填」，需要 `main.py` 寫入的 `parsed_fields_median` 累積後才有數字
+- [x] 指標 3：DOM drift 偵測（parsed_fields_per_event 連 3 天 -30% 告警）：以最近 3 次執行比較，同樣需要紀錄累積
+- [x] 指標 4：錯填率（field_corrections per 100 events per source）：人工與腳本寫入分開計算（#373）
+- [x] 輸出 `scraper/reports/scraper_quality_YYYY-MM-DD.md`：該目錄被 gitignore，報表在 workflow summary 與 artifact；首份存於 `docs/evaluation/scrapers/2026-10-22-first-report.md`
+- [x] CI workflow 每週日 09:00 JST 排程（`.github/workflows/scraper-quality.yml`）
 
 ### D. 歷史事件回測
-- [ ] 撰寫 `scraper/eval_historical.py`
-- [ ] 分層取樣 100 筆 active + created_at > 30d 的事件
-- [ ] dry-run annotator + diff 現存欄位
-- [ ] 輸出三類報表：沉默漂移 / 保護命中 / GPT 倒退
-- [ ] 一次性執行，產出首份 baseline 報表
-- [ ] 排程：每月 1 號隨 monthly_health_check 執行
+- [x] 撰寫 `scraper/eval_historical.py`（PR #382）
+- [x] 分層取樣 100 筆 active + created_at > 30d 的事件
+- [x] dry-run annotator + diff 現存欄位
+- [x] 輸出三類報表：沉默漂移 / 保護命中 / GPT 倒退
+- [x] 一次性執行，產出首份 baseline 報表（`docs/evaluation/historical/2026-10-22-baseline.md`）
+- [x] 排程：每月 1 號隨 monthly_health_check 執行
 
 ### G. 地點分段 eval（#325，2026-10-22 加入）
 - [x] 抽取與解析兩段上線（`scraper/eval_venues.py`、`.github/workflows/eval-venues.yml`），基準見 `docs/evaluation/venues/2026-10-22-baseline.md`
@@ -65,13 +66,15 @@ spec: evaluation-framework
 ## P3 — Guards 元評估（持續）
 
 ### F. Meta-Evaluation
-- [ ] 盤點 `.github/skills/agents/architect/SKILL.md` 所有 Guards（目前 30+ 條）
+- [x] 盤點 `.github/skills/agents/architect/SKILL.md` 所有 Guards（目前 30+ 條）：共 103 條，DATA 47／CODE 41／PROCESS 15（`docs/evaluation/guards/README.md`，PR #387）
 - [ ] 為每條 Guard 撰寫 Detection SQL，補進 SKILL.md
-- [ ] `monthly_health_check.py` 自動執行所有 Detection SQL，統計觸發次數
-- [ ] 標記「連續 3 個月 0 次」的 Guard 為候選精簡
-- [ ] history.md 引用率分析（semantic_search vs commit messages）
-- [ ] Subagent 採用率分析（session_store_sql）
-- [ ] 整合進 Reviewer agent 月度報告
+  - **部分完成（2026-10-22）**：只有 DATA 類適用。28 條以 PostgREST 計數，偵測清單放在 `scraper/guard_detections.py`，SKILL.md 只加一行指引；其餘 19 條見 #386
+- [x] `monthly_health_check.py` 自動執行所有 Detection SQL，統計觸發次數
+  - **實作差異**：以 `monthly_health_check.yml` 的獨立步驟執行 `guard_detections.py`，不併入 `monthly_health_check.py`；涵蓋 28 條，其餘見 #386
+- [x] 標記「連續 3 個月 0 次」的 Guard 為候選精簡（`guard_detections.py` 的趨勢段；2026-10 為第一個月）
+- [ ] history.md 引用率分析（semantic_search vs commit messages）→ #386
+- [ ] Subagent 採用率分析（session_store_sql）→ #386
+- [x] 整合進 Reviewer agent 月度報告（reviewer.agent.md 功能 1b）
 
 ## Worktree Close-out Pilot（bounded，2026-08-11）
 
