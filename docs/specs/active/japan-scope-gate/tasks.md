@@ -44,6 +44,7 @@ updated: 2026-08-06
 * [x] Rebase checkpoint：同步 `origin/main=9b2f6368`，behind `0`、merge commits `0`
 * [x] Rebase validation：scope lifecycle `23 passed`、scope web `36 passed`、full scraper `606 passed, 1 skipped`
 * [x] Rebase validation：i18n `1163` keys、JSON-LD security PASS、Next.js static pages `250/250`
+* [x] 2026-10-22 第二次 rebase 到 `origin/main=4d02c5d0`（behind `0`、merge commits `0`）；migration 097 撞號改為 `098`；scraper `1112 passed, 1 skipped`、web scope tests `25 pass`、i18n `1169` keys、JSON-LD PASS。本機 `pnpm build` 在 compile 與 TypeScript 通過，prerender 因缺 Supabase 環境變數停止，完整 build 交由 PR 的 Vercel check
 
 ## Wave 2：明確延後
 
@@ -84,4 +85,4 @@ Snapshot attempt：`tmp/scope_manifest_20260804T145452Z.json` 在寫入前 STOP�
 * [x] 不執行 one-off `--apply` 或其他 production DB mutation
 * [x] 不把 code delivery 核准解讀為 digest-bound production apply 核准
 * [x] Transactional RPC 完成前，由 CLI 強制拒絕 non-transactional apply
-* [x] 不新增 migration、不改 QA auto-consumer、不改 sub-event active contract
+* [x] 除 migration 098（admin confirm 原子 RPC，待使用者套用）外不新增 migration、不改 QA auto-consumer、不改 sub-event active contract

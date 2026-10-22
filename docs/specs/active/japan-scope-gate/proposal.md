@@ -32,7 +32,7 @@ Wave 1 包含：
 * 在 admin confirm path 加逐筆 acknowledgment、exact-one event update、machine notes 保全與 history routing
 * 提供 22 筆已審核事件的 immutable snapshot/apply one-off interface，但本輪只執行唯讀 snapshot
 
-Scope finding 不寫入 `events` 新欄位，不新增 migration，也不自動停用事件。`irrelevant` 是 actionable base type，`scopeReviewNonJapan` 與 `scopeDecision:`、`scopeRegion:`、`scopeHash:` 是人工處理 metadata。
+Scope finding 不寫入 `events` 新欄位，也不自動停用事件。2026-10-22 rebase 時新增 migration `098_scope_report_transaction.sql`（原編號 097 與 main 撞號；`confirm_scope_report` RPC 與 machine token 的 RESTRICTIVE INSERT policy），必須由使用者先在 production 套用，再部署呼叫該 RPC 的 web code。`irrelevant` 是 actionable base type，`scopeReviewNonJapan` 與 `scopeDecision:`、`scopeRegion:`、`scopeHash:` 是人工處理 metadata。
 
 ## Non-Goals（不做什麼）
 
@@ -43,7 +43,7 @@ Wave 2 延後以下工作：
 * Publisher domain risk、`startup_terrace` 存廢與任何 `source_exclusions`
 * Security 或 broken-link history routing 改動
 
-本輪不做 DB migration、QA consumer 改動或 sub-event active 行為改動。Code delivery 已進入 PR、merge 與 deploy 流程；production cleanup 仍是獨立工作流，不包含在 code delivery 核准內。
+本輪除 migration 098（admin 單筆 confirm 的原子 RPC 與 report token provenance）外，不做其他 DB migration、QA consumer 改動或 sub-event active 行為改動；cleanup apply 所需的 transactional RPC 仍屬 Phase 6b。Code delivery 已進入 PR、merge 與 deploy 流程；production cleanup 仍是獨立工作流，不包含在 code delivery 核准內。
 
 ## Baseline（v3.1）
 
