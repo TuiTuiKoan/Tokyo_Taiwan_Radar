@@ -118,3 +118,42 @@ Close Campaign agent 的 Phase A 稽核與本 session 的獨立查證一致：
 觀察：從 worktree 的 `scraper/` 子目錄執行命令時，Claude Code 的 hooks 不載入（AGENTS.md「生效條件」）。本 session 的命令先 `cd` 到子目錄再回到根目錄，期間 hooks 實際上沒有保護那一次執行；dry-run 本身只讀取與列印，不涉及 secrets。以後在子目錄執行命令應改用絕對路徑或在根目錄用 `python3 scraper/main.py`。
 
 尚未 commit：plan.md、proposal.md、tasks.md、notes.md 的修訂等使用者核准。
+
+## 6. Plan Critic 全文與 plan.md rev.3（2026-10-23）
+
+### 6.1 第二次 Plan Critic 的經過
+
+- 使用者回報「跑完了」，但 03:42 的 Codex session（`~/.codex/sessions/2026/10/23/rollout-…03-42-24-….jsonl`，工作目錄是主工作樹）收到的提示是字面的 `<提示>`：我上一則訊息的命令範本沒有替換成真正的提示詞，所以 Codex 什麼都沒審，也沒有輸出檔。這是執行者（Claude）的疏漏。
+- 重跑：`codex exec -p plan -s read-only -o docs/specs/active/ai-harness/plan-critique-1.md -`，提示詞由檔案經 stdin 餵入。Codex 執行標頭：v0.163.0（`codex doctor` 先前顯示 0.160.0，升級時間不明）、`model: gpt-6.1-sol`、`reasoning effort: high`、`sandbox: read-only`。結果寫入 [plan-critique-1.md](./plan-critique-1.md)（19,019 bytes）。
+- 這同時證明 `codex -p plan` 能載入 `~/.codex/plan.config.toml`（先前列為 NOT TESTED）。它沒有證明 agent TOML 的 effort 生效。
+
+### 6.2 評審結論與處理
+
+結論：rev.2 未通過；六項先前意見 3 項 CLOSED（a、c、d）、3 項 PARTIAL（b、e、f）；阻擋項 B1–B6、建議 N1–N5。處理方式見 plan.md「rev.3 變更摘要」。
+
+核對 Codex 引用的程式碼（靜態核對，未執行）：
+
+| 位置 | 內容 | 結論 |
+|---|---|---|
+| `scraper/main.py` 約第 433 行 | `events = scraper.scrape()` 在 `if not dry_run:` 之前執行 | 成立：dry-run 只跳過 upsert 與後續 annotation，不跳過來源內部行為 |
+| `scraper/sources/cinemaclair.py` 約第 175 行 | 有 `OPENAI_API_KEY` 才呼叫 OCR，沒有則回傳 `{}` | 成立：缺少憑證不會崩潰，但輸出會變少 |
+| `scraper/sources/gguide_tv.py` 約第 39 行 | `_get_works_sb()` 惰性建立 Supabase client | 成立：需要 Supabase 憑證才會成功 |
+| `scraper/sources/tokyoartbeat.py` 約第 25 行 | `CONTENTFUL_TOKEN = os.environ.get(..., "")` | 成立：缺少時為空字串 |
+
+### 6.3 對先前紀錄的更正（追加式，原文不改）
+
+- §5 寫「爬蟲 dry-run 不需要 secrets」：**過度推廣**。本機實測只涵蓋 `taiwan_cultural_center` 一個來源；其餘來源 NOT TESTED，靜態核對有上表的反例。D4'「不複製正式 secrets」的原則不受影響。
+- §5 寫「從子目錄執行命令時 hooks 不載入，那次執行實際上沒有保護」：**混淆了 session 啟動目錄與命令的工作目錄**。官方文件指出 `CLAUDE_PROJECT_DIR` 保持在 session 起點，hook 輸入的 `cwd` 才隨 `cd` 變動。那次 Bash 命令當時是否由 hooks 把關，沒有 debug 紀錄，**維持未知**。往後仍避免在子目錄執行命令，以免依賴這個不確定性。
+- §3 寫「專案 skill 約 2.6k tokens」與 §1.3 的 X1–X4 預設模型說明：前者是 bytes 換算的估算，不是逐 skill 實測；後者錯誤，15 個 agent 都有 tier（plan.md 已更正）。
+- 這份 notes 與 plan §1.2、§4 中來自 Orca 官方文件或第三方文章的敘述，是「文件描述」，不是本機實測；plan.md 已逐項標示。
+
+### 6.4 提交紀錄（N5）
+
+rev.2 的四份文件已 commit：`dfb40b6b`（docs(specs): revise ai-harness plan to rev.2 after Codex plan critique），未 push。AGENTS.md 的「Plan Critic 批評全文必須存檔」規則已修改但未 commit。rev.3 的修訂尚未 commit。
+
+## 7. 使用者裁決與核准（2026-10-23）
+
+- **D4' 採用**：worktree 不帶正式 secrets。Phase 2a 的條件 (b) 成立。
+- **D8 採用（建議版）**：`harness.lock` 是來源版本紀錄；plugin 缺失時只警告，不阻擋；Phase 3 擴大（3b）之前不搬 hooks。D8 只在 3b 生效，3a 試點不需要。
+- **要求驗證 Phase 1 的四項 NOT TESTED**：Codex 是否讀取 `.codex/agents/*.toml` 並套用 effort；`claude --agent plan-critic` 的 Opus 實測；`opusplan` 的切換；Haiku wrapper 的 `effort: low` 與 grunt 任務品質。結果記入下一節。在全部驗證前，plan §3.1 的 Phase 2b 條件 (c) 不成立。
+- **核准 commit**：rev.3 的 plan.md、proposal.md、tasks.md、notes.md、`plan-critique-1.md`，以及 AGENTS.md 的「Plan Critic 批評全文必須存檔」規則。

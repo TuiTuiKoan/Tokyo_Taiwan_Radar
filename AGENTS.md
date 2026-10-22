@@ -121,6 +121,7 @@ Claude Code 可直接叫用 `.claude/agents` 下的 subagent wrapper。Codex 沒
 - tester、plan-critic、lianbu-spokesperson 本文中「修正錯誤後更新 history.md／SKILL.md」的步驟無法以工具層寫檔完成：教訓以文字回報，交 Update History, Skill, Agent 或使用者寫入。
 - plan-critic 不在 Claude Code 的 plan mode 使用：plan mode 送出計畫需要 Write 與 ExitPlanMode，planner 白名單刻意不含這兩者。以一般模式啟動（`claude --agent plan-critic`），讀計畫檔後以文字回傳批評。
 - Codex 沒有依角色的工具限制，只靠各 agent 檔內文的角色規則；需要唯讀時（例如請 Codex 評審計畫），由使用者以 `codex -s read-only` 啟動。VS Code Copilot 依 agent 檔自己的 `tools:` 運作，不讀 `claude-role`。
+- **Plan Critic 的批評全文必須存檔**（2026-10-23 起強制）：`-s read-only` 不能寫檔，所以用 `codex exec -s read-only -o <檔案> "<提示>"` 把完整回覆寫到 `docs/specs/active/<slug>/plan-critique-N.md`（無 slug 時 `~/.ai-notes/ttr/critique-<slug>-N.md`）；互動執行時，請使用者先把完整回覆存到該路徑。沒有存檔全文的批評，不得據以修訂計畫。
 - `.claude/settings.json` 的 `permissions.ask` 對目的端看起來是 `main` 或無法從命令判斷的 `git push` 前綴形式要求核准：`git push`、`git push origin`、以 `main` 或 `HEAD` 結尾、或 `main `／`HEAD ` 後面還有參數。推 feature branch 的寫法不會命中，完整判斷由 hook 負責；這組規則是 hook 不存在時的保底（2.1.304 實測，見 `docs/specs/active/pr-flow-tiering/notes.md` B4）。這是全專案設定，對所有角色生效（含未投影的四個），在主執行緒、subagent 與 auto mode 下都已實測會觸發；但只在從 repo（或 worktree）根目錄啟動的 session 生效（見下一段）。`git -C … push`、`env X=1 git push`、`bash -c 'git push …'` 等變體不受這條規則約束，由下一段的 hooks 補上。
 - 新增 agent 時必須加 `tier`，並加 `claude-role`，或列入 `scripts/sync_ai_adapters.py` 的 `UNDECIDED_AGENTS`，否則 `--check` 失敗。
 
