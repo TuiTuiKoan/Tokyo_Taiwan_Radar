@@ -340,7 +340,9 @@ export default async function AdminRoadmapPage({ params }: PageProps) {
       <p className="text-xs text-fg-subtle mt-6">
         {t("roadmap.updatedNote")}
         <a
-          href={`/${locale}/admin/specs`}
+          href="https://github.com/users/TuiTuiKoan/projects/1"
+          target="_blank"
+          rel="noopener noreferrer"
           className="ml-1 text-green-600 hover:underline"
         >
           {t("roadmap.specsLink")}

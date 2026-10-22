@@ -1,49 +1,6 @@
 /**
- * Shared types for the spec dashboard.
+ * Shared types for the architecture map (system-map.json).
  */
-
-export type SpecStatus = "parked" | "active" | "archived";
-export type SpecColumn = "parked" | "todo" | "doing" | "done";
-
-export interface SpecFrontmatter {
-  slug: string;
-  title: string;
-  status: SpecStatus;
-  branch?: string;
-  created?: string;
-  tags?: string[];
-}
-
-export interface SpecTaskProgress {
-  done: number;
-  total: number;
-}
-
-export interface Spec {
-  slug: string;
-  title: string;
-  status: SpecStatus;
-  column: SpecColumn;
-  branch?: string;
-  created?: string;
-  tags: string[];
-  /** Path under docs/specs/ (e.g. "active/foo" or "parked/bar") */
-  relativePath: string;
-  proposalMd: string;
-  tasksMd: string;
-  notesMd: string;
-  tasks: SpecTaskProgress;
-  /** Last modified time (ISO string), based on file mtime. */
-  updatedAt: string;
-  /** Optional commit hash from build environment. */
-  commitSha?: string;
-}
-
-export interface SpecsSnapshot {
-  generatedAt: string;
-  commitSha?: string;
-  specs: Spec[];
-}
 
 export interface SystemMapAgent {
   id: string;

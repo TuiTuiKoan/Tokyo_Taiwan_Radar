@@ -534,7 +534,7 @@
     "catMigrationHeaderCount": "回数",
     "catMigrationEmpty": "カテゴリ修正なし",
     "tabs": {
-      "specs": "仕様ボード",
+      "specs": "システム構成",
       "roadmap": "ビジネスロードマップ"
     },
     "roadmap": {
@@ -556,8 +556,8 @@
       "migrationsTitle": "Schema Tier 1+1.5 マイグレーション状況",
       "productsTitle": "3つの事業ライン",
       "pSeriesTitle": "フィードバックループ P シリーズ進捗",
-      "updatedNote": "詳細仕様は",
-      "specsLink": "仕様ボード →"
+      "updatedNote": "進捗とタスクは",
+      "specsLink": "TTR Roadmap ボード →"
     },
     "specs": {
       "title": "仕様ボード",

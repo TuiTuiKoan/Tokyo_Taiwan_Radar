@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import Link from "next/link";
 import AdminTabNav from "@/components/AdminTabNav";
 import ArchitectureFlowExplorer from "@/components/ArchitectureFlowExplorer";
 import { getSystemMap } from "@/lib/specs/reader";
@@ -74,15 +73,6 @@ export default async function ArchitecturePage({ params }: PageProps) {
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       <AdminTabNav locale={locale} activeTab="specs" />
-
-      <div className="mb-4">
-        <Link
-          href={`/${locale}/admin/specs`}
-          className="text-sm text-fg-muted hover:text-green-700"
-        >
-          {t("back")}
-        </Link>
-      </div>
 
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-fg-strong">{t("title")}</h1>
