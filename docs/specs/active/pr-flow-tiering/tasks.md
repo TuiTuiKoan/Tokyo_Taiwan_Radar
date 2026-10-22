@@ -14,12 +14,12 @@
 
 ## Phase B: `check_push` 分流（Fable）
 
-- [ ] 依 proposal 決策表為每一列寫 positive／negative test，先確認新測試在現行程式碼上失敗
-- [ ] 修改 `scripts/claude/_policy.py` 的 `check_push`，讓測試通過；既有 deny 測試全部維持
-- [ ] 跑 `python3 -m pytest scripts/claude/tests scripts/tests -q` 全綠
-- [ ] 實測 Claude Code 2.1.304 下 hook allow 與 `permissions.ask` 的優先順序，以及 auto mode 是否放行推 feature branch，記錄到 `notes.md`
-- [ ] 依實測結果提出 `.claude/settings.json` 修改方案；方案寫進 `notes.md`，未經使用者核准不改檔
-- [ ] 更新 `AGENTS.md`「Hooks 與 permissions」第一批規則表的 push 列
+- [x] 依 proposal 決策表為每一列寫 positive／negative test，先確認新測試在現行程式碼上失敗（改前 40 failed／408 passed，見 `notes.md` B1）
+- [x] 修改 `scripts/claude/_policy.py` 的 `check_push`，讓測試通過；既有 deny 測試全部維持
+- [x] 跑 `python3 -m pytest scripts/claude/tests scripts/tests -q` 全綠（615 passed）
+- [ ] 實測 Claude Code 2.1.304 下 hook allow 與 `permissions.ask` 的優先順序，以及 auto mode 是否放行推 feature branch，記錄到 `notes.md`（文件查證完成：ask 規則不受 hook allow 影響；互動實測 NOT TESTED，使用者步驟 U-B1～U-B4 見 `notes.md` B2）
+- [ ] 依實測結果提出 `.claude/settings.json` 修改方案；方案寫進 `notes.md`，未經使用者核准不改檔（方案 A／B 已寫在 `notes.md` B2，建議方案 B；等使用者核准後才改檔與 `test_claude_settings.py`）
+- [x] 更新 `AGENTS.md`「Hooks 與 permissions」第一批規則表的 push 列
 
 ## Phase C: Plan Critic（Codex）
 
