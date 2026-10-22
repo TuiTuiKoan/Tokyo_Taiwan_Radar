@@ -132,7 +132,7 @@ tags: [strategy, business, positioning]
 
 ## References
 
-- `docs/specs/active/tier1-data-completion/`（中層所需資料基礎設施完成路徑）
+- `docs/specs/archive/2026-05-tier1-data-completion/`（中層所需資料基礎設施完成路徑）
 - `docs/specs/active/product-c-opportunity-radar/`（Product C MVP 規劃）
 - `docs/ARCHITECTURE.md`（既有系統架構）
 - 創辦人提供的「Tier 1/1.5 諮詢級資料化計畫總覽」（2026-05-04 對話）
