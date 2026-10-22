@@ -554,3 +554,83 @@ prompt（cand0）對**同一批 id** 各跑一次，比對兩者的原始輸出�
 
 裁決後 R1 與 G 的結論不變。final N 的 4 筆是 Phase F 處置清單的候選（仍需逐批核准）。
 
+## 分類品質檢查（2026-10-23）
+
+樣本：P_seal 保留記錄 20 筆、P_h 保留記錄 20 筆（`order_key(SEED+"category-check")`），
+檔案 `~/.ai-notes/ttr/p5-eval/category_check.csv`。使用者填 39 筆（#37 未填）：
+**Y 28、N 11**（P_seal N 6、P_h N 5）。門檻是 N ≤ 2，**未通過**。
+
+| # | event | 模型分類 | 使用者意見 |
+|---|------|------|------|
+| 5 | [8fc460e3](https://tokyotaiwanradar.com/ja/events/8fc460e3-adc7-4627-8aa9-be895fbb6d7c) 台湾と中国の新しい関係を | geopolitics taiwan_japan | 講中台，與台日無關 |
+| 6 | [5dd278e4](https://tokyotaiwanradar.com/ja/events/5dd278e4-caab-420e-b164-20e1c3ebc204) 台湾 | books_media | 應為 tourism |
+| 9 | [bf20ecb1](https://tokyotaiwanradar.com/ja/events/bf20ecb1-74d2-4dc8-98d9-f68a2abc853e) 台湾に渡った歌舞伎役者たち | history books_media | 不是 books_media，應有 performing_arts |
+| 10 | [fd3e32dc](https://tokyotaiwanradar.com/ja/events/fd3e32dc-03c3-4dba-8482-82bcd07e78aa) 台湾妖怪探索珍道中 | books_media | 應為 folklore |
+| 16 | [038d4cef](https://tokyotaiwanradar.com/ja/events/038d4cef-dd1f-4a70-84f9-8404419070a1) 台湾飲料事情 | business taiwan_japan | 不是 taiwan_japan，應加 tea_alcohol |
+| 17 | [880214e4](https://tokyotaiwanradar.com/ja/events/880214e4-3bc2-46e2-9689-be9af95be509) 台湾の悪質ネット広告対策がすごい! | geopolitics academic | 應為 books_media、tech |
+| 21 | [ddec8c24](https://tokyotaiwanradar.com/ja/events/ddec8c24-3dd7-4d6e-a26d-8a2962aa84ac) 熱烈台湾ファン語辞典 | books_media travel | 應為 taiwan_mandarin |
+| 25 | [1da205f6](https://tokyotaiwanradar.com/ja/events/1da205f6-1064-45ca-bec0-fb5d42e08a17) 続　台湾は台湾 | books_media history | 應為 senses |
+| 26 | [d1f877cc](https://tokyotaiwanradar.com/ja/events/d1f877cc-8421-4637-a178-7c7b54961349) 台湾夜市大全 | books_media taiwan_japan | 應為 folklore、urban、tourism |
+| 29 | [09295b17](https://tokyotaiwanradar.com/ja/events/09295b17-0d36-44c6-9779-f6065c8c6e05) 台湾白魚…SATOYAMAイニシアティブ | geopolitics academic | 應為 nature、urban |
+| 40 | [36f57e45](https://tokyotaiwanradar.com/ja/events/36f57e45-c26d-41c0-b8c1-9194aca5556e) やんばると台湾 | books_media academic | 應為 taiwan_japan |
+
+錯誤型態：
+
+- **`books_media` 被當成萬用標籤**：40 筆中 15 筆有 `books_media`。N 的 11 筆有 7 筆涉及它，
+  其中 2 筆（#6、#10）只有 `books_media`、沒有主題分類。另有 7 筆判 Y 但註明「books_media
+  不相關」（#11、22、33、34、35、36、39）。根源在凍結 prompt 的 FIELD RULES 寫了「Books may
+  additionally get books_media」。
+- **`taiwan_japan` 過度使用**：#5、#16、#26。
+- **漏掉次要主題**（多數判 Y）：geopolitics（#1）、taiwan_mandarin（#8）、human_rights（#14）、
+  tech（#15）、herbal／healthcare（#27、#30）、lifestyle_food（#31）。
+- 無效 slug `travel` 出現 1 次（#21），正式流程的白名單會濾掉。
+
+與正式 DB 現行分類對照（同 40 筆，2026-10-23 唯讀 SELECT）：現行值有 `["senses"]` 單標 6 筆、
+含 `lecture` 9 筆、只有 `["books_media"]` 9 筆；凍結 prompt 的輸出對應為 0、0、2 筆。新 prompt 未達
+門檻，但比現況明顯好。
+
+使用者提出 `books_media` 對書目記錄的新定義：只用在以媒體生態、出版環境、媒體與出版產業、
+假新聞、後真相、媒體研究為主題的作品。使用者決定在本案修正 prompt（成本上限 6 → 6.50 美元），
+並另開 [#406](https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/issues/406) 處理網站的「所有新書」入口。
+cand5 以後的措辭參考了 P_seal／P_h 的分類錯誤，P_seal 的分類結果因此不再是獨立驗證；第二輪分類檢查
+改用 P_dev 與 P_h 未檢查過的記錄。
+
+## 分類修正輪次（2026-10-23，只用 P_dev）
+
+| 候選 | 相對 cand1 的改動 | SHA-256 前 12 碼 | 保留記錄 302 筆中：books_media／taiwan_japan／白名單後空分類／無效 slug | gate 變動 | 花費 |
+|------|------|------|------|------|------|
+| cand1 | — | `cec390cd7a4e` | 57／36／1／7 | — | — |
+| cand5 | books_media 新定義、taiwan_japan 專用規則、不得空分類 | `856554b6b1c2` | 34／**99**／4／8 | 0 | $0.836 |
+
+cand5 退步：點名 `taiwan_japan` 的限制規則反而觸發它（中台關係、美中會談都被標上）；`books_media`
+仍留在寫真集、書評、雜誌、旅遊書；「必須有主題分類」讓模型自創 `travel`、`sports`、`education`、
+`technology`、`architecture` 等 slug，白名單濾掉後變空。70 筆已標記錄的相關性判定與 cand1 完全相同。
+
+cand6：拿掉 taiwan_japan 專用規則，也從主題範例清單移除 `taiwan_japan`；明訂只能用允許清單的 slug
+並給對應（travel → tourism 等）；`books_media` 改為「作品在講媒體或出版」，列出不構成理由的格式
+（書、旅遊書、寫真集、教科書、辭典、雜誌、報紙、專欄、書評），不確定時不加。SHA-256 前 12 碼
+`b722d4b8ee16`。使用者同意成本上限再提高到 7.50 美元（執行前累計 $6.153）；cand6 未通過數字檢查
+（taiwan_japan ≤ 36、books_media 明顯低於 57、白名單後空分類 ≤ 1、gate 不變）就停下，不再加輪。
+
+cand6 結果（P_dev，$0.836）：books_media 33、taiwan_japan **8**、白名單後空分類 3、無效 slug 10；
+70 筆已標記錄判定不變；gate 變動 1 筆：[仙台湾沿岸海岸防災林](https://tokyotaiwanradar.com/ja/events/2cbef058-b4eb-4468-95b7-7e6a3bc040aa)
+（仙台灣，與台灣無關）cand1 正確丟掉、cand6 保留。**未通過**數字檢查（空分類、gate），依規則停下。
+剩下的 books_media 正是 prompt 明列「不構成理由」的格式（寫真集、書評、旅遊書、雜誌），gpt-4o-mini 不照做；
+人工修正回饋區塊不含 books_media，排除為成因。
+
+使用者決定（2026-10-23）：
+- 出貨 **cand6＋程式規則**。凍結 `prompts/frozen_cand6.txt`，SHA-256
+  `b722d4b8ee16ce29fdbb9bf6b6ff98f6b4a59fe399baf64f20acca01292bc5a2`；對 P_h 執行（$0.230，累計 $7.219）。
+- 程式規則（`annotator.py`，只作用於純出版物）：
+  1. `_drop_format_only_books_media`：還有其他分類時移除 `books_media`；只剩它時保留，避免進空分類審核佇列。
+     真正講媒體研究、又有其他主題分類的書會失去這個標籤，已接受。
+  2. `_inject_keyword_categories(..., record_type)`：出版物不補 `lecture`／`report`／`tv_program`，
+     `history`／`geopolitics` 照補。cand6 的 P_dev 保留記錄中原本會被補 report 18、lecture 12 筆。
+- 第二輪門檻改為「比現況好」：同 40 筆盲測 A／B（正式 DB 現行分類 vs cand6＋程式規則），使用者各判 Y／N；
+  新版 N 明顯少於現行就出貨，剩下的錯誤型態開 issue。第一輪 11／39 仍記為未達 ≤ 2。
+
+第二輪檢查表（`~/.ai-notes/ttr/p5-eval/`）：`category_check2.html`（閱讀）、`category_check2.csv`（填 `ok_A`／`ok_B`）、
+`category_check2_key.csv`（揭盲用，A 是 new 或 old）。樣本：cand6 在 P_dev 的保留記錄隨機 20
+（`order_key(SEED+"category-check-2-dev")`）＋ P_h 未在第一輪出現的保留記錄隨機 20；40 筆中 9 筆 A=B。
+P_dev 已用於 cand5／cand6 的開發，這 20 筆不是獨立驗證；P_h 的 20 筆沒有在開發時看過。
+
