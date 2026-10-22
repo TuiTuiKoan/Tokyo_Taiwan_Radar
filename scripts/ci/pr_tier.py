@@ -38,7 +38,7 @@ TIER0_EXCLUDE = (
     "docs/architecture/*",
 )
 SOURCE_RE = re.compile(r"scraper/sources/([a-z0-9_]+)\.py")
-NOT_A_SOURCE = frozenset({"base", "__init__"})
+NOT_A_SOURCE = frozenset({"base", "__init__"})  # shared modules, not sources
 API_FILE_LIMIT = 3000
 
 
