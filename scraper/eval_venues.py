@@ -255,7 +255,7 @@ def _fetch_raw(sb, event_ids: list[str]) -> dict[str, dict]:
 
 
 async def run_extract(cases: list[dict]) -> tuple[list[dict], list[dict], list]:
-    from openai import AsyncOpenAI
+    from llm_client import get_async_client
     from database import _get_client
     from eval_annotator import annotate_one_async
 
@@ -269,7 +269,7 @@ async def run_extract(cases: list[dict]) -> tuple[list[dict], list[dict], list]:
         else:
             ready.append((c, raw))
 
-    client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    client = get_async_client("eval.venues")
     sem = asyncio.Semaphore(5)
 
     async def _one(raw):
@@ -440,4 +440,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    from llm_client import finish
+
+    rc = main()
+    finish()
+    sys.exit(rc)
