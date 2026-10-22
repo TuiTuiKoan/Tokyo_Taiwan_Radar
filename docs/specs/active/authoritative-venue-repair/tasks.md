@@ -19,7 +19,8 @@ description: authoritative-venue-repair 的隔離、實作、驗證與兩階段 
 * [x] Idempotently 加入主 repository `.git/info/exclude`
 * [x] 驗證主工作樹九個既有 tracked WIP 與 governing prompt 未被修改
 * [x] 從官方頁複核 TCC、Johakyu、Century、Hulic 與 TOHO venue truth
-* [ ] 以可稽核同網域官方證據複核高田世界館與 TIFF stable root
+* 高田世界館與 TIFF stable root 的官方證據複核：2026-10-22 移至
+  [`docs/specs/parked/authoritative-venue-repair-followups.md`](../../parked/authoritative-venue-repair-followups.md)
 * [x] 以 mechanically read-only client 重新查詢 production baseline
 * [x] 確認 31 target events、八 existing venues 與三個新 venue-name absences
 * [x] 確認 TCC canonical-linked 29、duplicate references 19/1 與兩個 live collisions
@@ -137,9 +138,8 @@ description: authoritative-venue-repair 的隔離、實作、驗證與兩階段 
 * [x] Repair capture/apply/rollback/CAS/idempotency/conflict/order tests PASS
 * [x] `python -m compileall -q .` PASS from `scraper/`
 * [x] `python -m pytest tests` PASS from `scraper/`
-* [ ] Tiff source dry-run完成；current-year empty 只標 graceful empty
-* [ ] Johakyu source dry-run PASS
-* [ ] Starcat source dry-run PASS
+* Tiff、Johakyu、Starcat source dry-run：2026-10-22 移至
+  [`docs/specs/parked/authoritative-venue-repair-followups.md`](../../parked/authoritative-venue-repair-followups.md)
 * [x] Taiwan Cultural Center source dry-run PASS
 * [x] `git diff --check` PASS
 * [x] Scope assertion 無 `web/**`、`supabase/**`、`scraper/main.py` 或 merger diff
@@ -355,53 +355,44 @@ therefore did not satisfy the approved production mutation inventory.
 * [x] Lock the complete fixture inventory at 6 updates, 3 inserts, 59 event/FC, 2 deletes
 * [x] Focused repair suite PASS with 60 tests
 * [x] Compileall, editor diagnostics, diff check and exact path-scope assertion PASS
-* [ ] Independent Tester reruns the correction acceptance matrix and reports PASS
-* [ ] Present a fresh Gate 1 report and obtain approval for this exact changeset
+* [x] Independent Tester reruns the correction acceptance matrix and reports PASS
+      （2026-10-22，rebase 後的 `10770777`：16 項全 PASS；focused 60 項於 Python 3.14.3 與 3.12.15 皆 PASS、
+      相關 10 檔 278 PASS、全 scraper 1055 passed／1 skipped；`git range-diff` 為 `3f7c00f6 = 10770777`）
+* [x] Present a fresh Gate 1 report and obtain approval for this exact changeset（2026-10-22 使用者批准）
 
 No production query, production mutation, manifest preview, manifest capture, push, merge,
 main-worktree commit, stash or clean was executed during this correction cycle.
 
+2026-10-22：commit 自 `3f7c00f6`（基底 `e8f756c0`）非衝突 rebase 為 `10770777`（基底 `02ab2027`），
+rebase 前以 `git format-patch` 備份於本機 `~/.ai-notes/ttr/venue-repair-20261022/`。
+
 ## Gate 1: Push approval
 
-* [ ] 顯示 exact local commits 與全部 changed paths
-* [ ] 顯示完整 Test Report、dry-run evidence、risks 與 live drift
-* [ ] 明確聲明 production 未 mutation
-* [ ] 取得針對同一 validated changeset 的當下 push 批准
-* [ ] 未批准前不 push、merge、main commit 或 capture manifest
+* [x] 顯示 exact local commits 與全部 changed paths（`10770777`，6 檔 `+854/−41`）
+* 「顯示完整 Test Report、dry-run evidence、risks 與 live drift」只完成 Test Report 與 risks；dry-run evidence 與
+  live drift 不在本次 Gate 1 範圍（未做任何 production 查詢），2026-10-22 移至 parked followups
+* [x] 明確聲明 production 未 mutation
+* [x] 取得針對同一 validated changeset 的當下 push 批准（2026-10-22）
+* [x] 未批准前不 push、merge、main commit 或 capture manifest
 
 ## Post-Gate 1: Push and read-only capture
 
-* [ ] V-M-D 完成 fetch、conflict check、clean rebase、revalidation 與 fast-forward push
-* [ ] Fetch 並證明 exact `origin/main` 包含 validated feature commit
-* [ ] 從同一 clean exact SHA 重新查官方來源與 production live state
-* [ ] 產生 immutable manifest 與三筆固定新 venue UUID
-* [ ] 顯示每個 full UUID action、dependency、before/after、conflict 與 digest
-* [ ] 顯示 project ref、capture timestamp、new ID/name absence 與 duplicate ref counts
+* [x] V-M-D 完成 fetch、conflict check、clean rebase、revalidation 與 fast-forward push
+      （2026-10-22 由主 session 執行等效步驟：push 前重新 fetch 確認 `origin/main` 仍為 `02ab2027`、ahead 1／behind 0；
+      使用者以 `git push origin HEAD:main` fast-forward 推送）
+* [x] Fetch 並證明 exact `origin/main` 包含 validated feature commit
+      （`git ls-remote origin refs/heads/main` = `10770777b3baa49ffb6c24aec2579bf42b9fe009`）
 
-## Gate 2: Production approval
+## 2026-10-22 production 階段暫停
 
-* [ ] 取得綁定同一 manifest SHA-256 的當下批准
-* [ ] 批准明確涵蓋 writer pause/drain/resume
-* [ ] 批准明確涵蓋 authoritative venue updates 與三筆 inserts
-* [ ] 批准明確涵蓋 event/FC actions
-* [ ] 批准明確涵蓋兩筆 duplicate conditional deletion
-* [ ] Manifest digest 改變時重新取得 Gate 2
+使用者於 2026-10-22 決定暫停 production 套用並退役 `ttr-authoritative-venue-repair-worktree`。
+read-only capture、Gate 2、production CAS 與 read-back 共 20 條，連同上方 Phase 0、Phase 8、Gate 1 移出的 5 條
+與「Gate 2 前不得 mutation」限制，共 26 條逐字搬到
+[`docs/specs/parked/authoritative-venue-repair-followups.md`](../../parked/authoritative-venue-repair-followups.md)，
+並在該檔補記 Tester 發現的完整計畫 rollback 缺口（R1）。搬移不代表任何一條已處理；**production 未查詢、未 mutation**。
 
-## Post-Gate 2: Production CAS and read-back
+## Forbidden（已遵守的範圍限制）
 
-* [ ] 盤點所有 service-role writers
-* [ ] Pause、drain 並證明零 in-flight writes
-* [ ] 重新驗證 project ref、repo SHA、digest、all before CAS 與 refs
-* [ ] 依 manifest 固定順序執行並逐筆 read-back
-* [ ] Zero-reference + full-row CAS 後才刪 duplicate venues
-* [ ] 驗證 registry、venue、event、FC、URL、sentinel 與 TIFF invariants
-* [ ] 第二次 apply 全為 noop/already-applied
-* [ ] Resume writers 並監看第一個 writer run 無回歸
-* [ ] Production Tester read-only exact verdict PASS
-* [ ] 保存 final journal、rollback artifacts、conflicts 與 follow-up
-
-## Deferred and forbidden
-
-* [ ] NOT EXECUTED before Gate 1: push、merge、main commit、manifest capture
-* [ ] NOT EXECUTED before Gate 2: production venue/event/FC mutation或 duplicate deletion
-* [ ] NOT IN SCOPE: migration、web、i18n、main.py、merger、geocoder、event non-venue fields
+* [x] NOT EXECUTED before Gate 1: push、merge、main commit、manifest capture（push 於 Gate 1 批准後執行；manifest capture 未執行）
+* [x] NOT IN SCOPE: migration、web、i18n、main.py、merger、geocoder、event non-venue fields
+      （2026-10-22 path scope assertion：diff 只含 6 個列出的檔案）
