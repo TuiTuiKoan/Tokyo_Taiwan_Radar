@@ -79,8 +79,6 @@ class TokyoNowScraper(BaseScraper):
 
         # Fetch first page to get total_pages
         first = self._fetch_page(today, 1)
-        if not first:
-            return events
 
         total_pages = first.get("total_pages", 1)
         logger.info("TokyoNow: total_pages=%d, start_date=%s", total_pages, today)
@@ -90,8 +88,6 @@ class TokyoNowScraper(BaseScraper):
         for page_num in range(2, total_pages + 1):
             time.sleep(_PAGE_DELAY)
             data = self._fetch_page(today, page_num)
-            if not data:
-                break
             all_api_events.extend(data.get("events", []))
 
         logger.info("TokyoNow: fetched %d total events", len(all_api_events))
@@ -104,20 +100,23 @@ class TokyoNowScraper(BaseScraper):
         logger.info("TokyoNow: %d Taiwan-related events", len(events))
         return events
 
-    def _fetch_page(self, start_date: str, page: int) -> Optional[dict]:
-        """Fetch a single page from the Tribe Events API."""
-        try:
-            resp = requests.get(
-                API_URL,
-                params={"per_page": 50, "start_date": start_date, "page": page},
-                timeout=20,
-                headers={"User-Agent": "TokyoTaiwanRadar/1.0 (+https://tokyotaiwanradar.com)"},
-            )
-            resp.raise_for_status()
-            return resp.json()
-        except Exception as exc:
-            logger.error("TokyoNow: API fetch error page=%d: %s", page, exc)
-            return None
+    def _fetch_page(self, start_date: str, page: int) -> dict:
+        """Fetch a single page from the Tribe Events API.
+
+        Raises on HTTP errors or an unexpected payload so main.py records success=False.
+        tokyonow.tokyo dropped the Events Calendar plugin (404 since ~2026-09, #376).
+        """
+        resp = requests.get(
+            API_URL,
+            params={"per_page": 50, "start_date": start_date, "page": page},
+            timeout=20,
+            headers={"User-Agent": "TokyoTaiwanRadar/1.0 (+https://tokyotaiwanradar.com)"},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if not isinstance(data, dict) or "events" not in data:
+            raise RuntimeError(f"TokyoNow: unexpected API payload on page {page}")
+        return data
 
     def _parse_event(self, ev: dict) -> Optional[Event]:
         """Parse a single Tribe Events API response object into an Event."""

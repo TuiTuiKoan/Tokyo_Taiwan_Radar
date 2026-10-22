@@ -6,6 +6,16 @@ applyTo: scraper/sources/tokyonow.py
 
 # Tokyo Now Scraper — Platform Reference
 
+> **⚠️ Status (2026-10-23, #376): the event listing this scraper relies on no longer exists.**
+> tokyonow.tokyo is now an entertainment news/PR site (芸能・エンタメ・イベント情報を配信するWebメディア).
+> The Tribe Events plugin was removed: `/wp-json/tribe/events/v1/events` returns 404, `/events/` redirects to
+> `/information/`, `wp/v2/types` has no event post type, and the leftover `event_area`/`event_price`
+> taxonomies are empty. `wp/v2/posts?search=台湾` returns unrelated news, not event listings.
+> There is no replacement list/API/sitemap to rewrite against. The scraper now **raises** on a non-200 or
+> unexpected payload, so each Monday run is recorded as `success=False` instead of "success, 0 events".
+> Recommended follow-up: retire the source (remove it from `SCRAPERS` and mark the research source) unless
+> the site brings an event calendar back.
+
 ## Platform Profile
 
 | Field | Value |
@@ -104,13 +114,14 @@ raw_description = date_prefix + "\n\n" + desc_text
 - Taiwan-related events: typically **0–3** at any given time
 - Scan time: ~5 s (4 pages × 50 events + 1 s page delay)
 
-Dry-runs returning 0 events are **expected and correct** — it means no Taiwan events are currently listed. Do not treat 0 results as a scraper failure.
+While the Tribe API was alive, dry-runs returning 0 events were expected and correct (no Taiwan events listed). An **HTTP error or unexpected payload is a failure** and must raise: `main.py` only records `success=False` when `scrape()` raises.
 
 ## Troubleshooting
 
 | Symptom | Likely Cause | Fix |
 |---------|--------------|-----|
-| 0 events, `total_pages=0` | API unreachable or 5xx | Check `resp.raise_for_status()`; retry |
+| `404` on `/wp-json/tribe/events/v1/events` | Events Calendar plugin removed (since ~2026-09) | See the status note at the top; the source is dead |
+| 0 events, `total_pages=0` | API unreachable or 5xx | `_fetch_page` raises on HTTP errors; check the `scraper_runs.success` flag |
 | `total_pages=1` when expecting more | `start_date` too far in the future | Verify today's JST date |
 | False positives with `台東` | Do NOT add `台東` to `_TAIWAN_KEYWORDS` | `台東区` is a Tokyo ward |
 | `source_id` changes | Using title/position instead of `ev["id"]` | Always use the numeric WordPress post ID |
