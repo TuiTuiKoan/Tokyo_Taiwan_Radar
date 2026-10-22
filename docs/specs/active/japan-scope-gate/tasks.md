@@ -85,4 +85,4 @@ Snapshot attempt：`tmp/scope_manifest_20260804T145452Z.json` 在寫入前 STOP�
 * [x] 不執行 one-off `--apply` 或其他 production DB mutation
 * [x] 不把 code delivery 核准解讀為 digest-bound production apply 核准
 * [x] Transactional RPC 完成前，由 CLI 強制拒絕 non-transactional apply
-* [x] 除 migration 098（admin confirm 原子 RPC，待使用者套用）外不新增 migration、不改 QA auto-consumer、不改 sub-event active contract
+* [x] 除 migration 098（admin confirm 原子 RPC，2026-10-22 已由使用者套用到 production 並 read-back 確認）外不新增 migration、不改 QA auto-consumer、不改 sub-event active contract
