@@ -1,5 +1,6 @@
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { openaiApiKey, openaiChat } from "@/lib/llm/openai.server";
 import sharp from "sharp";
 import QRCode from "qrcode";
 
@@ -17,16 +18,13 @@ type Corner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
 
 // Use gpt-4o-mini (nano banana) to pick the most blank corner
 async function detectBestCorner(imageBase64: string, mimeType: string): Promise<Corner> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = openaiApiKey();
   if (!apiKey) return "bottom-right";
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
+  const res = await openaiChat({
+    caller: "web.upload-with-qr.corner",
+    apiKey,
+    body: {
       model: "gpt-4o-mini",
       max_tokens: 12,
       messages: [
@@ -47,7 +45,7 @@ async function detectBestCorner(imageBase64: string, mimeType: string): Promise<
           ],
         },
       ],
-    }),
+    },
   });
 
   if (!res.ok) return "bottom-right";

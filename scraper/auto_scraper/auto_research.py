@@ -259,9 +259,9 @@ def _call_llm_assessment(
             retries=0,
         )
 
-    from openai import OpenAI
+    from llm_client import get_client
 
-    client = OpenAI()
+    client = get_client("auto_scraper.research")
     cumulative_cost = 0.0
     cumulative_in = 0
     cumulative_out = 0
@@ -766,6 +766,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 if __name__ == "__main__":
+    from llm_client import finish
+
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     args = _build_parser().parse_args()
 
@@ -778,6 +780,7 @@ if __name__ == "__main__":
             budget_usd=args.budget_usd,
         )
         promoted, demoted, human = run_batch(batch_opts)
+        finish()
         sys.exit(0 if (promoted + demoted + human) >= 0 else 1)
     elif args.source_id:
         opts = ResearchOptions(
@@ -788,7 +791,9 @@ if __name__ == "__main__":
             budget_usd=args.budget_usd,
             ignore_cooldown=args.ignore_cooldown,
         )
-        sys.exit(run(opts))
+        rc = run(opts)
+        finish()
+        sys.exit(rc)
     else:
         _build_parser().print_help()
         sys.exit(1)

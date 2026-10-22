@@ -41,6 +41,7 @@ except Exception:  # pragma: no cover
     create_client = None  # type: ignore[assignment]
 
 import daily_report
+import source_health
 from monthly_health_check import a3_scope_note, collect_monthly_health_metrics
 from report_window import JST, ReportWindow, resolve_report_window
 
@@ -267,6 +268,7 @@ def collect_weekly_data(sb, window: ReportWindow) -> dict:
 
     data.update({
         "by_source": by_source,
+        "source_health": source_health.check(sb, window.window_end_exclusive),
         "deepl_chars": deepl_chars,
         "weekly_cost": cost_check["today_cost"],
         "mtre_cost": mtre_cost,
@@ -392,6 +394,21 @@ def build_weekly_markdown(window: ReportWindow, data: dict) -> str:
             zeros = sorted(s for s, d in by_source.items() if d["events"] == 0)
             if zeros:
                 lines += ["", f"⚠️ 本週 0 件來源（{len(zeros)}）：{', '.join(zeros)}"]
+            lines.append("")
+
+        health = data.get("source_health") or {}
+        if health.get("silent"):
+            # Judged by output, not by run success: a run that raises nothing still
+            # counts as success when it produced nothing (#319).
+            lines += [f"## 🔕 連續 {source_health.STREAK_WEEKS} 週 0 產出（以產出量判斷，不看成功率）", ""]
+            if health["newly_silent"]:
+                lines.append(
+                    f"🔴 之前 {source_health.LOOKBACK_WEEKS} 週有產出、最近歸零，可能壞了"
+                    f"（{len(health['newly_silent'])}）：{', '.join(health['newly_silent'])}"
+                )
+            long_quiet = [s for s in health["silent"] if s not in health["newly_silent"]]
+            if long_quiet:
+                lines.append(f"- 長期 0 件（{len(long_quiet)}）：{', '.join(long_quiet)}")
             lines.append("")
 
         if data["top3_sources"]:

@@ -372,9 +372,9 @@ def _call_llm_with_retries(
             raise GenerateError("spec-invalid", f"mock spec invalid: {exc}") from exc
         return LLMResult(spec=spec, cost_usd=0.0, prompt_tokens=0, completion_tokens=0, retries=0)
 
-    from openai import OpenAI
+    from llm_client import get_client
 
-    client = OpenAI()
+    client = get_client("auto_scraper.generate")
     cumulative_cost = 0.0
     cumulative_in = 0
     cumulative_out = 0
@@ -998,4 +998,8 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from llm_client import finish
+
+    rc = main()
+    finish()
+    raise SystemExit(rc)

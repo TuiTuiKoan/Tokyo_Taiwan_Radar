@@ -100,9 +100,9 @@ Before running `update_source.py --status researched --feasibility easy`, the Re
 
 ### Step 0: Load Candidates (ALWAYS run first)
 
-1. Run `list_dir` on `.copilot-tracking/research/candidates/` (written by `scraper/researcher.py`) — list all `.json` files.
+1. Run `list_dir` on `.copilot-tracking/research/candidates/` — list all `.json` files. The daily `scraper/researcher.py` job that wrote them was removed in 2026-10 (#318), so the directory normally holds only older local files or none.
 2. If files exist: `read_file` each one to load candidate data (name, url, category, reason, etc.).
-3. These are URL-verified sources discovered by the daily `researcher.py` run. Treat them as the research queue.
+3. Treat them as the research queue.
 4. If NO candidate files exist: proceed to Step 1 (manual search). If candidates exist, skip Step 1 and go directly to Step 2 using the candidate URLs.
 
 ### Step 1: Search (skip if Step 0 found candidates)
@@ -173,7 +173,7 @@ For each promising source, answer:
      ```bash
      source venv/bin/activate && python scraper/update_source.py --url <exact-url> --status not-viable
      ```
-  **⚠ URL が疎通不可（4xx/5xx / タイムアウト）でも必ず `--status not-viable` を実行する**: `url_verified=False` のソースを DB に保存しないと `researcher.py` の `known_urls` に含まれず、GPT が翌日以降も同じ URL を再提案し続ける（commit `7554002` の重複提案バグ再発防止）。疎通確認失敗 = 「評価したが実行不可」であり、無視ではなく記録が必要。
+  **⚠ URL が疎通不可（4xx/5xx / タイムアウト）でも必ず `--status not-viable` を実行する**: `url_verified=False` のソースを DB に保存しないと既知 URL として扱われず、同じ URL が再提案され続ける（commit `7554002` の重複提案バグ再発防止。当時の提案元 `researcher.py` は 2026-10 に削除済み）。疎通確認失敗 = 「評価したが実行不可」であり、無視ではなく記録が必要。
   `--create-issue` requires `GITHUB_TOKEN` in `scraper/.env` (classic token with `repo` scope or fine-grained with Issues: write + Metadata: read). It automatically advances the status to `recommended` and saves the Issue URL to the DB.
 
   **Feasibility judgement** (Researcher agent's responsibility):

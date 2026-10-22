@@ -38,7 +38,7 @@ from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
-from openai import OpenAI
+from llm_client import LLMClient, finish, get_client
 from playwright.sync_api import sync_playwright, Browser, TimeoutError as PWTimeout
 from supabase import create_client, Client
 from bs4 import BeautifulSoup
@@ -1415,11 +1415,8 @@ def _get_supabase() -> Client:
     return create_client(url, key)
 
 
-def _get_openai() -> OpenAI:
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY required")
-    return OpenAI(api_key=api_key)
+def _get_openai(caller: str = "annotator.annotate") -> LLMClient:
+    return get_client(caller)
 
 
 # ── Untrusted-input delimiter + length budget (Security Hardening v16) ──────
@@ -1903,7 +1900,7 @@ def _persist_scope_finding_or_retry(
     return False
 
 
-def _annotate_one(client: OpenAI, raw_title: str, raw_description: str, feedback_prompt: str = "", sr_feedback_prompt: str = "") -> dict:
+def _annotate_one(client: LLMClient, raw_title: str, raw_description: str, feedback_prompt: str = "", sr_feedback_prompt: str = "") -> dict:
     """Send raw event data to GPT-4o-mini and return structured annotation."""
     system_content = SYSTEM_PROMPT + feedback_prompt + sr_feedback_prompt
     user_content = build_event_user_content(raw_title, raw_description)
@@ -4538,7 +4535,7 @@ Description:
 
 
 def _fix_person_names_gpt(
-    client: OpenAI, desc: str, name_mappings: list[tuple[str, str, str]]
+    client: LLMClient, desc: str, name_mappings: list[tuple[str, str, str]]
 ) -> str | None:
     """Use GPT-4o-mini to replace wrong phonetic person names in desc_zh.
 
@@ -4566,7 +4563,7 @@ def _fix_person_names_gpt(
 
 
 def _fix_person_names_gpt_en(
-    client: OpenAI, desc: str, name_mappings: list[tuple[str, str, str]]
+    client: LLMClient, desc: str, name_mappings: list[tuple[str, str, str]]
 ) -> str | None:
     """Use GPT-4o-mini to replace wrong English transliterations in desc_en.
 
@@ -4712,7 +4709,7 @@ def enrich_person_names(
         )
 
     sb = _get_supabase()
-    client = _get_openai()
+    client = _get_openai("annotator.person_names")
 
     query = (
         sb.table("events")
@@ -4847,7 +4844,7 @@ def enrich_person_names_single(
     Mirrors the per-event body of enrich_person_names() exactly.
     """
     sb = sb or _get_supabase()
-    client = client or _get_openai()
+    client = client or _get_openai("annotator.person_names")
 
     if event is None:
         res = (
@@ -5408,7 +5405,7 @@ def backfill_performer_i18n() -> None:
     import re as _re
 
     sb = _get_supabase()
-    client = _get_openai()
+    client = _get_openai("annotator.performer_i18n")
 
     _KANJI_RE = _re.compile(r'^[\u4e00-\u9fff\u3000-\u303f\s、，,・\-－―]+$')
 
@@ -5774,4 +5771,5 @@ if __name__ == "__main__":
             event_ids=event_ids_list,
             dry_run=dry_run_flag,
         )
+    finish()
 

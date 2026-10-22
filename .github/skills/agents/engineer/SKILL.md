@@ -1141,12 +1141,12 @@ Reference incident: 2026-05-26 — `co_organizers` / `sponsors` 三路徑 sync �
 
 ## AdminSourcesTable.tsx — agent_category Sync Rule
 
-`web/components/AdminSourcesTable.tsx` maintains a `SOURCE_TYPE_LABELS` map and a `getFilteredSources` function. Both must be updated whenever a new `agent_category` value is introduced in `discovery_accounts.py`:
+`web/components/AdminSourcesTable.tsx` maintains a `SOURCE_TYPE_LABELS` map and a `getFilteredSources` function. Both must be updated whenever a new `agent_category` value is written to `research_sources` (by `update_source.py`, SQL, or any future discovery job):
 
 1. **`SOURCE_TYPE_LABELS`** — add the new key: `{ ..., <new_category>: "<display label>" }`
 2. **`getFilteredSources`** — detect the new category by reading `source.agent_category` directly, NOT by hardcoded ID lists. Hardcoded ID lists silently omit newly discovered sources.
 
-This is a **paired-file rule**: `discovery_accounts.py` (defines agent_category) ↔ `AdminSourcesTable.tsx` (displays it).
+This is a **paired-file rule**: whatever writes a new `agent_category` ↔ `AdminSourcesTable.tsx` (displays it). The original writer, `discovery_accounts.py`, was removed in 2026-10 (#318).
 
 ## AdminSourcesTable.tsx — i18n Rule: No Hardcoded Labels
 
@@ -1242,7 +1242,7 @@ Every route slug must appear the **same number of times** (= total number of adm
 - **New scraper checklist — all 4 steps required:**
   1. Create `scraper/sources/<name>.py` extending `BaseScraper`
   2. Register in `scraper/main.py` → `SCRAPERS` (import + add instance)
-  3. **Insert a row in `research_sources`** with `status='implemented'`, `scraper_source_name=<key>`, and a valid `url`. Skipping this causes `researcher.py` to re-report the source as a new candidate and triggers a `⚠️ WARNING` in CI logs every day.
+  3. **Insert a row in `research_sources`** with `status='implemented'`, `scraper_source_name=<key>`, and a valid `url`. Skipping this triggers a `⚠️ WARNING` in CI logs every day and lets source discovery (`auto_research.py`, manual research) treat it as a new candidate.
   4. Validate: `python main.py --dry-run --source <key>` returns events cleanly
 - `_warn_unregistered_scrapers()` in `main.py` runs on every non-dry-run and emits a WARNING for any scraper key missing from `research_sources`. Check CI logs if you see `⚠️ scraper(s) NOT registered`.
 - **Auto-QA via `event_reports` queue (2026-05-01):** New automated content-quality checks must write findings into `event_reports` with an `auto_*` prefix in `report_types[]` (e.g. `auto_qa_simplified_zh`, `auto_qa_missing_address`). Do NOT build a separate admin queue — the existing `/admin/reports` confirm/dismiss flow handles auto-findings unchanged. Always dedup against existing rows of the same `auto_*` type per `event_id` — check **ALL statuses** (`pending`, `confirmed`, `dismissed`), not just `pending`. A confirmed/dismissed report means the admin has already reviewed it; re-creating it undoes admin work. Also dedup within a single run via in-memory set. See `scraper/auto_qa.py` and engineer `history.md` 2026-05-01 / 2026-05-05.
@@ -1415,38 +1415,29 @@ ALTER TABLE research_sources
   ADD COLUMN IF NOT EXISTS auto_scraper_attempted_at TIMESTAMPTZ;
 ```
 
+### Scraper OpenAI calls go through `scraper/llm_client.py` (2026-10, #319)
+
+- Create clients with `get_client("<group>.<name>")` (or `get_async_client`), never `OpenAI(...)`. Groups: `annotator`, `enrich`, `qa`, `broadcast`, `eval`, `auto_scraper`; the group picks `OPENAI_API_KEY_<GROUP>` before `OPENAI_API_KEY`. The returned client keeps the SDK shape (`.chat.completions.create`, `.responses.create`).
+- A retired model, bad key or exhausted quota raises `LLMConfigError`, a `BaseException` on purpose so `except Exception` cannot swallow it. Do not catch it to "keep going": `gpt-4o-search-preview` returned 404 for two months (2026-08-20 on) while every run showed success.
+- Call `llm_client.finish()` at the end of a script's `__main__`; it exits non-zero when most calls failed.
+- A new LLM step in `scraper.yml` gets an `id`, `continue-on-error: true`, and a line in the final "Fail on LLM step errors" step.
+- Source health is judged by output (`scraper/source_health.py`), not by run success.
+- Supabase reads that can exceed 1000 rows use `db_paging.fetch_all(lambda: <query>)`. Pass a factory: postgrest-py's `.range()` appends params, so reusing one builder for several pages sends duplicate offset/limit.
+
 ### OpenAI Org-Level Quota Monitoring (separate concern from per-call budget)
 
 `--budget-usd` (default $1.50/source) is a **per-run** safeguard. It does NOT protect against **org-level monthly quota** exhaustion.
 
-- Once OpenAI org quota is hit, **all** calls return 429 `insufficient_quota` — not just auto-scraper, but also `annotator.py`, `researcher.py`, `enrich_addresses.py`, etc. The entire pipeline halts silently if this happens during a cron window.
+- Once OpenAI org quota is hit, **all** calls return 429 `insufficient_quota` — not just auto-scraper, but also `annotator.py`, the enrich steps, etc. The entire pipeline halts silently if this happens during a cron window.
 - Per-call budget guards are **necessary but not sufficient**. Mitigation layers, in priority order:
   1. **Daily dev report** (`daily-dev-report.yml`, 02:00 JST) should surface the OpenAI billing dashboard URL so the on-call dev can spot-check usage.
   2. **Future**: poll `/v1/usage` endpoint and post a LINE alert when org-level usage > 80% of monthly cap. Treat as Tier-1 ops alert.
   3. **Manual**: at start of any large batch run (e.g. auto-scraper batch e2e), check the OpenAI usage page first.
 - Reference incident: 2026-05-02 — mid-batch e2e exhausted monthly quota. All subsequent calls 429'd, batch silently aborted.
 
-## Discovery Accounts Pipeline (`discovery_accounts.py`)
+## Discovery Accounts Pipeline — removed 2026-10 (#318)
 
-**Year must be dynamic — never hardcoded:**
-```python
-# CORRECT
-_THIS_YEAR = datetime.now(JST).year
-query = f"台湾 イベント {_THIS_YEAR}"
-
-# WRONG — requires manual update every year
-query = "台湾 イベント 2026"
-```
-Any query string that contains a year literal must use `_THIS_YEAR` or an equivalent `datetime.now(...)` derivation.
-
-**agent_category paired-file rule:** When adding a new `agent_category` value in `discovery_accounts.py`, **always** update `web/components/AdminSourcesTable.tsx` in the same commit:
-1. `SOURCE_TYPE_LABELS` — add `<new_category>: "<display label>"`
-2. `getFilteredSources` — add a branch that reads `source.agent_category` directly (do NOT use hardcoded ID lists)
-
-Current agent_category values and their labels:
-| `agent_category` | `SOURCE_TYPE_LABELS` label |
-|---|---|
-| `peatix_organizer` | `"Peatix 主辦者"` |
+`scraper/discovery_accounts.py` and `discovery-accounts.yml` were removed: they depended on the retired `gpt-4o-search-preview` and had produced no implemented account since 2026-05. Existing `research_sources` rows with `agent_category='peatix_organizer'` are still read by `peatix.py`. Two rules from it still apply to any future discovery job: derive years in query strings from `datetime.now(JST).year` instead of hardcoding them, and keep the `AdminSourcesTable.tsx` paired-file rule above.
 
 ## Auto Research Pipeline (`auto_research.py`)
 
@@ -1982,25 +1973,7 @@ Inventory of setters that must comply (audit when modifying any of them):
 
 ## Discovery Pipeline
 
-`scraper/discovery_accounts.py` is a separate pipeline from `BaseScraper`. It discovers new organizer accounts on external platforms and upserts them into `research_sources`.
-
-### Slot rotation design
-- **4 daily slots** (Mon–Thu), derived from weekday: Mon=0, Tue=1, Wed=2, Thu=3.
-- Slots 0–2 run `note.com` keyword discovery; Slot 3 runs Peatix group discovery.
-- Controlled by `DISCOVERY_SLOT` env var (set by `discovery-accounts.yml` via `$(date +%u) - 1`) or `--slot` CLI arg.
-- The `.github/workflows/discovery-accounts.yml` cron runs Mon–Thu only (not Fri–Sun).
-- **Adding a new platform**: add a new slot (increment total), add a `_run_{platform}_task()` function, update the `DISCOVERY_SLOT` derivation in the workflow.
-
-### Peatix organizer verification
-- `_verify_peatix_group(group_id)` performs an HTTP GET to `https://peatix.com/group/{group_id}` and checks for a non-404 response.
-- Verified groups are upserted to `research_sources` with `agent_category='peatix_organizer'`.
-- `peatix.py` Layer 3 reads these rows at runtime — no code change needed when a new organizer is discovered.
-
-### Platform-aware upsert
-- `agent_category` in `research_sources` determines which scraper picks up the organizer:
-  - `'peatix_organizer'` → `peatix.py` Layer 3
-  - (future) `'connpass_organizer'` → `connpass.py`
-- Always set `agent_category` when upserting a new discovered account.
+Removed in 2026-10 (#318); see "Discovery Accounts Pipeline — removed 2026-10" above. `agent_category` in `research_sources` still decides which scraper reads an organizer row: `'peatix_organizer'` → `peatix.py` Layer 3.
 
 ## Multi-locale Edit Pattern
 
@@ -2070,48 +2043,24 @@ Missing a Vercel env var for a webhook causes silent HTTP 401 failures. LINE doe
 
 ## enrich_addresses.py — 地址補齊工具
 
-`scraper/enrich_addresses.py` 使用 OpenAI gpt-4o-mini 查詢有場館名但缺地址的活動，並寫回 DB。
+`scraper/enrich_addresses.py` 為缺少具體地址的**未來活動**補 `location_address`，自 2026-10（#318）起不呼叫 LLM。原本使用的 `gpt-4o-search-preview` 約 2026-08-20 下架。
+
+### 查找順序
+1. `venue_registry.lookup_venue_for_location`（權威場館；`is_multi_venue` 的場館不採用）。也會試去掉 `｜` 前綴的名稱。
+2. 其他事件：相同 `location_name` 的事件只對應到**一個**具體地址時沿用，連同 `_zh`／`_en`。有兩個以上不同地址時不沿用。
+3. 兩者都查不到的只列出事件連結，不寫入。
 
 ### 使用方式
 ```bash
-# dry-run（只預覽，不寫入 DB）
-python enrich_addresses.py --dry-run
-
-# 只處理特定 source
+python enrich_addresses.py --dry-run               # 只預覽
 python enrich_addresses.py --source ssff --dry-run
-python enrich_addresses.py --source ssff
-
-# 處理所有符合條件的事件
-python enrich_addresses.py
+python enrich_addresses.py                         # 寫入
 ```
 
-### 跳過邏輯（以下情況不查詢）
-- `source_name = 'gguide_tv'`（TV 頻道，無實體地址）
-- `location_name` 包含 `オンライン` 或 `電視頻道`（線上活動）
-- `location_address` 已有值（不覆蓋）
-
-### 寫入欄位
-| 欄位 | 說明 |
-|------|------|
-| `location_address` | 日文地址（主欄位） |
-| `location_address_zh` | 中文地址 |
-| `location_address_en` | 英文地址 |
-
-**信心度過濾：** LLM 回傳 `confidence` 欄位；只有 `confidence=high` 才寫入，`low`/`medium` 直接跳過。避免寫入 LLM 猜測的錯誤地址。
-
-### 可複用模式
-任何「有 venue name 但缺地址」的來源都適用。執行前先用以下 SQL 確認目標範圍：
-```sql
-SELECT source_name, COUNT(*) AS cnt
-FROM events
-WHERE location_name IS NOT NULL
-  AND location_address IS NULL
-  AND source_name NOT IN ('gguide_tv')
-  AND location_name NOT LIKE '%オンライン%'
-  AND location_name != '電視頻道'
-GROUP BY source_name
-ORDER BY cnt DESC;
-```
+### 跳過與鎖定
+- 跳過 `gguide_tv`、`location_name` 含 `オンライン`／`電視頻道` 的事件、純出版紀錄，以及 `field_corrections` 已鎖 `location_address` 的事件。
+- 「模糊」地址（`VAGUE_ADDRESS_VALUES` 或只有都道府県／市区）視同缺地址。
+- 從其他事件沿用的地址會寫入 `field_corrections` 鎖定，避免重新標注時被清空；registry 的地址不鎖，之後 registry 修正仍會生效。
 
 ## Quality Page — 缺欄位誤報排除模式
 

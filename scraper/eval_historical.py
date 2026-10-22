@@ -273,7 +273,7 @@ def fetch_details(sb, ids: list[str]) -> tuple[list[dict], dict[str, set[str]]]:
 
 
 async def run(sb, events: list[dict], locks: dict[str, set[str]]):
-    from openai import AsyncOpenAI
+    from llm_client import get_async_client
 
     from category_feedback import build_feedback_prompt, load_corrections
     from selection_reason_feedback import build_sr_feedback_prompt, load_sr_corrections
@@ -281,7 +281,7 @@ async def run(sb, events: list[dict], locks: dict[str, set[str]]):
     # Same feedback prompts production uses today.
     feedback = build_feedback_prompt(load_corrections(sb))
     sr_feedback = build_sr_feedback_prompt(load_sr_corrections(sb))
-    client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    client = get_async_client("eval.historical")
     sem = asyncio.Semaphore(5)
 
     async def _one(ev):
@@ -349,4 +349,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    from llm_client import finish
+
+    rc = main()
+    finish()
+    sys.exit(rc)

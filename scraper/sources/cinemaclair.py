@@ -193,8 +193,8 @@ def _ocr_schedule_showtimes(image_url: str, taiwan_titles: list[str]) -> dict[st
     )
 
     try:
-        from openai import OpenAI  # noqa: PLC0415
-        client = OpenAI(api_key=api_key)
+        from llm_client import get_client  # noqa: PLC0415
+        client = get_client("enrich.cinemaclair_ocr", api_key=api_key)
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[

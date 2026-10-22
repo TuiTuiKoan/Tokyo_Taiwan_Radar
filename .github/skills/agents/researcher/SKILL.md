@@ -65,12 +65,11 @@ When writing a source record to the `research_sources` table, use these `status`
 
 ## Research Exclusion List
 
-`scraper/research_exclusions.py` (`RESEARCH_EXCLUDED_DOMAINS`) holds platforms that were tried and retired — never propose them again. `researcher.py` puts the list into every search prompt **and** drops matching URLs in code (domain or any subdomain, e.g. `<group>.connpass.com`); `auto_research.py` refuses to assess them.
+`scraper/research_exclusions.py` (`RESEARCH_EXCLUDED_DOMAINS`) holds platforms that were tried and retired — never propose them again. `auto_research.py` refuses to assess them (domain or any subdomain, e.g. `<group>.connpass.com`). Check the list by hand before proposing a source manually.
 
 To exclude a platform after it proves low-value:
 1. Add one line `"<domain>": "<YYYY-MM> retired: <reason>"` to `RESEARCH_EXCLUDED_DOMAINS`.
 2. Set its `research_sources` rows to `not-viable` with the same reason (`update_source.py --status not-viable` or SQL).
-3. Remove the platform name from any `SEARCH_CATEGORIES` prompt/query text in `researcher.py`.
 
 A `not-viable` row alone only blocks the exact host; use the exclusion list when the platform has per-organizer subdomains or when a whole platform (not one page) is rejected.
 
@@ -153,67 +152,13 @@ Use `LOOKBACK_DAYS` to match the source's natural cadence:
 - `[2]` Asia University Asian Studies — Asia Watcher series
 - `[78]` note.com — curated creator list approach
 
-## researcher.py — Schedule Management (SLOT_SCHEDULE)
+## researcher.py and discovery_accounts.py — removed 2026-10 (#318)
 
-`researcher.py` uses a **4-slot daily schedule** to cover all 9 research categories every day.
+Both depended on `gpt-4o-search-preview`, which OpenAI retired around 2026-08-20; they then failed silently while their workflows still reported success. Before that their yield was low (researcher: $30 in 2026-07 and $19.6 in 2026-08 for 3 sources reaching `implemented` after 2026-06; discovery_accounts: accounts implemented only in 2026-04–05). Both scripts and `researcher.yml` / `discovery-accounts.yml` were removed; evidence in `docs/specs/active/llm-cost-reset/notes.md`.
 
-| Slot | JST | Categories |
-|------|-----|------------|
-| 0 | 06:00 | `university`, `fukuoka` |
-| 1 | 12:00 | `media`, `government` |
-| 2 | 18:00 | `thinktank`, `hokkaido` |
-| 3 | 00:00 | `social`, `performing_arts_search`, `senses_research` |
-
-**Key implementation rules:**
-- `RESEARCH_SLOT` env var controls which slot runs. Set by GitHub Actions step before calling `python researcher.py`.
-- `_resolve_slot()`: reads `RESEARCH_SLOT` env var first; falls back to deriving from JST hour.
-- `_resolve_category_id()` returns `list[str]` — `run_research()` loops over each category in the slot.
-- GitHub Actions: 4 cron triggers (`0 21/3/9/15 * * *` UTC). A `Determine slot` step maps UTC hour → slot and writes to `$GITHUB_ENV`.
-- `github.event.schedule` returns the exact cron string (e.g. `"0 21 * * *"`) for the triggering schedule. Use shell `case` to compare it and set `RESEARCH_SLOT`.
-- `workflow_dispatch` sets `github.event.schedule` to empty string — use `inputs.slot` as fallback.
-
-**Duplicate suppression in LINE reports:**
-- `known_urls` is fetched before agents run (pre-run snapshot). After `_upsert_sources()` completes, filter `report["top_sources"]` to remove any URL already in `known_urls`:
-  ```python
-  report["top_sources"] = [s for s in report["top_sources"] if s.get("url") not in known_urls]
-  ```
-- If no new verified sources remain after filtering, **skip LINE notification entirely** (log only). This prevents notification fatigue on days when GPT returns only already-known sources.
-- `scraper_runs` cost logging and `research_reports` DB save are unaffected by this filter.
-
-**When modifying the slot-to-category mapping**, update both `SLOT_SCHEDULE` in `researcher.py` and the corresponding cron comments in `researcher.yml`.
-
-**Domain-level skip_hint (Fix A — commit `ab46560`):**
-- `CategoryAgent.run()` の skip_hint は exact URL ではなく **正規化ドメインのリスト** で渡す
-- 実装パターン:
-  ```python
-  skip_domains = {urlparse(u).netloc.lstrip("www.") for u in known_urls}
-  skip_hint = "SKIP these already-covered domains: " + ", ".join(sorted(skip_domains))
-  ```
-- 理由：exact URL では同一ドメインの別パスが毎日新候補として生成され `not-viable` レコードが無限増加する
-
-**Candidate domain dedup (Fix B — commit `ab46560`):**
-- `_upsert_sources()` のドメイン dedup は `candidate` ステータスを含む **全ステータス** でブロックする
-- `www.asahi.com` と `asahi.com` を別候補として挿入させない
-- ブロック判定: `normalize_domain(existing_url) == normalize_domain(new_url)` で全 DB 行を確認
-
-## discovery_accounts.py — Layer 2 (Weekly note.com Creator Discovery)
-
-`scraper/discovery_accounts.py` discovers new note.com creators who post Taiwan-related content.
-
-**Workflow (runs every Sunday 10:00 JST):**
-1. 3 GPT `gpt-4o-search-preview` tasks (community events / culture & arts / food & lifestyle)
-2. `_extract_creator_id()` normalises GPT output → bare slug; rejects article URLs (`/n/`) and template patterns
-3. `_verify_note_creator()` confirms existence via `https://note.com/{creator_id}/rss` (HTTP GET only — no Playwright needed)
-4. Loads existing known IDs from `research_sources` to skip re-insertion
-5. Upserts verified creators with `status='candidate'`, `source_profile={platform: 'note.com', creator_id, categories: ['taiwan_japan']}`
-6. Admin reviews at `/admin/sources` and sets `status='implemented'` to activate Layer 3 scraping
-
-**Key rules:**
-- note.com RSS: `https://note.com/{creator_id}/rss` is publicly accessible without auth.
-- GPT output often includes article URLs (`/n/` path) and template strings — always validate with `_extract_creator_id()`.
-- Use `--dry-run` for testing: runs GPT + verification but skips DB writes and LINE push.
-- The daily scraper (`note_creators.py` or similar Layer 3 script) polls only `status='implemented'` creators from `research_sources`.
-- **年份は `_THIS_YEAR = datetime.now(JST).year` を使う。** search query 文字列に年数を hardcode してはならない（毎年手動更新が必要になり、古い検索結果しか返らなくなる）。
+- `.copilot-tracking/research/candidates/` no longer receives new files, so Step 0 of the Researcher agent normally finds none and goes straight to manual search.
+- `research_sources`, `update_source.py` and `auto_scraper/auto_research.py` (which uses `research_exclusions.py`) are unchanged.
+- The old slot schedule, LINE dedup and domain skip-hint rules live in git history (`scraper/researcher.py` before the removal commit) if a search-based discovery job is ever rebuilt. Rebuild it only behind the shared LLM client and a cost cap (see the llm-cost-reset spec).
 
 ## WordPress Mixed-Content Sites（日本／台湾イベント混在サイト）
 
@@ -246,7 +191,7 @@ Always try `/wp-json/wp/v2/posts` first. If 401, fall back to HTML scraping.
 
 ## Manual Source DB Insert Workflow
 
-`update_source.py --create-issue` performs an **UPDATE only** — it requires the row to already exist in `research_sources`. When a source is discovered manually (not via `researcher.py`), insert the row first:
+`update_source.py --create-issue` performs an **UPDATE only** — it requires the row to already exist in `research_sources`. When a source is discovered manually, insert the row first:
 
 ```python
 sb.table("research_sources").insert({

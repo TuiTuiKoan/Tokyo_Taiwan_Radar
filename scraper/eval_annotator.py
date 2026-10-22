@@ -42,12 +42,12 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
-from openai import AsyncOpenAI, OpenAI
+from llm_client import AsyncLLMClient, finish, get_async_client, get_client
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 # Import SYSTEM_PROMPT from annotator (same directory).
-# _annotate_one is sync; we implement annotate_one_async below using AsyncOpenAI.
+# _annotate_one is sync; we implement annotate_one_async below using the shared async client.
 from annotator import (
     SYSTEM_PROMPT,
     _NEWS_MOVIE_SOURCES,
@@ -137,13 +137,13 @@ def sync_title_in_descriptions(
 # ─── Async annotator ─────────────────────────────────────────────────────────
 
 async def annotate_one_async(
-    client: AsyncOpenAI,
+    client: AsyncLLMClient,
     raw_title: str,
     raw_description: str,
     feedback_prompt: str = "",
     sr_feedback_prompt: str = "",
 ) -> tuple[dict, object]:
-    """Async version of annotator._annotate_one using AsyncOpenAI.
+    """Async version of annotator._annotate_one using the shared async client.
 
     Returns (annotation_dict, usage) matching _annotate_one's return signature.
     """
@@ -311,7 +311,7 @@ def _cosine(u: list[float], v: list[float]) -> float:
 
 
 async def semantic_scores_for(
-    client: AsyncOpenAI,
+    client: AsyncLLMClient,
     cases: list[dict],
     annotations: list[dict],
 ) -> tuple[list[dict[str, float]], dict[str, float], object]:
@@ -692,11 +692,7 @@ async def run_golden(
     feedback_prompt = build_feedback_prompt(corrections)
     sr_feedback_prompt = build_sr_feedback_prompt(sr_corrections)
 
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY required")
-
-    client = AsyncOpenAI(api_key=api_key)
+    client = get_async_client("eval.annotator")
     sem = asyncio.Semaphore(5)
 
     start_time = time.monotonic()
@@ -778,7 +774,7 @@ async def run_golden(
     # Same helpers as annotator.enrich_person_names_single; no DB writes.
     # The lookups are synchronous and rate-limited, so run them in threads.
     if stage >= 3:
-        sync_client = OpenAI(api_key=api_key)
+        sync_client = get_client("eval.annotator.stage3")
 
         def _enrich_people(case: dict, ann: dict) -> dict | None:
             inp = case.get("input", {})
@@ -904,4 +900,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    rc = main()
+    finish()
+    sys.exit(rc)
