@@ -43,20 +43,20 @@
 
 ## Phase B: 量測工具（C3）
 
-- [ ] `scraper/_oneoff_eval_ndl_relevance.py snapshot`：唯讀分頁讀取 ndl 與 hanmoto pure
+- [x] `scraper/_oneoff_eval_ndl_relevance.py snapshot`：唯讀分頁讀取 ndl 與 hanmoto pure
       publication（先比對 `count='exact'`），存快照與 id 清單 SHA-256；依 proposal 1.1a 切
       P_dev／P_seal（seed `p5-ndl-2026-10`、分層排序與取整規則、每層筆數寫入 metadata）；
       輸出打亂順序、不含模型欄位的盲標表；分層判定式與切分有單元測試
-- [ ] `run --prompt-file <path> --split dev|seal|holdout`：呼叫正式的 `_annotate_one()` 與
+- [x] `run --prompt-file <path> --split dev|seal|holdout`：呼叫正式的 `_annotate_one()` 與
       `record_type_for()`，只在行程內替換 `annotator.SYSTEM_PROMPT`；G 判定呼叫正式 gate
       函式（eligible 強制為 True 只用於評估）；`--split seal` 必須帶相符的 `--frozen-sha`
-- [ ] 累計實際 token usage，超過 6 美元即停止並輸出已完成部分
-- [ ] `metrics`：合併標籤與模型輸出，依 proposal 1.4 計算 recall、下界、N 移除率；
+- [x] 累計實際 token usage，超過 6 美元即停止並輸出已完成部分
+- [x] `metrics`：合併標籤與模型輸出，依 proposal 1.4 計算 recall、下界、N 移除率；
       輸出精簡欄位 CSV（D6）
-- [ ] 指標純函式單元測試：`x = 0`、`x = n`、`n = 0`（樣本不足）、分母為 0（不適用）、全 R、全 N、
+- [x] 指標純函式單元測試：`x = 0`、`x = n`、`n = 0`（樣本不足）、分母為 0（不適用）、全 R、全 N、
       空 A 區；`p_LB` 與已知值對照
-- [ ] 原始碼掃描測試：出現 `.insert(`、`.update(`、`.upsert(`、`.delete(`、`.rpc(` 即失敗
-- [ ] commit C3
+- [x] 原始碼掃描測試：出現 `.insert(`、`.update(`、`.upsert(`、`.delete(`、`.rpc(` 即失敗
+- [x] commit C3
 
 ## Phase C: 標註、開發與凍結（人工步驟）
 
