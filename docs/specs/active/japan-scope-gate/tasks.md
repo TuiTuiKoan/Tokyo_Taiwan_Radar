@@ -57,7 +57,7 @@ updated: 2026-08-06
 
 * [x] Phase 5 code delivery approval：使用者已要求同步最新 main、重驗、PR、merge 與 deploy
 * [x] Phase 5 sync：feature commits 已 rebase 到 `origin/main=9b2f6368`，本地 linear history 驗證完成
-* [ ] Phase 5 push：發布新的 linear PR remote ref，不 force push 舊 branch
+* [x] Phase 5 push：發布新的 linear PR remote ref `feat/japan-scope-gate-linear`（PR #359），不 force push 舊 branch
 * [ ] Phase 5 PR：重建 PR reference、獨立 review、建立 PR 並等待 required checks
 * [ ] Phase 5 merge：以 linear merge strategy 整合 main，確認 exact merged SHA
 * [ ] Phase 5 deploy：確認 exact-SHA Vercel deployment 與三筆 runtime canary
