@@ -81,10 +81,23 @@ tags: [tooling, infra, governance]
 ### GitHub 端設定順序
 
 1. 開啟 `allow_auto_merge` 與 `delete_branch_on_merge`；merge method 只留 squash 與 rebase，關閉 merge commit。這符合既有「禁 `--no-ff`，避免 secret scan 重掃整段歷史」的規則。
-2. 新增 `actions/labeler` 設定與 Tier 0 auto-merge workflow。
-3. `main` 的 branch protection 與 required checks 放到最後。一旦要求 PR，使用者就不能再直接 push main，必須等 Phase E 試行通過、D1 裁決之後才開。
+2. 為 `main` 建立 ruleset，**只要求 status checks，不要求 PR**，並把 repo owner 列入 bypass。這樣 Tier 0 的 auto-merge 必須等 checks 綠燈，使用者在試行期間仍能直接 push main。先驗證：沒有 required checks 時 `gh pr merge --auto` 是否會立即合併；有 ruleset 時是否確實等待。（Plan Critic P1）
+3. 新增 `actions/labeler` 設定與 Tier 0 auto-merge workflow。順序不得早於第 2 步。
+4. 「要求 PR」的保護放到最後。一旦要求 PR，使用者就不能再直接 push main，必須等 Phase E 試行通過、D1 裁決之後才開。
 
 以上設定會改動對外的 repo 狀態，每一步都由使用者核准或親自操作。
+
+### `check_push` 決策表的補充（Plan Critic 後，見 `critique.md` 與 `notes.md` B3）
+
+- `push` 前帶有 `-C <path>` 以外的 git 全域選項（`-c`、`--config-env`、`--git-dir`、`--work-tree`、`--namespace` 等）時一律 ask。實測 `git -c remote.origin.push=refs/heads/feat/x:refs/heads/main push origin feat/x` 會把 feat/x 推到 main。
+- `git config` 寫入 `remote.*.push`、`remote.*.mirror`、`push.*`、`core.hookspath`、`url.*.insteadof`、`url.*.pushinsteadof`、`alias.*` 時 ask。
+- push 選項採已知清單，清單外的選項 ask。
+
+### 試行指標與停止條件
+
+- 每個小任務從「開始實作」到「進 main」的人工步驟數與耗時。試行前先手動記錄五個任務當基準。
+- 各層 PR 數、Tier 0 被 revert 的次數。
+- 停止條件：試行兩週後人工步驟或耗時沒有明顯下降，就停在 Phase D，不做 Phase F 的治理改寫與「要求 PR」。
 
 ### 影響的檔案
 
@@ -108,3 +121,4 @@ tags: [tooling, infra, governance]
 - `.github/instructions/git.instructions.md`：Branch strategy、Worktree confirmation gate、Isolated worktree。
 - `.github/skills/agents/architect/SKILL.md`：「工作流／治理計畫三查」。
 - `AGENTS.md`：「Hooks 與 permissions」「角色工具限制」。
+- `critique.md`：Codex 的 Plan Critic 報告與逐條回應。
