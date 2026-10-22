@@ -41,7 +41,7 @@ except Exception:  # pragma: no cover
     create_client = None  # type: ignore[assignment]
 
 import daily_report
-from monthly_health_check import collect_monthly_health_metrics
+from monthly_health_check import a3_scope_note, collect_monthly_health_metrics
 from report_window import JST, ReportWindow, resolve_report_window
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -474,11 +474,14 @@ def build_monthly_markdown(window: ReportWindow, data: dict) -> str:
             lines.append("")
 
         a2 = m["a2_protect_trend"]
-        rate_str = f"{a2['rate']:.2%}" if a2.get("rate") is not None else "n/a"
+        per_event = a2.get("fields_per_event")
+        per_event_str = f"{per_event:.2f}" if per_event is not None else "n/a"
         lines += [
-            f"**A2 保護命中率**：{a2.get('hits', '?')} hits / {a2.get('annotated', '?')} annotated（{rate_str}）",
+            f"**A2 每筆受保護欄位數**：{per_event_str}（{a2.get('hits', '?')} 欄位次 / {a2.get('annotated', '?')} 筆 annotated；以欄位計數，不是百分比）",
             "",
-            "**A3 首次正確率**（24h 內被報錯比例，per source）：",
+            "**A3 首次正確率**（24h 內被讀者報錯比例，per source）：",
+            "",
+            a3_scope_note(m["a3_first_pass"]),
             "",
         ]
         a3_sources = m["a3_first_pass"].get("sources", [])
