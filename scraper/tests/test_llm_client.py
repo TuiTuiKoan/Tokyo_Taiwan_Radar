@@ -36,6 +36,7 @@ def _client(behaviour):
     sdk = SimpleNamespace(
         chat=SimpleNamespace(completions=SimpleNamespace(create=create)),
         responses=SimpleNamespace(create=create),
+        embeddings=SimpleNamespace(create=create),
     )
     return llm_client.LLMClient("enrich.test", sdk)
 
@@ -239,3 +240,50 @@ def test_recording_is_off_when_disabled(monkeypatch):
     _client(_chat_response(1, 0, 1)).chat.completions.create(model="m", messages=[])
     llm_client.flush()
     assert db.inserted == []
+
+
+def test_embeddings_call_records_input_tokens_only(ledger):
+    resp = SimpleNamespace(usage=SimpleNamespace(prompt_tokens=420, total_tokens=420), data=[])
+    assert _client(resp).embeddings.create(model="text-embedding-3-small", input=["a", "b"]) is resp
+    llm_client.flush()
+    row = ledger.inserted[0]
+    assert (row["endpoint"], row["model"], row["input_tokens"], row["cached_input_tokens"], row["output_tokens"]) == (
+        "embeddings", "text-embedding-3-small", 420, 0, 0,
+    )
+
+
+def test_embeddings_async_client_records_too(ledger):
+    async def create(**kwargs):
+        return SimpleNamespace(usage=SimpleNamespace(prompt_tokens=7, total_tokens=7))
+
+    sdk = SimpleNamespace(embeddings=SimpleNamespace(create=create))
+    llm = llm_client.AsyncLLMClient("eval.test", sdk)
+    asyncio.run(llm.embeddings.create(model="text-embedding-3-small", input=["x"]))
+    llm_client.flush()
+    assert ledger.inserted[0]["endpoint"] == "embeddings"
+    assert ledger.inserted[0]["input_tokens"] == 7
+
+
+def test_every_sdk_surface_in_use_is_exposed():
+    """A scraper that calls an SDK surface the wrapper lacks bypasses the ledger or crashes.
+
+    Embeddings were missed in the first inventory, which only grepped chat/responses;
+    the Historical Backtest on PR #391 failed on `client.embeddings` for that reason.
+    """
+    import re
+    from pathlib import Path
+
+    surfaces = ("chat", "responses", "embeddings", "images", "audio", "moderations", "files", "batches", "beta")
+    pattern = re.compile(r"\b(?:client|llm|ai|oai)\.(" + "|".join(surfaces) + r")\.[a-z_.]*\(")
+    used = set()
+    scraper = Path(__file__).resolve().parents[1]
+    for path in scraper.rglob("*.py"):
+        rel = path.relative_to(scraper).as_posix()
+        if rel.startswith(("tests/", "auto_scraper/tests/")) or path.name.startswith("_oneoff_") or rel == "llm_client.py":
+            continue
+        used.update(pattern.findall(path.read_text(encoding="utf-8")))
+
+    client = llm_client.LLMClient("enrich.test", SimpleNamespace())
+    missing = sorted(name for name in used if not hasattr(client, name))
+    assert not missing, f"LLMClient does not expose SDK surface(s) in use: {missing}"
+    assert "embeddings" in used  # the pattern still finds the surface this test exists for

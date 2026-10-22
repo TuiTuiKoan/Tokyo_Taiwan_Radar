@@ -147,7 +147,13 @@ def usage_row(
 ) -> dict:
     """Build one llm_usage row from an SDK response (or the error that replaced it)."""
     usage = getattr(response, "usage", None)
-    if endpoint == "chat":
+    if endpoint == "embeddings":
+        # Embeddings bill input tokens only; usage has prompt_tokens and total_tokens.
+        input_tokens = _int(getattr(usage, "prompt_tokens", None))
+        cached = 0
+        output_tokens = 0
+        searches = 0
+    elif endpoint == "chat":
         input_tokens = _int(getattr(usage, "prompt_tokens", None))
         cached = _int(getattr(getattr(usage, "prompt_tokens_details", None), "cached_tokens", None))
         output_tokens = _int(getattr(usage, "completion_tokens", None))
@@ -272,7 +278,11 @@ class _AsyncEndpoint(_Endpoint):
 
 
 class LLMClient:
-    """Mirrors the SDK surface the scraper uses: chat.completions.create and responses.create."""
+    """Mirrors the SDK surface the scraper uses: chat.completions.create, responses.create and embeddings.create.
+
+    Every SDK surface a scraper calls must be exposed here, or the call bypasses the ledger
+    (or, as with embeddings in eval_annotator, fails). test_every_sdk_surface_in_use_is_exposed guards this.
+    """
 
     _endpoint_cls = _Endpoint
 
@@ -283,6 +293,7 @@ class LLMClient:
             completions=self._endpoint_cls(caller, "chat", lambda: sdk.chat.completions.create)
         )
         self.responses = self._endpoint_cls(caller, "responses", lambda: sdk.responses.create)
+        self.embeddings = self._endpoint_cls(caller, "embeddings", lambda: sdk.embeddings.create)
 
 
 class AsyncLLMClient(LLMClient):
