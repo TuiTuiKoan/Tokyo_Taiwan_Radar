@@ -49,7 +49,9 @@ from sources.arukikata import ArukikataScraper
 from sources.ide_jetro import IdeJetroScraper
 from sources.taiwan_matsuri import TaiwanMatsuriScraper
 from sources.eplus import EplusScraper
-from sources.tokyonow import TokyoNowScraper
+# TokyoNowScraper retired 2026-10-23 (#376): tokyonow.tokyo dropped its event calendar and is
+# now a news site; the Tribe Events API returns 404. Module kept for reference.
+# from sources.tokyonow import TokyoNowScraper
 from sources.tokyocity_i import TokyoCityIScraper
 from sources.ifi import IfiScraper
 from sources.tuat_global import TuatGlobalScraper
@@ -192,7 +194,7 @@ SCRAPERS = [
     IdeJetroScraper(),
     TaiwanMatsuriScraper(),
     EplusScraper(),
-    TokyoNowScraper(),
+    # TokyoNowScraper(),  # retired, see import above
     TokyoCityIScraper(),
     IfiScraper(),
     TuatGlobalScraper(),

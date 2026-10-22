@@ -11,10 +11,11 @@ applyTo: scraper/sources/tokyonow.py
 > The Tribe Events plugin was removed: `/wp-json/tribe/events/v1/events` returns 404, `/events/` redirects to
 > `/information/`, `wp/v2/types` has no event post type, and the leftover `event_area`/`event_price`
 > taxonomies are empty. `wp/v2/posts?search=台湾` returns unrelated news, not event listings.
-> There is no replacement list/API/sitemap to rewrite against. The scraper now **raises** on a non-200 or
-> unexpected payload, so each Monday run is recorded as `success=False` instead of "success, 0 events".
-> Recommended follow-up: retire the source (remove it from `SCRAPERS` and mark the research source) unless
-> the site brings an event calendar back.
+> There is no replacement list/API/sitemap to rewrite against. The scraper still **raises** on a non-200 or
+> unexpected payload, so a revival attempt fails loudly instead of "success, 0 events".
+> **RETIRED 2026-10-23:** `TokyoNowScraper()` is commented out of `SCRAPERS` in `scraper/main.py` and its
+> `source_expectations.json` entry removed. To revive it, the site must first bring back an event calendar;
+> re-check `/wp-json/tribe/events/v1/events` before touching the code.
 
 ## Platform Profile
 

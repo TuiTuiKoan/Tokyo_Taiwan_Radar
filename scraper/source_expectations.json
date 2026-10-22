@@ -6,7 +6,6 @@
     "oaff": {"pattern": "seasonal", "active_months": [2, 3, 4], "note": "大阪アジアン映画祭，每年 3 月舉行"},
     "tiff": {"pattern": "broken", "issue": 341, "note": "4 個放映場館未登錄為權威場館，台灣片全部被略過；東京国際映画祭 10–11 月"},
     "tokyo_art_beat": {"pattern": "broken", "issue": 375, "note": "08-19 起 0；錯誤處理用了不存在的 self.logger"},
-    "tokyo_now": {"pattern": "broken", "issue": 376, "note": "events REST API 404"},
     "bookandbeer": {"pattern": "broken", "issue": 377, "note": "卡片在，解析 0 筆"},
     "mot": {"pattern": "broken", "issue": 378, "note": "GitHub Actions 上 403；本機正常"},
     "taipei_fukuoka": {"pattern": "broken", "issue": 378, "note": "GitHub Actions 上 0 posts；本機正常"},

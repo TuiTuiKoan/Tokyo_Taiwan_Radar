@@ -12,6 +12,8 @@
 
 **Fix:** `_fetch_page` no longer swallows errors: HTTP errors and payloads without `events` raise, so the run is recorded as failed. No rewrite is possible; retiring the source is the follow-up.
 
+**Retired (2026-10-23, user decision):** removed from `SCRAPERS` in `main.py` (same pattern as TokyoArtBeat in b352f5a0) and from `source_expectations.json`; the module and its tests stay.
+
 **Lesson:** a scraper that catches its own list/API failure and returns `[]` is indistinguishable from "no events" in `scraper_runs`. List/API errors must raise; only per-detail-page failures may be skipped.
 
 ---
