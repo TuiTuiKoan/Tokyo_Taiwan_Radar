@@ -59,3 +59,10 @@ M1 移除 researcher（1）、discovery_accounts（2）、qa_auto_fix 備援（1
 - 沿用其他事件的地址 2 筆：`銀座 蔦屋書店` → `東京都中央区銀座6丁目10-1`。
 - registry 命中 0 筆；查不到 15 筆。其中「青山 月見ル君想フ」（前綴地名）、「丸の内ピカデリー2」（廳號接在名稱後，不在 parent-suffix 分隔字元內）屬於 venue 解析的比對缺口，歸 #325，本 spec 不改 `venue_registry.py`。
 - 既有資料警告：`サロンシネマ1・2` 與 `サロンシネマ` 對到兩筆 authoritative venue，key 被拒（與本次改動無關）。
+
+## M3 備註
+
+- migration 編號用 `099`：`098_scope_report_transaction.sql`（japan-scope-gate）已在 origin/main。
+- 單價來源：OpenAI 模型頁（2026-10-22 查詢）。gpt-4o $2.50／$1.25 cached／$10.00，gpt-4o-mini $0.15／$0.075／$0.60（每百萬 tokens）。web search 單價未填，目前沒有呼叫者；#366 若加回時再補。
+- 既有 `account_usage` 表（migration 086/087）已記帳號 API 每日 annotate 次數；M5 做 #322 限流前先確認它的現況，避免重複。
+- 本機沒有 Postgres，Docker daemon 未啟動，pip 的私有來源抓不到 `pglast`，所以 SQL 只做了人工語法檢查。
