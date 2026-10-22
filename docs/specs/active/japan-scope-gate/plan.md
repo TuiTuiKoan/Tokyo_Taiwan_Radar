@@ -88,7 +88,7 @@ DB 不重算 digest（無法重現 Python canonical JSON）；digest 對 DB 只�
 
 ## Apply 後 read-back 與回滾
 
-read-back：RPC 的 per-id after-image；獨立唯讀查詢確認 22 筆 `is_active=false` 與 reason／`deactivated_by_pass` 正確；active identity 集合差恰為這 22 個 id；沒有 active 列的 `parent_event_id` 指向 target；anon 查這 22 筆為 0 列、事件頁 404；第二次 apply 回 `noop`。復驗起點定為 apply 後第一個「成功完成」的 `scraper.yml` run；若排程延遲或失敗，順延，不以固定 24 小時代替。
+read-back：RPC 的 per-id after-image；獨立唯讀查詢確認 22 筆 `is_active=false` 與 reason／`deactivated_by_pass` 正確；active identity 集合差恰為這 22 個 id；沒有 active 列的 `parent_event_id` 指向 target；anon 查這 22 筆為 0 列、事件頁 404；CLI 的 `--readback` 全數符合（apply 的回應遺失時不要重跑 `--apply`：資料已變，驗證會失敗，改以 `--readback` 判斷；RPC 層的重試仍是 `noop`，由測試涵蓋）。操作步驟見 `runbook.md`。復驗起點定為 apply 後第一個「成功完成」的 `scraper.yml` run；若排程延遲或失敗，順延，不以固定 24 小時代替。
 
 回滾：不做 rollback RPC。CLI 在核准包內預先產生 CAS 保護的 rollback SQL（`UPDATE … WHERE id=… AND is_active=false AND deactivated_reason=… AND deactivated_at=… AND deactivated_by_pass=…`，驗證列數 = 22），由使用者在 Dashboard 執行。`updated_at` 無法還原（trigger 會刷新）。第一個後續寫入這些列的 writer 之後只能 fix-forward。rollback 是 apply 核准的必要保障，須在 6c 前演練。
 
