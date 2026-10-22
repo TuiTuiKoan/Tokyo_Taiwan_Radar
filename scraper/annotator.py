@@ -4756,6 +4756,79 @@ def enrich_person_names(
     )
 
 
+def _pick_person_lookup_title(event: dict[str, Any]) -> tuple[str, str]:
+    """Return (title_source, title) used to search eiga.com for cast & crew."""
+    source = event.get("source_name", "")
+    if source in _NEWS_MOVIE_SOURCES:
+        raw = event.get("raw_title") or ""
+        m = _BRACKET_TITLE_RE.search(raw)
+        if m:
+            return "bracket", m.group(1).strip()
+        m = _BRACKET_TITLE_RE.search(event.get("name_ja") or "")
+        if m:
+            return "bracket", m.group(1).strip()
+    if event.get("name_ja"):
+        return "name_ja", event.get("name_ja") or ""
+    if event.get("raw_title"):
+        return "raw_title", event.get("raw_title") or ""
+    return "none", ""
+
+
+def _resolve_event_people(
+    event: dict[str, Any], title: str, is_film_eligible: bool,
+) -> dict[str, "PersonInfo"]:
+    """Look up ground-truth zh/en names for the people tied to an event.
+
+    Film-eligible events search eiga.com by title; otherwise (or when that
+    finds nothing) katakana names found in the raw text are looked up one by one.
+    """
+    people: dict[str, "PersonInfo"] = {}
+    if is_film_eligible and title:
+        people = lookup_person_names(title)
+
+    if not people:
+        raw_desc = event.get("raw_description") or ""
+        raw_title = event.get("raw_title") or event.get("name_ja") or ""
+        text = f"{raw_title}\n{raw_desc}"
+        for name in extract_katakana_names(text):
+            info = lookup_single_person(name)
+            if info:
+                people[name] = info
+    return people
+
+
+def _fix_descriptions_with_people(
+    client, desc_zh: str, desc_en: str, people: dict[str, "PersonInfo"],
+) -> dict[str, str]:
+    """Replace phonetic person names in description_zh/en with looked-up ones.
+
+    Returns only the fields that changed.
+    """
+    update: dict[str, str] = {}
+    if desc_zh:
+        zh_mappings = [
+            (info.role or "人物", ja_name, info.name_zh)
+            for ja_name, info in people.items()
+            if info.name_zh
+        ]
+        if zh_mappings:
+            fixed_zh = _fix_person_names_gpt(client, desc_zh, zh_mappings)
+            if fixed_zh:
+                update["description_zh"] = _to_trad(fixed_zh)
+
+    if desc_en:
+        en_mappings = [
+            (info.role or "person", ja_name, info.name_en)
+            for ja_name, info in people.items()
+            if info.name_en
+        ]
+        if en_mappings:
+            fixed_en = _fix_person_names_gpt_en(client, desc_en, en_mappings)
+            if fixed_en:
+                update["description_en"] = fixed_en
+    return update
+
+
 def enrich_person_names_single(
     sb=None,
     *,
@@ -4796,32 +4869,7 @@ def enrich_person_names_single(
     eligible_reasons = _film_person_enrich_reasons(event)
     is_film_eligible = bool(eligible_reasons)
 
-    title_source = "none"
-    title = ""
-    if source in _NEWS_MOVIE_SOURCES:
-        raw = event.get("raw_title") or ""
-        m = _BRACKET_TITLE_RE.search(raw)
-        if m:
-            title_source = "bracket"
-            title = m.group(1).strip()
-        else:
-            m = _BRACKET_TITLE_RE.search(event.get("name_ja") or "")
-            if m:
-                title_source = "bracket"
-                title = m.group(1).strip()
-            elif event.get("name_ja"):
-                title_source = "name_ja"
-                title = event.get("name_ja") or ""
-            elif event.get("raw_title"):
-                title_source = "raw_title"
-                title = event.get("raw_title") or ""
-    else:
-        if event.get("name_ja"):
-            title_source = "name_ja"
-            title = event.get("name_ja") or ""
-        elif event.get("raw_title"):
-            title_source = "raw_title"
-            title = event.get("raw_title") or ""
+    title_source, title = _pick_person_lookup_title(event)
 
     logger.info(
         "[enrich_person_names] event_id=%s source_name=%s eligible=%s eligible_by=%s title_source=%s",
@@ -4832,21 +4880,7 @@ def enrich_person_names_single(
         title_source,
     )
 
-    people: dict[str, "PersonInfo"] = {}
-
-    if is_film_eligible and title:
-        if title:
-            people = lookup_person_names(title)
-
-    if not people:
-        raw_desc = event.get("raw_description") or ""
-        raw_title = event.get("raw_title") or event.get("name_ja") or ""
-        text = f"{raw_title}\n{raw_desc}"
-        katakana_names = extract_katakana_names(text)
-        for name in katakana_names:
-            info = lookup_single_person(name)
-            if info:
-                people[name] = info
+    people = _resolve_event_people(event, title, is_film_eligible)
 
     profile_zh_map: dict[str, str] = {}
     if source == "artistcafe":
@@ -4861,29 +4895,9 @@ def enrich_person_names_single(
 
     update: dict[str, Any] = {}
 
-    desc_zh = event.get("description_zh") or ""
-    if desc_zh:
-        zh_mappings = [
-            (info.role or "人物", ja_name, info.name_zh)
-            for ja_name, info in people.items()
-            if info.name_zh
-        ]
-        if zh_mappings:
-            fixed_zh = _fix_person_names_gpt(client, desc_zh, zh_mappings)
-            if fixed_zh:
-                update["description_zh"] = _to_trad(fixed_zh)
-
-    desc_en = event.get("description_en") or ""
-    if desc_en:
-        en_mappings = [
-            (info.role or "person", ja_name, info.name_en)
-            for ja_name, info in people.items()
-            if info.name_en
-        ]
-        if en_mappings:
-            fixed_en = _fix_person_names_gpt_en(client, desc_en, en_mappings)
-            if fixed_en:
-                update["description_en"] = fixed_en
+    update.update(_fix_descriptions_with_people(
+        client, event.get("description_zh") or "", event.get("description_en") or "", people,
+    ))
 
     zh_to_info: dict[str, "PersonInfo"] = {
         info.name_zh: info for info in people.values() if info.name_zh

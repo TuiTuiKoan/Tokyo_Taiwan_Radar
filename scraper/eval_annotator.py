@@ -42,13 +42,24 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, OpenAI
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 # Import SYSTEM_PROMPT from annotator (same directory).
 # _annotate_one is sync; we implement annotate_one_async below using AsyncOpenAI.
-from annotator import SYSTEM_PROMPT, _get_supabase, _resolve_movie_titles_for_event, build_event_user_content
+from annotator import (
+    SYSTEM_PROMPT,
+    _NEWS_MOVIE_SOURCES,
+    _film_person_enrich_reasons,
+    _fix_descriptions_with_people,
+    _get_supabase,
+    _pick_person_lookup_title,
+    _resolve_event_people,
+    _replace_title_in_desc,
+    _resolve_movie_titles_for_event,
+    build_event_user_content,
+)
 from category_feedback import load_corrections, build_feedback_prompt
 from selection_reason_feedback import load_sr_corrections, build_sr_feedback_prompt
 from sources._cinema_constants import FIXED_CINEMA_SOURCES
@@ -86,6 +97,42 @@ SCORING_VERSION = 2
 
 BUCKET_ANNOTATOR = "annotator"
 BUCKET_LOOKUP = "lookup"
+
+_STAGE_LABELS = {
+    1: "LLM only",
+    2: "LLM + enrich_movie_titles pipeline",
+    3: "LLM + enrich_movie_titles + enrich_person_names pipeline",
+}
+
+def sync_title_in_descriptions(
+    ann: dict,
+    *,
+    old_name_zh: str | None,
+    old_name_en: str | None,
+    new_name_zh: str | None,
+    new_name_en: str | None,
+    lookup_title: str = "",
+    is_news_source: bool = False,
+) -> None:
+    """Rewrite bracketed old movie titles in ann's descriptions in place.
+
+    Mirrors the description step of annotator.enrich_movie_titles(): after
+    name_zh/name_en are resolved, descriptions that still quote the LLM's old
+    title (e.g. 《霧的故事》) are updated to the resolved one (《大濛》).
+    """
+    desc_zh = ann.get("description_zh") or ""
+    if new_name_zh and desc_zh:
+        old_refs = [old_name_zh or ""]
+        if is_news_source:
+            old_refs.append(lookup_title)
+        ann["description_zh"] = _replace_title_in_desc(desc_zh, old_refs, new_name_zh)
+
+    desc_en = ann.get("description_en") or ""
+    if new_name_en and desc_en:
+        ann["description_en"] = _replace_title_in_desc(
+            desc_en, [old_name_en or ""], new_name_en,
+        )
+
 
 # ─── Async annotator ─────────────────────────────────────────────────────────
 
@@ -490,7 +537,7 @@ def write_report(
         "## 執行模式",
         f"- mode: {snapshot_meta.get('mode', 'frozen')}",
         f"- stage: {snapshot_meta.get('stage', 1)} "
-        f"({'LLM only' if snapshot_meta.get('stage', 1) == 1 else 'LLM + enrich_movie_titles pipeline'})",
+        f"({_STAGE_LABELS.get(snapshot_meta.get('stage', 1), 'unknown')})",
     ]
     if snapshot_meta.get("mode") == "frozen":
         lines += [
@@ -702,6 +749,15 @@ async def run_golden(
                 ann["name_zh"] = name_zh
             if name_en:
                 ann["name_en"] = name_en
+            sync_title_in_descriptions(
+                ann,
+                old_name_zh=before_zh,
+                old_name_en=before_en,
+                new_name_zh=name_zh,
+                new_name_en=name_en,
+                lookup_title=title or "",
+                is_news_source=source_name in _NEWS_MOVIE_SOURCES,
+            )
             if changed_zh or changed_en:
                 pipeline_log.append({
                     "case_id": case.get("case_id"),
@@ -714,6 +770,57 @@ async def run_golden(
         logger.info(
             "Stage 2 pipeline applied: %d cases had movie titles resolved",
             len(pipeline_log),
+        )
+
+    # ── Stage 3 ──────────────────────────────────────────────────────────
+    # After stage 2, apply the enrich_person_names ground-truth lookup
+    # (eiga.com + Wikipedia) to description_zh / description_en in memory.
+    # Same helpers as annotator.enrich_person_names_single; no DB writes.
+    # The lookups are synchronous and rate-limited, so run them in threads.
+    if stage >= 3:
+        sync_client = OpenAI(api_key=api_key)
+
+        def _enrich_people(case: dict, ann: dict) -> dict | None:
+            inp = case.get("input", {})
+            event = {
+                "id": case.get("case_id") or "",
+                "source_name": case.get("source_name") or "",
+                "name_ja": ann.get("name_ja") or "",
+                "raw_title": inp.get("raw_title") or "",
+                "raw_description": inp.get("raw_description") or "",
+                "category": ann.get("category") or [],
+                "event_form": ann.get("event_form") or [],
+            }
+            is_film = bool(_film_person_enrich_reasons(event))
+            _title_source, title = _pick_person_lookup_title(event)
+            people = _resolve_event_people(event, title, is_film)
+            if not people:
+                return None
+            update = _fix_descriptions_with_people(
+                sync_client,
+                ann.get("description_zh") or "",
+                ann.get("description_en") or "",
+                people,
+            )
+            return {"people": people, "update": update}
+
+        person_results = await asyncio.gather(*[
+            asyncio.to_thread(_enrich_people, c, a)
+            for c, a in zip(cases, annotations)
+        ])
+        patched = 0
+        for case, ann, res in zip(cases, annotations, person_results):
+            if res and res["update"]:
+                for field, fixed in res["update"].items():
+                    logger.info(
+                        "Stage 3 %s %s\n  before: %r\n  after:  %r",
+                        case.get("case_id"), field, ann.get(field), fixed,
+                    )
+                ann.update(res["update"])
+                patched += 1
+        logger.info(
+            "Stage 3 pipeline applied: %d/%d cases had person names resolved",
+            patched, len(cases),
         )
 
     try:
@@ -759,9 +866,12 @@ def main() -> int:
     ap.add_argument(
         "--stage",
         type=int,
-        choices=[1, 2],
+        choices=[1, 2, 3],
         default=1,
-        help="1 = LLM-only baseline (default); 2 = LLM + enrich_movie_titles pipeline (works → eiga.com).",
+        help=(
+            "1 = LLM-only baseline (default); 2 = LLM + enrich_movie_titles pipeline "
+            "(works → eiga.com); 3 = stage 2 + enrich_person_names ground-truth lookup."
+        ),
     )
     ap.add_argument(
         "--full-pipeline",
