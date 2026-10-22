@@ -27,7 +27,7 @@ from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
-from openai import OpenAI
+from llm_client import finish, get_client
 from supabase import create_client
 
 from publication_rules import is_pure_publication_in_db, partition_pure_publications
@@ -82,7 +82,7 @@ def main() -> None:
     args = parser.parse_args()
 
     sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
-    ai = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    ai = get_client("enrich.location")
 
     # Fetch all active events with NULL or empty location_address
     res = (
@@ -163,3 +163,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+    finish()

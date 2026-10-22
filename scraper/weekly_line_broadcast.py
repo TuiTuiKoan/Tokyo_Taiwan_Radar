@@ -30,7 +30,7 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 from dotenv import load_dotenv
-from openai import OpenAI
+from llm_client import finish, get_client
 from supabase import create_client
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
@@ -114,7 +114,7 @@ def _get_supabase():
 
 
 def _get_openai():
-    return OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    return get_client("broadcast.weekly_line")
 
 
 def _month_end_of(year: int, month: int) -> datetime:
@@ -960,3 +960,4 @@ if __name__ == "__main__":
             dry_run="--dry-run" in sys.argv,
             admin_only="--admin-only" in sys.argv,
         )
+    finish()

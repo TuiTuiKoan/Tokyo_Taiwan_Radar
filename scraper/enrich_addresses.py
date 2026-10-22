@@ -29,13 +29,13 @@ from dotenv import load_dotenv
 from supabase import create_client
 
 from annotator import _to_trad
+from db_paging import fetch_all
 from publication_rules import is_pure_publication_in_db, partition_pure_publications
 from venue_registry import lookup_venue_for_location
 
 load_dotenv()
 
 JST = timezone(timedelta(hours=9))
-PAGE_SIZE = 1000
 IN_BATCH = 50
 
 SKIP_SOURCES = {"gguide_tv"}
@@ -66,31 +66,21 @@ def _normalize_venue(name: str) -> str:
     return name
 
 
-def _paginate(query) -> list[dict]:
-    rows: list[dict] = []
-    offset = 0
-    while True:
-        page = query.range(offset, offset + PAGE_SIZE - 1).execute().data or []
-        rows.extend(page)
-        if len(page) < PAGE_SIZE:
-            return rows
-        offset += PAGE_SIZE
-
-
 def fetch_candidates(sb, today: str, source: str | None = None) -> list[dict]:
     """Active, upcoming events that name a venue but lack a specific address."""
-    query = (
-        sb.table("events")
-        .select("id, location_name, location_address, source_name, event_form, start_date, end_date")
-        .eq("is_active", True)
-        .not_.is_("location_name", None)
-        .or_(f"end_date.gte.{today},and(end_date.is.null,start_date.gte.{today})")
-        .order("id")
-    )
-    if source:
-        query = query.eq("source_name", source)
+    def query():
+        q = (
+            sb.table("events")
+            .select("id, location_name, location_address, source_name, event_form, start_date, end_date")
+            .eq("is_active", True)
+            .not_.is_("location_name", None)
+            .or_(f"end_date.gte.{today},and(end_date.is.null,start_date.gte.{today})")
+            .order("id")
+        )
+        return q.eq("source_name", source) if source else q
+
     return [
-        e for e in _paginate(query)
+        e for e in fetch_all(query)
         if is_vague(e.get("location_address"))
         and e["source_name"] not in SKIP_SOURCES
         and not any(kw in (e["location_name"] or "") for kw in SKIP_VENUE_KEYWORDS)
@@ -131,14 +121,14 @@ def build_sibling_map(rows: list[dict]) -> dict[str, dict]:
 def fetch_sibling_map(sb, names: list[str]) -> dict[str, dict]:
     rows: list[dict] = []
     for i in range(0, len(names), IN_BATCH):
-        query = (
+        batch = names[i:i + IN_BATCH]
+        rows.extend(fetch_all(lambda: (
             sb.table("events")
             .select("id, location_name, location_address, location_address_zh, location_address_en")
-            .in_("location_name", names[i:i + IN_BATCH])
+            .in_("location_name", batch)
             .not_.is_("location_address", None)
             .order("id")
-        )
-        rows.extend(_paginate(query))
+        )))
     return build_sibling_map(rows)
 
 

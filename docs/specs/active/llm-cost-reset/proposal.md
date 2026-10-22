@@ -59,15 +59,18 @@ enrich_addresses 的新流程：
 共用 client（D3）把錯誤分成兩類：
 
 - **設定錯誤**：`model_not_found`、401、403、`insufficient_quota`、`invalid_api_key`。丟出 `LLMConfigError`，它繼承 `BaseException` 而不是 `Exception`，所以呼叫點既有的 `except Exception` 吞不掉，程序以非零狀態結束，step 會失敗。這是刻意的：21 個呼叫點幾乎都有寬鬆的 `except Exception`，逐一修改容易漏掉。
-- **暫時錯誤**：429、5xx、逾時。SDK 先重試，之後照舊丟一般例外給呼叫點處理。client 記下次數；呼叫點在 `main()` 結尾呼叫 `llm_client.finish()`，若本次執行的暫時錯誤率超過 50%（且至少 5 次呼叫）就以非零狀態結束。
+- **暫時錯誤**：429、5xx、逾時與只影響單一輸入的 400。SDK 先重試，之後照舊丟一般例外給呼叫點處理。client 記下次數；各腳本在 `__main__` 結尾呼叫 `llm_client.finish()`，本次執行的錯誤至少 3 次且超過半數時，以非零狀態結束。
+- 分類只看例外的 `status_code` 與 `code`，不用 `isinstance`，所以測試替換 `sys.modules["openai"]` 或 SDK 改版都不會影響。
+- `main.py`：某個來源遇到 `LLMConfigError` 只讓該來源記為失敗，其他來源照常爬取；AI 步驟中斷，IndexNow 照常送出，最後以非零狀態結束。
+- `scraper.yml`：呼叫 LLM 的 step 設 `continue-on-error`，讓之後不依賴 LLM 的步驟照常執行；最後的「Fail on LLM step errors」只要其中一個失敗就讓 job 變紅。
 
-健康檢查改看產出量：`docs_report.py` 週報與 `daily_quality.py` 標出連續兩週 `events_processed = 0` 的來源，成功率不再單獨作為健康指標。
+健康檢查改看產出量（`scraper/source_health.py`）：週報與 `daily_quality.py` 標出最近兩週每週都有執行、產出都是 0 的來源，並分成兩層。「之前 6 週有產出、最近歸零」的標紅，`daily_quality` 只對這層發警示；長期 0 件的只列名稱，因為電影院沒有台灣片時本來就是 0。2026-10-22 預覽：49 個 silent，其中 10 個是新近歸零（#367）。
 
 ### D3. #363 共用用量紀錄（核心架構）
 
 **資料表（一個 migration，套用前要使用者核准）**
 
-- `llm_usage`：每次 API 呼叫一列。欄位：`id`、`created_at`、`caller`（例：`scraper/annotator.annotate`、`web/api/account/extract-from-image`）、`model`、`endpoint`（`chat`／`responses`）、`input_tokens`、`cached_input_tokens`、`output_tokens`、`web_search_calls`、`status`（`ok`／`error`）、`error_code`、`user_id`（網站帳號 API 才有）、`run_ref`（GitHub Actions 的 `GITHUB_RUN_ID`／workflow 名稱，網站為 null）。RLS 開啟，admin 可讀，`service_role` 寫入，依 `database.instructions.md` 加明確 GRANT。
+- `llm_usage`：每次 API 呼叫一列。欄位：`id`、`created_at`、`caller`（`<group>.<name>`，例：`annotator.annotate`、`web.account.extract-from-image`）、`model`、`endpoint`（`chat`／`responses`）、`input_tokens`、`cached_input_tokens`、`output_tokens`、`web_search_calls`、`status`（`ok`／`error`）、`error_code`、`user_id`（網站帳號 API 才有）、`run_ref`（GitHub Actions 的 `GITHUB_RUN_ID`／workflow 名稱，網站為 null）。RLS 開啟，admin 可讀，`service_role` 寫入，依 `database.instructions.md` 加明確 GRANT。
 - `llm_pricing`：`model`、`effective_from`、每百萬 tokens 的 `input`、`cached_input`、`output` 單價、`per_web_search_call`。單價只存在這裡；Python 與 TypeScript 都不寫死價格。新增模型或調價時只改這張表。
 - `llm_cost_daily`（view）：依日期、caller、model 彙總 tokens，以 `llm_pricing` 在當天有效的單價算出 `cost_usd`。成本在查詢時計算，所以單價寫錯可以事後修正，不必回填舊列。
 - `llm_cache`：`step`、`subject_key`、`result jsonb`、`attempted_at`、`outcome`，主鍵 `(step, subject_key)`。給 #317（海報圖片 hash）、#321（cinemaclair 圖片 URL、qa_heartbeat report id）、#360（event id）與 D1 之後可能的地址查詢共用，避免每個 issue 各加一個 `*_attempted_at` 欄位。
@@ -76,10 +79,10 @@ enrich_addresses 的新流程：
 
 **Python：`scraper/llm_client.py`**
 
-- `get_client(caller: str) -> LLMClient`，包住 `openai.OpenAI`，提供 `chat(**kwargs)` 與 `responses(**kwargs)`，參數直接轉給 SDK，回傳原本的 response 物件，所以呼叫點只需把 `client.chat.completions.create(` 換成 `llm.chat(`。
+- `get_client(caller)`／`get_async_client(caller)` 包住 `openai.OpenAI`／`AsyncOpenAI`，對外保留 SDK 的 `chat.completions.create(...)` 與 `responses.create(...)`，參數直接轉給 SDK，回傳原本的 response 物件。呼叫點只換建立 client 的那一行，既有的測試替身也不必改。M2 已完成這一步，M4 只在 client 內部加入寫入紀錄，呼叫點不必再改。
 - 從 response 的 `usage` 讀 tokens：chat 用 `prompt_tokens`、`prompt_tokens_details.cached_tokens`、`completion_tokens`；responses 用 `input_tokens`、`input_tokens_details.cached_tokens`、`output_tokens`，`web_search_calls` 數 `output` 裡 `type == "web_search_call"` 的項目。圖片的 tokens 已含在 input 中。
 - 紀錄先放在記憶體，每 20 筆或 `finish()`／`atexit` 時批次寫入 `llm_usage`。寫入失敗只記 warning，不影響主流程。`--dry-run` 若仍實際呼叫 API，也要記錄（那是真的花錢）。
-- API key 依 caller 群組選擇：`OPENAI_API_KEY_<GROUP>`，沒有設定時退回 `OPENAI_API_KEY`。群組是 `annotator`、`enrich`、`qa`、`web`、`eval`、`auto_scraper`。#320 因此只剩使用者在 OpenAI 建 project、發 key、設 secrets，不需要再改程式。
+- API key 依 caller 群組選擇：`OPENAI_API_KEY_<GROUP>`，沒有設定時退回 `OPENAI_API_KEY`。scraper 的群組是 `annotator`、`enrich`、`qa`、`broadcast`、`eval`、`auto_scraper`，網站是 `web`；未知群組直接報錯。#320 因此只剩使用者在 OpenAI 建 project、發 key、設 secrets，以及在 workflow 傳入對應的環境變數。
 
 **TypeScript：`web/lib/llm/openai.server.ts`**
 
@@ -92,12 +95,14 @@ enrich_addresses 的新流程：
 - `quota_monitor --check-budget` 改讀 `llm_cost_daily` 中 `caller like 'scraper/eval_annotator%'` 的當週成本。
 - 週報成本段落註明「以 OpenAI dashboard 為準」，並列出依 model 的小計，方便和 dashboard 逐項比對。
 
-**呼叫點清單（D1 完成後共 21 個）**
+**呼叫點清單（D1 完成後共 20 個）**
 
-scraper（15）：`annotator.py` ×5、`enrich_location.py`、`enrich_poster.py`、`weekly_line_broadcast.py`、`qa_heartbeat.py`、`sources/cinemaclair.py`、`auto_scraper/generate.py`、`auto_scraper/auto_research.py`、`eval_annotator.py` ×2、`enrich_ocr_event.py`（實作時確認是否經 annotator 共用函式）。
+原估 21 個；逐一確認後是 20 個，`enrich_ocr_event.py` 不呼叫 LLM。
+
+scraper（14，M2 已改走 `llm_client`）：`annotator.py` ×5、`enrich_location.py`、`enrich_poster.py`、`weekly_line_broadcast.py`、`qa_heartbeat.py`、`sources/cinemaclair.py`、`auto_scraper/generate.py`、`auto_scraper/auto_research.py`、`eval_annotator.py` ×2。
 web（6）：`api/admin/annotate-event`、`api/admin/extract-from-image`、`api/account/annotate-event`、`api/account/extract-from-image`、`api/line-webhook`、`api/upload-with-qr`。
 
-實作時以 `grep -rnE 'chat\.completions\.create|responses\.create|api\.openai\.com'` 重新盤點，並在 CI 加一條檢查：`llm_client.py` 與 `openai.server.ts` 以外出現這些字串就失敗（`_oneoff_*.py` 與 tests 除外）。
+CI 檢查（M4）以「建立 client」為關卡：`scraper/llm_client.py` 以外出現 `OpenAI(`／`AsyncOpenAI(`，或 `web/lib/llm/openai.server.ts` 以外出現 `api.openai.com`，就失敗（`_oneoff_*.py` 與 tests 除外）。
 
 ### D4. 其餘 issue 的做法
 

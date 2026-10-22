@@ -42,7 +42,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
-from openai import AsyncOpenAI
+from llm_client import finish, get_async_client
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
@@ -645,11 +645,7 @@ async def run_golden(
     feedback_prompt = build_feedback_prompt(corrections)
     sr_feedback_prompt = build_sr_feedback_prompt(sr_corrections)
 
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY required")
-
-    client = AsyncOpenAI(api_key=api_key)
+    client = get_async_client("eval.annotator")
     sem = asyncio.Semaphore(5)
 
     start_time = time.monotonic()
@@ -794,4 +790,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    rc = main()
+    finish()
+    sys.exit(rc)

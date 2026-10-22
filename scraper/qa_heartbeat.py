@@ -95,11 +95,8 @@ def _supabase_client():
 
 
 def _openai_client():
-    from openai import OpenAI
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY must be set")
-    return OpenAI(api_key=api_key)
+    from llm_client import get_client
+    return get_client("qa.heartbeat")
 
 
 _CLASSIFIER_SYSTEM = (
@@ -566,4 +563,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    from llm_client import finish
+
     main()
+    finish()

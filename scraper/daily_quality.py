@@ -31,6 +31,8 @@ from datetime import date, datetime, timedelta, timezone
 from dotenv import load_dotenv
 from supabase import create_client
 
+import source_health
+
 logger = logging.getLogger(__name__)
 
 UTC = timezone.utc
@@ -181,9 +183,15 @@ def run(days: int) -> dict:
             logger.error("upsert daily_quality_metrics failed: %s", exc)
 
     latest = rows[0] if rows else None
+    try:
+        health = source_health.check(sb, datetime.now(tz=UTC))
+    except Exception as exc:
+        logger.error("source_health check failed: %s", exc)
+        health = {"silent": [], "newly_silent": []}
     summary = {
         "days_computed": len(rows),
         "latest": latest,
+        "zero_output": {"silent": len(health["silent"]), "newly_silent": health["newly_silent"]},
         "alert": None,
     }
     if latest and latest.get("precision_rate") is not None and latest["events_upserted"] >= 5:
@@ -193,6 +201,13 @@ def run(days: int) -> dict:
                 f"{latest['metric_date']} (events={latest['events_upserted']}, "
                 f"irrelevant={latest['irrelevant_reports']})"
             )
+    if health["newly_silent"]:
+        silent_alert = (
+            f"\U0001f515 {len(health['newly_silent'])} source(s) produced 0 events for "
+            f"{source_health.STREAK_WEEKS} weeks after producing before: "
+            + ", ".join(health["newly_silent"])
+        )
+        summary["alert"] = f"{summary['alert']} | {silent_alert}" if summary["alert"] else silent_alert
     return summary
 
 

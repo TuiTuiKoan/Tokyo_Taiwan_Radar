@@ -225,7 +225,7 @@ def _fake_env(monkeypatch):
 def _run_enrich_location(monkeypatch, client, extract):
     monkeypatch.setattr(sys, "argv", ["enrich_location.py"])
     monkeypatch.setattr(enrich_location, "create_client", lambda *_a, **_k: client)
-    monkeypatch.setattr(enrich_location, "OpenAI", lambda **_k: object())
+    monkeypatch.setattr(enrich_location, "get_client", lambda *_a, **_k: object())
     monkeypatch.setattr(enrich_location, "time", SimpleNamespace(sleep=lambda *_a: None))
     monkeypatch.setattr(enrich_location, "extract_location", extract)
     enrich_location.main()

@@ -162,6 +162,7 @@ from database import upsert_events, _get_client
 from quality_fields import run_notes
 from annotator import annotate_pending_events
 from annotator import enrich_movie_titles, enrich_person_names
+from llm_client import LLMConfigError, finish
 from merger import run_merger
 from indexnow import submit_urls as _indexnow_submit, event_urls as _indexnow_event_urls
 
@@ -421,6 +422,10 @@ def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str
                 logger.warning("Could not pre-resolve --rescrape-ids: %s", exc)
 
     _is_monday_utc = datetime.now(_tz.utc).weekday() == 0
+    # An LLM config error (retired model, bad key, no quota) fails only the
+    # source that hit it; the rest keep scraping and the run exits non-zero
+    # at the end so the workflow step shows the failure (#319).
+    llm_config_error: LLMConfigError | None = None
 
     for scraper in active_scrapers:
         source_label = type(scraper).__name__
@@ -453,8 +458,10 @@ def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str
                     logger.info("%s: logged %d events to scraper_runs", source_label, len(events))
                 except Exception as log_exc:
                     logger.warning("%s: could not write scraper_runs: %s", source_label, log_exc)
-        except Exception as exc:
+        except (Exception, LLMConfigError) as exc:
             logger.error("%s: scraper failed: %s", source_label, exc)
+            if isinstance(exc, LLMConfigError):
+                llm_config_error = llm_config_error or exc
             if not dry_run:
                 try:
                     _get_client().table("scraper_runs").insert({
@@ -477,6 +484,9 @@ def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str
             indent=2,
             default=_json_default,
         ))
+        if llm_config_error:
+            raise llm_config_error
+        finish()
         return
 
     # Upsert is done per-source in the loop above.
@@ -484,15 +494,19 @@ def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str
     logger.info("Running cross-source duplicate merger...")
     run_merger()
 
-    # Run AI annotator on pending events
-    logger.info("Running AI annotator on pending events...")
-    annotate_pending_events()
+    try:
+        # Run AI annotator on pending events
+        logger.info("Running AI annotator on pending events...")
+        annotate_pending_events()
 
-    # Enrich movie titles and person names (same as CI pipeline steps)
-    logger.info("Enriching movie titles from eiga.com...")
-    enrich_movie_titles()
-    logger.info("Enriching person names via eiga.com + Wikipedia...")
-    enrich_person_names()
+        # Enrich movie titles and person names (same as CI pipeline steps)
+        logger.info("Enriching movie titles from eiga.com...")
+        enrich_movie_titles()
+        logger.info("Enriching person names via eiga.com + Wikipedia...")
+        enrich_person_names()
+    except LLMConfigError as exc:
+        logger.error("AI steps stopped: %s", exc)
+        llm_config_error = llm_config_error or exc
 
     # Ended events are no longer auto-archived here.
     # Public visibility is controlled by frontend time filters (timeMode/end_date).
@@ -506,6 +520,9 @@ def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str
         except Exception as exc:
             logger.warning("IndexNow submission error (non-fatal): %s", exc)
 
+    if llm_config_error:
+        raise llm_config_error
+    finish()
     logger.info("Done!")
 
 

@@ -45,7 +45,13 @@ scraper：`annotator.py`（1558、1575、4187、4221、5176）、`discovery_acco
 
 web：`api/admin/extract-from-image`、`api/upload-with-qr`、`api/admin/annotate-event`、`api/line-webhook`、`api/account/annotate-event`、`api/account/extract-from-image`。
 
-M1 移除 researcher（1）、discovery_accounts（2）、qa_auto_fix 備援（1）、enrich_addresses（1）後，剩 scraper 15 個、web 6 個，共 21 個。
+M1 移除 researcher（1）、discovery_accounts（2）、qa_auto_fix 備援（1）、enrich_addresses（1）後，剩 scraper 14 個、web 6 個，共 20 個（原估 21 個；`enrich_ocr_event.py` 經確認不呼叫 LLM）。
+
+## M2 驗證（2026-10-22）
+
+- 以 SDK 真正的 `openai.NotFoundError`（404、`model_not_found`）模擬下架模型，經 `llm_client` 穿過 `except Exception` 後，程序以 exit code 1 結束，訊息含 caller、model、status 與 code。
+- `main.py`：`tests/test_main_llm_config_error.py` 確認一個來源丟出 `LLMConfigError` 時，其他來源仍會爬取，最後才失敗。
+- 來源健康預覽（production 唯讀 SQL，與 `source_health.zero_output` 相同規則）：49 個 silent，10 個新近歸零，其中 prtimes 之前 6 週有 1148 筆，最後一次有產出是 2026-09-14，已開 #367。
 
 ## M1 dry-run（2026-10-22，使用者執行 `enrich_addresses.py --dry-run`）
 

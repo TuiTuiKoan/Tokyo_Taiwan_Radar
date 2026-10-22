@@ -40,6 +40,7 @@ jobs:
         run: playwright install chromium --with-deps
 
       - name: Run scraper
+        id: run_scraper
         working-directory: scraper
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -51,6 +52,9 @@ jobs:
           INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}
           NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
         run: python main.py
+        # LLM steps keep going on failure so the non-LLM steps below still run;
+        # "Fail on LLM step errors" at the end turns the job red (#319).
+        continue-on-error: true
 
       - name: Run merger (cross-source deduplication)
         working-directory: scraper
@@ -78,12 +82,14 @@ jobs:
           echo "Pending backlog\u6d88\u5316\u672a\u57f7\u884c\uff0c\u8acb\u53c3\u8003\u4e0b\u65b9 Backlog Health \u5340\u584a\u3002" >> $GITHUB_STEP_SUMMARY
 
       - name: Fix reviewed events missing translations
+        id: fix_reviewed
         working-directory: scraper
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python annotator.py --fix-reviewed
+        continue-on-error: true
 
       - name: Enrich movie titles from eiga.com + TMDB + SerpAPI
         working-directory: scraper
@@ -95,12 +101,14 @@ jobs:
         run: python annotator.py --enrich-movie-titles
 
       - name: Enrich person names via eiga.com + Wikipedia (all events)
+        id: enrich_person_names
         working-directory: scraper
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python annotator.py --enrich-person-names
+        continue-on-error: true
 
       - name: Run Vision OCR enrichment
         # Paused 2026-10-22: sent ~65 posters/day to gpt-4o (detail high) and applied 0 on
@@ -116,6 +124,7 @@ jobs:
         run: python enrich_poster.py
 
       - name: Enrich missing location addresses via GPT
+        id: enrich_location
         working-directory: scraper
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -233,6 +242,24 @@ jobs:
         run: |
           SUMMARY=$(python summarize_run.py)
           echo "summary=$SUMMARY" >> $GITHUB_OUTPUT
+
+      - name: Fail on LLM step errors
+        # The LLM steps above use continue-on-error so the rest of the pipeline
+        # runs. A retired model, bad key or exhausted quota makes them exit
+        # non-zero (scraper/llm_client.py); fail the job here so it shows (#319).
+        if: always()
+        run: |
+          FAILED=""
+          [ "${{ steps.run_scraper.outcome }}" = "failure" ] && FAILED="$FAILED main.py"
+          [ "${{ steps.annotate_pending.outcome }}" = "failure" ] && FAILED="$FAILED annotate"
+          [ "${{ steps.fix_reviewed.outcome }}" = "failure" ] && FAILED="$FAILED fix-reviewed"
+          [ "${{ steps.enrich_person_names.outcome }}" = "failure" ] && FAILED="$FAILED enrich-person-names"
+          [ "${{ steps.enrich_location.outcome }}" = "failure" ] && FAILED="$FAILED enrich-location"
+          if [ -n "$FAILED" ]; then
+            echo "::error::LLM steps failed:$FAILED"
+            echo "## ❌ LLM steps failed:$FAILED" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
 
   validate:
     needs: scrape

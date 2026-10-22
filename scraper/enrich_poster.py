@@ -81,8 +81,8 @@ def _get_supabase():
 
 
 def _get_openai():
-    from openai import OpenAI
-    return OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    from llm_client import get_client
+    return get_client("enrich.poster")
 
 
 def _fetch_candidates(sb, max_events: Optional[int] = None, event_id: Optional[str] = None):
@@ -389,3 +389,6 @@ if __name__ == "__main__":
 
     load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
     run(dry_run=args.dry_run, event_id=args.event_id, max_events=args.max)
+
+    from llm_client import finish
+    finish()
