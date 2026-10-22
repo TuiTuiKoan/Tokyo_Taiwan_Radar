@@ -1,6 +1,7 @@
 ---
 name: Validate, Merge & Deploy
 description: "Full cycle: check conflicts, rebase, commit with atomic message, hand the user the push-to-origin/main command, and verify the Vercel deployment after the user pushes — call after implementation is complete"
+tier: build
 claude-role: vmd
 tools: [read, search, execute, web]
 handoffs:

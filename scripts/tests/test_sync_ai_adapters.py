@@ -16,6 +16,24 @@ EXPECTED_ROLES = {
     "tcc-scraper": "full",
 }
 EXPECTED_UNDECIDED = {"architect", "reviewer", "researcher", "scraper-expert"}
+EXPECTED_TIERS = {
+    "architect": "plan",
+    "plan-critic": "plan",
+    "engineer": "build",
+    "designer": "build",
+    "scraper-expert": "build",
+    "validate-merge-deploy": "build",
+    "close-campaign-retire-worktree": "build",
+    "researcher": "build",
+    "reviewer": "build",
+    "tester": "grunt",
+    "history-teller": "grunt",
+    "update-history-skill-agent": "grunt",
+    "lianbu-spokesperson": "grunt",
+    "peatix-scraper": "grunt",
+    "tcc-scraper": "grunt",
+}
+MODEL_ID_PREFIXES = ("claude-", "gpt-", "gemini-")
 EDIT_TOOLS = {"Edit", "Write", "NotebookEdit"}
 AGENT_COUNT = 15
 
@@ -30,6 +48,14 @@ def wrapper_tools(text: str) -> str | None:
     for line in frontmatter.splitlines():
         if line.startswith("tools:"):
             return line.removeprefix("tools:").strip()
+    return None
+
+
+def wrapper_field(text: str, key: str) -> str | None:
+    frontmatter = text.split("\n---", 1)[0]
+    for line in frontmatter.splitlines():
+        if line.startswith(f"{key}:"):
+            return line.removeprefix(f"{key}:").strip()
     return None
 
 
@@ -178,6 +204,86 @@ def test_pinned_model_fails_check(tmp_repo, run_sync, sync):
     assert "pinned model .github/agents/tester.agent.md" in result.stderr
 
 
+# 3b. tier -> model alias and effort projection
+
+
+def test_every_agent_has_expected_tier(sync, root):
+    seen = {
+        agent_name(sync, path): sync.one_line(sync.parse_frontmatter(path).get("tier"))
+        for path in sync.agent_sources(root)
+    }
+    assert seen == EXPECTED_TIERS
+    assert sync.tier_problems(root) == []
+
+
+def test_tier_table_holds_aliases_not_model_ids(sync):
+    assert set(sync.TIERS) == {"plan", "build", "grunt"}
+    for tier in sync.TIERS.values():
+        assert tier["model"] in {"opus", "sonnet", "haiku"}
+        assert not tier["model"].startswith(MODEL_ID_PREFIXES)
+        assert tier["effort"] in {"low", "medium", "high"}
+
+
+def test_claude_wrapper_carries_tier_model_and_effort(sync, root):
+    outputs = sync.agent_outputs(root)
+    for name, tier in EXPECTED_TIERS.items():
+        text = outputs[Path(".claude/agents") / f"{name}.md"]
+        assert wrapper_field(text, "model") == sync.TIERS[tier]["model"], name
+        assert wrapper_field(text, "effort") == sync.TIERS[tier]["effort"], name
+
+
+def test_codex_agent_files_parse_and_follow_tier(sync, root):
+    import tomllib
+
+    outputs = sync.agent_outputs(root)
+    for name, tier in EXPECTED_TIERS.items():
+        text = outputs[Path(".codex/agents") / f"{name}.toml"]
+        data = tomllib.loads(text)
+        assert data["name"] == name
+        assert data["model_reasoning_effort"] == sync.TIERS[tier]["effort"], name
+        assert "model" not in data and "model_provider" not in data, name
+        assert data["developer_instructions"].strip(), name
+        assert text.startswith(sync.TOML_MARKER), name
+
+
+def test_missing_tier_fails(tmp_repo, run_sync):
+    replace_in(tmp_repo / ".github/agents/engineer.agent.md", "tier: build\n", "")
+    result = run_sync(tmp_repo, "--check")
+    assert result.returncode == 1
+    assert "missing tier .github/agents/engineer.agent.md" in result.stderr
+
+
+def test_unknown_tier_fails(tmp_repo, run_sync):
+    replace_in(tmp_repo / ".github/agents/engineer.agent.md", "tier: build", "tier: turbo")
+    result = run_sync(tmp_repo, "--check")
+    assert result.returncode == 1
+    assert "unknown tier .github/agents/engineer.agent.md: turbo" in result.stderr
+
+
+def test_source_model_alias_is_still_rejected(tmp_repo, run_sync, sync):
+    # Copilot would resolve `model: opus` as a model name; tier is the only knob in sources.
+    replace_in(tmp_repo / ".github/agents/tester.agent.md", "tier: grunt\n", "tier: grunt\nmodel: opus\n")
+    assert sync.pinned_models(tmp_repo)
+    assert run_sync(tmp_repo, "--check").returncode == 1
+
+
+def test_hand_edited_codex_agent_is_reported_as_changed(tmp_repo, run_sync):
+    replace_in(tmp_repo / ".codex/agents/tester.toml", 'model_reasoning_effort = "low"', 'model_reasoning_effort = "max"')
+    result = run_sync(tmp_repo, "--check")
+    assert result.returncode == 1
+    assert "changed .codex/agents/tester.toml" in result.stdout
+
+
+def test_stale_codex_agent_is_removed(tmp_repo, run_sync, sync):
+    stale = tmp_repo / ".codex" / "agents" / "stale.toml"
+    stale.write_text(f"{sync.TOML_MARKER}\nname = \"stale\"\n", encoding="utf-8")
+    hand_written = tmp_repo / ".codex" / "agents" / "mine.toml"
+    hand_written.write_text('name = "mine"\n', encoding="utf-8")
+    assert run_sync(tmp_repo).returncode == 0
+    assert not stale.exists()
+    assert hand_written.exists()
+
+
 # 4. hand-edited wrapper
 
 
@@ -226,9 +332,12 @@ def test_wrapper_count_matches_agent_sources(sync, root):
     outputs = sync.agent_outputs(root)
     names = [agent_name(sync, path) for path in sources]
     on_disk = sorted((root / ".claude" / "agents").glob("*.md"))
-    assert len(sources) == len(outputs) == len(on_disk) == AGENT_COUNT
+    codex_on_disk = sorted((root / ".codex" / "agents").glob("*.toml"))
+    assert len(sources) * 2 == len(outputs)
+    assert len(sources) == len(on_disk) == len(codex_on_disk) == AGENT_COUNT
     assert len(set(names)) == len(names)
     assert {path.as_posix() for path in outputs} == {
-        path.relative_to(root).as_posix() for path in on_disk
+        path.relative_to(root).as_posix() for path in [*on_disk, *codex_on_disk]
     }
     assert all(sync.MARKER in path.read_text(encoding="utf-8") for path in on_disk)
+    assert all(sync.TOML_MARKER in path.read_text(encoding="utf-8") for path in codex_on_disk)

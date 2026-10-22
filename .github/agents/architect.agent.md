@@ -1,6 +1,7 @@
 ---
 name: Architect
 description: "Plans architecture, roadmaps, and technical design for Tokyo Taiwan Radar — read-only, no code changes"
+tier: plan
 handoffs:
   - label: "🧐 交給 Plan Critic 批評"
     agent: Plan Critic

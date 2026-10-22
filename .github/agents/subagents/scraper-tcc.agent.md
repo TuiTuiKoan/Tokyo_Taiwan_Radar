@@ -1,6 +1,7 @@
 ---
 name: TCC Scraper
 description: "Scrapes Taiwan Cultural Center (tcc.go.jp) events — subagent of Scraper Expert"
+tier: grunt
 claude-role: full
 user-invocable: false
 ---

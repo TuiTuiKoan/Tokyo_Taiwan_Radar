@@ -1,6 +1,7 @@
 ---
 name: Engineer
 description: "Full-stack implementation, CI/CD, and deployment for Tokyo Taiwan Radar"
+tier: build
 claude-role: full
 handoffs:
   - label: "🏗️ Plan this first"

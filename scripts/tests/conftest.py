@@ -11,7 +11,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "sync_ai_adapters.py"
-GENERATED_DIRS = (".claude/agents", ".claude/commands", ".claude/skills", ".agents/skills")
+GENERATED_DIRS = (".claude/agents", ".claude/commands", ".claude/skills", ".agents/skills", ".codex/agents")
 
 
 @pytest.fixture(scope="session")
@@ -31,7 +31,7 @@ def sync():
 def tmp_repo(tmp_path: Path) -> Path:
     """Copy every input and output of sync_ai_adapters.py into a path containing a space."""
     dest = tmp_path / "repo copy"
-    for rel in (".github/agents", ".claude", ".agents"):
+    for rel in (".github/agents", ".claude", ".agents", ".codex"):
         shutil.copytree(ROOT / rel, dest / rel)
     sources = list((ROOT / ".github" / "prompts").glob("*.prompt.md"))
     sources += list((ROOT / ".github" / "skills").rglob("SKILL.md"))

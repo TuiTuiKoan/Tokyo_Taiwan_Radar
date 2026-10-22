@@ -78,12 +78,25 @@ Claude Code 可直接叫用 `.claude/agents` 下的 subagent wrapper。Codex 沒
 
 ## 模型政策
 
-- agents、prompts、skills 的 frontmatter（含 handoffs）**一律不寫死 `model:`**。模型會持續更新或下架，寫死會讓 agent 無法啟動（2026-09-29：所有寫死 `claude-sonnet-4-5` 的 agent 同時失效）。`python3 scripts/sync_ai_adapters.py --check` 會把寫死的模型視為錯誤。
-- 模型由當下使用的工具與使用者決定：
-  - Claude Code：啟動時 `claude --model <名稱或別名>`，或對話中輸入 `/model` 切換。
+- agents、prompts、skills 的來源檔 frontmatter（含 handoffs）**一律不寫 `model:`**，連別名也不行。模型會持續更新或下架，寫死會讓 agent 無法啟動（2026-09-29：所有寫死 `claude-sonnet-4-5` 的 agent 同時失效）；Copilot 也會把 `model:` 當模型名稱解析。`python3 scripts/sync_ai_adapters.py --check` 會把來源檔的 `model:` 視為錯誤。
+- **`tier` 是來源檔唯一的模型旋鈕**。每個 agent 必須在 frontmatter 宣告 `tier`（缺少或未知值，`--check` 失敗），由 sync 腳本投影成各工具的欄位。投影只用家族別名與 effort，不用完整 model ID：
+
+| `tier` | 用途 | Claude wrapper | Codex agent 檔 | 目前的 agent |
+| --- | --- | --- | --- | --- |
+| `plan` | 規劃與批評 | `model: opus`、`effort: high` | `model_reasoning_effort = "high"` | architect、plan-critic |
+| `build` | 實作、驗證閘門、治理 | `model: sonnet`、`effort: medium` | `"medium"` | engineer、designer、scraper-expert、validate-merge-deploy、close-campaign-retire-worktree、researcher、reviewer |
+| `grunt` | 機械性、低風險任務 | `model: haiku`、`effort: low` | `"low"` | tester、history-teller、update-history-skill-agent、lianbu-spokesperson、peatix-scraper、tcc-scraper |
+
+  - Claude Code：投影寫入 `.claude/agents/<kebab>.md`。subagent 的模型優先序是呼叫參數、frontmatter、`CLAUDE_CODE_SUBAGENT_MODEL`、主對話模型（Claude Code 2.1.251 起）。
+  - Codex：投影寫入 `.codex/agents/<kebab>.toml`，只含 effort，不含 `model`；Codex 的 custom agent 不能改 `model_provider`，模型沿用 session 或 profile。
+  - VS Code Copilot：不投影，模型在 Chat 的模型選單選擇。
+  - 改 `tier` 或對照表後執行 `python3 scripts/sync_ai_adapters.py`。調整某個 agent 的 tier 是治理決定，需使用者核准。
+- 主對話模型由當下使用的工具與使用者決定，不能依任務自動切換：
+  - Claude Code：啟動時 `claude --model <名稱或別名>`，或對話中輸入 `/model` 切換；`opusplan` 讓 plan mode 走 Opus、執行走 Sonnet。
   - Codex：`codex -m <模型>`，或對話中 `/model`；常用組合可寫在個人的 `~/.codex/config.toml` profile（`codex -p <profile>`）。
   - VS Code Copilot：在 Chat 的模型選單選擇。
-- **本機模型**：Codex 可用 `codex --oss --local-provider ollama`（或 `lmstudio`）接本機模型；Claude Code 可透過 `ANTHROPIC_BASE_URL` 指向相容 Anthropic API 的本機或自架閘道。這些是個人環境設定，放在使用者層（`~/.codex/`、shell 環境變數），不要提交到 repo。
+- **執行前的模型評估**：agent 在開始每個步驟或交接時，先說明建議的主對話模型與 effort（實作、commit、文件用 Sonnet；計畫與評審用 Opus；跨 phase 架構規劃或 Opus 卡關時才用 Fable）。計畫文件的每個 phase 也應標明建議模型。
+- **本機模型**：Codex 可用 `codex --oss --local-provider ollama`（或 `lmstudio`）接本機模型；Claude Code 可透過 `ANTHROPIC_BASE_URL` 指向相容 Anthropic API 的本機或自架閘道（會改走 API 計費，訂閱額度不適用）。這些是個人環境設定，放在使用者層（`~/.codex/`、shell 環境變數），不要提交到 repo。
 - 需要「不同模型視角」的角色（例：Plan Critic）只描述意圖：盡量使用與撰寫者不同家族的模型；做不到時照常執行，並在報告中註明使用同一模型。
 - 本機模型的能力可能較弱。涉及正式資料庫寫入、推送到 main、部署這類高風險步驟時，若目前模型無法可靠遵循 agent 規則中的驗證閘門，應停下來請使用者改用較強模型或親自確認。
 - 本政策只涵蓋開發用 agents；網站與爬蟲程式內呼叫的 LLM（`scraper/`、`web/` 中的 `gpt-4o*`）另案規劃，不在此範圍。
@@ -109,7 +122,7 @@ Claude Code 可直接叫用 `.claude/agents` 下的 subagent wrapper。Codex 沒
 - plan-critic 不在 Claude Code 的 plan mode 使用：plan mode 送出計畫需要 Write 與 ExitPlanMode，planner 白名單刻意不含這兩者。以一般模式啟動（`claude --agent plan-critic`），讀計畫檔後以文字回傳批評。
 - Codex 沒有依角色的工具限制，只靠各 agent 檔內文的角色規則；需要唯讀時（例如請 Codex 評審計畫），由使用者以 `codex -s read-only` 啟動。VS Code Copilot 依 agent 檔自己的 `tools:` 運作，不讀 `claude-role`。
 - `.claude/settings.json` 的 `permissions.ask` 對目的端看起來是 `main` 或無法從命令判斷的 `git push` 前綴形式要求核准：`git push`、`git push origin`、以 `main` 或 `HEAD` 結尾、或 `main `／`HEAD ` 後面還有參數。推 feature branch 的寫法不會命中，完整判斷由 hook 負責；這組規則是 hook 不存在時的保底（2.1.304 實測，見 `docs/specs/active/pr-flow-tiering/notes.md` B4）。這是全專案設定，對所有角色生效（含未投影的四個），在主執行緒、subagent 與 auto mode 下都已實測會觸發；但只在從 repo（或 worktree）根目錄啟動的 session 生效（見下一段）。`git -C … push`、`env X=1 git push`、`bash -c 'git push …'` 等變體不受這條規則約束，由下一段的 hooks 補上。
-- 新增 agent 時必須加 `claude-role`，或列入 `scripts/sync_ai_adapters.py` 的 `UNDECIDED_AGENTS`，否則 `--check` 失敗。
+- 新增 agent 時必須加 `tier`，並加 `claude-role`，或列入 `scripts/sync_ai_adapters.py` 的 `UNDECIDED_AGENTS`，否則 `--check` 失敗。
 
 ## Hooks 與 permissions（Claude Code 專屬防線）
 
@@ -147,7 +160,7 @@ Claude Code 可直接叫用 `.claude/agents` 下的 subagent wrapper。Codex 沒
 
 ## Skills wrappers
 
-`.claude/skills`（Claude）與 `.agents/skills`（Codex）都是指向 `.github/skills` 的 pointer wrapper；真正規則仍以 `.github/skills/**/SKILL.md` 與同資料夾補充檔為準。
+`.claude/skills`（Claude）與 `.agents/skills`（Codex）都是指向 `.github/skills` 的 pointer wrapper；Codex 的 agent 投影在 `.codex/agents/*.toml`（同樣由 sync 生成）；真正規則仍以 `.github/skills/**/SKILL.md` 與同資料夾補充檔為準。
 
 新增或修改 agent、skill、prompt 後，必須執行：
 

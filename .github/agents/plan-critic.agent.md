@@ -1,6 +1,7 @@
 ---
 name: Plan Critic
 description: "Reviews and critiques implementation plans from Architect — run via Codex in read-only mode (`codex exec -s read-only`) for independent model perspective; not invoked as a Claude subagent"
+tier: plan
 claude-role: planner
 handoffs:
   - label: "↩️ 回 Architect 修改計畫"

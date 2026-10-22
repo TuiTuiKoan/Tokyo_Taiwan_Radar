@@ -1,6 +1,7 @@
 ---
 name: Update History, Skill, Agent
 description: "Document recent changes, fixes, and lessons in history.md, SKILL.md, and agent files through an explicit handoff"
+tier: grunt
 claude-role: full
 disable-model-invocation: true
 handoffs:
