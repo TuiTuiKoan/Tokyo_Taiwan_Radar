@@ -252,9 +252,133 @@ PUSH_TABLE = [
     # X (not in the table): --no-verify skips the gitleaks pre-push hook, so it still asks
     ("X-no-verify", "ask", "git push --no-verify origin feat/x"),
     ("X-no-verify", "ask", "git push --no-verify -u origin feat/x"),
+    # R13 (Phase C P1): git global options before `push` can redirect the destination
+    # (remote.<name>.push, push.default, url.*.pushInsteadOf), read another repo's
+    # config, or turn off the gitleaks pre-push hook. Only -C and the pager-style
+    # flags stay transparent.
+    ("R13-global-opts", "ask", "git -c remote.origin.push=refs/heads/feat/x:refs/heads/main push origin feat/x"),
+    ("R13-global-opts", "ask", "git -c core.hooksPath=/dev/null push origin feat/x"),
+    ("R13-global-opts", "ask", "git -c push.default=current push origin feat/x"),
+    ("R13-global-opts", "ask", "git --config-env=remote.origin.push=X push origin feat/x"),
+    ("R13-global-opts", "ask", "git --config-env remote.origin.push=X push origin feat/x"),
+    ("R13-global-opts", "ask", "git --git-dir=.git push origin feat/x"),
+    ("R13-global-opts", "ask", "git --git-dir .git push origin feat/x"),
+    ("R13-global-opts", "ask", "git --work-tree . push origin feat/x"),
+    ("R13-global-opts", "ask", "git --namespace x push origin feat/x"),
+    ("R13-global-opts", "ask", "git --exec-path=/x push origin feat/x"),
+    ("R13-global-opts", "ask", "git -C . -c push.default=current push origin feat/x"),
+    ("R13-global-opts", "ask", "bash -c 'git -c core.hooksPath=/dev/null push origin feat/x'"),
+    ("R13-global-opts", "allow", "git -C . push origin feat/x"),
+    ("R13-global-opts", "allow", "git --no-pager push origin feat/x"),
+    ("R13-global-opts", "allow", "git -C . --no-pager push -u origin feat/x"),
+    ("R13-global-opts", "allow", "git -P push origin feat/x"),
+    # R14 (Phase C P2): unknown push options ask; the known no-argument options pass
+    ("R14-unknown-opts", "ask", "git push --frobnicate origin feat/x"),
+    ("R14-unknown-opts", "ask", "git push -x origin feat/x"),
+    ("R14-unknown-opts", "ask", "git push -ux origin feat/x"),
+    ("R14-unknown-opts", "ask", "git push --recurse-submodules origin feat/x"),
+    ("R14-unknown-opts", "ask", "git push --signed= origin feat/x"),
+    ("R14-unknown-opts", "ask", "git push --push-option origin feat/x"),  # the value eats the remote
+    ("R14-unknown-opts", "allow", "git push -v -q -n -u -4 origin feat/x"),
+    ("R14-unknown-opts", "allow", "git push -vqnu6 origin feat/x"),
+    ("R14-unknown-opts", "allow", "git push --verbose --quiet --dry-run --set-upstream origin feat/x"),
+    ("R14-unknown-opts", "allow", "git push --thin --no-thin --porcelain --progress --no-progress origin feat/x"),
+    ("R14-unknown-opts", "allow", "git push --atomic --no-atomic --ipv4 --ipv6 --verify origin feat/x"),
+    ("R14-unknown-opts", "allow", "git push --signed --signed=if-asked --no-signed origin feat/x"),
+    ("R14-unknown-opts", "allow", "git push --recurse-submodules=check --no-recurse-submodules origin feat/x"),
+    ("R14-unknown-opts", "allow", "git push --receive-pack=git-receive-pack --exec=git-receive-pack origin feat/x"),
+    ("R14-unknown-opts", "allow", "git push --no-force-with-lease --no-force-if-includes origin feat/x"),
+    ("R14-unknown-opts", "allow", "git push --repo=origin origin feat/x"),
 ]
 PUSH_ASK = [command for _, kind, command in PUSH_TABLE if kind == "ask"]
 PUSH_ALLOW = [command for _, kind, command in PUSH_TABLE if kind == "allow"]
+
+# Phase C P1: persistent configuration that changes where a later push goes or whether
+# the pre-push hook runs. Writes ask under git-config-gate; reads and unrelated keys allow.
+CONFIG_TABLE = [
+    ("ask", "git config remote.origin.push refs/heads/feat/x:refs/heads/main"),
+    ("ask", "git config --add remote.origin.push refs/heads/feat/x:refs/heads/main"),
+    ("ask", "git config --replace-all remote.origin.push x"),
+    ("ask", "git config --unset remote.origin.push"),
+    ("ask", "git config --unset-all remote.origin.push"),
+    ("ask", "git config set remote.origin.push x"),
+    ("ask", "git config set --global push.default current"),
+    ("ask", "git config unset push.default"),
+    ("ask", "git config --global push.default current"),
+    ("ask", "git config --local push.default matching"),
+    ("ask", "git config --system push.default matching"),
+    ("ask", "git config --worktree push.default matching"),
+    ("ask", "git config --file x push.default current"),
+    ("ask", "git config --file=x push.default current"),
+    ("ask", "git config -f x push.default current"),
+    ("ask", "git config push.autoSetupRemote true"),
+    ("ask", "git config core.hooksPath /dev/null"),
+    ("ask", "git config Core.HooksPath /dev/null"),
+    ("ask", "git config CORE.HOOKSPATH x"),
+    ("ask", "git config remote.origin.mirror true"),
+    ("ask", "git config remote.Upstream.Push x"),
+    ("ask", "git config url.git@github.com:.pushInsteadOf https://github.com/"),
+    ("ask", "git config url.https://x/.insteadOf https://github.com/"),
+    ("ask", "git config alias.p 'push origin main'"),
+    ("ask", "git config alias.co checkout"),
+    ("ask", "git config --type=bool remote.origin.mirror true"),
+    ("ask", "git config -e"),
+    ("ask", "git config --edit"),
+    ("ask", "git config --global --edit"),
+    ("ask", 'git config "$KEY" "$VALUE"'),
+    ("ask", "git -C . config push.default current"),
+    ("ask", "bash -c 'git config push.default current'"),
+    ("ask", "git remote add --mirror origin https://github.com/o/r.git"),
+    ("ask", "git remote add --mirror=push origin https://github.com/o/r.git"),
+    ("ask", "git remote add -m x --mirror=fetch origin https://github.com/o/r.git"),
+    # shell writes straight into the config file
+    ("ask", "echo '[push] default = current' >> .git/config"),
+    ("ask", "cat x > .git/config"),
+    ("ask", "cat x > /Users/x/repo/.git/config"),
+    ("ask", "tee -a .git/config < x"),
+    ("ask", "cp x .git/config"),
+    ("ask", "sed -i '' 's/a/b/' .git/config"),
+    ("ask", "echo x >> .git/worktrees/ttr-x-worktree/config"),
+    ("ask", "echo x >> /Users/x/repo/.git/worktrees/ttr-x-worktree/config.worktree"),
+    ("ask", "echo x >> .git/modules/sub/config"),
+    ("ask", "echo x > .git/config.worktree"),
+    # reads and unrelated keys
+    ("allow", "git config --get remote.origin.push"),
+    ("allow", "git config --get-all remote.origin.push"),
+    ("allow", "git config --get-regexp 'remote\\..*\\.push'"),
+    ("allow", "git config --get push.default"),
+    ("allow", "git config --get core.hooksPath"),
+    ("allow", "git config --list"),
+    ("allow", "git config -l"),
+    ("allow", "git config --list --show-origin"),
+    ("allow", "git config --show-origin --get remote.origin.push"),
+    ("allow", "git config get push.default"),
+    ("allow", "git config get --all remote.origin.push"),
+    ("allow", "git config list"),
+    ("allow", "git config list --show-scope"),
+    ("allow", "git config --global --get push.default"),
+    ("allow", "git config user.name x"),
+    ("allow", "git config --global user.email x@example.com"),
+    ("allow", "git config core.pager cat"),
+    ("allow", "git config --unset user.name"),
+    ("allow", "git config set user.name x"),
+    ("allow", "git config pull.rebase true"),
+    ("allow", "git config remote.origin.url https://github.com/o/r.git"),
+    ("allow", "git config branch.feat/x.remote origin"),
+    ("allow", "git remote add origin https://github.com/o/r.git"),
+    ("allow", "git remote -v"),
+    ("allow", "git remote show origin"),
+    ("allow", "cat .git/config"),
+    ("allow", "grep push .git/config"),
+    ("allow", "git config --get-regexp alias"),
+    ("allow", "echo x >> config"),
+    ("allow", "echo x >> .github/config"),
+    ("allow", "echo x >> .git/config.bak"),
+    ("allow", "echo x >> web/.gitconfig"),
+    ("allow", "echo x >> .git/info/exclude"),
+]
+CONFIG_ASK = [command for kind, command in CONFIG_TABLE if kind == "ask"]
+CONFIG_ALLOW = [command for kind, command in CONFIG_TABLE if kind == "allow"]
 
 DENY = [
     # 1 git-force-push
@@ -298,6 +422,12 @@ DENY = [
     ("git push -uf origin feat/x", "git-force-push"),
     ("bash -c 'git push -f origin feat/x'", "git-force-push"),
     ("git -C . push --force-with-lease=feat/x origin feat/x", "git-force-push"),
+    # Phase C: deny still wins over the global-option and unknown-option asks
+    ("git -c remote.origin.push=x push --force origin feat/x", "git-force-push"),
+    ("git -c core.hooksPath=/dev/null push -f origin feat/x", "git-force-push"),
+    ("git push --frobnicate --force origin feat/x", "git-force-push"),
+    ("git push --frobnicate origin :feat/x", "git-force-push"),
+    ("git -c x=y push --frobnicate -d origin feat/x", "git-force-push"),
     # 2 git-reset-hard
     ("git reset --hard", "git-reset-hard"),
     ("git reset --hard HEAD~1", "git-reset-hard"),
@@ -549,12 +679,30 @@ def test_push_table_covers_every_row_both_ways():
     assert rows == {
         "R1-no-refspec", "R2-head", "R3-feature", "R4-main-src", "R5-main-dst", "R6-substring",
         "R7-bulk", "R8-multi", "R9-url", "R10-dry-run", "R12-wrapped", "X-no-verify",
+        "R13-global-opts", "R14-unknown-opts",
     }
     kinds = {row: {kind for r, kind, _ in PUSH_TABLE if r == row} for row in rows}
     # rows whose decision is fixed get one kind; rows that depend on the destination get both
     assert all(kinds[row] == {"ask"} for row in ("R1-no-refspec", "R2-head", "R5-main-dst", "R7-bulk", "X-no-verify"))
     assert all(kinds[row] == {"allow"} for row in ("R3-feature", "R4-main-src", "R6-substring"))
-    assert all(kinds[row] == {"allow", "ask"} for row in ("R8-multi", "R9-url", "R10-dry-run", "R12-wrapped"))
+    assert all(
+        kinds[row] == {"allow", "ask"}
+        for row in ("R8-multi", "R9-url", "R10-dry-run", "R12-wrapped", "R13-global-opts", "R14-unknown-opts")
+    )
+
+
+@pytest.mark.parametrize(("kind", "command"), CONFIG_TABLE, ids=[f"{k}:{c}" for k, c in CONFIG_TABLE])
+def test_git_config_table(kind, command):
+    decision = _policy.evaluate_command(command)
+    expected = ("ask", "git-config-gate") if kind == "ask" else ("allow", "")
+    assert (decision.kind, decision.rule) == expected, (command, decision)
+
+
+def test_config_ask_payload_is_valid_output():
+    decision = _policy.evaluate_command("git config push.default current")
+    text = json.dumps(_policy.ask_payload(decision.message()))
+    assert _policy.valid_output(text)
+    assert "[git-config-gate]" in decision.message()
 
 
 @pytest.mark.parametrize(("command", "rule"), DENY)
@@ -626,7 +774,7 @@ def test_policy_never_opens_files(monkeypatch):
     monkeypatch.setattr(os, "open", spy(os.open))
     heredocs = [(HEREDOC / f"{n}.txt").read_text(encoding="utf-8") for n in HEREDOC_EXPECTED]
     opened.clear()
-    for command in MUST_ALLOW + PUSH_ASK + PUSH_ALLOW + [c for c, _ in DENY] + heredocs:
+    for command in MUST_ALLOW + PUSH_ASK + PUSH_ALLOW + CONFIG_ASK + CONFIG_ALLOW + [c for c, _ in DENY] + heredocs:
         _policy.evaluate_command(command)
     assert opened == []
 
