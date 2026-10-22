@@ -33,6 +33,8 @@ from dotenv import load_dotenv
 from llm_client import finish, get_client
 from supabase import create_client
 
+from publication_rules import is_pure_publication_record
+
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 logging.basicConfig(
@@ -150,7 +152,7 @@ def _fetch_upcoming_events(sb) -> list[dict]:
     res = (
         sb.table("events")
         .select(
-            "id,name_zh,name_ja,name_en,start_date,end_date,category,source_name,location_name,location_address,location_prefectures"
+            "id,name_zh,name_ja,name_en,start_date,end_date,category,event_form,source_name,location_name,location_address,location_prefectures"
         )
         .eq("is_active", True)
         .is_("parent_event_id", "null")
@@ -348,6 +350,10 @@ def _group_by_type(events: list[dict]) -> tuple[list[dict], list[dict], list[dic
             tv.append(e)
         elif _is_online_event(e):
             online.append(e)
+        elif is_pure_publication_record(e):
+            # Books are grouped by record type, not by category: the annotator gives a
+            # publication "books_media" only when its subject is media or publishing.
+            books.append(e)
         elif "movie" in (e.get("category") or []):
             film.append(e)
         elif "books_media" in (e.get("category") or []):
@@ -671,7 +677,7 @@ def _generate_weekly_content(sb, ai, today: datetime) -> tuple[list[dict], list[
     # Fetch gguide_tv events separately for near-term (excluded from AI selection pool)
     tv_res = (
         sb.table("events")
-        .select("id,name_zh,name_ja,name_en,start_date,end_date,category,source_name,location_name,location_address,location_prefectures")
+        .select("id,name_zh,name_ja,name_en,start_date,end_date,category,event_form,source_name,location_name,location_address,location_prefectures")
         .eq("is_active", True)
         .is_("parent_event_id", "null")
         .eq("source_name", "gguide_tv")

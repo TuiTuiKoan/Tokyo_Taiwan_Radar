@@ -2487,20 +2487,28 @@ def _relevance_gate_update(
     return {"is_active": False, "deactivated_reason": RELEVANCE_GATE_REASON}
 
 
-def _inject_keyword_categories(categories: list[str], text: str) -> list[str]:
+def _inject_keyword_categories(
+    categories: list[str], text: str, record_type: str | None = None
+) -> list[str]:
     """Inject missing categories based on keyword signals in the event text.
 
     Rules derived from analysis of 69 admin corrections in category_corrections:
     - lecture: almost always missing when talk/panel keywords appear (+29 corrections)
     - geopolitics: missing for Taiwan political/policy topics (+18 corrections)
     - history: missing for colonial/war-era Taiwan events (+16 corrections)
+
+    For a pure publication (``record_type == "publication"``) the event-format
+    rules (lecture / tv_program / report) are skipped: a book or article whose
+    title mentions 講演 or 報告書 is still a bibliographic record, not a talk or
+    an event recap. Subject rules (geopolitics / history) still apply.
     """
     cats = list(categories)
+    is_publication = record_type == "publication"
     # lecture: any talk/panel/seminar keyword triggers this
-    if "lecture" not in cats and any(kw in text for kw in _LECTURE_KEYWORDS):
+    if not is_publication and "lecture" not in cats and any(kw in text for kw in _LECTURE_KEYWORDS):
         cats.append("lecture")
     # lecture: also inject when movie + talk co-occur (上映会＋トーク pattern)
-    if "lecture" not in cats and ("movie" in cats or "上映" in text) and (
+    if not is_publication and "lecture" not in cats and ("movie" in cats or "上映" in text) and (
         "トーク" in text or "座談" in text or "講演" in text
     ):
         cats.append("lecture")
@@ -2511,12 +2519,27 @@ def _inject_keyword_categories(categories: list[str], text: str) -> list[str]:
     if "history" not in cats and (any(kw in text for kw in _HISTORY_KEYWORDS) or _has_taiwan_roots_signal(text)):
         cats.append("history")
     # tv_program: TV broadcast markers (gguide_tv raw_description pattern)
-    if "tv_program" not in cats and any(kw in text for kw in _TV_PROGRAM_KEYWORDS):
+    if not is_publication and "tv_program" not in cats and any(kw in text for kw in _TV_PROGRAM_KEYWORDS):
         cats.append("tv_program")
     # report: post-event recap/report articles
-    if "report" not in cats and _REPORT_TRIGGER_RE.search(text):
+    if not is_publication and "report" not in cats and _REPORT_TRIGGER_RE.search(text):
         cats.append("report")
     return cats
+
+
+def _drop_format_only_books_media(categories: list[str]) -> list[str]:
+    """Publication records: keep "books_media" only when it is the sole category.
+
+    For a publication, "books_media" means the work is ABOUT media or publishing.
+    The model still adds it merely because the record is a book or magazine, so
+    it is removed whenever another category carries the subject. When it is the
+    only category it stays, so the record does not fall into the empty-category
+    review queue. Media-studies books that also get another subject category lose
+    the tag; accepted trade-off (2026-10-23, ndl-relevance-publication).
+    """
+    if "books_media" in categories and len(categories) > 1:
+        return [c for c in categories if c != "books_media"]
+    return list(categories)
 
 
 def _inject_report_prefix(name: str | None, lang: str) -> str | None:
@@ -3192,7 +3215,9 @@ def annotate_pending_events(
 
             # Validate and sanitize
             categories = _validate_categories(annotation.get("category", []))
-            categories = _inject_keyword_categories(categories, raw_title + " " + raw_desc)
+            categories = _inject_keyword_categories(categories, raw_title + " " + raw_desc, _record_type)
+            if _record_type == "publication":
+                categories = _drop_format_only_books_media(categories)
 
             # Override with human-corrected category if one exists — this takes
             # priority over AI prediction and keyword injection.
