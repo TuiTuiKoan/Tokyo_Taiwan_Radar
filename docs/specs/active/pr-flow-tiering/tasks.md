@@ -35,12 +35,14 @@
 
 ## Phase D: GitHub 設定與 Tier 0 workflow
 
-- [ ] 使用者核准後開啟 `allow_auto_merge`、`delete_branch_on_merge`，關閉 merge commit
-- [ ] 為 `main` 建立只要求 status checks、repo owner 可 bypass 的 ruleset；先驗證沒有 required checks 時 `gh pr merge --auto` 的行為（Plan Critic P1）
+- [ ] 使用者核准後關閉 merge commit（`delete_branch_on_merge` 已開啟；改版後不需要 `allow_auto_merge`）
+- [x] ~~為 `main` 建立只要求 status checks 的 ruleset~~ 延到 Phase F；改版後合併只在 gitleaks 成功後發生並綁定被掃描的 commit，已滿足 Plan Critic P1
 - [ ] 前提：roadmap 的 enrich_poster 暫停已完成（commit `e3cadbe0`，待使用者 push）
-- [x] 新增 PR Tier workflow 與分類程式：`.github/workflows/pr-tier.yml`（`pull_request_target`，只讀檔名）、`scripts/ci/pr_tier.py`、`scripts/tests/test_pr_tier.py`（37 passed，actionlint 通過）
+- [x] 新增 PR Tier workflow 與分類程式：`.github/workflows/pr-tier.yml`、`scripts/ci/pr_tier.py`、`scripts/tests/test_pr_tier.py`
+- [x] Codex 資安審查第一版（`critique-phase-d.md`），兩個 P1 已修：改用 `workflow_run` 加 `--match-head-commit`、檢查檔案清單完整性（50 passed，actionlint 通過）
 - [ ] 使用者核准後建立 `tier:0`、`tier:1`、`tier:2` 三個 label
-- [ ] 用一個只改 `docs/` 的測試 PR 驗證 Tier 0 自動合併，用一個改 `web/` 的 PR 驗證落入 Tier 2
+- [ ] 用一個只改 `.github/skills/**/history.md` 的 PR 驗證 Tier 0 在 gitleaks 後自動合併
+- [ ] 對同一個 PR 追加非文件 commit 的情境，確認不會合併（可用 draft PR 或單元測試以外的實測）
 
 ## Phase E: 試行兩週
 

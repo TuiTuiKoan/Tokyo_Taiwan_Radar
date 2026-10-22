@@ -1,72 +1,105 @@
 name: PR Tier
 
-# Labels each same-repo PR tier:0, tier:1 or tier:2 and enables auto-merge for
-# tier 0 (spec docs/specs/active/pr-flow-tiering, Phase D).
+# After Secret Scan (gitleaks) passes on a same-repo PR, label it tier:0,
+# tier:1 or tier:2 and merge tier 0 (spec docs/specs/active/pr-flow-tiering,
+# Phase D).
 #
-# pull_request_target runs this file and scripts/ci/pr_tier.py from the base
-# branch, so a PR cannot rewrite its own classification. Never check out or run
-# the PR's code here: the job reads file names through the API and nothing else.
-# Auto-merge still waits for the checks the main ruleset requires (gitleaks).
+# Safety, from the Phase D security review (critique-phase-d.md):
+# - workflow_run runs this file and scripts/ci/pr_tier.py from the default
+#   branch. Never check out or run the PR's code here; only file names are read.
+# - No GitHub auto-merge. The merge runs only after gitleaks succeeded and is
+#   pinned to the scanned commit with --match-head-commit, so a later push can
+#   never ride an earlier approval: it gets its own scan and its own decision.
+# - A file list that does not match changed_files, or a PR at the API's
+#   3000-file limit, is tier 2.
+# - Merges made with GITHUB_TOKEN do not trigger push workflows on main.
 
 on:
-  pull_request_target:
-    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_run:
+    workflows: ["Secret Scan"]
+    types: [completed]
 
-permissions:
-  contents: write        # gh pr merge --auto
-  pull-requests: write   # labels, auto-merge
-  issues: write          # labels live on the issue side of a PR
-
-concurrency:
-  group: pr-tier-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+permissions: {}
 
 jobs:
-  tier:
+  classify:
     if: >-
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.user.login != 'dependabot[bot]'
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      pr: ${{ steps.tier.outputs.pr }}
+      tier: ${{ steps.tier.outputs.tier }}
+      merge: ${{ steps.tier.outputs.merge }}
+      sha: ${{ steps.tier.outputs.sha }}
     steps:
-      - name: Check out the base branch (never the PR head)
+      - name: Check out the default branch (never the PR head)
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
 
-      - name: Classify changed paths
+      - name: Classify the scanned commit
         id: tier
         env:
           GH_TOKEN: ${{ github.token }}
-          PR: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          gh api --paginate "repos/$REPO/pulls/$PR/files" \
-            --jq '.[] | .filename, (.previous_filename // empty)' > "$RUNNER_TEMP/paths.txt"
-          tier=$(python3 scripts/ci/pr_tier.py < "$RUNNER_TEMP/paths.txt")
+          pr=$(gh api "repos/$REPO/commits/$SHA/pulls" \
+            --jq '[.[] | select(.state == "open" and .head.sha == env.SHA)] | .[0].number // empty')
+          if [ -z "$pr" ]; then
+            echo "No open PR has head $SHA; nothing to do." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          info=$(gh api "repos/$REPO/pulls/$pr" --jq '[.state, .draft, .user.login, .head.sha, .changed_files] | @tsv')
+          IFS=$'\t' read -r state draft author head expected <<< "$info"
+          gh api --paginate --slurp "repos/$REPO/pulls/$pr/files" > "$RUNNER_TEMP/files.json"
+          tier=$(python3 scripts/ci/pr_tier.py --files-json "$RUNNER_TEMP/files.json" --expected "$expected")
           case "$tier" in 0|1|2) ;; *) echo "unexpected tier: $tier"; exit 1 ;; esac
-          echo "tier=$tier" >> "$GITHUB_OUTPUT"
-          echo "PR #$PR -> tier:$tier ($(wc -l < "$RUNNER_TEMP/paths.txt") paths)" >> "$GITHUB_STEP_SUMMARY"
+          merge=false
+          if [ "$tier" = 0 ] && [ "$state" = open ] && [ "$draft" = false ] \
+             && [ "$author" = "$OWNER" ] && [ "$head" = "$SHA" ]; then
+            merge=true
+          fi
+          {
+            echo "pr=$pr"
+            echo "tier=$tier"
+            echo "merge=$merge"
+            echo "sha=$SHA"
+          } >> "$GITHUB_OUTPUT"
+          echo "PR #$pr at ${SHA:0:8}: tier:$tier, merge=$merge ($expected changed files)" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Set the tier label
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR: ${{ github.event.pull_request.number }}
-          REPO: ${{ github.repository }}
-          TIER: ${{ steps.tier.outputs.tier }}
+  act:
+    needs: classify
+    if: needs.classify.outputs.pr != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # merge
+      pull-requests: write   # labels, merge
+      issues: write          # labels live on the issue side of a PR
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      PR: ${{ needs.classify.outputs.pr }}
+      TIER: ${{ needs.classify.outputs.tier }}
+    steps:
+      - name: Set exactly one tier label
         run: |
+          current=$(gh pr view "$PR" --repo "$REPO" --json labels --jq '.labels[].name')
           for t in 0 1 2; do
-            if [ "$t" != "$TIER" ]; then gh pr edit "$PR" --repo "$REPO" --remove-label "tier:$t" || true; fi
+            if [ "$t" != "$TIER" ] && printf '%s\n' "$current" | grep -qx "tier:$t"; then
+              gh pr edit "$PR" --repo "$REPO" --remove-label "tier:$t"
+            fi
           done
           gh pr edit "$PR" --repo "$REPO" --add-label "tier:$TIER"
 
-      - name: Enable auto-merge for tier 0
-        if: >-
-          steps.tier.outputs.tier == '0' &&
-          github.event.pull_request.user.login == github.repository_owner &&
-          !github.event.pull_request.draft
+      - name: Merge tier 0 at the scanned commit
+        if: needs.classify.outputs.merge == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
-          PR: ${{ github.event.pull_request.number }}
-          REPO: ${{ github.repository }}
-        run: gh pr merge "$PR" --repo "$REPO" --auto --squash
+          SHA: ${{ needs.classify.outputs.sha }}
+        run: gh pr merge "$PR" --repo "$REPO" --squash --match-head-commit "$SHA"

@@ -45,7 +45,7 @@ tags: [tooling, infra, governance]
 
 | 層級 | 路徑條件 | 合併方式 |
 |---|---|---|
-| Tier 0 自動合併 | 只動到 `docs/**`（`docs/specs/**`、`docs/architecture/**` 除外，兩者在 web build 時被讀進 admin specs 頁）、`.github/skills/**/history.md`；dependabot 的 semver-patch 沿用既有 workflow | PR Tier workflow 貼 `tier:0`，以 `gh pr merge --auto --squash` 開啟自動合併，等 ruleset 要求的 checks 綠燈才合併 |
+| Tier 0 自動合併 | 只動到 `docs/**`（`docs/specs/**`、`docs/architecture/**` 除外，兩者在 web build 時被讀進 admin specs 頁）、`.github/skills/**/history.md`；dependabot 的 semver-patch 沿用既有 workflow | PR Tier workflow 在 gitleaks 對 PR 成功後貼 `tier:0`，以 `gh pr merge --squash --match-head-commit` 直接合併被掃描的那個 commit |
 | Tier 1 一鍵 | 只動到單一 `scraper/sources/<source>.py` 及其 skill、tests；tests 綠且 dry-run 有產出 | 貼 `tier:1` 並推播通知，使用者在手機或網頁按 merge |
 | Tier 2 完整 review | 任何 `web/**`、`supabase/**`、`scraper/annotator.py`、寫入 production DB 的 script、`.github/workflows/**`、`scripts/claude/**`、`.claude/**`、`AGENTS.md`、`.github/instructions/**`、`.github/agents/**` | 現有 V-M-D 驗證加 Vercel preview，使用者親自看 |
 
@@ -80,13 +80,16 @@ tags: [tooling, infra, governance]
 
 ### GitHub 端設定順序
 
-1. 開啟 `allow_auto_merge` 與 `delete_branch_on_merge`；merge method 只留 squash 與 rebase，關閉 merge commit。這符合既有「禁 `--no-ff`，避免 secret scan 重掃整段歷史」的規則。
-2. 為 `main` 建立 ruleset，**只要求 status checks，不要求 PR**，並把 repo owner 列入 bypass。這樣 Tier 0 的 auto-merge 必須等 checks 綠燈，使用者在試行期間仍能直接 push main。先驗證：沒有 required checks 時 `gh pr merge --auto` 是否會立即合併；有 ruleset 時是否確實等待。（Plan Critic P1）
-3. 新增 PR Tier workflow（`.github/workflows/pr-tier.yml`）與分類程式 `scripts/ci/pr_tier.py`。順序不得早於第 2 步。
-   - **改用 `pull_request_target`，不用 `actions/labeler`。** 一般的 `pull_request` 執行的是 PR 自己帶的 workflow 與程式，PR 改掉分類規則就能讓自己被自動合併。`pull_request_target` 固定執行 base branch 上的 workflow 與程式，job 只透過 API 讀檔名，絕不 checkout 或執行 PR 的內容。
-   - 分類程式有單元測試（`scripts/tests/test_pr_tier.py`），不需要第三方 action。
-   - 只處理同 repo、非 dependabot 的 PR；只有 repo owner 開的非 draft PR 才會開啟自動合併。
+1. 關閉 merge commit，merge method 只留 squash 與 rebase。這符合既有「禁 `--no-ff`，避免 secret scan 重掃整段歷史」的規則。`delete_branch_on_merge` 在 2026-10-22 已是開啟狀態。Phase D 改版後不使用 GitHub auto-merge，`allow_auto_merge` 維持關閉。
+2. ~~為 `main` 建立只要求 status checks 的 ruleset~~ 延到 Phase F。Plan Critic P1 擔心的「checks 完成前就合併」已由 workflow 設計排除：合併只在 gitleaks 成功之後發生，且綁定被掃描的 commit。repo 內另有一個 2026-06-12 建立、已停用、沒有指定 branch 的 ruleset「TuiTuiKoan manager」，不動它。
+3. 新增 PR Tier workflow（`.github/workflows/pr-tier.yml`）與分類程式 `scripts/ci/pr_tier.py`。
+   - **觸發改用 Secret Scan 成功後的 `workflow_run`，不用 `actions/labeler`，也不用 `pull_request`。** 一般的 `pull_request` 執行的是 PR 自己帶的 workflow 與程式，PR 改掉分類規則就能讓自己被自動合併。`workflow_run` 固定執行 default branch 上的 workflow 與程式，job 只透過 API 讀檔名，絕不 checkout 或執行 PR 的內容。第一版用 `pull_request_target` 加 GitHub auto-merge，Phase D 資安審查（`critique-phase-d.md`）指出 auto-merge 會沿用到之後的 commit，因此改版。
+   - **不使用 GitHub auto-merge。** 合併以 `--match-head-commit` 綁定被掃描的 commit；之後的 push 會有自己的掃描與判斷。
+   - **檔案清單必須完整。** API 回傳的檔案數要等於 `changed_files` 且少於 3000，否則一律 Tier 2。
+   - 兩個 job 分權：分類的 job 只有讀取權限，貼 label 與合併的 job 不 checkout 程式碼。
+   - 只處理同 repo 的 PR；只有 repo owner 開的、非 draft、head 仍是被掃描 commit 的 Tier 0 PR 才會合併。tier label 在 gitleaks 跑完後才出現。
    - 由 `GITHUB_TOKEN` 完成的合併不會觸發 main 上以 push 觸發的 workflow；Tier 0 只有文件，可接受。
+   - 殘餘風險：files API 不提供檔案模式，docs 下的 symlink 仍判 Tier 0。日後若有程式開始在 build 或執行時讀取 docs 其他子目錄，必須同步更新 `pr_tier.py` 的排除清單。
 4. 「要求 PR」的保護放到最後。一旦要求 PR，使用者就不能再直接 push main，必須等 Phase E 試行通過、D1 裁決之後才開。
 
 以上設定會改動對外的 repo 狀態，每一步都由使用者核准或親自操作。
@@ -126,3 +129,4 @@ tags: [tooling, infra, governance]
 - `.github/skills/agents/architect/SKILL.md`：「工作流／治理計畫三查」。
 - `AGENTS.md`：「Hooks 與 permissions」「角色工具限制」。
 - `critique.md`：Codex 的 Plan Critic 報告與逐條回應。
+- `critique-phase-d.md`：Codex 對 PR Tier workflow 第一版的資安審查與回應。

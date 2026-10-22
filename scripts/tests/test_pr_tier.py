@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import subprocess
 import sys
 
@@ -88,3 +89,57 @@ def test_cli_reads_stdin(root):
     script = root / "scripts" / "ci" / "pr_tier.py"
     out = subprocess.run([sys.executable, str(script)], input="docs/a.md\nweb/b.ts\n", capture_output=True, text=True, check=True)
     assert out.stdout.strip() == "2"
+
+
+def _files(*names, previous=None):
+    entries = [{"filename": n, "status": "modified"} for n in names]
+    if previous:
+        entries[0]["previous_filename"] = previous
+        entries[0]["status"] = "renamed"
+    return entries
+
+
+def test_api_docs_only_is_tier0(tier):
+    assert tier.classify_api_files([_files("docs/a.md", "docs/b.md")], expected=2) == 0
+
+
+def test_api_pages_are_flattened(tier):
+    assert tier.classify_api_files([_files("docs/a.md"), _files("docs/b.md")], expected=2) == 0
+
+
+def test_api_short_list_is_tier2(tier):
+    # The API returned fewer entries than changed_files: the rest might be web/.
+    assert tier.classify_api_files([_files("docs/a.md")], expected=2) == 2
+
+
+def test_api_file_limit_is_tier2(tier):
+    names = [f"docs/{i}.md" for i in range(3000)]
+    assert tier.classify_api_files([_files(*names)], expected=3000) == 2
+
+
+def test_api_rename_from_web_is_tier2(tier):
+    assert tier.classify_api_files([_files("docs/moved.ts", previous="web/app/moved.ts")], expected=1) == 2
+
+
+def test_api_malformed_entries_are_tier2(tier):
+    assert tier.classify_api_files([[{"name": "docs/a.md"}]], expected=1) == 2
+    assert tier.classify_api_files([["docs/a.md"]], expected=1) == 2
+    assert tier.classify_api_files([], expected=0) == 2
+
+
+def test_api_names_are_not_trimmed(tier):
+    assert tier.classify_api_files([_files(" docs/a.md")], expected=1) == 2
+
+
+@pytest.mark.parametrize("name", ["docs/a\nb.md", "docs/a\rb.md", "docs/a\tb.md", "docs/a\x00b.md", "docs/a\x7fb.md"])
+def test_control_characters_are_tier2(tier, name):
+    assert tier.classify([name]) == 2
+
+
+def test_cli_files_json(root, tmp_path):
+    script = root / "scripts" / "ci" / "pr_tier.py"
+    data = tmp_path / "files.json"
+    data.write_text(json.dumps([_files("docs/a.md")]), encoding="utf-8")
+    run = lambda n: subprocess.run([sys.executable, str(script), "--files-json", str(data), "--expected", str(n)], capture_output=True, text=True, check=True).stdout.strip()
+    assert run(1) == "0"
+    assert run(2) == "2"
