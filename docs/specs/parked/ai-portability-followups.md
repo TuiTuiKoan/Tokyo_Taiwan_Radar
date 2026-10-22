@@ -9,6 +9,8 @@ tags: [tooling, governance, ai, hardening]
 
 # ai-portability 後續項目
 
+> **已搬到 issue（2026-10-22）。** ①～⑤ 依序是 #334、#335、#336、#337、#338，貼 `spec:ai-portability-followups`，進度以 TTR Roadmap 看板為準：https://github.com/users/TuiTuiKoan/projects/1 。本檔保留原文與證據，不再更新勾選。
+
 ## 來源與搬移理由
 
 這份清單原本是 `docs/specs/active/ai-portability/tasks.md` 末段「後續項目」（L187–205，共 19 條），依 plan §4 第 4 項、§8.2 原則 6 明確列為「不在本 campaign」的範圍。campaign 的最後一顆 commit `6b404ea3a4b029cf9c157d9773442b40d7fee5a8` 已進入 origin/main；結案稽核（Close Campaign agent）因該檔仍有 19 條未勾選而回報 HOLD。為讓 campaign 結案時 `tasks.md` 的未完成項歸零，這 19 條改由本 parked spec 追蹤。
