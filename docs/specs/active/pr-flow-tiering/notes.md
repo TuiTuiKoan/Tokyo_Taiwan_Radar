@@ -129,3 +129,44 @@
 
 - `/auto-mode-config` 明示 `permissions.ask` 是「human checkpoint」的正規機制，而 hook 是補足前綴比對不到的變體；本 repo 的設計（hook 做完整判斷、settings 做保底）與文件建議方向一致。
 - proposal M2 之後要讓 agent 執行 `gh pr create`：文件說 auto mode 預設放行 PR 建立；`gh pr merge` 則被分類器「Merging a pull request no human has approved」規則擋住，這對 Tier 0 的 `gh pr merge --auto` 可能有影響，Phase D 要留意（Tier 0 是在 GitHub Actions 內執行，不經 Claude Code 分類器，應無影響；本機由 agent 執行時才會碰到）。
+
+## B3 Phase C 修正（2026-10-22，Engineer／Fable，依 Plan Critic P1／P2）
+
+### 已實測成立的繞過（P1）
+
+協調者在 scratchpad 的本機 bare repo 實測：
+
+```
+git -c remote.origin.push=refs/heads/feat/x:refs/heads/main push origin feat/x
+```
+
+輸出 `f79ff12..4e8f2e5  feat/x -> main`，遠端 `main` 被更新。B1 版本的 hook 把它判為 feature push 而 allow，因為 `-c` 在 `GIT_OPT_ARG` 中被直接跳過；而 git 文件明示 refspec 省略 `:<dst>` 時，若 `remote.<repo>.push` 有設定，依該設定決定目的端。`--config-env`、`--git-dir`、`--work-tree`、`--namespace`、`--exec-path` 同樣能換掉 push 讀到的設定或 hook，`-c core.hooksPath=/dev/null` 則可關掉 gitleaks pre-push 掃描。真實 repo 目前沒有設 `remote.origin.push`、`push.default`、`pushInsteadOf`，`core.hooksPath=.githooks`。
+
+### 修正內容（`scripts/claude/_policy.py`）
+
+1. **push 前的 git 全域選項**：`check_git` 追蹤 `reconfigured`。`-C <path>` 與 `GIT_FLAGS`（`--no-pager`、`-P` 等）以外的任何全域選項（`-c`、`--config-env[=]`、`--git-dir[=]`、`--work-tree[=]`、`--namespace[=]`、`--exec-path[=]`、`--super-prefix[=]`）出現在 `push` 前，且 `check_push` 原本會 allow 時，改回 `ASK_PUSH`；deny 仍優先。其他子命令行為不變（`git -c clean.requireForce=false clean -d` 仍是 deny，`git -c core.pager=cat log` 仍 allow）。
+2. **寫入會改變 push 行為的持久設定**：新增 `check_git_config`。`--get`／`--get-all`／`--get-regexp`／`--get-urlmatch`／`--list`／`-l`／`--show-origin`／`--show-scope`，或 `get`／`list` 子命令 → allow。`-e`／`--edit`／`edit` → ask（寫入內容無法檢查）。其餘視為寫入：跳過 `--file`／`-f`／`--blob`／`--type`／`--default`／`--comment`／`--value` 的值與所有旗標（`--global`、`--local`、`--system`、`--worktree`、`--add`、`--unset`、`--replace-all` 等），去掉 `set`／`unset`／`rename-section`／`remove-section` 動詞後，任一 positional 以 `CONFIG_GATE_RE`（不分大小寫）比對 `remote.*.push`、`remote.*.mirror`、`push.*`、`core.hookspath`、`url.*.pushinsteadof`、`url.*.insteadof`、`alias.*` 命中，或 key 是變數／替換 → `ASK_CONFIG`（新 rule `git-config-gate`，理由文字獨立於 push-gate）。`git remote add --mirror[=fetch|push]` 也 ask。
+3. **未知 push 選項 ask（P2）**：`PUSH_FLAGS` 允許清單（`--verbose`、`--quiet`、`--dry-run`、`--set-upstream`、`--thin`／`--no-thin`、`--porcelain`、`--progress`／`--no-progress`、`--atomic`／`--no-atomic`、`--signed`／`--no-signed`、`--no-recurse-submodules`、`--ipv4`／`--ipv6`、`--verify`、`--no-force-with-lease`、`--no-force-if-includes`、`--`），帶值的 `--signed=*`、`--recurse-submodules=*`、`--push-option=*`、`--repo=*`、`--receive-pack=*`、`--exec=*`（值不得為空），短旗標字元 `v q n u 4 6`（`o` 吃值，`f`／`d` deny）。清單外的長選項、短旗標群組內的未知字元、單獨的 `-` → ask。既有 deny 與 `--no-verify` ask 不變；`--recurse-submodules` 不帶 `=` 視為未知（保守）。
+4. **直接寫 `.git/config`（第 4 項調查）**：調查結果：B1 版本的 file guard 只比對 `.env`，`Write`／`Edit`／`NotebookEdit` 寫 `.git/config` 會 allow；bash guard 的 `check_env_file` 同樣不看 `.git/config`，`echo … >> .git/config`、`tee`、`cp`、`sed -i` 都 allow。**攔得住，且不需開檔**：新增 `GIT_CONFIG_RE`（純字串比對，`test_policy_never_opens_files` 通過），涵蓋 `.git/config`、`.git/config.worktree`、`.git/worktrees/<name>/config[.worktree]`、`.git/modules/<path>/config`；`file_decision` 對 `WRITE_TOOLS` 命中時回 `ASK_CONFIG`（`Read`／`Grep` 照常 allow）；bash guard 新增 `check_git_config_file`，對 `WRITE_REDIRECTS` 指向這些路徑，或 `WRITE_VERBS`／`sed -i`／`awk inplace` 的參數含這些路徑時回 `ASK_CONFIG`。file guard 的 launcher 輸出協定對 ask 同樣有效（`test_git_config_ask_goes_through_launcher_protocol`）。未涵蓋：`$GIT_DIR/config` 這類變數路徑、直譯器程式碼字串內的路徑（`python3 -c "open('.git/config','a')"`），與既有 `.env` 規則的字面路徑限制相同，不另列。
+5. `Decision.message()` 改以 `ASK_REASONS[rule]` 取理由；`ASK_REASON`（push-gate）常數與 `ask_payload()` 預設值不變，`test_launcher.py` 無需改。
+
+### 新增測試
+
+- `test_bash_guard.py`：`PUSH_TABLE` 新列 `R13-global-opts`（ask 12、allow 4，含 P1 命令、`-c core.hooksPath=/dev/null`、`--config-env=…`、`--git-dir`、`--work-tree`、`--namespace`、`--exec-path`、`bash -c` 包裝；allow 含 `git -C . push origin feat/x`、`--no-pager`、`-P`）與 `R14-unknown-opts`（ask 6、allow 10，含 `--frobnicate`、`-x`、`-ux`、bare `--recurse-submodules`、`--signed=`；allow 覆蓋整張允許清單）；新 `CONFIG_TABLE` 與 `test_git_config_table[<kind>:<command>]`（ask 45、allow 32，含 `git config remote.origin.push …`、`--get remote.origin.push` allow、`user.name x` allow、shell 重導寫 `.git/config` 各形式）；`test_config_ask_payload_is_valid_output`；`DENY` 加 5 條「deny 仍優先於 global-option／unknown-option ask」；`test_push_table_covers_every_row_both_ways` 納入 R13／R14；`test_policy_never_opens_files` 掃描 `CONFIG_ASK`／`CONFIG_ALLOW`。
+- `test_file_guard.py`：新 `ASK` 清單與 `test_git_config_write_asks`（Write／Edit／NotebookEdit 寫 `.git/config`、`.git/config.worktree`、`.git/worktrees/*/config[.worktree]`、`.git/modules/*/config`、相對路徑 `.git/config`，共 8 條）；`ALLOW` 加 7 條（Read／Grep `.git/config`、Write `.git/info/exclude`、`.github/config`、`web/.gitconfig`、`.git/config.bak`、`scraper/config`）；`test_git_config_ask_goes_through_launcher_protocol`。
+
+### 改前／改後測試數字
+
+| 階段 | 命令 | 結果 |
+|---|---|---|
+| B1 完成時 | `python3 -m pytest scripts/claude/tests scripts/tests -q` | 615 passed |
+| 加入 Phase C 測試、程式未改 | `python3 -m pytest scripts/claude/tests/test_bash_guard.py scripts/claude/tests/test_file_guard.py -q` | **72 failed**, 547 passed：R13 ask 12、R14 ask 5（`--push-option origin feat/x` 因無 refspec 本來就 ask）、`test_git_config_table` ask 45、file guard 9、`test_config_ask_payload_is_valid_output` 1；P1 命令確認在舊碼上為 allow |
+| 改後 | `python3 -m pytest scripts/claude/tests scripts/tests -q` | **747 passed**；`python3 scripts/sync_ai_adapters.py --check` 通過 |
+| launcher 端到端 | `run_hook.sh bash` 餵 stdin | P1 命令 → ask JSON；`git -C . push origin feat/x` → exit 0 無輸出；`git push --frobnicate origin feat/x` → ask；`git config remote.origin.push …` → ask（git-config-gate）；`git config --get remote.origin.push` → allow |
+
+### 刻意沒做的部分
+
+- `git remote set-url`／`set-url --push`、`git config remote.<name>.url`／`pushurl`：改的是 remote 位置，不是目的端 ref 名稱；決策表「remote 不影響目的端」的原則保留。auto mode 分類器本身會擋 `git remote set-url`。
+- `git config --remove-section remote.origin`／`--rename-section`：刪除或改名只會讓 push 設定消失，不會把 feature push 導向 main。
+- 不分析 `-c` 的 key 做白名單（例如放行 `-c core.pager=cat push …`）：協調者要求一律 ask，且 push 前很少需要 `-c`。
+- 未動 `proposal.md`、`tasks.md`、`critique.md`。
