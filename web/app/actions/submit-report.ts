@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { assertWritesAllowed } from "@/lib/maintenanceLock.server";
+import { arePublicReportTypesAllowed } from "@/lib/reportTypes";
 
 export async function submitReport(payload: {
   eventId: string;
@@ -13,6 +14,9 @@ export async function submitReport(payload: {
   // the Admin Reports cleanup window is open.
   const gate = await assertWritesAllowed();
   if (!gate.allowed) return { ok: false, error: "maintenance_active" };
+  if (!arePublicReportTypesAllowed(payload.reportTypes)) {
+    return { ok: false, error: "invalid_report_types" };
+  }
   const supabase = await createClient();
 
   const { error } = await supabase.from("event_reports").insert({

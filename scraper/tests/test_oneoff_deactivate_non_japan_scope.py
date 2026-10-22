@@ -5,7 +5,6 @@ import json
 import stat
 
 import pytest
-from postgrest import SyncPostgrestClient
 
 import _oneoff_deactivate_non_japan_scope as cleanup
 
@@ -348,12 +347,7 @@ def test_apply_preflight_drift_and_relations_stop_before_writes(tmp_path, drift)
         client.event(first_id)["parent_event_id"] = "eeeeeeee-0000-4000-8000-000000000001"
 
     with pytest.raises(RuntimeError, match="preflight failed"):
-        cleanup.apply_manifest(
-            client,
-            manifest,
-            manifest_path=tmp_path / "manifest.json",
-            expected_digest=manifest["manifest_digest"],
-        )
+        cleanup.preflight_apply(client, manifest["targets"])
     assert client.write_attempts == []
 
 
@@ -367,163 +361,41 @@ def test_apply_preflight_relations_do_not_use_offset_pagination():
     assert warnings == []
 
 
-def test_updated_at_only_drift_warns_but_allows_apply(tmp_path):
+def test_updated_at_only_drift_warns_in_preflight(tmp_path):
     rows = _target_rows()
     manifest = _manifest(rows)
     client = _Client(rows)
     first_id = rows[0]["id"]
     client.event(first_id)["updated_at"] = "2026-08-04T01:00:00+00:00"
 
-    report = cleanup.apply_manifest(
-        client,
-        manifest,
-        manifest_path=tmp_path / "manifest.json",
-        expected_digest=manifest["manifest_digest"],
-        apply_timestamp="2026-08-04T02:00:00Z",
-    )
+    warnings = cleanup.preflight_apply(client, manifest["targets"])
 
-    assert report["warnings"] == [
+    assert warnings == [
         f"updated_at_only_drift={first_id} before=2026-08-04T00:00:00+00:00 current=2026-08-04T01:00:00+00:00"
     ]
-    assert len(client.write_attempts) == cleanup.TARGET_COUNT
-
-
-def test_apply_uses_exact_one_cas_and_one_timestamp(tmp_path):
-    rows = _target_rows()
-    manifest = _manifest(rows)
-    client = _Client(rows)
-    timestamp = "2026-08-04T02:00:00Z"
-
-    report = cleanup.apply_manifest(
-        client,
-        manifest,
-        manifest_path=tmp_path / "manifest.json",
-        expected_digest=manifest["manifest_digest"],
-        apply_timestamp=timestamp,
-    )
-
-    assert len(report["applied_ids"]) == cleanup.TARGET_COUNT
-    assert len(client.write_attempts) == cleanup.TARGET_COUNT
-    for target, attempt in zip(manifest["targets"], client.write_attempts, strict=True):
-        assert attempt["filters"] == [
-            ("id", target["id"]),
-            ("is_active", True),
-            *((field, target["before"][field]) for field in cleanup.STABLE_FIELDS),
-        ]
-        assert attempt["matched"] == 1
-        assert attempt["patch"]["is_active"] is False
-        assert attempt["patch"]["deactivated_at"] == timestamp
-        assert attempt["patch"]["deactivated_by_pass"] == "admin_manual"
-        assert attempt["patch"]["deactivated_reason"] == (
-            f"out_of_scope: {target['reason']} — not a Japan event"
-        )
-
-
-def test_stable_drift_after_preflight_fails_the_cas_closed(tmp_path, monkeypatch):
-    rows = _target_rows()
-    manifest = _manifest(rows)
-    client = _Client(rows)
-    first_id = rows[0]["id"]
-    original_cas = cleanup.cas_deactivate
-
-    def drift_then_deactivate(sb, target, apply_timestamp):
-        if target["id"] == first_id:
-            sb.event(first_id)["location_address"] = "changed after preflight"
-        return original_cas(sb, target, apply_timestamp)
-
-    monkeypatch.setattr(cleanup, "cas_deactivate", drift_then_deactivate)
-
-    with pytest.raises(RuntimeError, match=f"CAS affected 0 rows for {first_id}"):
-        cleanup.apply_manifest(
-            client,
-            manifest,
-            manifest_path=tmp_path / "manifest.json",
-            expected_digest=manifest["manifest_digest"],
-        )
-
-    assert client.event(first_id)["is_active"] is True
-
-
-def test_cas_uses_postgrest_exact_null_and_text_array_filters(monkeypatch):
-    target = _manifest()["targets"][0]
-    captured = {}
-
-    def capture_query(query):
-        captured.update(dict(query.request.params))
-        return []
-
-    monkeypatch.setattr(cleanup, "execute_rows", capture_query)
-    client = SyncPostgrestClient("https://example.invalid")
-
-    cleanup.cas_deactivate(client, target, "2026-08-04T02:00:00Z")
-
-    assert captured["id"] == f"eq.{target['id']}"
-    assert captured["is_active"] == "eq.True"
-    assert captured["parent_event_id"] == "is.null"
-    assert captured["location_prefectures"] == 'eq.{"台北"}'
-
-
-@pytest.mark.parametrize("override, count", [([], 0), ([{"id": "one"}, {"id": "two"}], 2)])
-def test_cas_zero_and_multiple_rows_fail_and_journal_records_error(tmp_path, override, count):
-    rows = _target_rows()
-    manifest = _manifest(rows)
-    client = _Client(rows)
-    client.update_results = [override]
-    manifest_path = tmp_path / "manifest.json"
-
-    with pytest.raises(RuntimeError, match=f"CAS affected {count} rows"):
-        cleanup.apply_manifest(
-            client,
-            manifest,
-            manifest_path=manifest_path,
-            expected_digest=manifest["manifest_digest"],
-        )
-
-    journal_path = cleanup.journal_path_for(manifest_path)
-    statuses = _last_journal_statuses(journal_path)
-    assert statuses[rows[0]["id"]] == "error"
-    assert statuses[rows[1]["id"]] == "unapplied"
-    assert stat.S_IMODE(journal_path.stat().st_mode) == stat.S_IRUSR
-
-
-def test_partial_failure_journal_distinguishes_applied_error_and_unapplied(tmp_path):
-    rows = _target_rows()
-    manifest = _manifest(rows)
-    client = _Client(rows)
-    client.update_results = [[{"id": rows[0]["id"]}], []]
-    manifest_path = tmp_path / "manifest.json"
-
-    with pytest.raises(RuntimeError, match="CAS affected 0 rows"):
-        cleanup.apply_manifest(
-            client,
-            manifest,
-            manifest_path=manifest_path,
-            expected_digest=manifest["manifest_digest"],
-        )
-
-    statuses = _last_journal_statuses(cleanup.journal_path_for(manifest_path))
-    assert statuses[rows[0]["id"]] == "applied"
-    assert statuses[rows[1]["id"]] == "error"
-    assert statuses[rows[2]["id"]] == "unapplied"
-
-
-def test_existing_journal_path_is_rejected_before_any_write(tmp_path):
-    rows = _target_rows()
-    manifest = _manifest(rows)
-    client = _Client(rows)
-    manifest_path = tmp_path / "manifest.json"
-    journal_path = cleanup.journal_path_for(manifest_path)
-    journal_path.write_text("keep\n", encoding="utf-8")
-
-    with pytest.raises(FileExistsError):
-        cleanup.apply_manifest(
-            client,
-            manifest,
-            manifest_path=manifest_path,
-            expected_digest=manifest["manifest_digest"],
-        )
     assert client.write_attempts == []
-    assert journal_path.read_text(encoding="utf-8") == "keep\n"
+
+
+class _ForbiddenMutationClient:
+    def table(self, _name):
+        raise AssertionError("disabled apply touched the database")
+
+
+def test_direct_apply_helpers_block_before_database_or_manifest_access(tmp_path):
+    client = _ForbiddenMutationClient()
+
+    with pytest.raises(RuntimeError, match="production apply is disabled"):
+        cleanup.cas_deactivate(client, {}, "2026-08-04T02:00:00Z")
+
+    with pytest.raises(RuntimeError, match="production apply is disabled"):
+        cleanup.apply_manifest(
+            client,
+            {},
+            manifest_path=tmp_path / "missing-manifest.json",
+            expected_digest="not-a-digest",
+        )
+
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_cli_requires_complete_apply_contract_and_mutually_exclusive_modes():

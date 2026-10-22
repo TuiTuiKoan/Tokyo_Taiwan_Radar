@@ -38,6 +38,11 @@ interface Resp {
   error?: { message: string } | null;
 }
 
+interface RecordedRpcCall {
+  functionName: string;
+  params: Record<string, unknown>;
+}
+
 type Responder = (call: RecordedCall, index: number) => Resp;
 
 class FakeBuilder {
@@ -128,16 +133,27 @@ class FakeBuilder {
 function makeClient(opts: {
   user?: { id: string } | null;
   responder: Responder;
-}): { client: SupabaseClient; calls: RecordedCall[] } {
+  rpcResponder?: (call: RecordedRpcCall) => Resp;
+}): { client: SupabaseClient; calls: RecordedCall[]; rpcCalls: RecordedRpcCall[] } {
   const calls: RecordedCall[] = [];
+  const rpcCalls: RecordedRpcCall[] = [];
   const user = opts.user === undefined ? { id: "admin-1" } : opts.user;
   const client = {
     auth: {
       getUser: async () => ({ data: { user }, error: null }),
     },
     from: (table: string) => new FakeBuilder(calls, opts.responder, table),
+    rpc: async (functionName: string, params: Record<string, unknown>) => {
+      const call = { functionName, params };
+      rpcCalls.push(call);
+      const response = opts.rpcResponder?.(call) ?? {
+        data: [{ report_id: "report-1", event_id: "db-event" }],
+        error: null,
+      };
+      return { data: response.data ?? null, error: response.error ?? null };
+    },
   };
-  return { client: client as unknown as SupabaseClient, calls };
+  return { client: client as unknown as SupabaseClient, calls, rpcCalls };
 }
 
 function route(map: Record<string, Resp | Responder>): Responder {
@@ -337,7 +353,7 @@ test("an interrupted confirm is idempotent on retry and never claims a rollback"
   }
 });
 
-test("acknowledged scope report deactivates exactly one event and preserves machine notes", async () => {
+test("acknowledged scope report uses one atomic RPC bound to the reviewed hash", async () => {
   const originalFetch = globalThis.fetch;
   const originalToken = process.env.GITHUB_TOKEN;
   let fetchCalls = 0;
@@ -348,7 +364,7 @@ test("acknowledged scope report deactivates exactly one event and preserves mach
   }) as unknown as typeof fetch;
 
   try {
-    const { client, calls } = makeClient({
+    const { client, calls, rpcCalls } = makeClient({
       responder: confirmRoute({
         "event_reports:select": {
           data: [{
@@ -359,7 +375,7 @@ test("acknowledged scope report deactivates exactly one event and preserves mach
               SCOPE_REPORT_TYPE,
               "scopeDecision:out_of_scope",
               "scopeRegion:taiwan",
-              "scopeHash:abc123",
+              "scopeHash:0123456789abcdef",
             ],
             status: "pending",
             admin_notes: "machine scope reason",
@@ -369,35 +385,26 @@ test("acknowledged scope report deactivates exactly one event and preserves mach
       }),
     });
 
-    const res = await runConfirmReport(client, baseInput({ scopeAcknowledged: true }));
+    const res = await runConfirmReport(client, baseInput({
+      scopeAcknowledged: true,
+      expectedScopeHash: "0123456789abcdef",
+    }));
 
     assert.equal(res.ok, true);
     assert.equal(res.historyStatus, "not_applicable");
     assert.equal(res.githubUpdated, false);
     assert.equal(fetchCalls, 0, "scope confirm performs no external GitHub fetch");
 
-    const eventWrites = callsOf(calls, "events", "update");
-    assert.equal(eventWrites.length, 1);
-    assert.ok(
-      hasFilter(eventWrites[0], "id", "db-event"),
-      "event update filters the full DB-derived event id",
-    );
-    assert.equal(eventWrites[0].returning, true, "event update requests the written id");
-    assert.equal(eventWrites[0].columns, "id");
-    assert.deepEqual(
-      (eventWrites[0].payload as Record<string, unknown>)["is_active"],
-      false,
-    );
-    assert.match(
-      String((eventWrites[0].payload as Record<string, unknown>)["deactivated_reason"]),
-      /^out_of_scope:/,
-    );
-
-    const statusWrite = callsOf(calls, "event_reports", "update")[0];
-    assert.equal(
-      (statusWrite.payload as Record<string, unknown>)["admin_notes"],
-      "machine scope reason",
-    );
+    assert.equal(callsOf(calls, "events", "update").length, 0);
+    assert.equal(callsOf(calls, "event_reports", "update").length, 0);
+    assert.deepEqual(rpcCalls, [{
+      functionName: "confirm_scope_report",
+      params: {
+        p_report_id: "report-1",
+        p_expected_scope_hash: "0123456789abcdef",
+        p_admin_notes: null,
+      },
+    }]);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalToken === undefined) delete process.env.GITHUB_TOKEN;
@@ -405,14 +412,20 @@ test("acknowledged scope report deactivates exactly one event and preserves mach
   }
 });
 
-test("scope report appends non-empty admin notes with a separator", async () => {
-  const { client, calls } = makeClient({
+test("scope RPC receives non-empty admin notes", async () => {
+  const { client, calls, rpcCalls } = makeClient({
     responder: confirmRoute({
       "event_reports:select": {
         data: [{
           id: "report-1",
           event_id: "db-event",
-          report_types: ["irrelevant", SCOPE_REPORT_TYPE],
+          report_types: [
+            "irrelevant",
+            SCOPE_REPORT_TYPE,
+            "scopeDecision:out_of_scope",
+            "scopeRegion:taiwan",
+            "scopeHash:0123456789abcdef",
+          ],
           status: "pending",
           admin_notes: "machine scope reason",
         }],
@@ -423,15 +436,16 @@ test("scope report appends non-empty admin notes with a separator", async () => 
 
   const res = await runConfirmReport(
     client,
-    baseInput({ adminNotes: "reviewed by admin", scopeAcknowledged: true }),
+    baseInput({
+      adminNotes: "reviewed by admin",
+      scopeAcknowledged: true,
+      expectedScopeHash: "0123456789abcdef",
+    }),
   );
 
   assert.equal(res.ok, true);
-  const statusWrite = callsOf(calls, "event_reports", "update")[0];
-  assert.equal(
-    (statusWrite.payload as Record<string, unknown>)["admin_notes"],
-    "machine scope reason\n---\nreviewed by admin",
-  );
+  assert.equal(callsOf(calls, "event_reports", "update").length, 0);
+  assert.equal(rpcCalls[0].params.p_admin_notes, "reviewed by admin");
 });
 
 test("unacknowledged scope report stops before event, status, or GitHub writes", async () => {
@@ -451,7 +465,13 @@ test("unacknowledged scope report stops before event, status, or GitHub writes",
           data: [{
             id: "report-1",
             event_id: "db-event",
-            report_types: ["irrelevant", SCOPE_REPORT_TYPE],
+            report_types: [
+              "irrelevant",
+              SCOPE_REPORT_TYPE,
+              "scopeDecision:out_of_scope",
+              "scopeRegion:taiwan",
+              "scopeHash:0123456789abcdef",
+            ],
             status: "pending",
             admin_notes: "machine scope reason",
           }],
@@ -463,7 +483,7 @@ test("unacknowledged scope report stops before event, status, or GitHub writes",
     const res = await runConfirmReport(client, baseInput());
 
     assert.equal(res.ok, false);
-    assert.equal(res.error, "scope report requires per-row review");
+    assert.equal(res.error, "scope report evidence changed; review the current row again");
     assert.equal(callsOf(calls, "events", "update").length, 0);
     assert.equal(callsOf(calls, "event_reports", "update").length, 0);
     assert.equal(fetchCalls, 0);
@@ -472,6 +492,75 @@ test("unacknowledged scope report stops before event, status, or GitHub writes",
     if (originalToken === undefined) delete process.env.GITHUB_TOKEN;
     else process.env.GITHUB_TOKEN = originalToken;
   }
+});
+
+test("stale scope hash stops before the transaction RPC", async () => {
+  const { client, calls, rpcCalls } = makeClient({
+    responder: confirmRoute({
+      "event_reports:select": {
+        data: [{
+          id: "report-1",
+          event_id: "db-event",
+          report_types: [
+            "irrelevant",
+            SCOPE_REPORT_TYPE,
+            "scopeDecision:out_of_scope",
+            "scopeRegion:taiwan",
+            "scopeHash:0123456789abcdef",
+          ],
+          status: "pending",
+          admin_notes: "current evidence",
+        }],
+        error: null,
+      },
+    }),
+  });
+
+  const res = await runConfirmReport(client, baseInput({
+    scopeAcknowledged: true,
+    expectedScopeHash: "fedcba9876543210",
+  }));
+
+  assert.equal(res.ok, false);
+  assert.match(res.error ?? "", /evidence changed/i);
+  assert.equal(rpcCalls.length, 0);
+  assert.equal(callsOf(calls, "events", "update").length, 0);
+  assert.equal(callsOf(calls, "event_reports", "update").length, 0);
+});
+
+test("scope RPC error is returned without client-side fallback writes", async () => {
+  const { client, calls, rpcCalls } = makeClient({
+    responder: confirmRoute({
+      "event_reports:select": {
+        data: [{
+          id: "report-1",
+          event_id: "db-event",
+          report_types: [
+            "irrelevant",
+            SCOPE_REPORT_TYPE,
+            "scopeDecision:out_of_scope",
+            "scopeRegion:taiwan",
+            "scopeHash:0123456789abcdef",
+          ],
+          status: "pending",
+          admin_notes: "current evidence",
+        }],
+        error: null,
+      },
+    }),
+    rpcResponder: () => ({ data: null, error: { message: "transaction rejected" } }),
+  });
+
+  const res = await runConfirmReport(client, baseInput({
+    scopeAcknowledged: true,
+    expectedScopeHash: "0123456789abcdef",
+  }));
+
+  assert.equal(res.ok, false);
+  assert.equal(res.error, "transaction rejected");
+  assert.equal(rpcCalls.length, 1);
+  assert.equal(callsOf(calls, "events", "update").length, 0);
+  assert.equal(callsOf(calls, "event_reports", "update").length, 0);
 });
 
 test("missing GitHub token reports skipped history without failing DB success", async () => {

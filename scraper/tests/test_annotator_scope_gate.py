@@ -6,6 +6,7 @@ import logging
 
 import pytest
 
+import annotator
 from annotator import (
     SCOPE_REPORT_TYPE,
     SYSTEM_PROMPT,
@@ -136,14 +137,14 @@ def test_scope_prompt_emits_decision_without_active_mutation():
 
 @pytest.mark.parametrize("value", [None, 7, {}, "outside", "OUT_OF_SCOPE"])
 def test_invalid_scope_decision_fails_safe(value):
-    assert _validate_scope_decision(value) == "in_scope"
+    assert _validate_scope_decision(value) == "uncertain"
 
 
-def test_missing_scope_decision_does_not_queue():
+def test_missing_scope_decision_queues_foreign_location_for_review():
     finding = _build_scope_finding(_event(), {}, {})
 
-    assert finding["decision"] == "in_scope"
-    assert finding["should_queue"] is False
+    assert finding["decision"] == "uncertain"
+    assert finding["should_queue"] is True
 
 
 def test_scope_reason_is_sanitized_and_bounded():
@@ -183,8 +184,9 @@ def test_pending_scope_report_is_not_duplicated():
         }
     ])
 
-    _persist_scope_finding(db, _event(), finding, dry_run=False, in_run_seen=set())
+    persisted = _persist_scope_finding(db, _event(), finding, dry_run=False, in_run_seen=set())
 
+    assert persisted is True
     assert db.inserts == []
     assert db.updates == []
 
@@ -218,8 +220,9 @@ def test_scope_report_lookup_failure_skips_insert(caplog):
     db = _FakeSupabase(fail_select=True)
     caplog.set_level(logging.WARNING)
 
-    _persist_scope_finding(db, _event(), _finding(), dry_run=False, in_run_seen=set())
+    persisted = _persist_scope_finding(db, _event(), _finding(), dry_run=False, in_run_seen=set())
 
+    assert persisted is False
     assert db.inserts == []
     assert db.updates == []
     assert "queue skipped" in caplog.text
@@ -234,6 +237,59 @@ def test_same_run_scope_report_is_not_duplicated():
     _persist_scope_finding(db, _event(), finding, dry_run=False, in_run_seen=in_run_seen)
 
     assert len(db.inserts) == 1
+
+
+def test_new_scope_report_uses_deterministic_id():
+    first = _FakeSupabase()
+    second = _FakeSupabase()
+
+    assert _persist_scope_finding(first, _event(), _finding(), dry_run=False, in_run_seen=set())
+    assert _persist_scope_finding(second, _event(), _finding(), dry_run=False, in_run_seen=set())
+
+    assert first.inserts[0]["id"] == second.inserts[0]["id"]
+
+
+def test_cleared_finding_closes_pending_report():
+    previous = _finding()
+    cleared = _finding(
+        decision="in_scope",
+        reason="This exchange is explicitly for Japanese participants.",
+    )
+    db = _FakeSupabase([
+        {
+            "id": "report-1",
+            "event_id": "event-1",
+            "report_types": [SCOPE_REPORT_TYPE, f"scopeHash:{previous['fingerprint']}"],
+            "status": "pending",
+            "created_at": "2026-08-04T00:00:00Z",
+            "confirmed_at": None,
+        }
+    ])
+
+    persisted = _persist_scope_finding(db, _event(), cleared, dry_run=False, in_run_seen=set())
+
+    assert persisted is True
+    assert db.updates[0]["payload"]["status"] == "dismissed"
+    assert db.updates[0]["rows"] == [{"id": "report-1"}]
+
+
+def test_reason_change_refreshes_pending_scope_evidence():
+    previous = _finding(reason="Old reason.")
+    current = _finding(reason="New audience evidence.")
+    assert previous["fingerprint"] != current["fingerprint"]
+    db = _FakeSupabase([
+        {
+            "id": "report-1",
+            "event_id": "event-1",
+            "report_types": [SCOPE_REPORT_TYPE, f"scopeHash:{previous['fingerprint']}"],
+            "status": "pending",
+            "created_at": "2026-08-04T00:00:00Z",
+            "confirmed_at": None,
+        }
+    ])
+
+    assert _persist_scope_finding(db, _event(), current, dry_run=False, in_run_seen=set())
+    assert db.updates[0]["payload"]["report_types"] == current["report_types"]
 
 
 @pytest.mark.parametrize("status", ["confirmed", "dismissed"])
@@ -255,7 +311,7 @@ def test_resolved_unchanged_scope_report_is_not_reopened(status):
     assert db.inserts == []
 
 
-def test_changed_event_reopens_resolved_scope_report():
+def test_changed_event_reopens_resolved_scope_report_in_place():
     finding = _finding()
     db = _FakeSupabase([
         {
@@ -276,7 +332,9 @@ def test_changed_event_reopens_resolved_scope_report():
         in_run_seen=set(),
     )
 
-    assert len(db.inserts) == 1
+    assert db.inserts == []
+    assert db.updates[0]["payload"]["status"] == "pending"
+    assert db.updates[0]["rows"] == [{"id": "report-1"}]
 
 
 def test_dry_run_logs_payload_without_insert(caplog):
@@ -295,7 +353,27 @@ def test_insert_error_is_nonblocking(caplog):
     db = _FakeSupabase(fail_insert=True)
     caplog.set_level(logging.WARNING)
 
-    _persist_scope_finding(db, _event(), _finding(), dry_run=False, in_run_seen=set())
+    persisted = _persist_scope_finding(db, _event(), _finding(), dry_run=False, in_run_seen=set())
 
+    assert persisted is False
     assert db.inserts == []
     assert "failed to queue scope report" in caplog.text
+
+
+def test_scope_persistence_failure_restores_pending_status(monkeypatch):
+    db = _FakeSupabase()
+    db.tables["events"] = [{"id": "event-1", "annotation_status": "annotated"}]
+    monkeypatch.setattr(annotator, "_persist_scope_finding", lambda *_args, **_kwargs: False)
+
+    persisted = annotator._persist_scope_finding_or_retry(
+        db,
+        _event(),
+        {},
+        {"scope_decision": "out_of_scope"},
+        dry_run=False,
+        in_run_seen=set(),
+    )
+
+    assert persisted is False
+    assert db.tables["events"][0]["annotation_status"] == "pending"
+    assert db.updates[-1]["payload"] == {"annotation_status": "pending"}
