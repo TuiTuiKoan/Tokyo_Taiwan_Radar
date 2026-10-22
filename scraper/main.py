@@ -159,6 +159,7 @@ from sources.kawade_rss import KawadeRssScraper
 from sources.hanmoto import HanmotoScraper
 from sources.base import dedup_events
 from database import upsert_events, _get_client
+from quality_fields import run_notes
 from annotator import annotate_pending_events
 from annotator import enrich_movie_titles, enrich_person_names
 from merger import run_merger
@@ -445,6 +446,9 @@ def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str
                         "deepl_chars": getattr(scraper, "_deepl_chars_used", 0),
                         "success": True,
                         "duration_seconds": int(time.time() - scraper_start),
+                        # Scrape-time fields per event, read by eval_scraper_quality.py
+                        # for DOM drift and annotator-fill tracking (#354).
+                        "notes": run_notes(events),
                     }).execute()
                     logger.info("%s: logged %d events to scraper_runs", source_label, len(events))
                 except Exception as log_exc:
