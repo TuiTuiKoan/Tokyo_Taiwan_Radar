@@ -87,3 +87,24 @@ GROUP BY 1,2,3 ORDER BY 1,2,3;
 | `lookup_version` 依賴人工記得加版本號，且會靜默改寫 | 改為手動 `reset-unverified` |
 
 另開 issue：#398 FC guard 在查詢例外時放行寫入（既有問題，不在本 spec 範圍）；延後項目 #396（admin 頁）、#397（`work_people`）。
+
+### 第二輪：Codex，2026-10-23
+
+Codex CLI 0.160.0，`codex exec -s read-only`。CLI 記錄的模型為 `gpt-6-luna`；報告開頭自稱「GPT-6.1-sol」，以 CLI 記錄為準。與撰寫者（Claude Opus）不同家族。
+
+第一輪用 Claude subagent，使用者指出 Plan Critic 應該用 Codex，因此補做本輪。
+
+採納並已改進 `proposal.md`：
+
+| 問題 | 修正 |
+| --- | --- |
+| `propagate` 刪 FC、重跑、還原之間沒有交易，會有競態 | 第一版只產生 dry-run 計畫，人工經 admin 頁修正；寫入移到 #409 |
+| `person_key` 讓同一人先無 id、後有 id 時變成兩筆，又被誤判為歧義 | 寫入規則表：有 id 時以 compare-and-set 升級無 id 列；無 id 時遇同名不寫 |
+| 只在 lookup 查 verified 不夠，套用到欄位的路徑與 FC 鎖定順序沒寫清楚 | 第 5 節：產生 update 之前先做 verified 覆寫，鎖定的一定是 verified 值 |
+| 歧義的判定來源不明 | 唯一來源：eiga 搜尋第一頁中姓名完全相等、eiga id 不同的候選 ≥ 2 |
+| stage 3 建在 stage 2 上，仍會用即時 Supabase 查 `works` | 明寫「即時 `works` + 凍結人名」，需與 stage 2 相同的 secrets；凍結 `works` 不在範圍內 |
+| 快照沒有欄位白名單，可能帶出 `notes` 等內部資料 | 白名單、schema 驗證、更新時審閱 diff |
+| NFKC 沒有單一入口，漏做會產生第二個 key | `normalize_name_ja` 單一函式；資料庫 CHECK `name_ja = normalize(btrim(name_ja), NFKC)` |
+| 回填不是三個目標的必要條件 | 移到 #408 |
+| migration 權限檢查不完整 | 交易內 read-back `DO` 區塊；revoke `PUBLIC, anon, authenticated` |
+| baseline 等待會阻塞主線；里程碑依賴順序 | baseline 並行收集，只要求里程碑 5 合併前滿 7 天；里程碑重排為 0–8 |
