@@ -206,6 +206,6 @@ git -c remote.origin.push=refs/heads/feat/x:refs/heads/main push origin feat/x
 |---|---|
 | `git push --dry-run origin feat/pr-flow-tiering` | 不提示，顯示 `Allowed by auto mode classifier`，gitleaks 掃 12 個 commit 後執行 dry-run |
 | `git -C . push --dry-run origin HEAD:main` | 提示，文字為 `ttr-hook: git push to main, or to a destination the hook cannot determine, requires explicit user approval [push-gate]`，使用者選 No |
-| `git push --dry-run origin HEAD:main` | 預期提示；settings 的 `Bash(git push *main)` 與 hook 都會要求核准 |
+| `git push --dry-run origin HEAD:main` | 提示，文字為 `Ask rule Bash(git push *main) overrides auto mode for this command.`，使用者選 No。settings 規則先命中，hook 對此命令同樣回 ask |
 
 結論：推 feature branch 不再需要人工核准，推 main 仍由 hook 與 settings 兩層要求核准。
