@@ -34,7 +34,7 @@ OUTPUT_DECISIONS = frozenset({"ask"})
 
 MESSAGE_PREFIX = "ttr-hook:"
 INTERNAL_ERROR = "ttr-hook: internal error, blocked"
-ASK_REASON = "ttr-hook: git push requires explicit user approval [push-gate]"
+ASK_REASON = "ttr-hook: git push to main, or to a destination the hook cannot determine, requires explicit user approval [push-gate]"
 
 BASH_TOOLS = frozenset({"Bash", "Monitor"})
 FILE_FIELDS = {
@@ -49,7 +49,8 @@ WRITE_TOOLS = frozenset({"Write", "Edit", "NotebookEdit"})
 RULES = {
     "git-force-push": (
         "force push, remote ref deletion, prune or mirror push rewrites remote history",
-        "use plain `git push`, which asks for approval; the user runs force operations in a terminal",
+        "push a feature branch with `git push origin <branch>` (pushes to main ask for approval); "
+        "the user runs force operations in a terminal",
     ),
     "git-reset-hard": (
         "git reset --hard discards uncommitted work",
@@ -550,6 +551,9 @@ GIT_FLAGS = frozenset({
 GIT_INFO = frozenset({"--version", "--help", "-h", "--html-path", "--man-path", "--info-path"})
 PUSH_OPT_ARG = frozenset({"-o", "--push-option", "--repo", "--receive-pack", "--exec"})
 PUSH_DESTRUCTIVE = frozenset({"--force", "--force-if-includes", "--delete", "--mirror", "--prune"})
+# Pushes that may carry main or publish tags, and --no-verify (skips the gitleaks pre-push hook).
+PUSH_ASK_FLAGS = frozenset({"--all", "--branches", "--tags", "--follow-tags", "--no-verify"})
+MAIN_REFS = frozenset({"main", "refs/heads/main", "heads/main"})
 
 
 def check_git(args: list[Word]) -> Decision:
@@ -592,25 +596,58 @@ def check_git(args: list[Word]) -> Decision:
     return ALLOW
 
 
+def _push_destination(word: Word) -> str | None:
+    """Destination ref of one refspec, or None when the command text does not pin it.
+
+    `<src>:<dst>` pushes to dst; a bare `<src>` pushes to the ref of the same name.
+    HEAD, @, reflog/ancestry syntax, wildcards, tags, variables and substitutions
+    are resolved by git at run time, not by the hook, so they count as unknown.
+    """
+    if _dynamic(word) or not word.text:
+        return None
+    src, sep, dst = word.text.partition(":")
+    dst = dst if sep else src
+    if not dst or dst in ("HEAD", "@") or dst.startswith("refs/tags/") or ".." in dst:
+        return None
+    if any(ch in dst for ch in "~^*@:?["):
+        return None
+    return dst
+
+
 def check_push(args: list[Word]) -> Decision:
-    i, positional = 0, []
+    """Decision table: docs/specs/active/pr-flow-tiering/proposal.md § check_push.
+
+    deny beats ask beats allow. Allow only when every refspec names a destination
+    that is certainly not main; otherwise ask.
+    """
+    i, positional, bulk = 0, [], False
     while i < len(args):
-        text = args[i].text
+        word, text = args[i], args[i].text
         if text in PUSH_OPT_ARG:
             i += 2
             continue
         if text in PUSH_DESTRUCTIVE or text.startswith("--force-with-lease"):
             return deny("git-force-push")
-        if text.startswith("-") and not text.startswith("--") and len(text) > 1:
-            group = text[1:].split("o", 1)[0]  # -o takes the rest as its value
+        if text in PUSH_ASK_FLAGS:
+            bulk = True
+        elif text.startswith("-") and not text.startswith("--") and len(text) > 1:
+            group, has_o, value = text[1:].partition("o")  # -o takes the rest of the group as its value
             if "f" in group or "d" in group:
                 return deny("git-force-push")
+            if has_o and not value:
+                i += 1  # -uo <value>: the value is the next argument
         elif not text.startswith("-"):
-            positional.append(text)
+            positional.append(word)
         i += 1
-    if any(ref.startswith(("+", ":")) for ref in positional):
+    if any(w.text.startswith(("+", ":")) for w in positional):
         return deny("git-force-push")
-    return ASK_PUSH
+    refspecs = positional[1:]  # positional[0] is always the repository (builtin/push.c)
+    if bulk or not refspecs or any(_dynamic(w) for w in positional):
+        return ASK_PUSH
+    destinations = [_push_destination(w) for w in refspecs]
+    if None in destinations or any(dst in MAIN_REFS for dst in destinations):
+        return ASK_PUSH
+    return ALLOW
 
 
 # --- rule 9: production database (heuristic) -------------------------------
