@@ -13,7 +13,7 @@ updated: 2026-10-23
 | --- | --- |
 | 子事件 | 方案 A：22 筆（含 parent `3f693869` 與 4 個 child）同一 transaction 整組停用 |
 | 執行者 | apply 與 `gh workflow disable／enable` 由使用者親自執行；agent 只做唯讀 read-back |
-| 非 GitHub 寫入者 | 使用者聲明目前沒有（本機 cron、Make／Zapier 等）。這是聲明，未獨立驗證 |
+| 非 GitHub 寫入者 | 使用者聲明沒有。**但 2026-10-23 main 新增 launchd job `com.ttr.home-ip-scrape`（每週一 15:00 JST 在使用者的 Mac 跑 `main.py --source mot,taipei_fukuoka,jposa_ja`，寫 events），`launchctl list` 顯示已安裝**。它是非 GitHub writer，已納入 runbook；其餘仍只是使用者聲明，未獨立驗證 |
 | pause／drain | 接受分層：DB 鎖加比對保證 cleanup 本身的原子性；pause／drain 只降低停用後被 in-flight 寫入者蓋回去的機率 |
 | `updated_at` | 嚴格相等；任何漂移都重新 capture、重新核准 |
 | 表鎖 | 接受 apply 期間短暫擋住 events 寫入，待拋棄式 Postgres 實測影響 |
@@ -67,6 +67,8 @@ DB 不重算 digest（無法重現 Python canonical JSON）；digest 對 DB 只�
 不得宣稱 pause 關閉所有復活路徑，除非 writer 盤點完整、DB trigger 查清。等待時間要如實寫：drain 必須等 in-flight run 結束，最長約 3 小時；不取消執行中的 run。
 
 **Runbook（使用者執行）**：capture `gh workflow list --all --json name,state,path` → `gh workflow disable`（逐一，讀回確認）→ drain（每個 writer workflow 的 `gh run list` 無 `in_progress`／`queued`）→ 取得 094 maintenance lock（`_oneoff_admin_reports_maintenance.py acquire`）→ settle → idleness probe（間隔兩次讀 `count(*)`、`max(updated_at)`、`max(created_at)` 相同；DELETE 偵測不到）→ apply → release lock 並確認 inactive → enable 回精確原狀 → 監控第一個 run。disable 期間禁止人工 `workflow_dispatch`（`annotate-now`、`scrape-now`、`enrich-and-annotate` 等）。lock 與 disable／enable 都是對外狀態變更，必須列在核准句。
+
+**本機 launchd writer**：`scripts/launchd/com.ttr.home-ip-scrape.plist`（週一 15:00 JST；Mac 睡眠時會在喚醒後補跑）。runbook 要求使用者在 disable 前 `launchctl bootout "gui/$(id -u)/com.ttr.home-ip-scrape"`、drain 時確認沒有 `main.py` 程序在跑（`pgrep -fl main.py`）、resume 時 `launchctl bootstrap` 還原；apply 避開週一。
 
 **writer 盤點**：AST 腳本掃 `.table("events")` 寫入鏈與 `.rpc(` 名單，對應 workflow `run:` 與排程；GitHub 側已知 `scraper.yml`、`merger.yml`、`error-recovery.yml`、`refetch-thin-events.yml`、`qa-heartbeat.yml`、`qa-auto-fix.yml` 與手動觸發的三支；web 側 `owner-events`、`annotate-event`、`review-status` 已檢查 094 lock；DB 側 trigger／function 待 live 查詢；非 GitHub 寫入者只有使用者聲明。
 

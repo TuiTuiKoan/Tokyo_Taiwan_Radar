@@ -34,3 +34,4 @@ updated: 2026-10-23
 ## 其他
 
 - 使用者聲明沒有 GitHub Actions 以外的 events 寫入者（2026-10-23），未獨立驗證。
+- 同日 main 新增 launchd job `com.ttr.home-ip-scrape`（commit `27b9539e`，每週一 15:00 JST 在使用者的 Mac 跑 `main.py`，寫 events）；`launchctl list` 顯示已安裝。因此上一句的聲明已不成立，runbook 須納入此 job（見 plan.md）。
