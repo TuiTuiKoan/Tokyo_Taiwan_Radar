@@ -34,6 +34,8 @@ from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
 
+import source_health
+
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -312,7 +314,16 @@ def run_check(dry_run: bool = False, always_notify: bool = False) -> None:
     except Exception as exc:
         logger.warning("Check 6 (business_hours stale i18n) failed: %s", exc)
 
-    # ── 7. Build report ───────────────────────────────────────────────────
+    # ── 7. Home-IP sources (#407): weekly launchd job on the maintainer's Mac ──
+    home_ip_issues: dict[str, dict] = {}
+    try:
+        home_ip_issues = source_health.home_ip_stale(
+            source_health.fetch_home_ip_runs(sb, now), now
+        )
+    except Exception as exc:
+        logger.warning("Check 7 (home-IP source staleness) failed: %s", exc)
+
+    # ── 8. Build report ───────────────────────────────────────────────────
     issues: list[str] = []
 
     if failed:
@@ -329,6 +340,14 @@ def run_check(dry_run: bool = False, always_notify: bool = False) -> None:
         issues.append("⚠️ 預期執行但今日未出現於 scraper_runs：")
         for src in missing:
             issues.append(f"  • {src}")
+
+    if home_ip_issues:
+        issues.append("🔴 家用 IP 來源逾期未成功（週一由 Mac 的 launchd 執行）：")
+        labels = {"failed": "最近一次失敗", "stale": "超過 8 天沒成功", "missing": "30 天內沒有紀錄"}
+        for src, info in home_ip_issues.items():
+            last = (info["last_success"] or "無")[:10]
+            issues.append(f"  • {src}：{labels[info['reason']]}（最後成功 {last}）")
+        issues.append("  查看：tail -30 ~/Library/Logs/ttr-home-ip-scrape.log")
 
     if gnews_suspect:
         issues.append("🟠 gnews 活動有 start_date 但未抓到文章（可能是 pub_date 殘留）：")

@@ -19,6 +19,15 @@ launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.ttr.home-ip-scrape
 Run it once now to check: `launchctl kickstart -k "gui/$(id -u)/com.ttr.home-ip-scrape"`, then
 `tail -f ~/Library/Logs/ttr-home-ip-scrape.log`.
 
+## Knowing whether it ran
+
+`scraper/health_check.py` (daily, GitHub Actions) sends a LINE alert when any of the three sources has no successful
+`scraper_runs` row in the last 8 days, or its latest run failed (#407). The alert lists each source and its last
+success date. Manual checks: `tail -30 ~/Library/Logs/ttr-home-ip-scrape.log` (the last line should be
+`end rc=0`) and `launchctl print "gui/$(id -u)/com.ttr.home-ip-scrape"` (`runs`, `last exit code`).
+
+A source with no run in the last 30 days shows as `missing` (for example when the job was never installed).
+
 ## Remove
 
 ```bash
