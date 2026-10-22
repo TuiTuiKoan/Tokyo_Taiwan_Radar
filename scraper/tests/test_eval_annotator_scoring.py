@@ -110,7 +110,7 @@ def test_semantic_scores_and_negative_control():
     assert scores[2]["description_en"] == 0.0  # empty output: no embedding call for it
     assert len(fake.calls) == 1 and len(fake.calls[0]) == 4
     # Cross pairs: case0-exp vs case1-got (orthogonal) and case1-exp vs case0-got (orthogonal).
-    assert negative["description_en"] == 0.0
+    assert negative["description_en"] == [0.0, 0.0]
     assert usage.total_tokens == 40
 
 
@@ -164,6 +164,8 @@ def test_snapshot_keeps_all_buckets_in_per_field_and_splits_the_rest():
     # Annotator totals: location_name pass, name_zh pass, category fail.
     assert (snap["tier1_tested"], snap["tier1_passed"]) == (3, 2)
     assert (snap["lookup_tested"], snap["lookup_passed"]) == (1, 0)
+    assert len(snap["entries"]) == 4
+    assert {e["bucket"] for e in snap["entries"] if e["case_id"] == "m1" and e["field"] == "name_zh"} == {"lookup"}
 
 
 def test_report_separates_lookup_from_annotator_summary(tmp_path: Path):
