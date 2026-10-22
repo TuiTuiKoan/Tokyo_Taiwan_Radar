@@ -534,7 +534,7 @@
     "catMigrationHeaderCount": "次數",
     "catMigrationEmpty": "尚無分類修正記錄",
     "tabs": {
-      "specs": "規格看板",
+      "specs": "系統架構",
       "roadmap": "商業路線圖"
     },
     "roadmap": {
@@ -556,8 +556,8 @@
       "migrationsTitle": "Schema Tier 1+1.5 Migration 狀態",
       "productsTitle": "三條商業產品線",
       "pSeriesTitle": "回饋迴路 P 系列進度",
-      "updatedNote": "詳細規格請見",
-      "specsLink": "規格看板 →"
+      "updatedNote": "進度與待辦請見",
+      "specsLink": "TTR Roadmap 看板 →"
     },
     "specs": {
       "title": "規格看板",

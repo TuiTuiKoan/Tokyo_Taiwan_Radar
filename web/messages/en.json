@@ -534,7 +534,7 @@
     "catMigrationHeaderCount": "Count",
     "catMigrationEmpty": "No category corrections yet",
     "tabs": {
-      "specs": "Specs",
+      "specs": "Architecture",
       "roadmap": "Business Roadmap"
     },
     "roadmap": {
@@ -556,8 +556,8 @@
       "migrationsTitle": "Schema Tier 1+1.5 Migration Status",
       "productsTitle": "Three Product Lines",
       "pSeriesTitle": "Feedback Loop P-Series Progress",
-      "updatedNote": "For detailed specs, see",
-      "specsLink": "Specs Board →"
+      "updatedNote": "For progress and to-dos, see",
+      "specsLink": "TTR Roadmap board →"
     },
     "specs": {
       "title": "Specs",
