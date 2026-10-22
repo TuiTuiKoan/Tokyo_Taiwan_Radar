@@ -304,7 +304,7 @@ git --no-pager cherry origin/main <branch>   # '-' 前綴 = 內容已在上游
       `ttr-publication-policy`），本次 append 0 行；`<repo>.worktrees/` 的 external worktree 不適用
       exclude。主工作樹 dirty 0（但本地領先 `origin/main` 2 個未推送 commit）。
 - [ ] Dependabot 8 個依賴漏洞中 6 筆已 `fixed`（PR #304，2026-10-20），剩 #87、#89 共 2 筆 `open`
-      （均為刻意不處理，見下表），待決定接受風險或另案處理。**性質上不屬於工作線盤點**，僅暫置於此；建議另立資安維護歸屬
+      （均為刻意不處理，已於 2026-10-22 列為另案待辦，見「G4 另案待辦」）。**性質上不屬於工作線盤點**，僅暫置於此；建議另立資安維護歸屬
 
 #### G4 依賴維護：固定驗收集合（2026-10-20 重查 8 筆；21:17 複查 6 筆 `fixed`、2 筆 `open`）
 
@@ -337,7 +337,22 @@ git --no-pager cherry origin/main <branch>   # '-' 前綴 = 內容已在上游
       （環境因素，需由 CI／Vercel 確認）
 - [x] 使用者 push 分支並開 PR #304；Vercel 與 gitleaks 通過，PR 於 2026-10-20 merge
 - [x] merge 後以 `gh api repos/:owner/:repo/dependabot/alerts` 確認 #74、#75、#83、#84、#86、#88 皆為 `fixed`（2026-10-20 21:17 複查）
-- [ ] #87、#89 決定接受風險（以 dismissed 附理由）或另案處理
+- [x] 2026-10-22 遠端 `chore/deps-security`、`chore/deps-security-2026-10` 已刪除；repo 已開啟
+      `delete_branch_on_merge`（之後 merge 的 PR head 分支自動刪除）
+- [x] #87、#89 決定**另案處理**（不 dismiss、不接受風險結案），見下方待辦
+
+#### G4 另案待辦：#87 katex、#89 sprintf-js（2026-10-22 決定）
+
+兩者皆為間接依賴，目前攻擊面小（Mermaid 圖來自自家 spec，不是使用者輸入；gray-matter 只在建置時讀自家檔案），
+alert 維持 `open`，待下列條件成立時處理：
+
+- [ ] **#87 katex（low）**：等 mermaid 新版把 katex 範圍放寬到 `>=0.18.2` 後升級 mermaid。
+      觀察點：PR #258（mermaid 11.16.1 → 12.1.0）目前仍要求 `katex ^0.16.47`，merge 它並不會修掉 #87。
+      不用 override 強制跨版本（mermaid 對 katex 0.18 的相容性未驗證）
+- [ ] **#89 sprintf-js（medium，無修補版）**：把 `web/scripts/build-specs-snapshot.ts` 的 `gray-matter`
+      換成不經 `js-yaml@3 → argparse@1 → sprintf-js` 的 frontmatter 解析（例如直接用 `yaml` 套件）。
+      換掉後可一併移除 `overrides` 裡的 `js-yaml@3`。需先確認 snapshot 輸出逐位元組不變
+- [ ] 任一項處理後，以 `gh api repos/:owner/:repo/dependabot/alerts` 確認對應 alert 轉 `fixed`
 
 ### G5: Worktree 註冊路徑與外部 sibling 治理
 
