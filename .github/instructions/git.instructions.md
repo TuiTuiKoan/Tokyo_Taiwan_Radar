@@ -148,7 +148,7 @@ Two further preconditions apply before a campaign worktree is removed: the campa
 
 When an old path is unavailable, ask the user for the spec slug or the content. Do not silently fall back to another location and do not dual-write.
 
-Exception: `.copilot-tracking/research/candidates/` and `.copilot-tracking/research/sources/` are the local I/O interface of `scraper/researcher.py` and `scraper/update_source.py`. The legacy directory name is kept because those scripts read and write it; it is not session state.
+Exception: `.copilot-tracking/research/candidates/` and `.copilot-tracking/research/sources/` are the local I/O interface of `scraper/update_source.py` (and of `scraper/researcher.py` until its removal in 2026-10, #318). The legacy directory name is kept because those scripts read and write it; it is not session state.
 
 `.copilot-tracking/` stays in `.gitignore` as legacy local scratch and is never committed.
 

@@ -124,13 +124,13 @@ jobs:
         run: python enrich_location.py
         continue-on-error: true
 
-      - name: Enrich venue addresses via web search
+      - name: Enrich venue addresses from the venue registry and sibling events
+        # No LLM since 2026-10 (#318): gpt-4o-search-preview was retired ~2026-08-20.
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         working-directory: scraper
-        run: python enrich_addresses.py --limit 30
+        run: python enrich_addresses.py
 
       - name: Backfill location_prefectures after address enrichment
         env:

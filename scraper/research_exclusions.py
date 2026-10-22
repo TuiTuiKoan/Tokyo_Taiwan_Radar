@@ -1,4 +1,6 @@
-"""Domains that researcher.py must never propose as new sources.
+"""Domains that source discovery must never propose as new sources.
+
+Used by auto_scraper/auto_research.py (researcher.py was removed in 2026-10, #318).
 
 research_sources already blocks domains it has seen, but only by exact host,
 and only when the DB fetch succeeds. Platforms we have tried and retired

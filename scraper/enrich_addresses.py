@@ -1,28 +1,42 @@
 """
-enrich_addresses.py — Look up physical addresses for events with a venue name
-but no location_address, using OpenAI gpt-4o-search-preview (real web search).
+enrich_addresses.py — Fill a missing or vague location_address for upcoming
+events from data we already hold, without calling an LLM.
+
+Lookup order:
+  1. venue_registry — the authoritative venues table.
+  2. Other events with the same location_name, when they agree on exactly one
+     street-level address.
+
+Events neither step resolves are listed and left alone. The former web-search
+path used gpt-4o-search-preview, which OpenAI retired around 2026-08-20; it was
+removed in 2026-10 (#318).
 
 Usage:
-    python enrich_addresses.py [--dry-run] [--source SOURCE_NAME]
+    python enrich_addresses.py [--dry-run] [--source SOURCE_NAME] [--limit N]
 
-Skips: gguide_tv (TV channels), events whose location_name contains オンライン.
+Skips: gguide_tv (TV channels), events whose location_name contains オンライン,
+pure publication records, and events whose location_address is locked in
+field_corrections.
 """
 
 import argparse
 import json
 import os
-import sys
-import time
+import re
+from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
-from openai import OpenAI
 from supabase import create_client
 
 from annotator import _to_trad
 from publication_rules import is_pure_publication_in_db, partition_pure_publications
+from venue_registry import lookup_venue_for_location
 
 load_dotenv()
 
+JST = timezone(timedelta(hours=9))
+PAGE_SIZE = 1000
+IN_BATCH = 50
 
 SKIP_SOURCES = {"gguide_tv"}
 SKIP_VENUE_KEYWORDS = ["オンライン", "電視頻道", "online", "Online"]
@@ -34,32 +48,13 @@ VAGUE_ADDRESS_VALUES = frozenset({
 })
 
 # Prefecture-only or city/ward-only — e.g. "福岡県", "福岡市", "渋谷区"
-# These lack a street-level address and should be upgraded by web search.
-import re as _re
-_VAGUE_GEO_RE = _re.compile(r'^[^\s]{2,10}[都道府県市区]$')
+_VAGUE_GEO_RE = re.compile(r'^[^\s]{2,10}[都道府県市区]$')
 
-SYSTEM_PROMPT = """\
-You are a venue address lookup assistant.
-Given a Japanese venue name, search the web and return the verified physical address in JSON.
 
-Rules:
-- Search the web for the venue's official address. Only use the result if it matches an
-  authoritative source (official website, Google Maps, Tabelog, etc.).
-- Address format: Japanese postal format (e.g., 東京都渋谷区神宮前1-14-30).
-  For sub-venues (e.g. "○○S.C. 森のまち広場"), return the parent facility's address.
-- Also provide Traditional Chinese and English translations of the address.
-- If the venue is online-only, a TV channel, or you cannot find a reliable address,
-  return null for all fields.
-- DO NOT fabricate or guess addresses. Only return what you found via web search.
-
-Return JSON only (no markdown code fences):
-{
-  "location_address": "<日本語住所 or null>",
-  "location_address_zh": "<繁體中文住所 or null>",
-  "location_address_en": "<English address or null>",
-  "confidence": "high" | "medium" | "low"
-}
-"""
+def is_vague(address: str | None) -> bool:
+    """True when the address is missing or lacks a street-level part."""
+    addr = (address or "").strip()
+    return not addr or addr in VAGUE_ADDRESS_VALUES or bool(_VAGUE_GEO_RE.match(addr))
 
 
 def _normalize_venue(name: str) -> str:
@@ -71,33 +66,92 @@ def _normalize_venue(name: str) -> str:
     return name
 
 
-def lookup_address(client: OpenAI, venue_name: str) -> dict | None:
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-search-preview",
-            web_search_options={"search_context_size": "low"},
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": f"Venue: {venue_name}"},
-            ],
-            # gpt-4o-search-preview does not support temperature or response_format
-            max_tokens=400,
+def _paginate(query) -> list[dict]:
+    rows: list[dict] = []
+    offset = 0
+    while True:
+        page = query.range(offset, offset + PAGE_SIZE - 1).execute().data or []
+        rows.extend(page)
+        if len(page) < PAGE_SIZE:
+            return rows
+        offset += PAGE_SIZE
+
+
+def fetch_candidates(sb, today: str, source: str | None = None) -> list[dict]:
+    """Active, upcoming events that name a venue but lack a specific address."""
+    query = (
+        sb.table("events")
+        .select("id, location_name, location_address, source_name, event_form, start_date, end_date")
+        .eq("is_active", True)
+        .not_.is_("location_name", None)
+        .or_(f"end_date.gte.{today},and(end_date.is.null,start_date.gte.{today})")
+        .order("id")
+    )
+    if source:
+        query = query.eq("source_name", source)
+    return [
+        e for e in _paginate(query)
+        if is_vague(e.get("location_address"))
+        and e["source_name"] not in SKIP_SOURCES
+        and not any(kw in (e["location_name"] or "") for kw in SKIP_VENUE_KEYWORDS)
+    ]
+
+
+def registry_address(venue_name: str) -> dict | None:
+    """Address of the authoritative venue matching the name, if specific."""
+    for name in dict.fromkeys((venue_name, _normalize_venue(venue_name))):
+        venue, _ = lookup_venue_for_location(name)
+        if not venue or venue.get("is_multi_venue"):
+            continue
+        addr = (venue.get("address") or "").strip()
+        if not is_vague(addr):
+            return {"location_address": addr}
+    return None
+
+
+def build_sibling_map(rows: list[dict]) -> dict[str, dict]:
+    """Map location_name → address patch when its events agree on one address.
+
+    Names whose events carry two or more different specific addresses are
+    left out: a chain or a multi-site label must not be guessed.
+    """
+    by_name: dict[str, dict[str, dict]] = {}
+    for r in rows:
+        addr = (r.get("location_address") or "").strip()
+        if is_vague(addr):
+            continue
+        entry = by_name.setdefault(r["location_name"], {}).setdefault(addr, {"location_address": addr})
+        for lang in ("zh", "en"):
+            key = f"location_address_{lang}"
+            if r.get(key) and key not in entry:
+                entry[key] = r[key]
+    return {name: next(iter(addrs.values())) for name, addrs in by_name.items() if len(addrs) == 1}
+
+
+def fetch_sibling_map(sb, names: list[str]) -> dict[str, dict]:
+    rows: list[dict] = []
+    for i in range(0, len(names), IN_BATCH):
+        query = (
+            sb.table("events")
+            .select("id, location_name, location_address, location_address_zh, location_address_en")
+            .in_("location_name", names[i:i + IN_BATCH])
+            .not_.is_("location_address", None)
+            .order("id")
         )
-        raw = response.choices[0].message.content or ""
-        # Strip markdown code fences if present (search-preview may add them)
-        raw = raw.strip()
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-            raw = raw.strip()
-        return json.loads(raw)
-    except json.JSONDecodeError as e:
-        print(f"  [JSON parse error] {e} | raw={raw!r}", file=sys.stderr)
-        return None
-    except Exception as e:
-        print(f"  [OpenAI error] {e}", file=sys.stderr)
-        return None
+        rows.extend(_paginate(query))
+    return build_sibling_map(rows)
+
+
+def resolve(event: dict, sibling_map: dict[str, dict]) -> tuple[dict, str] | None:
+    """Return (address patch, method) for one candidate, or None."""
+    venue = event["location_name"]
+    patch = registry_address(venue)
+    if patch:
+        return patch, "registry"
+    patch = sibling_map.get(venue)
+    if patch:
+        return dict(patch), "sibling"
+    return None
 
 
 def main():
@@ -109,110 +163,75 @@ def main():
     args = parser.parse_args()
 
     sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
-    ai = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    today = datetime.now(JST).date().isoformat()
 
-    query = (
-        sb.table("events")
-        .select("id, name_ja, location_name, location_address, source_name, event_form")
-        .eq("is_active", True)
-        .not_.is_("location_name", None)
-    )
-    if args.source:
-        query = query.eq("source_name", args.source)
-
-    r = query.execute()
-    candidates = [
-        e for e in r.data
-        if (e.get("location_address") is None
-            or e.get("location_address") in VAGUE_ADDRESS_VALUES
-            or bool(_VAGUE_GEO_RE.match(e.get("location_address") or "")))
-        and e["source_name"] not in SKIP_SOURCES
-        and not any(kw in (e["location_name"] or "") for kw in SKIP_VENUE_KEYWORDS)
-    ]
-    candidates, publications = partition_pure_publications(candidates)
+    candidates, publications = partition_pure_publications(fetch_candidates(sb, today, args.source))
     if publications:
         print(f"Skipped {len(publications)} pure publication events (no venue by policy)")
 
     if args.limit > 0:
         candidates = candidates[:args.limit]
 
-    print(f"Found {len(candidates)} events to enrich (dry_run={args.dry_run})")
+    print(f"Found {len(candidates)} upcoming events to enrich (dry_run={args.dry_run})")
+    if not candidates:
+        print("\nDone. updated=0 unresolved=0 skipped=0")
+        return
 
     # ── FC lock batch check ──────────────────────────────────────────────────
+    protected_ids: set[str] = set()
     candidate_ids = [e['id'] for e in candidates]
-    fc_res = sb.table('field_corrections').select('event_id,field_name') \
-        .in_('event_id', candidate_ids) \
-        .eq('field_name', 'location_address').execute().data or []
-    protected_ids = {r['event_id'] for r in fc_res}
+    for i in range(0, len(candidate_ids), IN_BATCH):
+        fc_res = sb.table('field_corrections').select('event_id') \
+            .in_('event_id', candidate_ids[i:i + IN_BATCH]) \
+            .eq('field_name', 'location_address').execute().data or []
+        protected_ids.update(r['event_id'] for r in fc_res)
     print(f"FC-protected (skip): {len(protected_ids)}")
+
+    sibling_map = fetch_sibling_map(sb, sorted({e["location_name"] for e in candidates}))
 
     updated = 0
     skipped = 0
+    unresolved: list[dict] = []
 
     for e in candidates:
         if e['id'] in protected_ids:
-            print(f"  → [SKIP] FC lock exists: {e['id'][:8]}")
             skipped += 1
             continue
 
-        venue = e["location_name"]
-        normalized_venue = _normalize_venue(venue)
-        print(f"\n[{e['id'][:8]}] {e['source_name']} | venue={venue!r}")
+        found = resolve(e, sibling_map)
+        if not found:
+            unresolved.append(e)
+            continue
+        patch, method = found
+        print(f"[{e['id'][:8]}] {e['source_name']} | {e['location_name']!r} → {patch['location_address']} ({method})")
 
-        result = lookup_address(ai, normalized_venue)
-        if not result:
-            print("  → No result from OpenAI, skipping")
+        if args.dry_run:
+            updated += 1
+            continue
+        if is_pure_publication_in_db(sb, e["id"]):
+            print(f"  → [SKIP] pure publication (re-check): {e['id'][:8]}")
             skipped += 1
             continue
-
-        conf = result.get("confidence", "low")
-        addr_ja = result.get("location_address")
-
-        if not addr_ja or conf == "low":
-            print(f"  → Confidence={conf}, no address returned, skipping")
-            skipped += 1
-            continue
-
-        print(f"  → {addr_ja} (conf={conf})")
-        if result.get("location_address_zh"):
-            print(f"     zh: {result['location_address_zh']}")
-        if result.get("location_address_en"):
-            print(f"     en: {result['location_address_en']}")
-
-        if not args.dry_run:
-            if is_pure_publication_in_db(sb, e["id"]):
-                print(f"  → [SKIP] pure publication (re-check): {e['id'][:8]}")
-                skipped += 1
-                continue
-            patch = {
-                "location_address": addr_ja,
-            }
-            if result.get("location_address_zh"):
-                patch["location_address_zh"] = _to_trad(result["location_address_zh"])
-            if result.get("location_address_en"):
-                patch["location_address_en"] = result["location_address_en"]
-            if normalized_venue != venue:
-                patch["location_name"] = normalized_venue
-            sb.table("events").update(patch).eq("id", e["id"]).execute()
+        if patch.get("location_address_zh"):
+            patch["location_address_zh"] = _to_trad(patch["location_address_zh"])
+        sb.table("events").update(patch).eq("id", e["id"]).execute()
+        # Registry addresses stay unlocked so a later registry fix still flows
+        # through; an address copied from another event is locked like a manual
+        # fill so re-annotation does not blank it again.
+        if method == "sibling":
             sb.table('field_corrections').upsert({
                 'event_id': e['id'],
                 'field_name': 'location_address',
-                'corrected_value': json.dumps(addr_ja, ensure_ascii=False),
+                'corrected_value': json.dumps(patch["location_address"], ensure_ascii=False),
             }, on_conflict='event_id,field_name').execute()
-            if normalized_venue != venue:
-                fc_ln_res = sb.table('field_corrections').select('id') \
-                    .eq('event_id', e['id']).eq('field_name', 'location_name').execute().data
-                if not fc_ln_res:
-                    sb.table('field_corrections').upsert({
-                        'event_id': e['id'],
-                        'field_name': 'location_name',
-                        'corrected_value': json.dumps(normalized_venue, ensure_ascii=False),
-                    }, on_conflict='event_id,field_name').execute()
-            updated += 1
+        updated += 1
 
-        time.sleep(0.3)  # rate limit
+    if unresolved:
+        print(f"\nUnresolved ({len(unresolved)}) — no registry venue and no agreeing sibling event:")
+        for e in unresolved:
+            print(f"  https://tokyotaiwanradar.com/ja/events/{e['id']} | {e['location_name']!r}")
 
-    print(f"\nDone. updated={updated} skipped={skipped}")
+    print(f"\nDone. updated={updated} unresolved={len(unresolved)} skipped={skipped}")
 
 
 if __name__ == "__main__":

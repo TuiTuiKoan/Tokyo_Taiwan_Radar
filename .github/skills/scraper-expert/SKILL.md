@@ -1076,7 +1076,7 @@ Reference incident: 2026-05-10 — event `a7a05be6`（台湾薬膳文化体験�
   - Layer 3: DB-driven dynamic load via `_load_db_organizers()` — queries `research_sources WHERE agent_category='peatix_organizer' AND status='implemented'`
 - **Layer 3 expansion rule**: When extending Layer 3 to a new platform, use a platform-specific `agent_category` (e.g. `peatix_organizer`). Do NOT reuse `note_creator` or generic names.
 - **Group page scraping**: `_scrape_group_events()` fetches `peatix.com/group/{group_id}/events`; `group_id` extracted from `source_profile.group_id` or URL path.
-- **Validation**: `python discovery_accounts.py --dry-run --slot 3` to verify Peatix slot without DB writes.
+- **Layer 3 rows** come from manual research (`update_source.py`／SQL); the `discovery_accounts.py` job that used to add them was removed in 2026-10 (#318).
 - **⚠ React SPA 遅延レンダリング問題**: Peatix は React SPA。`networkidle` 発火後も `.event-description` 内容が数十ms 遅延してレンダリングされる場合があり、`description_ja` が `None` → `raw_description` が日付 prefix のみになる。
   - **検出**: `raw_description` の長さが 50 字未満かつ内容が `開催日時:` のみ → 「汚薄 raw_description」と判定。
   - **対処フロー**: Playwright で再取得 → `raw_description` パッチ → `annotation_status = 'pending'` → `annotator.py --source-ids <source_id>` で手動実行。
@@ -1616,23 +1616,12 @@ cd scraper && python -m pytest tests/test_taxonomy.py -q
 - **正例（correct pattern）**：`"record_links": links` （直接傳 Python list）。
 
 ## enrich_addresses.py
-- **Purpose**: gpt-4o-search-preview batch-fills `location_address` / `location_address_zh` / `location_address_en` for events that have `location_name` set but `location_address = NULL` (or VAGUE).
-- **Candidate filter (2 conditions — either triggers):**
-  1. `location_address IS NULL`
-  2. `location_address in VAGUE_ADDRESS_VALUES`（固定 set: `'東京'`・`'大阪府'` 等）
-  3. `_VAGUE_GEO_RE.match(location_address)`（正規表現: `^[^\s]{2,10}[都道府県市区]$`）← **2026-05-19 追加**
-  →市区レベル（`'福岡市'`・`'渋谷区'`）や都道府県レベル（`'福岡県'`）は全て候補になる。
-- **FC lock は候補フィルタの後にチェック：** `field_corrections` に `location_address` ロックがあるイベントは **FC batch check で常にスキップ**される。手動で街路補完を強制する場合は先に FC 削除 + `location_address = NULL` が必要。
-  ```python
-  sb.table('field_corrections').delete().eq('event_id', EID).eq('field_name', 'location_address').execute()
-  sb.table('events').update({'location_address': None}).eq('id', EID).execute()
-  python enrich_addresses.py --source <source_name>
-  ```
-- **Skipped sources**: `gguide_tv` (TV broadcast, no physical address) and events with `location_name ILIKE '%オンライン%'` are excluded by default.
-- **Output is AI-generated, NOT verified**: gpt-4o-search-preview can hallucinate street numbers for new or renamed venues. Known failure: MoN Takanawa filled with `東京都港区高輪4-10-30` instead of correct `東京都港区高輪2-21-2` (2026-05-01).
-- **Post-run audit**: After running `enrich_addresses.py`, manually spot-check records from high-profile partner venues (SSFF, TAICCA, TCC) against the organizer's official access page (`会場・アクセス` section).
-- **Verification source**: For SSFF, use `shortshorts.org/2026/ja/schedule/` Venue access section. For other venues, search the organizer's official site for the address.
-- **Direct DB fix**: When a wrong address is found, correct it directly via Supabase SDK UPDATE — no code change or commit needed (data-only correction).
+- **Purpose**: fills `location_address` (and `_zh`／`_en` when copied from another event) for **upcoming** events that have `location_name` but no street-level address. No LLM since 2026-10 (#318); the former `gpt-4o-search-preview` path was retired with the model.
+- **Lookup order**: (1) `venue_registry.lookup_venue_for_location` — authoritative venues, `is_multi_venue` rows ignored, also tried without the `｜` city prefix; (2) other events with the same `location_name` that agree on exactly one street-level address. Anything else is only listed with its event link.
+- **Vague addresses count as missing**: `VAGUE_ADDRESS_VALUES` and `_VAGUE_GEO_RE` (`^[^\s]{2,10}[都道府県市区]$`), so prefecture- or city-only values (`'福岡県'`, `'渋谷区'`) are candidates.
+- **Skipped**: `gguide_tv`, `location_name` containing `オンライン`／`電視頻道`／`online`, pure publication records, and events whose `location_address` is locked in `field_corrections`. To force a refill, delete that lock and set `location_address = NULL` first.
+- **Locks**: an address copied from another event is locked in `field_corrections`; a registry address is not, so a later registry correction still flows through.
+- **Fixing a wrong address**: correct the venue in the `venues` registry (authoritative) or the source event, not the copy. Older rows filled by the retired web-search path may still hold hallucinated street numbers (e.g. MoN Takanawa `東京都港区高輪4-10-30`, correct `高輪2-21-2`, 2026-05-01); spot-check high-profile partner venues against their official access page.
 
 ## auto_generate Pipeline
 

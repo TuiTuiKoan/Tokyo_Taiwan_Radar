@@ -26,7 +26,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from dotenv import load_dotenv
-from openai import OpenAI
 
 from annotator import _lock_fields_via_corrections, _to_trad
 from auto_qa import close_report_exactly_one, single_auto_type
@@ -70,54 +69,6 @@ FIX_FIELDS = (
     "organizer_zh",
 )
 DATE_IN_TAB_URL_RE = re.compile(r"/(\d{4}-\d{2}-\d{2})$")
-
-
-def _openai_client() -> OpenAI:
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY must be set")
-    return OpenAI(api_key=api_key)
-
-
-def _search_venue_homepage_openai(venue_name: str, address: str | None = None) -> str | None:
-    """Fallback venue homepage search using OpenAI search-preview.
-
-    Returns the venue's own official website when the deterministic DuckDuckGo
-    pass cannot find a reliable result.
-    """
-    client = _openai_client()
-    query = f"{venue_name} 公式サイト"
-    if address:
-        query = f"{venue_name} {address} 公式サイト"
-    prompt = (
-        "Find the official website homepage for this Japanese venue. "
-        "Return JSON only with keys: url, confidence. "
-        "Use a venue homepage, not an event page, organizer page, or social profile. "
-        "If you cannot verify an official homepage, return null for url. "
-        f"Venue: {venue_name}\nAddress: {address or ''}\nSearch query: {query}"
-    )
-    try:
-        resp = client.chat.completions.create(
-            model="gpt-4o-search-preview",
-            web_search_options={"search_context_size": "low"},
-            messages=[
-                {"role": "system", "content": "You are a precise venue homepage lookup assistant. Return JSON only."},
-                {"role": "user", "content": prompt},
-            ],
-            max_tokens=200,
-        )
-        raw = (resp.choices[0].message.content or "").strip()
-        if raw.startswith("```"):
-            raw = raw.split("```", 2)[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-            raw = raw.strip()
-        parsed = json.loads(raw)
-        url = (parsed.get("url") or "").strip()
-        return url.rstrip("/") or None
-    except Exception as exc:
-        logger.debug("OpenAI venue homepage search failed for %s: %s", venue_name, exc)
-        return None
 
 
 def _supabase_client():
@@ -1027,8 +978,9 @@ def handle_location_url_is_event_url(sb, event_id: str, report: dict, *, dry_run
     """Replace polluted location_url values with a venue homepage search result.
 
     This fixes the common case where location_url was copied from source_url or
-    organizer_url. We search for the venue's own homepage using venue name and,
-    when available, the venue address. If search fails, we leave the event as-is
+    organizer_url. We take the venue registry's homepage when it has one, else
+    search for the venue's own homepage using venue name and, when available,
+    the venue address. If both fail, we leave the event as-is
     and keep the report pending for manual review.
     """
     from annotator import _search_venue_homepage
@@ -1069,15 +1021,21 @@ def handle_location_url_is_event_url(sb, event_id: str, report: dict, *, dry_run
         if "｜" in venue_name:
             candidates.append(venue_name.split("｜", 1)[1].strip())
 
+    # The authoritative venue registry wins over web search when it has a homepage.
+    from venue_registry import lookup_venue_for_location
+
     found = None
+    model_used = "rule:_search_venue_homepage"
     for candidate in candidates:
-        found = _search_venue_homepage(candidate, venue_address or None)
+        venue, _ = lookup_venue_for_location(candidate)
+        found = ((venue or {}).get("homepage") or "").strip() or None
         if found:
+            model_used = "rule:venue_registry.homepage"
             break
 
     if not found:
         for candidate in candidates:
-            found = _search_venue_homepage_openai(candidate, venue_address or None)
+            found = _search_venue_homepage(candidate, venue_address or None)
             if found:
                 break
 
@@ -1099,7 +1057,7 @@ def handle_location_url_is_event_url(sb, event_id: str, report: dict, *, dry_run
         unlock_reason="auto_fix_location_url_from_venue_search",
         report_id=report.get("id"),
         r_class="R-SCR-LOCURL",
-        model_used="rule:_search_venue_homepage",
+        model_used=model_used,
         confidence=0.90,
         dry_run=dry_run,
     )

@@ -10,8 +10,7 @@ ms.date: 2026-05-31
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │  Layer A — 來源發現（Source Discovery）                                       │
 │                                                                              │
-│  researcher.py  ←── GitHub Issues / 人工輸入                                  │
-│  discovery_accounts.py  ←── note.com / Peatix 平台探索                        │
+│  update_source.py  ←── GitHub Issues / 人工輸入                               │
 │                                                                              │
 │  → research_sources DB（status: candidate）                                  │
 └──────────────────────────────────────────────────────────────────────────────┘
@@ -122,28 +121,11 @@ python update_source.py --url "https://example.com/events" --status candidate
 python update_source.py --url "..." --status researched --create-issue
 ```
 
-### researcher.py — 批次探索
+### 已移除：researcher.py 與 discovery_accounts.py（2026-10，#318）
 
-| 檔案 | 用途 |
-|------|------|
-| `scraper/researcher.py` | 依分類批次搜尋候選來源，寫入 research_sources |
+兩者都依賴 `gpt-4o-search-preview`，該模型約 2026-08-20 下架後一直靜默失敗。下架前的投報率也很低：researcher 2026-07 花 $30、2026-08 花 $19.6，2026-06 之後只有 3 筆來源走到 `implemented`；discovery_accounts 找到的帳號只在 2026-04～05 被實作過。兩支程式與 `researcher.yml`、`discovery-accounts.yml` 一併移除，依據見 `docs/specs/active/llm-cost-reset/notes.md`。
 
-CI workflow：`researcher.yml`（4 slot × daily）
-
-**4 slots（每日 JST）：**
-- Slot 0 — 06:00：university、fukuoka
-- Slot 1 — 12:00：media、government
-- Slot 2 — 18:00：thinktank、hokkaido
-- Slot 3 — 00:00：social、performing_arts、senses
-
-### discovery_accounts.py — 平台帳號探索
-
-| 平台 | 策略 | CI Slot（每週）|
-|------|------|---------------|
-| note.com | JSON API 搜尋台灣創作者 | Slots 0–2（Mon–Wed）|
-| Peatix | Group page 驗證 | Slot 3（Thu）|
-
-Peatix 找到的組織 → `agent_category='peatix_organizer'` → `peatix.py` 的 `_load_db_organizers()` 會讀取並直接爬取其活動。
+`research_sources` 表與 admin 頁照舊。既有的 `agent_category='peatix_organizer'` 列仍由 `peatix.py` 的 `_load_db_organizers()` 讀取並直接爬取其活動。新來源改由人工（`update_source.py`、Researcher agent）提出。
 
 ---
 
@@ -313,9 +295,7 @@ python main.py --dry-run --source <name>
 
 | 檔案 | 層 | 用途 |
 |------|----|------|
-| `scraper/researcher.py` | A | 批次探索候選來源 |
 | `scraper/update_source.py` | A | 手動新增/更新 research_sources |
-| `scraper/discovery_accounts.py` | A | note.com / Peatix 帳號探索 |
 | `scraper/auto_scraper/auto_research.py` | B1 | 自動評估 candidate |
 | `scraper/auto_scraper/generate.py` | B2 | 自動代碼生成 + sandbox |
 | `scraper/auto_scraper/spec_to_code.py` | B2 | spec → Python + AST 安全驗證 |
@@ -327,8 +307,6 @@ python main.py --dry-run --source <name>
 | `scraper/sources/base.py` | C | BaseScraper + Event dataclass |
 | `scraper/sources/<name>.py` | C | 各來源爬蟲（人工整合後）|
 | `scraper/main.py` | C/D | 排程器 + SCRAPERS 登記 |
-| `.github/workflows/researcher.yml` | A | 每日 4 slot 探索 |
-| `.github/workflows/discovery-accounts.yml` | A | 每日帳號探索 |
 | `.github/workflows/auto-research.yml` | B1 | 每日 00:30 JST 自動評估 |
 | `.github/workflows/auto-generate.yml` | B2 | 每日 01:00 JST 自動生成 |
 | `.github/agents/researcher.agent.md` | A/B1 | Researcher Agent 指令 |
@@ -344,8 +322,6 @@ python main.py --dry-run --source <name>
 
 | Workflow | 時間（JST）| 用途 |
 |----------|-----------|------|
-| `researcher.yml` | 06:00 / 12:00 / 18:00 / 00:00 | Layer A 批次探索（4 slots）|
-| `discovery-accounts.yml` | 每日（Mon–Thu）| note.com + Peatix 帳號探索 |
 | `auto-research.yml` | 00:30 | Layer B Phase 1 自動評估 |
 | `auto-generate.yml` | 01:00 | Layer B Phase 2 自動代碼生成 |
 | `scraper.yml` | 09:00 | Layer D 每日爬取（整合後的爬蟲生效）|

@@ -354,12 +354,6 @@
       "category": "schedule"
     },
     {
-      "id": "researcher-cron",
-      "label": "Researcher 4-slot schedule",
-      "description": "Auto-discovery of candidate sources via Google CSE on 4 daily slots (06/12/18/00 JST).",
-      "category": "schedule"
-    },
-    {
       "id": "auto-research-cron",
       "label": "Auto-research batch source assessment",
       "description": "Weekly Thu 00:30 JST batch that scores and classifies candidate sources.",
@@ -835,38 +829,6 @@
       "annotations": [
         "Also supports workflow_dispatch for ad-hoc runs.",
         "Distinct from scrape-now.yml (per-source admin dispatch)."
-      ]
-    },
-    {
-      "id": "researcher-cron",
-      "actionId": "researcher-cron",
-      "title": "Researcher 4-slot schedule",
-      "steps": [
-        {
-          "from": "github-actions-cron",
-          "to": ".github/workflows/researcher.yml",
-          "channel": "cron",
-          "payloadNote": "4 cron entries / day (06/12/18/00 JST)",
-          "evidenceRef": ".github/workflows/researcher.yml"
-        },
-        {
-          "from": ".github/workflows/researcher.yml",
-          "to": "scraper/researcher.py",
-          "channel": "Python CLI",
-          "payloadNote": "Google CSE auto-discovery; slot index = (weekday-1) % SLOT_COUNT",
-          "evidenceRef": "scraper/researcher.py"
-        },
-        {
-          "from": "scraper/researcher.py",
-          "to": "db:source_candidates",
-          "channel": "Supabase upsert",
-          "payloadNote": "candidate sources for human review",
-          "evidenceRef": "scraper/researcher.py"
-        }
-      ],
-      "annotations": [
-        "DISCOVERY_SLOT env can override the weekday-derived slot.",
-        "Optional --create-issue opens GitHub Issue for accepted candidates."
       ]
     },
     {

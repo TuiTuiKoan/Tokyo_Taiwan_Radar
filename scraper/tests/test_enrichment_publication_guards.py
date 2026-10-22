@@ -90,6 +90,11 @@ class _Query:
     def in_(self, column, values):
         return self._filter("in", column, list(values))
 
+    def or_(self, expression):
+        # PostgREST OR expressions (e.g. the upcoming-date window) are not
+        # evaluated by this double; every row passes.
+        return self._filter("or", None, expression)
+
     def limit(self, value):
         self.limit_n = value
         return self
@@ -279,17 +284,15 @@ def test_enrich_location_still_writes_physical_events(monkeypatch):
 # enrich_addresses.py
 # ---------------------------------------------------------------------------
 
-def _run_enrich_addresses(monkeypatch, client, lookup):
+def _run_enrich_addresses(monkeypatch, client, resolve):
     monkeypatch.setattr(sys, "argv", ["enrich_addresses.py"])
     monkeypatch.setattr(enrich_addresses, "create_client", lambda *_a, **_k: client)
-    monkeypatch.setattr(enrich_addresses, "OpenAI", lambda **_k: object())
-    monkeypatch.setattr(enrich_addresses, "time", SimpleNamespace(sleep=lambda *_a: None))
-    monkeypatch.setattr(enrich_addresses, "lookup_address", lookup)
+    monkeypatch.setattr(enrich_addresses, "resolve", resolve)
     enrich_addresses.main()
 
 
 def _address_result():
-    return {"location_address": "東京都渋谷区神南1-1", "confidence": "high"}
+    return {"location_address": "東京都渋谷区神南1-1"}, "registry"
 
 
 def test_enrich_addresses_drops_pure_publication_candidates(monkeypatch):

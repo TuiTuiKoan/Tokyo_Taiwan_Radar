@@ -318,8 +318,6 @@ Admin 撰寫發文（三語 title + body + images）
 | `merger.yml` | — | 手動觸發跨來源合併 |
 | `annotate-now.yml` | — | 手動觸發重新標注 |
 | `scrape-now.yml` | — | 手動觸發爬取 |
-| `researcher.yml` | 每日 4 slots JST | 來源批次探索（Layer A）|
-| `discovery-accounts.yml` | 每日 Mon–Thu | note.com + Peatix 帳號探索 |
 | `auto-research.yml` | 每日 00:30 JST | 自動評估 candidate 來源（Layer B1）|
 | `auto-generate.yml` | 每日 01:00 JST | 自動代碼生成 + sandbox（Layer B2）|
 | `weekly-broadcast.yml` | 每週一 10:30 JST | LINE 週報推播 |
