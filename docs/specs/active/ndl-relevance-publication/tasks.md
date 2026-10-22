@@ -8,14 +8,14 @@
 - [x] 使用者回覆 `notes.md` § 待決定 D1–D8（2026-10-22 全數採 (a)，見 `notes.md` § 使用者決定）
 - [x] Plan Critic 評審完成（Codex，2026-10-22），修訂已回寫 proposal；D9、D10 與 D6 補充已決定
 - [x] Plan Critic 第二輪（Codex，2026-10-22）：🟡 小修後可交；小修已回寫，見 `notes.md` § 第二輪處置
-- [ ] 使用者確認修訂版可以交給 Engineer
+- [x] 使用者確認修訂版可以交給 Engineer
 
 ## Phase 0: Worktree 與基準
 
-- [ ] 向使用者確認 worktree（Worktree 確認閘門），預定 `ttr-ndl-relevance-publication-worktree`
-- [ ] 依 `.github/instructions/git.instructions.md § Isolated worktree` 的 state matrix 建立
+- [x] 向使用者確認 worktree（Worktree 確認閘門），預定 `ttr-ndl-relevance-publication-worktree`
+- [x] 依 `.github/instructions/git.instructions.md § Isolated worktree` 的 state matrix 建立
       （branch `feat/ndl-relevance-publication`，預期為 branch missing → `-b`）
-- [ ] idempotent append `ttr-ndl-relevance-publication-worktree/` 至 `.git/info/exclude`
+- [x] idempotent append `ttr-ndl-relevance-publication-worktree/` 至 `.git/info/exclude`
 - [ ] Step 0 重查基準：`git fetch origin` 後 `git rev-parse HEAD origin/main` 兩行相同；
       ndl 有效頂層筆數、`["senses"]` 單標筆數、ndl 停用筆數與 `notes.md` § 基準快照比對，
       漂移就停下回報
