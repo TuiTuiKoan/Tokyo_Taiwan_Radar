@@ -138,6 +138,22 @@ def _apply_pure_publication_policy(row: dict[str, Any]) -> bool:
     return True
 
 
+def _strip_nul(value: Any) -> Any:
+    """Remove NUL characters, which Postgres text columns reject (22P05).
+
+    One NUL in one scraped field fails the whole batch upsert, so every new
+    event of that run is lost: prtimes ingested nothing from 2026-09-14 to
+    2026-10-22 (#380). Mirrors stripNullBytes in web/lib/adminEventMutationsCore.ts.
+    """
+    if isinstance(value, str):
+        return value.replace("\x00", "") if "\x00" in value else value
+    if isinstance(value, list):
+        return [_strip_nul(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _strip_nul(v) for k, v in value.items()}
+    return value
+
+
 def _event_to_row(event: Event) -> dict[str, Any]:
     """Convert an Event dataclass to a dict matching the Supabase `events` table schema."""
     row: dict[str, Any] = {
@@ -243,7 +259,7 @@ def _event_to_row(event: Event) -> dict[str, Any]:
 
     _apply_pure_publication_policy(row)
 
-    return row
+    return {key: _strip_nul(value) for key, value in row.items()}
 
 
 def _populate_entity_fks(client: Client, rows: list[dict]) -> None:
