@@ -103,6 +103,11 @@ jobs:
         run: python annotator.py --enrich-person-names
 
       - name: Run Vision OCR enrichment
+        # Paused 2026-10-22: sent ~65 posters/day to gpt-4o (detail high) and applied 0 on
+        # 2026-10-16..21, about 60% of current OpenAI spend. Re-enable only after it skips
+        # already-processed images and the applied=0 / skipped(confidence) counts are explained.
+        # Manual runs still work: cd scraper && python enrich_poster.py
+        if: ${{ false }}
         working-directory: scraper
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
