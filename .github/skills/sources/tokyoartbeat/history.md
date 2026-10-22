@@ -4,6 +4,18 @@ Newest at top.
 
 ---
 
+## 2026-10-23 — 0 events since 2026-08-19; Contentful space moved to a CDA proxy (#375)
+
+**Error:** `scraper_runs` showed `success=true, 0 events` every day since 2026-08-19 (0.3 s runs, no error). Local dry-run without a token crashed with `'TokyoArtBeatScraper' object has no attribute 'logger'`.
+
+**Root cause:** (1) TAB moved live event data to `https://cdn.prod.tabdev.net/api/cda/published`; `cdn.contentful.com` kept answering 200 with a frozen space (only 18 `event` entries, none matching `台湾`/`Taiwan`). The token was fine. (2) `self.logger` never existed, so the error branch itself would have crashed.
+
+**Fix:** switched `CONTENTFUL_BASE` to the proxy (same token), module-level `logger`, HTTP errors raise (token-safe message), and a liveness guard that raises when fewer than 100 upcoming events are reported.
+
+**Lesson:** an API that answers 200 with a frozen dataset is only detectable by a sanity floor on volume. Probe from CI with the real secret before assuming the token is the problem; measure `total` with and without the query.
+
+---
+
 ## 2026-05-02 — デニス・リン展 場地幻覺：raw_description 無場地資訊導致 GPT 猜錯場館
 
 **Error**: 活動 `1e375d6c`（デニス・リン展）的場地顯示為「東京都現代美術館」（錯誤），正確為「Yukikomizutani，TERRADA ART COMPLEX II 1F，品川区東品川」。

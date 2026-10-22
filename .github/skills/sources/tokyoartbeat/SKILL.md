@@ -68,6 +68,22 @@ Server-side search for `台湾` returns broadly matching results. Apply client-s
 ["台湾", "Taiwan", "臺灣", "台灣", "台北", "台中", "台南", "高雄", "台日", "日台"]
 ```
 
+## Data Source: CDA proxy (current implementation)
+
+The scraper no longer uses Playwright. It queries a Contentful-compatible CDA:
+
+```
+GET https://cdn.prod.tabdev.net/api/cda/published/spaces/j05yk38inose/environments/master/entries
+    ?content_type=event&locale=*&query=<台湾|Taiwan>&fields.scheduleEndsOn[gte]=<today>&limit=200&include=1&access_token=$CONTENTFUL_TOKEN
+```
+
+- **Endpoint moved (2026-08-19, #375)**: the old `https://cdn.contentful.com/spaces/j05yk38inose/...` is frozen at 18 stale `event` entries and still answers **HTTP 200**, so it looked like "no Taiwan exhibitions". TAB's own front end uses the `cdn.prod.tabdev.net` proxy (1,740 upcoming events on 2026-10-22; `台湾` → 10, `Taiwan` → 5, including 「共時的星叢」).
+- The existing `CONTENTFUL_TOKEN` secret works on the proxy (verified from a GitHub Actions run). No token change was needed.
+- **Guard**: `_assert_space_is_live()` raises when fewer than `_MIN_UPCOMING_EVENTS` (100) upcoming events are reported, so a moved/frozen space is a failed run, not "0 events".
+- HTTP/network errors raise `RuntimeError` with only the exception type and status — never the URL, which contains `access_token`.
+- Entry ids are now UUIDs for new events (older entries keep Contentful-style ids); `source_id = tokyoartbeat_{sys.id}`.
+- The HTML `/events` page embeds only 1,000 of the 1,740 events in `__NEXT_DATA__` and has no search URL, so it is not a substitute for the CDA.
+
 ## Known Issues / Edge Cases
 
 - **⚠️ DISABLED (2026-04-26)**: The search URL `?query=台湾` is completely ignored by the TAB React client in headless mode. Zero Taiwan events are returned. `TokyoArtBeatScraper()` is commented out in `main.py` until a new approach is found.
