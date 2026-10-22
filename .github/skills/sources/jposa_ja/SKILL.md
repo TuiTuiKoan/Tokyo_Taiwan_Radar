@@ -64,10 +64,15 @@ Priority order in `_extract_date_from_body()`:
 
 **Note**: Same-day recap posts (処長が出席した等) use the publish date as a reasonable proxy for the event date, since the office typically publishes the recap the same day or the day after.
 
+## GitHub Actions is blocked (2026-10-22, #378)
+
+Same block as `taipei_fukuoka`: roc-taiwan.org redirects GitHub Actions IPs to `/Embassy_Error/error-vpn_data_url.html` (200 HTML, no `<item>`). That is why production showed `0 events found` after 0.08 s. Page 1 of each feed now raises if the request fails or the body has no RSS items; a 404 on a later `?paged=N` still ends pagination normally (WordPress returns 404 past the last page).
+
 ## Troubleshooting
 
 | Symptom | Likely Cause | Fix |
 |---------|--------------|-----|
+| Run recorded as failed: `page 1 ... has no RSS items` | Blocked IP (see above) | Run from a non-GitHub IP; headers do not help |
 | 0 events found | No event posts in the lookback window — normal for this source | Increase `LOOKBACK_DAYS` or check RSS manually |
 | Events missing | `_SKIP_KW` too aggressive | Check title against the regex; relax if needed |
 | date = publish date | Body has no explicit date label; normal for recap posts | Acceptable — the event occurred on or near pubDate |

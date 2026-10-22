@@ -50,10 +50,15 @@ The filter is for **event posts** (not diplomatic meeting reports):
 | Month-day in body (no year) | `日時：3月30日（月）15:00` → uses `発信日時：YYYY-MM-DD` year |
 | Title date fallback | `4・25開催` / `4‧2防府市` → `YYYY-04-25` (uses pub year) |
 
+## GitHub Actions is blocked (2026-10-22, #378)
+
+roc-taiwan.org (CloudFront) answers GitHub Actions IPs with `302 → /Embassy_Error/error-vpn_data_url.html` ("The website is under repair", 135,213 bytes) for **every** path (list, `/feed/`, `wp-json`, `sitemap.xml`, `robots.txt`), regardless of User-Agent. `requests` follows the redirect and gets a **200 HTML page**, which used to parse as "0 posts". The scraper now raises when the list page has no `.news-item`, so a blocked run is recorded as failed. Local (Japan residential) IPs work. Getting data in CI needs a non-GitHub runner; headers cannot fix it.
+
 ## Troubleshooting
 
 | Problem | Fix |
 |---------|-----|
+| `no .news-item on list page` (run recorded as failed) | Blocked IP (title "The website is under repair") or the layout changed; compare with a local run |
 | `start_date = null` for all events | Check if body regex `_DATE_LABEL_RE` matches; the label format may have changed |
 | 0 posts | Main page structure changed; check if `.news-item` → `.text-holder` → `a[href*=/post/]` still works |
 | Wrong events (diplomatic) | Tighten `_EVENT_TITLE_KEYWORDS` or add to `_EVENT_BODY_MARKERS` |

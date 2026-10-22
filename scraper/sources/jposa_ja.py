@@ -274,11 +274,21 @@ class JposaJaScraper(BaseScraper):
                     resp = session.get(url, headers=_HEADERS, timeout=20)
                     resp.raise_for_status()
                 except Exception as exc:
+                    if page == 1:
+                        raise RuntimeError(f"jposa_ja: RSS fetch failed [{feed_url}]: {exc}") from exc
+                    # WordPress answers 404 for ?paged=N beyond the last page
                     logger.warning("RSS fetch error [%s p%d]: %s", feed_url, page, exc)
                     break
 
                 items = _parse_rss_items(resp.text)
                 if not items:
+                    if page == 1:
+                        # roc-taiwan.org redirects GitHub Actions IPs to /Embassy_Error/
+                        # (200 HTML, no <item>), see #378
+                        raise RuntimeError(
+                            f"jposa_ja: page 1 of {feed_url} has no RSS items "
+                            f"(url={resp.url}, content-type={resp.headers.get('content-type')})"
+                        )
                     break
 
                 hit_cutoff = False

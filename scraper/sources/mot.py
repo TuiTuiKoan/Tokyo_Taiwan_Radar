@@ -136,9 +136,6 @@ class MotScraper(BaseScraper):
         events: list[Event] = []
 
         exhibitions = self._fetch_json()
-        if not exhibitions:
-            logger.warning("MOT: could not fetch exhibitions JSON")
-            return []
 
         logger.info("MOT: %d exhibitions in JSON, filtering candidates…", len(exhibitions))
 
@@ -243,10 +240,13 @@ class MotScraper(BaseScraper):
 
     # ------------------------------------------------------------------
     def _fetch_json(self) -> list[dict]:
-        try:
-            r = requests.get(_JSON_URL, headers=_HEADERS, timeout=20)
-            r.raise_for_status()
-            return r.json()
-        except Exception as exc:
-            logger.warning("MOT: JSON fetch error: %s", exc)
-            return []
+        """Fetch the exhibitions list; raise on any failure so main.py records success=False.
+
+        GitHub Actions IPs get a 403 (MOT's own 404 template page), see #378.
+        """
+        r = requests.get(_JSON_URL, headers=_HEADERS, timeout=20)
+        r.raise_for_status()
+        data = r.json()
+        if not isinstance(data, list) or not data:
+            raise RuntimeError(f"MOT: unexpected exhibitions JSON ({type(data).__name__})")
+        return data

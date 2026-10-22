@@ -175,14 +175,21 @@ class TaipeiFukuokaScraper(BaseScraper):
     def scrape(self) -> list[Event]:
         html = self._fetch(LIST_URL)
         if not html:
-            logger.error("TaipeiFukuokaScraper: failed to fetch main page")
-            return []
+            raise RuntimeError("TaipeiFukuokaScraper: failed to fetch main page")
 
         soup = BeautifulSoup(html, "html.parser")
 
+        news_items = soup.select(".news-item")
+        if not news_items:
+            # roc-taiwan.org redirects GitHub Actions IPs to /Embassy_Error/ (200 HTML, #378)
+            raise RuntimeError(
+                "TaipeiFukuokaScraper: no .news-item on list page "
+                f"(blocked or layout changed; title={soup.title.get_text(strip=True) if soup.title else None!r})"
+            )
+
         # Collect local post links from .news-item
         post_items: list[dict] = []
-        for item in soup.select(".news-item"):
+        for item in news_items:
             link = item.select_one(".text-holder a")
             date_el = item.select_one(".date")
             if not link:
