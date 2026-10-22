@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "created_at": "2026-10-22T19:40:00+09:00",
+  "note": "Resolve-stage floor for eval_venues.py --enforce-baseline (#325). Raise min_correct when a registry fix lands; never lower max_wrong.",
+  "resolve": {
+    "cases": 61,
+    "min_correct": 52,
+    "max_wrong": 0
+  }
+}

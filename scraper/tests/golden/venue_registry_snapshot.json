@@ -1,0 +1,561 @@
+{
+  "snapshot_at": "2026-10-22T19:00:00+09:00",
+  "source": "venues WHERE is_authoritative (read-only SQL)",
+  "md5": "3d9df8c417988baecb64279e48b6eda7",
+  "md5_recipe": "md5 of id|canonical_name_ja|aliases joined by ~|prefecture|is_multi_venue, one line per row ordered by id",
+  "venues": [
+    {
+      "id": "d625965b-d575-4ca8-a664-ce13142659f2",
+      "canonical_name_ja": "109シネマズ富谷",
+      "aliases": [
+        "109 Cinemas Tomiya"
+      ],
+      "prefecture": "宮城県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "e93383d0-4733-4a3b-9607-04bc00825c8f",
+      "canonical_name_ja": "109シネマズ港北",
+      "aliases": [
+        "109 Cinemas Kohoku"
+      ],
+      "prefecture": "神奈川県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "cc9ad7a3-c9e4-43bc-b053-a7efed2ec782",
+      "canonical_name_ja": "K's cinema",
+      "aliases": [
+        "Ks cinema",
+        "ケイズシネマ"
+      ],
+      "prefecture": "東京都",
+      "is_multi_venue": false
+    },
+    {
+      "id": "20a9afc2-4244-4860-a32a-ae27659aca56",
+      "canonical_name_ja": "KBCシネマ1・2",
+      "aliases": [
+        "KBCシネマ"
+      ],
+      "prefecture": "福岡県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "99a60996-df28-447c-880a-c20f544f4656",
+      "canonical_name_ja": "MORC阿佐ヶ谷",
+      "aliases": [
+        "モーク阿佐ヶ谷"
+      ],
+      "prefecture": "東京都",
+      "is_multi_venue": false
+    },
+    {
+      "id": "173826b2-9a0e-4ba3-934f-1399e892e8dc",
+      "canonical_name_ja": "OYAMA Cinema ROBLE",
+      "aliases": [
+        "ロブレ",
+        "ロブレ5"
+      ],
+      "prefecture": "栃木県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "3871cf97-0a17-43a5-975d-752630bfc445",
+      "canonical_name_ja": "あまや座",
+      "aliases": [
+        "amayaza"
+      ],
+      "prefecture": "茨城県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "080faf09-a21e-4dc9-9021-36e3c4c497e1",
+      "canonical_name_ja": "アップリンク吉祥寺",
+      "aliases": [
+        "uplink joji"
+      ],
+      "prefecture": "東京都",
+      "is_multi_venue": false
+    },
+    {
+      "id": "29fef1e9-67d1-457f-81a2-17b1d80437f8",
+      "canonical_name_ja": "サロンシネマ",
+      "aliases": [
+        "Salon Cinema",
+        "サロンシネマ1・2"
+      ],
+      "prefecture": "広島県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "5f7c6f58-f8de-47b4-87e8-5f8ee7ea0d97",
+      "canonical_name_ja": "シアターエンヤ",
+      "aliases": [
+        "シアター・エンヤ"
+      ],
+      "prefecture": "佐賀県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "847acdf1-a7fd-431c-b6b8-6a5cf877a662",
+      "canonical_name_ja": "シアターキノ",
+      "aliases": [
+        "theater kino"
+      ],
+      "prefecture": "北海道",
+      "is_multi_venue": false
+    },
+    {
+      "id": "39eaad4a-7fff-495a-8eb1-06a4a048789d",
+      "canonical_name_ja": "シアター・イメージフォーラム",
+      "aliases": [
+        "Image Forum",
+        "イメージフォーラム"
+      ],
+      "prefecture": "東京都",
+      "is_multi_venue": false
+    },
+    {
+      "id": "405cdc12-aae7-4fa3-8485-9d20971e7207",
+      "canonical_name_ja": "シエマ",
+      "aliases": [
+        "CIEMA",
+        "ciema"
+      ],
+      "prefecture": "佐賀県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "be9ca259-925c-4fb4-bacc-41ed6c8a83d2",
+      "canonical_name_ja": "シネスイッチ銀座",
+      "aliases": [
+        "Cineswitch Ginza"
+      ],
+      "prefecture": "東京都",
+      "is_multi_venue": false
+    },
+    {
+      "id": "4eba7e7b-224b-40de-a3d3-5591f22958c5",
+      "canonical_name_ja": "シネプラザサントムーン",
+      "aliases": [
+        "シネプラザ サントムーン"
+      ],
+      "prefecture": "静岡県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "5a57cf4f-5ff5-4756-8804-c0cfb61a8d06",
+      "canonical_name_ja": "シネマ・クレール 丸の内1・2",
+      "aliases": [
+        "シネマ・クレール"
+      ],
+      "prefecture": "岡山県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "11c322d3-197b-48c2-a678-7c828276a4a8",
+      "canonical_name_ja": "シネマート新宿",
+      "aliases": [
+        "cinemart shinjuku"
+      ],
+      "prefecture": "東京都",
+      "is_multi_venue": false
+    },
+    {
+      "id": "81098189-d687-4f53-ad72-cfc9bc391fcf",
+      "canonical_name_ja": "シネ・ウインド",
+      "aliases": [
+        "シネウインド",
+        "新潟市民映画館"
+      ],
+      "prefecture": "新潟県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "85a70b2b-f72f-4935-92b4-8158c631d8a1",
+      "canonical_name_ja": "シネ・ヌーヴォ",
+      "aliases": [
+        "CINE NOUVEAU",
+        "シネヌーヴォ"
+      ],
+      "prefecture": "大阪府",
+      "is_multi_venue": false
+    },
+    {
+      "id": "ba6e66b8-0137-4678-94d6-6b0905168041",
+      "canonical_name_ja": "シネ・リーブル神戸",
+      "aliases": [
+        "シネリーブル神戸"
+      ],
+      "prefecture": "兵庫県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "e2f5fd1f-f92c-4e61-9f5f-383ac84c5d8b",
+      "canonical_name_ja": "センチュリーシネマ",
+      "aliases": [],
+      "prefecture": "愛知県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "eea2faf2-b741-4911-9e2b-0ab250fca122",
+      "canonical_name_ja": "テアトル梅田",
+      "aliases": [],
+      "prefecture": "大阪府",
+      "is_multi_venue": false
+    },
+    {
+      "id": "61f052f3-8cd0-475a-9947-cc459c482025",
+      "canonical_name_ja": "ヒューマントラストシネマ有楽町",
+      "aliases": [
+        "human_yurakucho"
+      ],
+      "prefecture": "東京都",
+      "is_multi_venue": false
+    },
+    {
+      "id": "73cee70a-438b-4e86-8ea4-16b94f5b1e92",
+      "canonical_name_ja": "ミッドランドシネマ 名古屋空港",
+      "aliases": [
+        "ミッドランドシネマ名古屋空港"
+      ],
+      "prefecture": "愛知県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "0a6e0f01-4317-4b11-b20f-8d470d1e6c72",
+      "canonical_name_ja": "ユナイテッドシネマつくば",
+      "aliases": [
+        "united_cinemas_tsukuba",
+        "ユナイテッドシネマ つくば",
+        "ユナイテッド・シネマつくば"
+      ],
+      "prefecture": "茨城県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "54d89f99-f0e1-49c9-b999-613a6e1e5245",
+      "canonical_name_ja": "ユナイテッドシネマ橿原",
+      "aliases": [
+        "united_cinemas_kashihara",
+        "ユナイテッドシネマ 橿原",
+        "ユナイテッド・シネマ橿原"
+      ],
+      "prefecture": "奈良県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "61cb3257-17f6-4cc5-ac7f-00d33434242c",
+      "canonical_name_ja": "ユナイテッドシネマ豊橋",
+      "aliases": [
+        "united_cinemas_toyohashi",
+        "ユナイテッドシネマ 豊橋",
+        "ユナイテッド・シネマ豊橋"
+      ],
+      "prefecture": "愛知県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "af1c03c3-c0af-40d2-ae4c-36e27eb0cbb0",
+      "canonical_name_ja": "ユーロスペース",
+      "aliases": [
+        "EUROSPACE",
+        "ユーロスペース（渋谷）"
+      ],
+      "prefecture": "東京都",
+      "is_multi_venue": false
+    },
+    {
+      "id": "02a06654-4233-4ccf-ba2e-2a0933f6ba4d",
+      "canonical_name_ja": "ユーロライブ",
+      "aliases": [
+        "EURO LIVE",
+        "ユーロライブ（渋谷）"
+      ],
+      "prefecture": "東京都",
+      "is_multi_venue": false
+    },
+    {
+      "id": "7e52197d-ae4b-4caf-aa8b-745072770ce0",
+      "canonical_name_ja": "上田映劇",
+      "aliases": [
+        "UEDA EIGEKI",
+        "uedaeigeki"
+      ],
+      "prefecture": "長野県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "8eb05a88-6bcf-4740-b275-901152d56f4c",
+      "canonical_name_ja": "京都シネマ",
+      "aliases": [
+        "KYOTO CINEMA"
+      ],
+      "prefecture": "京都府",
+      "is_multi_venue": false
+    },
+    {
+      "id": "a19a2e9c-046d-4159-b74e-36fd3995cb08",
+      "canonical_name_ja": "伏見ミリオン座",
+      "aliases": [
+        "ミリオン座"
+      ],
+      "prefecture": "愛知県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "10a9aa7a-f8e1-4721-9fd8-77af830b74d2",
+      "canonical_name_ja": "八丁座",
+      "aliases": [
+        "Hatchobori",
+        "サロンシネマ",
+        "サロンシネマ1・2"
+      ],
+      "prefecture": "広島県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "4e010225-f963-4556-a439-2bc4a35afb12",
+      "canonical_name_ja": "台北駐日経済文化代表処 台湾文化センター",
+      "aliases": [
+        "台北駐日経済文化代表処台湾文化センター",
+        "台湾文化センター",
+        "台湾文化中心"
+      ],
+      "prefecture": "東京都",
+      "is_multi_venue": false
+    },
+    {
+      "id": "5a1cdcae-d7a9-446f-bf4a-f756fec84a8d",
+      "canonical_name_ja": "台灣國際紀錄片影展",
+      "aliases": [
+        "TIDF"
+      ],
+      "prefecture": "東京都",
+      "is_multi_venue": true
+    },
+    {
+      "id": "6cb579fb-614c-4fe3-b802-5fac969dc8f3",
+      "canonical_name_ja": "国立台湾科技大学",
+      "aliases": [
+        "NTUST",
+        "Taiwan Tech",
+        "國立台灣科技大學",
+        "臺灣科技大學"
+      ],
+      "prefecture": "台北市",
+      "is_multi_venue": false
+    },
+    {
+      "id": "cb3ec4e3-dd11-400a-b8de-050cbc4ed6ce",
+      "canonical_name_ja": "大阪アジアン映画祭",
+      "aliases": [
+        "OAFF"
+      ],
+      "prefecture": "大阪府",
+      "is_multi_venue": true
+    },
+    {
+      "id": "1710bc3f-4c10-47cc-ba1c-2dfe666d5c48",
+      "canonical_name_ja": "宇都宮ヒカリ座",
+      "aliases": [
+        "ヒカリ座"
+      ],
+      "prefecture": "栃木県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "fb4a0734-2d49-4242-ae48-e909bf284d58",
+      "canonical_name_ja": "山口情報芸術センター YCAM",
+      "aliases": [
+        "YCAM",
+        "ycam_cinema",
+        "山口情報芸術センター"
+      ],
+      "prefecture": "山口県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "8bb62355-845f-4518-8cbc-6cb2bcffbeac",
+      "canonical_name_ja": "御成座",
+      "aliases": [
+        "Onariza"
+      ],
+      "prefecture": "秋田県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "932873ef-1512-40cb-b32f-d357070d088c",
+      "canonical_name_ja": "新文芸坐",
+      "aliases": [
+        "しんぶんげいざ"
+      ],
+      "prefecture": "東京都",
+      "is_multi_venue": false
+    },
+    {
+      "id": "597eaa36-191b-48d4-9a34-cd7c128579f1",
+      "canonical_name_ja": "東京国際映画祭",
+      "aliases": [
+        "TIFF",
+        "東京国際映画祭2026"
+      ],
+      "prefecture": "東京都",
+      "is_multi_venue": true
+    },
+    {
+      "id": "df6c0de4-0ea6-48e1-be0b-dc13b24a13b3",
+      "canonical_name_ja": "東京芸術劇場",
+      "aliases": [
+        "Geigeki",
+        "東京芸術劇場（池袋）"
+      ],
+      "prefecture": "東京都",
+      "is_multi_venue": false
+    },
+    {
+      "id": "00b3b745-8a79-4d8c-b819-e8db5b6a280c",
+      "canonical_name_ja": "東京都写真美術館",
+      "aliases": [
+        "TOP Museum",
+        "東京都写真美術館 2F 展示室"
+      ],
+      "prefecture": "東京都",
+      "is_multi_venue": false
+    },
+    {
+      "id": "09dc1b89-6863-4216-9303-aa3b07145e21",
+      "canonical_name_ja": "東京都現代美術館",
+      "aliases": [],
+      "prefecture": null,
+      "is_multi_venue": false
+    },
+    {
+      "id": "d6d882b0-3a66-47e3-93eb-555ee22edd3f",
+      "canonical_name_ja": "東京都美術館",
+      "aliases": [
+        "Tokyo Metropolitan Art Museum",
+        "都美"
+      ],
+      "prefecture": "東京都",
+      "is_multi_venue": false
+    },
+    {
+      "id": "0d7c67f0-8b1b-4c18-a5e9-88b5b4beb536",
+      "canonical_name_ja": "松本シネマセレクト",
+      "aliases": [
+        "松本シネマセレクト（長野）",
+        "ＮＰＯ松本シネマセレクト"
+      ],
+      "prefecture": "長野県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "41d58d87-e1b6-4e73-bf0d-6bc83f8b82b5",
+      "canonical_name_ja": "桜坂劇場",
+      "aliases": [
+        "Sakurazaka Theater",
+        "さくらざかげきじょう"
+      ],
+      "prefecture": "沖縄県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "9af702c3-ebab-4860-b138-b22cd909ba40",
+      "canonical_name_ja": "森美術館",
+      "aliases": [
+        "MAM"
+      ],
+      "prefecture": "東京都",
+      "is_multi_venue": false
+    },
+    {
+      "id": "a1805b0f-7598-4c06-9e2a-03014e7d53e1",
+      "canonical_name_ja": "横浜シネマリン",
+      "aliases": [
+        "横濱シネマリン"
+      ],
+      "prefecture": "神奈川県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "3acb5393-68eb-4d2b-9466-aa7f0aaf8aea",
+      "canonical_name_ja": "横浜国際舞台芸術ミーティング",
+      "aliases": [
+        "YPAM"
+      ],
+      "prefecture": "神奈川県",
+      "is_multi_venue": true
+    },
+    {
+      "id": "445de4b2-23a4-44bf-a8cf-908ec9fbd1d7",
+      "canonical_name_ja": "福岡アジア美術館",
+      "aliases": [
+        "FAAM"
+      ],
+      "prefecture": "福岡県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "8a1e4e6f-9298-4124-bc97-4cbe9cd94b01",
+      "canonical_name_ja": "紫明会館",
+      "aliases": [
+        "紫明会館（京都）"
+      ],
+      "prefecture": "京都府",
+      "is_multi_venue": false
+    },
+    {
+      "id": "fd330e2a-e8e8-40fb-9fcb-d1af44d7be3a",
+      "canonical_name_ja": "誠品生活日本橋",
+      "aliases": [
+        "eslite spectrum nihonbashi",
+        "誠品生活",
+        "誠品生活日本橋 イベントスペース「FORUM」",
+        "誠品生活日本橋　イベントスペース「FORUM」",
+        "誠品生活日本橋内　イベントスペース"
+      ],
+      "prefecture": "東京都",
+      "is_multi_venue": false
+    },
+    {
+      "id": "927d114a-2b53-4de1-9523-b09aec0ab0e7",
+      "canonical_name_ja": "道の駅まえばし赤城",
+      "aliases": [
+        "まえばし赤城",
+        "道の駅 まえばし赤城"
+      ],
+      "prefecture": "群馬県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "99e14637-fe77-42b0-9328-0843d8d5c238",
+      "canonical_name_ja": "長野相生座・ロキシー",
+      "aliases": [
+        "ロキシー",
+        "長野相生座"
+      ],
+      "prefecture": "長野県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "1f1c1a2e-7406-4547-9461-773a5cc8d3b0",
+      "canonical_name_ja": "静岡シネ・ギャラリー",
+      "aliases": [
+        "シネ・ギャラリー"
+      ],
+      "prefecture": "静岡県",
+      "is_multi_venue": false
+    },
+    {
+      "id": "1de8358d-f100-487d-aff3-cff7f686ae0a",
+      "canonical_name_ja": "高田世界館",
+      "aliases": [
+        "Takada Sekaikan"
+      ],
+      "prefecture": "新潟県",
+      "is_multi_venue": false
+    }
+  ]
+}
