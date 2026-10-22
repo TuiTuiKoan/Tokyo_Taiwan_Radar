@@ -148,7 +148,7 @@ push 之間若有別的 campaign 的 commit 進入 `origin/main`，單一跨度�
 
 ### 來源 5 排除 `daily-review` label
 
-每日自動產生的 `daily-review` 提醒 issue 內文列出當天 commit 主旨，主旨提到 slug 就會命中來源 5
+`daily-review` 提醒 issue 列出 commit 主旨（2026-10-22 起改為同一張 issue 每天一則留言），主旨提到 slug 就會命中來源 5
 （2026-10-13 ai-portability：#296 使 `open_issues=1`）。搜尋因此是 `<slug> -label:daily-review`，輸出行
 註明 `excluding label:daily-review`。它是提醒、不是待辦。已知限制：真的待辦 issue 若被貼上這個 label
 會被漏掉，所以這個 label 只留給自動產生的提醒。

@@ -129,7 +129,7 @@ Exit code：`0` = RETIRE_CANDIDATE、`10` = HOLD、`20` = UNDETERMINED、`2` = �
   來源 4 的範圍是一段或多段：單次 push 用 `--base`／`--head`；多次 push 的 campaign 逐次各給一個
   `--range`，再以 `--base`／`--head` 給完整範圍，見上面「多次 push 的 campaign」。未涵蓋的命中要人工
   複核歸屬：屬於別的 campaign → 在結案記錄的 Known risks 說明；屬於漏給的一次 push → 補一個
-  `--range` 重跑。來源 5 搜尋時排除帶 `daily-review` label 的 issue：那是每日自動產生的提醒，內文
+  `--range` 重跑。來源 5 搜尋時排除帶 `daily-review` label 的 issue：那是自動維護的提醒，每天以留言
   列出 commit 主旨，主旨含 slug 就會命中，不是待辦。
 
   來源 1 與 2 先解析 `docs/specs/active/<slug>/`；不存在才比對 `archive/` 下名稱等於 `<slug>`
