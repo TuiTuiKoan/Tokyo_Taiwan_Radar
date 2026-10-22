@@ -102,4 +102,6 @@ jobs:
         if: needs.classify.outputs.merge == 'true'
         env:
           SHA: ${{ needs.classify.outputs.sha }}
-        run: gh pr merge "$PR" --repo "$REPO" --squash --match-head-commit "$SHA"
+        # --delete-branch: merges made with GITHUB_TOKEN do not trigger the repo's
+        # "automatically delete head branches" setting (observed on PR #307).
+        run: gh pr merge "$PR" --repo "$REPO" --squash --match-head-commit "$SHA" --delete-branch

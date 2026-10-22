@@ -37,12 +37,13 @@
 
 - [x] 使用者核准後關閉 merge commit（2026-10-22 已執行；`delete_branch_on_merge` 已開啟；改版後不需要 `allow_auto_merge`）
 - [x] ~~為 `main` 建立只要求 status checks 的 ruleset~~ 延到 Phase F；改版後合併只在 gitleaks 成功後發生並綁定被掃描的 commit，已滿足 Plan Critic P1
-- [ ] 前提：roadmap 的 enrich_poster 暫停已完成（commit `e3cadbe0`，待使用者 push）
+- [x] 前提：roadmap 的 enrich_poster 暫停已完成（2026-10-22 已上線）
 - [x] 新增 PR Tier workflow 與分類程式：`.github/workflows/pr-tier.yml`、`scripts/ci/pr_tier.py`、`scripts/tests/test_pr_tier.py`
 - [x] Codex 資安審查第一版（`critique-phase-d.md`），兩個 P1 已修：改用 `workflow_run` 加 `--match-head-commit`、檢查檔案清單完整性（50 passed，actionlint 通過）
 - [x] 使用者核准後建立 `tier:0`、`tier:1`、`tier:2` 三個 label（2026-10-22 已建立）
-- [ ] 用一個只改 `.github/skills/**/history.md` 的 PR 驗證 Tier 0 在 gitleaks 後自動合併
-- [ ] 對同一個 PR 追加非文件 commit 的情境，確認不會合併（可用 draft PR 或單元測試以外的實測）
+- [x] 用一個只改 `.github/skills/**/history.md` 的 PR 驗證 Tier 0 在 gitleaks 後自動合併（PR #307，`notes.md` B6）
+- [x] 對同一個 PR 追加非文件 commit 的情境，確認不會合併（PR #308，`notes.md` B6）
+- [x] Tier 0 合併加上 `--delete-branch`：`GITHUB_TOKEN` 的合併不會觸發 repo 的自動刪除 branch
 
 ## Phase E: 試行兩週
 
