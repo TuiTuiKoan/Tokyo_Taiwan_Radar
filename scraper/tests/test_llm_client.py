@@ -110,11 +110,26 @@ def test_finish_passes_runs_with_few_or_isolated_failures(calls, errors):
     llm_client.finish()
 
 
-def test_api_key_prefers_the_group_key(monkeypatch):
+def test_api_key_prefers_the_project_key(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "shared")
     monkeypatch.setenv("OPENAI_API_KEY_ENRICH", "enrich-only")
+    monkeypatch.delenv("OPENAI_API_KEY_ANNOTATOR", raising=False)
     assert llm_client.api_key_for("enrich.poster") == "enrich-only"
     assert llm_client.api_key_for("annotator.annotate") is None  # SDK falls back to OPENAI_API_KEY
+
+
+@pytest.mark.parametrize("caller", ["qa.heartbeat", "broadcast.post", "auto_scraper.generate"])
+def test_qa_broadcast_and_auto_scraper_use_the_enrich_project(monkeypatch, caller):
+    monkeypatch.setenv("OPENAI_API_KEY_ENRICH", "enrich-only")
+    assert llm_client.api_key_for(caller) == "enrich-only"
+
+
+def test_eval_has_its_own_project(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY_ENRICH", "enrich-only")
+    monkeypatch.delenv("OPENAI_API_KEY_EVAL", raising=False)
+    assert llm_client.api_key_for("eval.historical") is None
+    monkeypatch.setenv("OPENAI_API_KEY_EVAL", "eval-only")
+    assert llm_client.api_key_for("eval.historical") == "eval-only"
 
 
 def test_unknown_group_is_rejected():
@@ -131,7 +146,7 @@ def test_get_client_resolves_the_sdk_at_call_time(monkeypatch):
             self.chat = SimpleNamespace(completions=SimpleNamespace(create=lambda **kw: "ok"))
 
     monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(OpenAI=FakeOpenAI))
-    monkeypatch.delenv("OPENAI_API_KEY_QA", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY_ENRICH", raising=False)
     llm = llm_client.get_client("qa.heartbeat")
     assert llm.chat.completions.create(model="m", messages=[]) == "ok"
     assert seen == {"api_key": None}

@@ -1417,7 +1417,7 @@ ALTER TABLE research_sources
 
 ### Scraper OpenAI calls go through `scraper/llm_client.py` (2026-10, #319)
 
-- Create clients with `get_client("<group>.<name>")` (or `get_async_client`), never `OpenAI(...)`. Groups: `annotator`, `enrich`, `qa`, `broadcast`, `eval`, `auto_scraper`; the group picks `OPENAI_API_KEY_<GROUP>` before `OPENAI_API_KEY`. The returned client keeps the SDK shape (`.chat.completions.create`, `.responses.create`).
+- Create clients with `get_client("<group>.<name>")` (or `get_async_client`), never `OpenAI(...)`. Groups: `annotator`, `enrich`, `qa`, `broadcast`, `eval`, `auto_scraper`; the group's OpenAI project (`llm_client.PROJECT_OF_GROUP`: qa, broadcast and auto_scraper bill to enrich) picks `OPENAI_API_KEY_<PROJECT>` before `OPENAI_API_KEY`. Never pass `api_key=os.environ["OPENAI_API_KEY"]` to `get_client`; it bypasses the project key. A workflow step that runs a new caller needs that project's secret in its `env`. The returned client keeps the SDK shape (`.chat.completions.create`, `.responses.create`).
 - A retired model, bad key or exhausted quota raises `LLMConfigError`, a `BaseException` on purpose so `except Exception` cannot swallow it. Do not catch it to "keep going": `gpt-4o-search-preview` returned 404 for two months (2026-08-20 on) while every run showed success.
 - Call `llm_client.finish()` at the end of a script's `__main__`; it exits non-zero when most calls failed.
 - A new LLM step in `scraper.yml` gets an `id`, `continue-on-error: true`, and a line in the final "Fail on LLM step errors" step.

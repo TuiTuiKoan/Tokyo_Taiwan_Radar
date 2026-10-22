@@ -41,6 +41,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY_ANNOTATOR: ${{ secrets.OPENAI_API_KEY_ANNOTATOR }}
+          OPENAI_API_KEY_ENRICH: ${{ secrets.OPENAI_API_KEY_ENRICH }}
           DEEPL_API_KEY: ${{ secrets.DEEPL_API_KEY }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |

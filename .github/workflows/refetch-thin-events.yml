@@ -39,6 +39,8 @@ jobs:
           SUPABASE_URL: "${{ secrets.SUPABASE_URL }}"
           SUPABASE_SERVICE_ROLE_KEY: "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
           OPENAI_API_KEY: "${{ secrets.OPENAI_API_KEY }}"
+          OPENAI_API_KEY_ANNOTATOR: "${{ secrets.OPENAI_API_KEY_ANNOTATOR }}"
+          OPENAI_API_KEY_ENRICH: "${{ secrets.OPENAI_API_KEY_ENRICH }}"
         run: python refetch_thin_events.py --limit 20
 
       - name: Re-annotate pending events
@@ -46,5 +48,7 @@ jobs:
           SUPABASE_URL: "${{ secrets.SUPABASE_URL }}"
           SUPABASE_SERVICE_ROLE_KEY: "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
           OPENAI_API_KEY: "${{ secrets.OPENAI_API_KEY }}"
+          OPENAI_API_KEY_ANNOTATOR: "${{ secrets.OPENAI_API_KEY_ANNOTATOR }}"
+          OPENAI_API_KEY_ENRICH: "${{ secrets.OPENAI_API_KEY_ENRICH }}"
           DEEPL_API_KEY: "${{ secrets.DEEPL_API_KEY }}"
         run: python annotator.py --limit 100

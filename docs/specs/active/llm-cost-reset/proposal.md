@@ -82,12 +82,12 @@ enrich_addresses 的新流程：
 - `get_client(caller)`／`get_async_client(caller)` 包住 `openai.OpenAI`／`AsyncOpenAI`，對外保留 SDK 的 `chat.completions.create(...)` 與 `responses.create(...)`，參數直接轉給 SDK，回傳原本的 response 物件。呼叫點只換建立 client 的那一行，既有的測試替身也不必改。M2 已完成這一步，M4 只在 client 內部加入寫入紀錄，呼叫點不必再改。
 - 從 response 的 `usage` 讀 tokens：chat 用 `prompt_tokens`、`prompt_tokens_details.cached_tokens`、`completion_tokens`；responses 用 `input_tokens`、`input_tokens_details.cached_tokens`、`output_tokens`，`web_search_calls` 數 `output` 裡 `type == "web_search_call"` 的項目。圖片的 tokens 已含在 input 中。
 - 紀錄先放在記憶體，每 20 筆或 `finish()`／`atexit` 時批次寫入 `llm_usage`。寫入失敗只記 warning，不影響主流程。`--dry-run` 若仍實際呼叫 API，也要記錄（那是真的花錢）。
-- API key 依 caller 群組選擇：`OPENAI_API_KEY_<GROUP>`，沒有設定時退回 `OPENAI_API_KEY`。scraper 的群組是 `annotator`、`enrich`、`qa`、`broadcast`、`eval`、`auto_scraper`，網站是 `web`；未知群組直接報錯。#320 因此只剩使用者在 OpenAI 建 project、發 key、設 secrets，以及在 workflow 傳入對應的環境變數。
+- API key 依 caller 群組所屬的 OpenAI project 選擇：`OPENAI_API_KEY_<PROJECT>`，沒有設定時退回 `OPENAI_API_KEY`。使用者 2026-10-23 裁決分成 4 個 project：`annotator`、`enrich`（`qa`、`broadcast`、`auto_scraper` 也算在這裡）、`eval`（CI 與回測，讓 PR 測試的花費和正式環境分開）、`web`（`OPENAI_API_KEY_WEB`）。對照表在 `llm_client.PROJECT_OF_GROUP`。（原設計是每個群組一把 key，改成 4 個 project 以減少 secrets 數量。）scraper 的群組是 `annotator`、`enrich`、`qa`、`broadcast`、`eval`、`auto_scraper`，網站是 `web`；未知群組直接報錯。#320 因此只剩使用者在 OpenAI 建 project、發 key、設 secrets，以及在 workflow 傳入對應的環境變數。
 
 **TypeScript：`web/lib/llm/openai.server.ts`**
 
 - `callOpenAI({ caller, userId, body, timeoutMs })`：送出 fetch、解析 `usage`、以 service-role client 寫入 `llm_usage`（用 Next.js `after()`，不拖慢回應）、統一錯誤處理。6 個 route 改用它。
-- `assertLlmQuota(userId, caller, limitPerDay)`：數 `llm_usage` 中該使用者 24 小時內的列數，超過時回 429。這就是 #322 要的帳號 API 每人限流，不另建計數表。admin 不受限。
+- ~~`assertLlmQuota(userId, caller, limitPerDay)`：數 `llm_usage` 中該使用者 24 小時內的列數~~（2026-10-23 改設計）：`llm_usage` 在回應送出後才由 `after()` 寫入，同時送出的多個請求都會看到舊的列數，擋不住連發。改用既有的 `account_usage` 計數表（migration 086），由 migration 103 加上 `extract_count` 與 service-role 專用的 `consume_account_ai_quota()`，在呼叫 OpenAI 前以列鎖原子地加一；`web/lib/llm/accountQuota.server.ts` 在 RPC 失敗時拒絕（fail closed）。上限由使用者裁決：每人每日 annotate 30、image 10，全站每日 annotate 300、image 100，以日本日期計。admin 路由不受限。2026-06-05 曾有同樣的限流（`4da6dede` 移除），當時兩個路由共用 `annotate_count`，annotate 會吃掉 image 的 5 次額度，而且 wizard 沒有對應的錯誤訊息。
 
 **報表（#322）**
 

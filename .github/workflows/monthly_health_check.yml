@@ -153,6 +153,7 @@ jobs:
         working-directory: scraper
         env:
           OPENAI_API_KEY: "${{ secrets.OPENAI_API_KEY }}"
+          OPENAI_API_KEY_EVAL: "${{ secrets.OPENAI_API_KEY_EVAL }}"
         run: |
           MONTH=$(date +%Y-%m-01)
           mkdir -p ../docs/evaluation/annotator
@@ -171,6 +172,7 @@ jobs:
         continue-on-error: true
         env:
           OPENAI_API_KEY: "${{ secrets.OPENAI_API_KEY }}"
+          OPENAI_API_KEY_EVAL: "${{ secrets.OPENAI_API_KEY_EVAL }}"
           SUPABASE_URL: "${{ secrets.SUPABASE_URL }}"
           SUPABASE_SERVICE_ROLE_KEY: "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
         run: |

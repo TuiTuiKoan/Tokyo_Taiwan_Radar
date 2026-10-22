@@ -46,6 +46,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY_ANNOTATOR: ${{ secrets.OPENAI_API_KEY_ANNOTATOR }}
+          OPENAI_API_KEY_ENRICH: ${{ secrets.OPENAI_API_KEY_ENRICH }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           CONTENTFUL_TOKEN: ${{ secrets.CONTENTFUL_TOKEN }}
           DEEPL_API_KEY: ${{ secrets.DEEPL_API_KEY }}
@@ -70,6 +72,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY_ANNOTATOR: ${{ secrets.OPENAI_API_KEY_ANNOTATOR }}
+          OPENAI_API_KEY_ENRICH: ${{ secrets.OPENAI_API_KEY_ENRICH }}
         run: python annotator.py --limit 500
         continue-on-error: true
 
@@ -88,6 +92,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY_ANNOTATOR: ${{ secrets.OPENAI_API_KEY_ANNOTATOR }}
+          OPENAI_API_KEY_ENRICH: ${{ secrets.OPENAI_API_KEY_ENRICH }}
         run: python annotator.py --fix-reviewed
         continue-on-error: true
 
@@ -107,6 +113,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY_ANNOTATOR: ${{ secrets.OPENAI_API_KEY_ANNOTATOR }}
+          OPENAI_API_KEY_ENRICH: ${{ secrets.OPENAI_API_KEY_ENRICH }}
         run: python annotator.py --enrich-person-names
         continue-on-error: true
 
@@ -119,6 +127,8 @@ jobs:
         working-directory: scraper
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY_ANNOTATOR: ${{ secrets.OPENAI_API_KEY_ANNOTATOR }}
+          OPENAI_API_KEY_ENRICH: ${{ secrets.OPENAI_API_KEY_ENRICH }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python enrich_poster.py
@@ -130,6 +140,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY_ANNOTATOR: ${{ secrets.OPENAI_API_KEY_ANNOTATOR }}
+          OPENAI_API_KEY_ENRICH: ${{ secrets.OPENAI_API_KEY_ENRICH }}
         run: python enrich_location.py
         continue-on-error: true
 

@@ -96,3 +96,20 @@ M1 移除 researcher（1）、discovery_accounts（2）、qa_auto_fix 備援（1
 - migration 編號：main 已有 `100_rpc_execute_lockdown.sql`（另一個 session，已替本 spec 的 099 保留編號），所以原本用 101。2026-10-23 套用到 production 後，才發現另一個 session 同時以 `101_rpc_lockdown_followup.sql` 用掉 101 並已套用；兩者內容不重疊，本檔改名為 `102_llm_usage_embeddings.sql`，production 的紀錄名稱仍是 `20261022165956 101_llm_usage_embeddings`。教訓：開 migration 前先 `git fetch` 看 main 的最新編號，套用前再看一次。
 - 修正後重跑（run 39818875798）：成功；`llm_usage` 有 100 次 gpt-4o-mini chat 與 1 次 `text-embedding-3-small` embeddings（97,943 input tokens），該次合計 $0.18。
 - `Auto-merge Dependabot` 的 skipped 是正常的：`if: github.actor == 'dependabot[bot]'`。
+
+## M5 #322 帳號 API 限流：production 試跑（2026-10-23，DO 區塊結尾 RAISE，整批 rollback）
+
+- 對既有使用者以 image 上限 2 連呼三次：`1, 2, -1`；全站上限 0 的 annotate：`-2`；未知 kind：`22023`。
+- 權限：anon `f`、authenticated `f`、service_role `t`。日本日期 `2026-10-23`。
+- 試跑後讀回：`account_usage` 仍 4 列，`extract_count` 欄位與函式都不存在。
+
+## M5 #320 OpenAI project 設定步驟（使用者執行）
+
+程式已就緒：沒有設定的 project key 一律退回 `OPENAI_API_KEY`，所以可以逐一設定、隨時開始。
+
+1. OpenAI dashboard → Projects，建立 `ttr-annotator`、`ttr-enrich`、`ttr-eval`、`ttr-web`，各發一把 API key。每個 project 的 Limits 可以順便設月上限。
+2. GitHub → Settings → Secrets and variables → Actions，新增 `OPENAI_API_KEY_ANNOTATOR`、`OPENAI_API_KEY_ENRICH`、`OPENAI_API_KEY_EVAL`。正式環境的 workflow 傳入前兩把，`eval-*` 與 `monthly_health_check` 只傳 `EVAL`；`deps-verify` 只建網站，不傳。
+3. Vercel → Project → Settings → Environment Variables，新增 `OPENAI_API_KEY_WEB`（Production 與 Preview），然後 redeploy。
+4. 本機（選用）：`scraper/.env` 可加同名的三把 key；不加就用原本的 `OPENAI_API_KEY`。
+5. 全部生效、跑過一輪後，原本的 `OPENAI_API_KEY` 只剩後備用途；確認 dashboard 上舊 project 不再有新費用，再決定是否撤銷。
+

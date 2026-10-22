@@ -55,6 +55,8 @@ jobs:
           ))
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY_ANNOTATOR: ${{ secrets.OPENAI_API_KEY_ANNOTATOR }}
+          OPENAI_API_KEY_ENRICH: ${{ secrets.OPENAI_API_KEY_ENRICH }}
         run: |
           if [ -z "$OPENAI_API_KEY" ]; then
             echo "::error title=OPENAI_API_KEY missing::The OPENAI_API_KEY secret is empty. Set it at Settings -> Secrets and variables -> Actions -> OPENAI_API_KEY."
@@ -99,6 +101,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY_ANNOTATOR: ${{ secrets.OPENAI_API_KEY_ANNOTATOR }}
+          OPENAI_API_KEY_ENRICH: ${{ secrets.OPENAI_API_KEY_ENRICH }}
           NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
         run: python weekly_line_broadcast.py --generate-draft
 
@@ -123,6 +127,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY_ANNOTATOR: ${{ secrets.OPENAI_API_KEY_ANNOTATOR }}
+          OPENAI_API_KEY_ENRICH: ${{ secrets.OPENAI_API_KEY_ENRICH }}
           NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
         run: python weekly_line_broadcast.py --dry-run
 

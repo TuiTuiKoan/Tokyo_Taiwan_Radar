@@ -29,8 +29,10 @@ only logs a warning. Cost is computed by the llm_cost_daily view from
 llm_pricing; nothing here knows a price. LLM_USAGE_DISABLED=1 turns recording
 off (the test suite sets it).
 
-Callers are named "<group>.<name>". The group picks the API key:
-OPENAI_API_KEY_<GROUP> when set, else OPENAI_API_KEY (#320).
+Callers are named "<group>.<name>". The group picks the OpenAI project's API
+key (#320): OPENAI_API_KEY_<PROJECT> when set, else OPENAI_API_KEY. qa,
+broadcast and auto_scraper bill to the enrich project; the web app has its own
+(OPENAI_API_KEY_WEB, web/lib/llm/usage.ts).
 
 The SDK is imported when a client is created, not at module import, so tests
 that swap sys.modules["openai"] keep working.
@@ -50,7 +52,16 @@ logger = logging.getLogger(__name__)
 
 FLUSH_EVERY = 20
 
-GROUPS = frozenset({"annotator", "enrich", "qa", "broadcast", "eval", "auto_scraper"})
+# Caller group -> OpenAI project whose key it uses (#320).
+PROJECT_OF_GROUP = {
+    "annotator": "annotator",
+    "enrich": "enrich",
+    "qa": "enrich",
+    "broadcast": "enrich",
+    "auto_scraper": "enrich",
+    "eval": "eval",
+}
+GROUPS = frozenset(PROJECT_OF_GROUP)
 
 # 400 codes that mean the request shape or account is wrong, not this input.
 _CONFIG_400_CODES = frozenset({
@@ -121,8 +132,9 @@ def _group(caller: str) -> str:
 
 
 def api_key_for(caller: str) -> str | None:
-    """The group's own key when set; None lets the SDK read OPENAI_API_KEY (and fail if absent)."""
-    return os.environ.get(f"OPENAI_API_KEY_{_group(caller).upper()}") or None
+    """The project's key when set; None lets the SDK read OPENAI_API_KEY (and fail if absent)."""
+    project = PROJECT_OF_GROUP[_group(caller)]
+    return os.environ.get(f"OPENAI_API_KEY_{project.upper()}") or None
 
 
 # ── Usage ledger ────────────────────────────────────────────────────────────

@@ -172,8 +172,9 @@ def _ocr_schedule_showtimes(image_url: str, taiwan_titles: list[str]) -> dict[st
         {title: "HH:MM / HH:MM / ..."} — 見つからなければそのタイトルのキーは含まれない
         OPENAI_API_KEY 未設定時や例外時は {} を返す
     """
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
+    from llm_client import api_key_for  # noqa: PLC0415
+
+    if not (api_key_for("enrich.cinemaclair_ocr") or os.environ.get("OPENAI_API_KEY")):
         logger.debug("cinemaclair: OPENAI_API_KEY not set, skipping OCR schedule")
         return {}
 
@@ -194,7 +195,7 @@ def _ocr_schedule_showtimes(image_url: str, taiwan_titles: list[str]) -> dict[st
 
     try:
         from llm_client import get_client  # noqa: PLC0415
-        client = get_client("enrich.cinemaclair_ocr", api_key=api_key)
+        client = get_client("enrich.cinemaclair_ocr")
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
