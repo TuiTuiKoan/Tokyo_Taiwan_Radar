@@ -2,8 +2,8 @@
 slug: authoritative-venue-repair
 title: 權威場館解析與可回滾資料修復
 description: 統一場館權威解析、TIFF 實體場館路由與 immutable CAS production repair
-status: active
-branch: feat/authoritative-venue-repair
+status: archived
+branch:
 created: 2026-08-06
 tags: [scraper, venue, tiff, data-repair, cas]
 ---

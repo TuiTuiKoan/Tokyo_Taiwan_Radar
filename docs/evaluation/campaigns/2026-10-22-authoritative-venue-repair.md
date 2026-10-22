@@ -250,8 +250,40 @@ the move still finds the spec.
 
 ## Worktree disposition
 
-`pending`. No decision to retire has been taken; this block is backfilled after
-the decision.
+`remove`, decided at 2026-10-22T08:11:18Z (the time the recovery capsule was
+written, after the owner ruled issue 341 a deferred-work tracking location).
+The owner removed the worktree from a terminal outside it with
+`git worktree remove` on the registered path, without `--force`, deleted the
+branch with `git branch -d`, without `-D`, and reconciled the
+`.git/info/exclude` block as a whole. The branch had no remote counterpart.
+
+| Freshness value | Re-observed at 2026-10-22T08:10:09Z (D1, immediately before the decision) |
+|-----------------|--------------------------|
+| branch tip | `aadac0fe780136cdeddeed20bf906abdd1ee779e`, this record's commit, on `origin/main` |
+| ahead of `origin/main` | `0` |
+| behind `origin/main` | `0` |
+| dirty count | `0` |
+| ignored artifact set | `9`, the entries listed under Ignored artifacts and handling; per-directory file-list digests unchanged between 08:05Z and 08:10Z |
+| path identity | `divergent`, directory `ttr-authoritative-venue-repair-worktree`, branch `feat/authoritative-venue-repair` |
+
+No process had the worktree as its working directory or held a file open in it
+(`lsof`). The main checkout's `main` matched `origin/main` (`0 0`).
+`git cherry origin/main feat/authoritative-venue-repair` printed no line.
+
+Residue check after removal, run by the coordinating session: registration gone,
+branch gone, directory gone, administrative directory under `.git/worktrees/`
+gone, exclude line gone, `git worktree prune --dry-run` printed nothing, and the
+registered worktree count fell from 11 to 10. The exclude block held exactly the
+nine live nested worktrees afterwards, so the reconciliation removed no line
+beyond this campaign's own.
+
+The recovery capsule is kept outside the repository at
+`~/.ai-notes/ttr/capsules/2026-10-22-authoritative-venue-repair.md`
+(SHA-256 `8bedb4591b0bd56510ef0904c305e6e196767e7d6ea052044033f32e07b3be7f`).
+After the branch deletion, the pre-rebase commit `3f7c00f6` survives only as the
+patch file named under Delivered commits; its content is `10770777`.
+
+The earlier Phase A observation is kept below for reference.
 
 | Freshness value | Observed at 2026-10-22T07:48:55Z (Phase A re-run, not a decision) |
 |-----------------|--------------------------|
@@ -317,3 +349,23 @@ the 2026-10-22 main session `7933f2c9` is a Claude Code transcript, which the
 anchor generator does not support; its format compatibility was not verified. No
 anchor and no ledger were generated, so the process telemetry of this campaign
 cannot be recomputed.
+
+### Update after the close-out (2026-10-22)
+
+Issue 341, "TIFF 2026: add four authoritative venues so the tiff scraper can
+ingest the Taiwanese films", carries the `spec:authoritative-venue-repair` label.
+The coordinating session opened it at 2026-10-22T07:52:23Z, after audit run 3 and
+before this record was committed, so the record above does not name it. It is the
+board card for the four-venue work described under Known risks (the three planned
+TIFF venue inserts plus 丸の内ピカデリー), owned by a separate session.
+
+The D1 audit at 2026-10-22T08:10:30Z, run with `--head 208a59a6`, reported
+`HOLD:unhandled_work` with two open issues, 339 and 341. After reading that
+result, the owner ruled issue 341 a deferred-work tracking location, as for
+issue 339, and decided to retire the worktree. This update records the ruling; it
+does not change the script verdict.
+
+The spec directory was moved to
+`docs/specs/archive/2026-10-authoritative-venue-repair/` in the same commit as
+this update, with `status: archived` in its `proposal.md`. The Spec disposition
+section above was written before the move and is kept as written.

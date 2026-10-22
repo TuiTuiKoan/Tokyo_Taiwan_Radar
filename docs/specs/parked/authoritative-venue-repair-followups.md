@@ -11,7 +11,7 @@ tags: [scraper, venue, data-repair, cas, production]
 
 ## 來源與搬移理由
 
-`docs/specs/active/authoritative-venue-repair/tasks.md` 到 Gate 1 為止的程式修正已完成：Gate 1 correction cycle 2
+`docs/specs/archive/2026-10-authoritative-venue-repair/tasks.md`（原 `docs/specs/active/authoritative-venue-repair/`，2026-10-22 歸檔）到 Gate 1 為止的程式修正已完成：Gate 1 correction cycle 2
 的 commit `10770777`（fix(scraper): include authoritative venue updates）經獨立 Tester PASS 與使用者 Gate 1 批准，
 於 2026-10-22 fast-forward 推上 `origin/main`。使用者同日決定**暫停 production 套用**，退役
 `ttr-authoritative-venue-repair-worktree`，剩餘項目改由本 parked spec 追蹤。
@@ -21,7 +21,11 @@ tags: [scraper, venue, data-repair, cas, production]
   `git show 10770777:docs/specs/active/authoritative-venue-repair/tasks.md | sed -n '22p;140,142p;367p;376,379p;383,388p;392,401p;406p' | LC_ALL=C sort | shasum -a 256`
 - 分組標題沿用原 `tasks.md` 的章節名，組內保持原順序。
 - 條目中的 UUID allowlist、production protocol 與 STOP 條件，以 `.github/prompts/authoritative-venue-repair.prompt.md`
-  與 `docs/specs/active/authoritative-venue-repair/proposal.md` 為準；該目錄若已歸檔，改到 `docs/specs/archive/` 下對應子目錄查。
+  與 `docs/specs/archive/2026-10-authoritative-venue-repair/proposal.md` 為準（2026-10-22 自 `active/` 歸檔）。
+- 結案紀錄：`docs/evaluation/campaigns/2026-10-22-authoritative-venue-repair.md`；看板代表卡是 issue #339。
+- 三筆 TIFF 新場館 insert（ヒューリックホール東京、TOHOシネマズ シャンテ、TOHOシネマズ 日比谷 スクリーン12・13）
+  與不在原計畫內的丸の内ピカデリー，由 issue #341 另案先行處理。重啟本 runbook 時，先查 #341 的結果，
+  已寫入 production 的場館要從 capture 與 Gate 2 範圍扣除，不可重複 insert。
 - 重啟時：依 `docs/specs/README.md` 把本檔移回 `active/`，從**當下最新的 `origin/main`** 新建 worktree，不要復用已退役的
   `ttr-authoritative-venue-repair-worktree`。production state 自 2026-08-06 baseline 後已漂移，所有 live 數字必須重新 capture。
 

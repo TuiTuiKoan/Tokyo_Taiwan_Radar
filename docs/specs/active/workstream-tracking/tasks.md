@@ -129,6 +129,11 @@ exclude 重建、殘留檢查）以 `docs/evaluation/campaigns/2026-10-14-*.md` 
 由其他 session 建立並退役，整個生命週期落在兩次 ledger 快照之間，從未進過 ledger；屬正常結案，
 本檔不補記證據。
 
+`ttr-authoritative-venue-repair-worktree`（`feat/authoritative-venue-repair`）於 2026-10-22 退役：`3f7c00f6`
+rebase 為 `10770777` 經 Gate 1 推上 main，production 階段暫停，以非強制 `git worktree remove` + `git branch -d`
+移除。證據見 `docs/evaluation/campaigns/2026-10-22-authoritative-venue-repair.md`；spec 歸檔為
+`docs/specs/archive/2026-10-authoritative-venue-repair/`。上方拓撲表是退役前的快照。
+
 ### 2026-10-22 `agents/*` external worktree 合併結案紀錄
 
 9 個 `<repo>.worktrees/<slug>` + `agents/<slug>` worktree 於 2026-10-22 由使用者要求清理。移除前逐一重驗：
@@ -239,9 +244,10 @@ Eslite identity migration、PN-3a.0（`b4cb383f`）、F-1（`831871e0`）。
 - [x] Eslite identity migration
 - [x] Hybrid `70cf7002` 場地／報名 URL 分離
 - [x] F-1 詳情頁隱藏會場列（`831871e0`）
-- [ ] Authoritative venue repair（2026-10-22 觀測：停滯；`3f7c00f6`〔2026-08-09 fix(scraper): include
-      authoritative venue updates，6 檔 `+854/−41`〕仍未進 `origin/main`，`git cherry` 為 `+`，可乾淨合併；
-      去留待使用者決定，見 G3）
+- [x] Authoritative venue repair 程式修正（2026-10-22：`3f7c00f6` rebase 為 `10770777` 經 Gate 1 推上 main；
+      worktree 退役、spec 歸檔，結案紀錄 `docs/evaluation/campaigns/2026-10-22-authoritative-venue-repair.md`）
+- [ ] Authoritative venue repair production 階段（暫停）：runbook 在 `docs/specs/parked/authoritative-venue-repair-followups.md`
+      （看板 #339）；TIFF 2026 的 4 筆場館新增由 #341 另案先行
 - [ ] F-2 `container_title` 專屬欄位（需 migration）
 - [x] 決策閘門規則寫入 `SKILL.md`（`335e462a`）
 - [x] Worktree 確認閘門已進入 `origin/main`（`5d6e4a43`）
@@ -275,7 +281,7 @@ dirty 為 `--untracked-files=all` 的行數。
 | B | `ttr-publication-policy-worktree`（alias 註冊，小寫） | 0/135 | 0 | `active/publication-policy`；Phase A HOLD（24 筆待辦） |
 | C | **無** | — | — | **無** |
 | D | publication worktree + 無歸屬 backlog | — | — | **無** |
-| E（venue repair） | `ttr-authoritative-venue-repair-worktree`（alias 註冊） | 1/169 | 0 | `active/authoritative-venue-repair` |
+| E（venue repair） | 已退役（2026-10-22） | — | — | `archive/2026-10-authoritative-venue-repair`；production 階段 parked（#339、#341） |
 | 未編號 | `ttr-evaluation-framework-worktree`（alias 註冊） | 0/136 | 0 | `active/evaluation-framework`；Phase A HOLD（21 項真實待辦） |
 | 未編號 | `ttr-japan-scope-gate-worktree`（alias 註冊） | 11/195 | 16 | 無 matching spec |
 | 未編號 | `ttr-ai-harness-worktree` | 0/38 | 4 | spec 僅以未追蹤檔存在於該 worktree（`docs/specs/active/ai-harness/`），未進 `origin/main` |
@@ -342,8 +348,8 @@ spec 不帶 `proposal.md`，未逐一核對 frontmatter。這是雙向 inventory
       `scraper/location_region.py`、`.github/instructions/database.instructions.md`），本地與
       `origin/feat/japan-scope-gate` 分岔（本地領先 13、遠端領先 10，遠端含 merge commit）。
       選項：續做並補 spec／放棄並在移除前匯出 patch 備份
-- [ ] `ttr-authoritative-venue-repair-worktree`（`feat/authoritative-venue-repair`，最後 commit 2026-08-09）：
-      `3f7c00f6` 未進 `origin/main`，`git merge-tree` 顯示可乾淨合併。選項：rebase 後經 V-M-D 合併／放棄
+- [x] `ttr-authoritative-venue-repair-worktree`（`feat/authoritative-venue-repair`）：2026-10-22 使用者選擇合併；
+      `10770777` 推上 main 後 worktree 退役（見上方「2026-10 campaign worktree 退役」）
 
 查證各分支是否有未推送且未合併的 commit：
 
