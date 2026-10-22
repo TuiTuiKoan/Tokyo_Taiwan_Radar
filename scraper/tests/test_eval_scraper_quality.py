@@ -128,12 +128,12 @@ def test_completeness_counts_only_applicable_fields():
 def test_correction_rates_split_human_and_script():
     fc = [
         {"event_id": "e1", "corrected_by": "u1", "report_id": None},
-        {"event_id": "e2", "corrected_by": None, "report_id": "r1"},
+        {"event_id": "e2", "corrected_by": None, "report_id": "r1"},  # auto-QA settlement: script
         {"event_id": "e3", "corrected_by": None, "report_id": None},
         {"event_id": "zz", "corrected_by": "u1", "report_id": None},  # unknown event: ignored
     ]
     rates = correction_rates(fc, {"e1": "a", "e2": "a", "e3": "a"}, {"a": 10})
-    assert rates["a"] == {"human": 2, "script": 1, "events": 10, "human_per_100": 20.0, "script_per_100": 10.0}
+    assert rates["a"] == {"human": 1, "script": 2, "events": 10, "human_per_100": 10.0, "script_per_100": 20.0}
 
 
 # ─── Rows, action items, report ───────────────────────────────────────────────

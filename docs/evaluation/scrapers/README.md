@@ -8,7 +8,7 @@
 |---|---|---|
 | 產出健康 | `scraper_runs` 最近 7／28／120 天 | 依 `scraper/source_expectations.json` 分辨「預期中的 0」與「原因未知的 0」 |
 | 欄位完整度 | 最近 90 天建立的有效母事件 | `quality_fields.TRACKED_FIELDS` 的填寫比例；純出版紀錄不計政策上留空的欄位 |
-| 修正率 | 最近 90 天的 `field_corrections` | 人工（`corrected_by` 或 `report_id` 有值）與腳本鎖定分開；腳本鎖定不代表錯誤（#373） |
+| 修正率 | 最近 90 天的 `field_corrections` | 人工（`corrected_by` 有值，即後台編輯）與腳本寫入分開。只有 `report_id` 的列來自 qa_auto_fix 處理 auto-QA 回報，算腳本。腳本寫入不代表錯誤（#373） |
 | DOM drift | `scraper_runs.notes` 的 `parsed_fields_median` | 最近 3 次都比先前中位數低 30% 以上才告警；需要至少 6 次紀錄 |
 | Annotator 補填 | 入庫事件的追蹤欄位中位數 − scraper 當下的中位數 | 越大代表 scraper 抽得越少 |
 
