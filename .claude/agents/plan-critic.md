@@ -1,6 +1,6 @@
 ---
 name: plan-critic
-description: "Reviews and critiques implementation plans from Architect — read-only, uses a different model for diverse perspective"
+description: "Reviews and critiques implementation plans from Architect — run via Codex in read-only mode (`codex exec -s read-only`) for independent model perspective; not invoked as a Claude subagent"
 tools: Read, Grep, Glob, WebFetch, WebSearch, Bash, AskUserQuestion
 ---
 
