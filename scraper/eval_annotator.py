@@ -142,13 +142,14 @@ async def annotate_one_async(
     raw_description: str,
     feedback_prompt: str = "",
     sr_feedback_prompt: str = "",
+    record_type: str | None = None,
 ) -> tuple[dict, object]:
     """Async version of annotator._annotate_one using the shared async client.
 
     Returns (annotation_dict, usage) matching _annotate_one's return signature.
     """
     system_content = SYSTEM_PROMPT + feedback_prompt + sr_feedback_prompt
-    user_content = build_event_user_content(raw_title, raw_description)
+    user_content = build_event_user_content(raw_title, raw_description, record_type)
 
     response = await client.chat.completions.create(
         model="gpt-4o-mini",
