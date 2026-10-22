@@ -28,6 +28,8 @@ Read this at the start of every session before running any test.
 - **Never accept the implementer's self-reported fix as evidence.** Re-derive it independently. Example: Engineer reported the `trim()` defect as fixed; direct execution showed `trim()` still returned `TokyoTaiwanRadarclone` for a path containing spaces, while `trim_edges()` preserved it. Self-reports describe intent; only execution describes behavior.
 - **Never read an exit code through a pipeline.** In `cmd | tail`, `$?` is `tail`'s status, not `cmd`'s — a failing command reads as exit 0. Capture output to a file or variable first, then test `$?`, or use `set -o pipefail` / `${PIPESTATUS[0]}`. Assert the exit code and the stdout marker as two separate checks.
 - **Probe with a variant the implementer has not seen.** A fix aimed at one shape of input (say, quoted values) frequently leaves neighbouring shapes (quoted *and* padded with whitespace) broken. Choose the untested combination on purpose.
+- **Prove a negative control actually loads the old code.** `python -m pytest` puts the cwd first on `sys.path`, ahead of `PYTHONPATH`, so running from the worktree's `scraper/` always imports the working-tree module. To test an old version (for example `git show origin/main:<path>` exported to a temp dir), run pytest from a directory outside the repo and assert the old behavior appears before trusting the comparison.
+- **For data-repair tools, run the whole concrete plan end to end.** Executor and single-action rollback tests are not enough: run apply → second apply (must be all noop) → rollback on the complete planned action set. Pre-existing inconsistencies in the before state only surface this way (2026-10-22: the 70-action venue repair could not roll back past one malformed online-grant event; see `history.md`).
 
 ## Reporting
 - Report failures with: source name, event title, field name, expected value, actual value.
@@ -45,6 +47,7 @@ Read this at the start of every session before running any test.
 - **Always use quoted heredocs** for multi-line scripts: `python3 - <<'PY'` (note the quoted `'PY'`). Quoted delimiter disables both variable interpolation and history expansion.
 - **If `!` is unavoidable in a single-line command, escape it**: `\!r` instead of `!r`.
 - **Always quote paths containing `[` or `]`** (for example `app/[locale]/account/events/new/page.tsx`) when passing them to zsh commands such as `eslint`, `grep`, or `sed`; otherwise zsh treats them as glob patterns and can fail with `no matches found`.
+- **Keep path lists in an array, not a string.** zsh does not word-split an unquoted `$F`, so `F="a b"; git log -- $F` passes one nonexistent path and returns empty output instead of an error. Use `F=(a b)` and `"${F[@]}"`. Treat an unexpectedly empty result as a command bug until proven otherwise.
 - **Preflight (machines without `NO_BANG_HIST`)**: `[[ -o BANG_HIST ]] && echo "WARN: history expansion enabled, use heredoc"`.
 - **Detection signals during execution**: `zsh: event not found`, or an echoed command that doesn't match what you typed → stop immediately, do NOT press enter on follow-up prompts.
 - This repo's owner shell has `setopt NO_BANG_HIST` permanently set in `~/.zshrc` since 2026-05-26 after a near-miss `rm` resurrection (see `history.md` 2026-05-26 entry).

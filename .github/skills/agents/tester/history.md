@@ -7,6 +7,20 @@ ms.date: 2026-06-04
 
 <!-- Append new entries at the top -->
 
+## 2026-10-22 - authoritative venue repair 驗收：zsh 路徑變數、pytest 負向對照、完整計畫 rollback
+
+**問題：** 驗收 Gate 1 correction cycle 2（`10770777`）時遇到三件事：① 比對「main 是否改過這批檔案」時拿到空結果，差點誤判 rebase 沒有吃掉 main 的改動；② 想用 `origin/main` 版的舊 module 做負向對照，`pytest` 卻載入了 worktree 裡的新 module；③ executor 與單一 action 的 rollback 測試全過，但對完整 70-action 計畫實跑 apply → 第二次 apply → rollback，在倒序第 37 筆就以 event/FC exact read-back mismatch 停下（R1，舊版 64-action planner 同樣失敗）。
+
+**根因：**
+1. zsh 預設不對未加引號的 `$F` 做 word splitting，一個含多個路徑的字串變數會被當成單一（不存在的）路徑傳給 `git log --`，結果是空輸出而不是錯誤。
+2. `python -m pytest` 把 cwd 放在 `sys.path` 最前面，優先於 `PYTHONPATH`；在 worktree 的 `scraper/` 下執行，永遠載到工作樹裡的版本。
+3. 完整計畫裡有一筆 online grant event 的 before 狀態本身不一致（FC `corrected_value` 為 `"null"`／`"[]"`，event 卻有實際地址），`unlock_and_write` 讓 event 與 FC 保持同步，重建不出這種狀態。單一 action 的 fixture 都是一致狀態，所以碰不到。
+
+**修正：** 路徑清單改用 array `F=(a b c)` 並以 `"${F[@]}"` 展開；舊 module 對照改從 repo 外的目錄執行；R1 已寫入 `docs/specs/parked/authoritative-venue-repair-followups.md`，Gate 2 前由 Engineer 決定修 rollback 路徑或明確揭露。
+
+**教訓：** 空結果要先懷疑命令本身（變數展開、cwd、sys.path），再相信「沒有差異」；負向對照必須證明真的載到舊程式碼。資料修復工具除了單一 action，**必須對完整的具體計畫跑一次 apply → 第二次 apply → rollback**，before 狀態裡的既有不一致只有這樣才找得到。
+
+
 ## 2026-07-11 - publication phase 3 驗收新增 exact pure 與 mixed-negative 檢查
 
 **問題：** 既有 publication 驗收偏重 `annotation_status` 與翻譯欄位，未覆蓋「exact pure vs mixed physical」與七欄 intentional-null + sentinel 一致性，容易把 policy drift 誤判為通過。
