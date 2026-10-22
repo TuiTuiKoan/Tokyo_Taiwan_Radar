@@ -18,11 +18,11 @@
 - [x] 修改 `scripts/claude/_policy.py` 的 `check_push`，讓測試通過；既有 deny 測試全部維持
 - [x] 跑 `python3 -m pytest scripts/claude/tests scripts/tests -q` 全綠（615 passed）
 - [x] 實測 Claude Code 2.1.304 下 hook allow 與 `permissions.ask` 的優先順序，以及 auto mode 是否放行推 feature branch，記錄到 `notes.md`（文件查證完成：ask 規則不受 hook allow 影響；互動實測 NOT TESTED，使用者步驟 U-B1～U-B4 見 `notes.md` B2）
-- [ ] 依實測結果提出 `.claude/settings.json` 修改方案；方案寫進 `notes.md`，未經使用者核准不改檔（方案 A／B 已寫在 `notes.md` B2，建議方案 B；等使用者核准後才改檔與 `test_claude_settings.py`）
+- [x] 依實測結果提出 `.claude/settings.json` 修改方案；方案寫進 `notes.md`，未經使用者核准不改檔（方案 A／B 已寫在 `notes.md` B2，建議方案 B；等使用者核准後才改檔與 `test_claude_settings.py`）
   - **阻擋條件**：使用者從 worktree 根目錄完成 U-B1～U-B3 之前，不改 `.claude/settings.json`（Plan Critic P1）
   - U-B1～U-B3 已於 2026-10-22 完成，結果符合文件（`notes.md` B4）
-  - [ ] 使用者套用 patch：settings 方案 B 擴充版、`test_claude_settings.py`、`AGENTS.md` 說明（agent 修改 settings 被分類器以 Self-Modification 拒絕）
-  - [ ] U-B4：套用後重複 U-B1 應不提示、重複 U-B3 應仍提示
+  - [x] 使用者套用 patch（commit `d92e1dfc`）：settings 方案 B 擴充版、`test_claude_settings.py`、`AGENTS.md` 說明（agent 修改 settings 被分類器以 Self-Modification 拒絕）
+  - [x] U-B4：套用後推 feature branch 不提示、推 main 仍提示（`notes.md` B5）
   - 套用方案 B 時附上 pattern 比對測試（Plan Critic P2）
 - [x] 更新 `AGENTS.md`「Hooks 與 permissions」第一批規則表的 push 列
 
@@ -59,4 +59,4 @@
 
 - [ ] `python3 -m pytest scripts/claude/tests scripts/tests -q` 全綠
 - [ ] `python3 scripts/sync_ai_adapters.py --check` 通過
-- [ ] 實際由 agent 推 feature branch 不被提示，推 main 仍被提示
+- [x] 實際由 agent 推 feature branch 不被提示，推 main 仍被提示（`notes.md` B5）

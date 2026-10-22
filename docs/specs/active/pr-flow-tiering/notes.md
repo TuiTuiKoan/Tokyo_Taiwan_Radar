@@ -197,3 +197,15 @@ git -c remote.origin.push=refs/heads/feat/x:refs/heads/main push origin feat/x
 擴充的理由：`git push`、`git push origin`、`git push -u origin HEAD` 的目的端取決於當前 branch，可能是 main。hook 本來就對它們 ask，所以 settings 多比對這些形式不會增加平常的提示次數，只在 hook 不存在時補上保底。推 feature branch 的常見寫法（`feat/x`、`HEAD:feat/x`、`main:feat/x`、`feat/main-fix`）都不會命中。
 
 **套用方式**：協調者以 agent 身分修改 `.claude/settings.json` 時，auto mode 分類器以 `[Self-Modification]` 拒絕，連讀取該檔也被拒。這符合「agent 不得自行修改權限設定」的設計，因此 settings、`scripts/tests/test_claude_settings.py` 與 `AGENTS.md` 的對應說明做成 patch，由使用者檢查後套用並 commit。套用後跑 U-B4：重複 U-B1 應不再提示，重複 U-B3 應仍提示。
+
+## B5 使用者實測 U-B4（2026-10-22，套用 commit `d92e1dfc` 之後）
+
+同樣在 worktree 根目錄以 `claude --permission-mode auto` 開新 session 測試。
+
+| 命令 | 結果 |
+|---|---|
+| `git push --dry-run origin feat/pr-flow-tiering` | 不提示，顯示 `Allowed by auto mode classifier`，gitleaks 掃 12 個 commit 後執行 dry-run |
+| `git -C . push --dry-run origin HEAD:main` | 提示，文字為 `ttr-hook: git push to main, or to a destination the hook cannot determine, requires explicit user approval [push-gate]`，使用者選 No |
+| `git push --dry-run origin HEAD:main` | 預期提示；settings 的 `Bash(git push *main)` 與 hook 都會要求核准 |
+
+結論：推 feature branch 不再需要人工核准，推 main 仍由 hook 與 settings 兩層要求核准。
