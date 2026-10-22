@@ -113,3 +113,9 @@ M1 移除 researcher（1）、discovery_accounts（2）、qa_auto_fix 備援（1
 4. 本機（選用）：`scraper/.env` 可加同名的三把 key；不加就用原本的 `OPENAI_API_KEY`。
 5. 全部生效、跑過一輪後，原本的 `OPENAI_API_KEY` 只剩後備用途；確認 dashboard 上舊 project 不再有新費用，再決定是否撤銷。
 
+## M5 報表實測（2026-10-23，使用者執行，唯讀）
+
+- `daily_report --dry-run`：昨日（10-22）$0.2440，與當天兩個 CI eval（Historical Backtest 失敗那次 $0.18、Venue Pipeline Eval $0.06）相符；30 天 $0.24；出現帳本起始日註記。
+- `quota_monitor --check-budget`：`eval.annotator*` 10-17..10-23 為 $0.0000、0 次，exit 0；請求以 `limit=1000` 分頁。
+- `docs_report --mode weekly --dry-run`：預設週（10-12..10-18）在帳本之前，費用 $0.0000，並顯示「以 OpenAI dashboard 為準」與帳本起始日兩則註記。
+
