@@ -16,7 +16,7 @@
 - [x] 依 `.github/instructions/git.instructions.md § Isolated worktree` 的 state matrix 建立
       （branch `feat/ndl-relevance-publication`，預期為 branch missing → `-b`）
 - [x] idempotent append `ttr-ndl-relevance-publication-worktree/` 至 `.git/info/exclude`
-- [ ] Step 0 重查基準：`git fetch origin` 後 `git rev-parse HEAD origin/main` 兩行相同；
+- [x] Step 0 重查基準：`git fetch origin` 後 `git rev-parse HEAD origin/main` 兩行相同；
       ndl 有效頂層筆數、`["senses"]` 單標筆數、ndl 停用筆數與 `notes.md` § 基準快照比對，
       漂移就停下回報
 

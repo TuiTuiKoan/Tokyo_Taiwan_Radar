@@ -24,6 +24,40 @@
 | 10-13 之後新進 ndl | 24 筆，空分類 2 筆 |
 | hanmoto pure publication（頂層） | 78 筆：有效 40、因併入 ndl 而停用 38；全數帶 7 個空 sentinel（F9 重查） |
 
+### Phase 0 Step 0 重查（2026-10-22，Engineer，live DB 唯讀 SELECT）
+
+`git fetch origin` 後 `origin/main` ＝ `b78510bb`（規劃起點），沒有新 commit；worktree HEAD 在其上多一個
+只勾 tasks 的 commit，base 相同。
+
+| 項目 | 規劃快照 | 重查 | 判定 |
+|------|---------|------|------|
+| events 總列數 | 3318 | 3327 | 自然增長 |
+| 有效頂層活動 | 2070 | 2078 | 自然增長 |
+| ndl 頂層（有效／停用） | 499／0 | **505／0** | 預期增長（+6，24 小時內新進 6 筆） |
+| ndl `event_form=['publication']` | 499 | 505 | 全數 pure |
+| ndl 單一 `["senses"]` | 66 | **66** | 不變 |
+| 全站有效頂層單一 `["senses"]` | 121 | 121 | 不變 |
+| ndl 空分類 | 2 | 2 | 不變 |
+| 全站有效頂層空分類 | 96 | 94 | 小幅變動（並行 session 處理） |
+| ndl annotation_status | annotated 497、reviewed 2 | annotated 503、reviewed 2 | +6 |
+| ndl 標題含台灣字樣／不含 | 460／39 | 466／39 | +6 都含台灣字樣 |
+| ndl `category_corrections` | 0 | 0 | 不變 |
+| hanmoto pure（有效／停用） | 78（40／38） | 78（40／38） | 不變 |
+
+三個必須比對的數字（ndl 有效頂層、`["senses"]` 單標、ndl 停用）：只有 ndl 筆數由 499 增為 505，
+其餘不變，沒有非預期漂移。
+
+**F9 更正（不改設計）**：F9 與 proposal 2.3 寫「ndl 與 hanmoto 沒有 `annotated_at` 為空的既有記錄」，重查發現各有 1 筆：
+
+| 來源 | id（前 8 碼） | `annotation_status` | FC 數 | 為何仍不會進 gate |
+|------|--------------|---------------------|-------|-------------------|
+| hanmoto | `3187dc1b` | `error` | 0 | 條件 6 不成立（FC 不是恰好 7 個空 sentinel） |
+| ndl_opensearch | `5a51bd60` | `reviewed` | 15 | 條件 5（reviewed）與條件 6 都不成立 |
+
+proposal 2.3 本來就要求六個條件全部成立，所以結論不變；但「條件 4 不會誤中既有出版物」要讀成
+「條件 4 誤中的記錄會被條件 5、6 擋下」。C2 測試把這兩筆的形狀
+（`annotated_at` 為 None 且 `reviewed`、`annotated_at` 為 None 且無 FC）列為負向案例。
+
 ## 與交接提示的出入
 
 - 交接提示寫「ndl 約占全部事件的 27%」。實測為 499／2070＝24%（有效頂層）或
