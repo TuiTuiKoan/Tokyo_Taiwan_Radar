@@ -5,6 +5,7 @@
 #   (a) Remove VS Code Copilot auto-injected `tools:` blocks from agent files
 #   (b) i18n regression guard — calls scripts/check_i18n_parity.py --staged
 #   (b1) enum parity guard — calls scripts/check_enum_parity.py --staged
+#   (b1b) LLM caller guard — calls scripts/check_llm_callers.py --staged
 #   (b2) secret scan — gitleaks git --staged (fail-open if gitleaks absent)
 #   (c) Supabase migration number conflict auto-rename
 #
@@ -66,6 +67,13 @@ fi
 # event_form / category copies (scraper, migrations, i18n, route prompts) must
 # match web/lib/types.ts. Skips itself unless a watched path is staged.
 if ! python3 "$REPO_ROOT/scripts/check_enum_parity.py" --staged; then
+  exit 1
+fi
+
+# --- (b1b) LLM caller guard -------------------------------------------------
+# OpenAI calls must go through scraper/llm_client.py or web/lib/llm/openai.server.ts
+# so they are recorded in llm_usage and config errors fail the step (#363, #319).
+if ! python3 "$REPO_ROOT/scripts/check_llm_callers.py" --staged; then
   exit 1
 fi
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
+import { openaiApiKey, openaiChat } from "@/lib/llm/openai.server";
 import { CATEGORIES, EVENT_FORMS } from "@/lib/types";
 import { PURE_PUBLICATION_EVENT_FORM_GUIDANCE } from "@/lib/intakeGuidance";
 import {
@@ -43,7 +44,7 @@ export async function POST(req: NextRequest) {
   const { image } = (await req.json()) as { image: string };
   if (!image) return NextResponse.json({ error: "image required" }, { status: 400 });
 
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = openaiApiKey();
   if (!apiKey)
     return NextResponse.json({ error: "OPENAI_API_KEY not configured" }, { status: 500 });
 
@@ -125,13 +126,11 @@ Return ONLY the JSON. Omit any field you cannot confidently read. Do not guess o
     ],
   };
 
-  const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
+  const openaiRes = await openaiChat({
+    caller: "web.account.extract-from-image",
+    userId: user.id,
+    apiKey,
+    body: payload,
   });
 
   if (!openaiRes.ok) {

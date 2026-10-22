@@ -134,3 +134,108 @@ def test_get_client_resolves_the_sdk_at_call_time(monkeypatch):
     llm = llm_client.get_client("qa.heartbeat")
     assert llm.chat.completions.create(model="m", messages=[]) == "ok"
     assert seen == {"api_key": None}
+
+
+# ── Usage ledger ────────────────────────────────────────────────────────────
+
+class _FakeDB:
+    def __init__(self, fail=False):
+        self.inserted, self.fail = [], fail
+
+    def table(self, name):
+        assert name == "llm_usage"
+        return self
+
+    def insert(self, rows):
+        self._rows = rows
+        return self
+
+    def execute(self):
+        if self.fail:
+            raise RuntimeError("db down")
+        self.inserted.extend(self._rows)
+
+
+@pytest.fixture
+def ledger(monkeypatch):
+    db = _FakeDB()
+    monkeypatch.setenv("LLM_USAGE_DISABLED", "0")
+    monkeypatch.setenv("GITHUB_RUN_ID", "42")
+    monkeypatch.setenv("GITHUB_WORKFLOW", "Daily Scraper")
+    monkeypatch.setattr(llm_client, "_DB", db)
+    return db
+
+
+def _chat_response(prompt, cached, completion):
+    return SimpleNamespace(usage=SimpleNamespace(
+        prompt_tokens=prompt,
+        prompt_tokens_details=SimpleNamespace(cached_tokens=cached),
+        completion_tokens=completion,
+    ))
+
+
+def test_chat_call_records_tokens_including_cached(ledger):
+    _client(_chat_response(1200, 1000, 300)).chat.completions.create(model="gpt-4o-mini", messages=[])
+    llm_client.flush()
+    assert ledger.inserted == [{
+        "caller": "enrich.test", "model": "gpt-4o-mini", "endpoint": "chat",
+        "input_tokens": 1200, "cached_input_tokens": 1000, "output_tokens": 300,
+        "web_search_calls": 0, "status": "ok", "error_code": None,
+        "run_ref": "Daily Scraper#42",
+    }]
+
+
+def test_responses_call_counts_web_search_calls(ledger):
+    resp = SimpleNamespace(
+        usage=SimpleNamespace(input_tokens=50, input_tokens_details=SimpleNamespace(cached_tokens=0), output_tokens=9),
+        output=[SimpleNamespace(type="web_search_call"), SimpleNamespace(type="message"),
+                SimpleNamespace(type="web_search_call")],
+    )
+    _client(resp).responses.create(model="gpt-4o-mini", input="x")
+    llm_client.flush()
+    row = ledger.inserted[0]
+    assert (row["endpoint"], row["input_tokens"], row["output_tokens"], row["web_search_calls"]) == ("responses", 50, 9, 2)
+
+
+def test_failed_call_records_an_error_row(ledger):
+    with pytest.raises(llm_client.LLMConfigError):
+        _client(_APIError(404, "model_not_found")).chat.completions.create(model="gpt-4o-search-preview", messages=[])
+    llm_client.flush()
+    assert ledger.inserted[0]["status"] == "error"
+    assert ledger.inserted[0]["error_code"] == "model_not_found"
+    assert ledger.inserted[0]["input_tokens"] == 0
+
+
+def test_rows_flush_in_batches_and_at_finish(ledger):
+    llm = _client(_chat_response(1, 0, 1))
+    for _ in range(llm_client.FLUSH_EVERY + 3):
+        llm.chat.completions.create(model="gpt-4o-mini", messages=[])
+    assert len(ledger.inserted) == llm_client.FLUSH_EVERY
+    llm_client.finish()
+    assert len(ledger.inserted) == llm_client.FLUSH_EVERY + 3
+
+
+def test_ledger_failure_never_breaks_the_run(monkeypatch):
+    monkeypatch.setenv("LLM_USAGE_DISABLED", "0")
+    monkeypatch.setattr(llm_client, "_DB", _FakeDB(fail=True))
+    resp = _chat_response(1, 0, 1)
+    assert _client(resp).chat.completions.create(model="m", messages=[]) is resp
+    llm_client.flush()  # logs a warning, does not raise
+
+
+def test_non_integer_usage_counts_as_zero(ledger):
+    from unittest.mock import MagicMock
+
+    _client(MagicMock()).chat.completions.create(model="gpt-4o", messages=[])
+    llm_client.flush()
+    row = ledger.inserted[0]
+    assert (row["input_tokens"], row["cached_input_tokens"], row["output_tokens"]) == (0, 0, 0)
+
+
+def test_recording_is_off_when_disabled(monkeypatch):
+    db = _FakeDB()
+    monkeypatch.setenv("LLM_USAGE_DISABLED", "1")
+    monkeypatch.setattr(llm_client, "_DB", db)
+    _client(_chat_response(1, 0, 1)).chat.completions.create(model="m", messages=[])
+    llm_client.flush()
+    assert db.inserted == []

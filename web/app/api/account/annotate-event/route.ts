@@ -12,6 +12,7 @@ import {
 import { TRANSLATION_LOCK_FIELDS } from "@/lib/eventIntakeClient";
 import { PURE_PUBLICATION_EVENT_FORM_GUIDANCE } from "@/lib/intakeGuidance";
 import { assertWritesAllowed } from "@/lib/maintenanceLock.server";
+import { openaiApiKey, openaiChat } from "@/lib/llm/openai.server";
 
 export const maxDuration = 60;
 
@@ -140,7 +141,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = openaiApiKey();
   if (!apiKey)
     return NextResponse.json({ error: "OPENAI_API_KEY not configured" }, { status: 500 });
 
@@ -279,10 +280,11 @@ Rules:
     ],
   };
 
-  const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+  const openaiRes = await openaiChat({
+    caller: "web.account.annotate-event",
+    userId: user.id,
+    apiKey,
+    body: payload,
     signal: AbortSignal.timeout(40000), // 40s — full-body translation is slower than the old summary; page fetch (10s) + this stays under maxDuration 60
   });
 

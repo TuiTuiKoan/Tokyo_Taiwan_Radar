@@ -102,7 +102,9 @@ enrich_addresses 的新流程：
 scraper（14，M2 已改走 `llm_client`）：`annotator.py` ×5、`enrich_location.py`、`enrich_poster.py`、`weekly_line_broadcast.py`、`qa_heartbeat.py`、`sources/cinemaclair.py`、`auto_scraper/generate.py`、`auto_scraper/auto_research.py`、`eval_annotator.py` ×2。
 web（6）：`api/admin/annotate-event`、`api/admin/extract-from-image`、`api/account/annotate-event`、`api/account/extract-from-image`、`api/line-webhook`、`api/upload-with-qr`。
 
-CI 檢查（M4）以「建立 client」為關卡：`scraper/llm_client.py` 以外出現 `OpenAI(`／`AsyncOpenAI(`，或 `web/lib/llm/openai.server.ts` 以外出現 `api.openai.com`，就失敗（`_oneoff_*.py` 與 tests 除外）。
+禁止直接呼叫的檢查（M4）以「建立 client」為關卡：`scraper/llm_client.py` 以外出現 `OpenAI(`／`AsyncOpenAI(`，或 `web/lib/llm/openai.server.ts` 以外出現 `api.openai.com`，就失敗（`_oneoff_*.py` 與 tests 除外）。repo 沒有跑 Python 測試的 CI，所以落在兩處：`scripts/check_llm_callers.py` 由 pre-commit hook（b1b）執行；網站端的同一檢查在 `web/tests/llm-usage.test.ts`，由 `prebuild` 執行，Vercel build 時會擋下。
+
+網站端的 `openaiChat()` 回傳以 OpenAI 回應內容重建的標準 `Response`，路由原本的 `res.ok`／`res.text()`／`res.json()` 不用改；紀錄以 `after()` 在回應送出後寫入。帳號 API 傳入 `userId`，供 M5 的每人限流使用。
 
 ### D4. 其餘 issue 的做法
 

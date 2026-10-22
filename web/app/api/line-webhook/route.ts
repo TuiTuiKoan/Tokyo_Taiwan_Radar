@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { LIANBU_REPLY_SYSTEM_PROMPT, LIANBU_REPLY_TRIGGERS } from "@/lib/lianbu-persona";
+import { openaiApiKey, openaiChat } from "@/lib/llm/openai.server";
 
 export const maxDuration = 30;
 
@@ -99,13 +100,13 @@ function getAdminIds(): Set<string> {
 }
 
 async function generateReplyDraft(postText: string): Promise<string> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = openaiApiKey();
   if (!apiKey) return "⚠️ OPENAI_API_KEY が設定されていません。管理者に確認してください。";
   try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
+    const res = await openaiChat({
+      caller: "web.line-webhook.reply-draft",
+      apiKey,
+      body: {
         model: "gpt-4o-mini",
         temperature: 0.8,
         messages: [
@@ -118,7 +119,7 @@ async function generateReplyDraft(postText: string): Promise<string> {
               "\nPOST>>>",
           },
         ],
-      }),
+      },
     });
     if (!res.ok) {
       const err = await res.text();
