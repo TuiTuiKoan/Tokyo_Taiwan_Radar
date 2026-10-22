@@ -509,3 +509,33 @@ cand1 開發輪的輸出（同一 SHA）。R1 不呼叫模型，由 `metrics` �
 - 後續影響：Phase G 的 C6（開 gate 旗標）不進行；`PUBLICATION_RELEVANCE_GATE_ENABLED` 維持 False。
   C1／C2 的程式碼與分類修正（C4）照常上線。
 
+## 非出版物新舊對照與負向案例（2026-10-22，Phase C）
+
+樣本：最近標註、有效、頂層、`event_form` 不含 publication 的 60 筆＋負向 5 筆（mixed form 1、出版記念／
+刊行記念類 4）。花費：新 $0.196＋舊 $0.189。腳本為 scratchpad 一次性唯讀腳本（不提交，只 SELECT）。
+
+**偏離計畫**：proposal 2.5 寫「現行 prompt 的分類結果直接用 DB 裡已有的值」。實跑後發現 DB 值是經過
+後處理的結果（關鍵字補分類、`report` 偵測、人工修正），與模型原始輸出無法直接比對：凍結 prompt 對 DB
+的分類差異 37／60、event_form 差異 12／60，多為 DB 多出 `report`／`history`／`lecture`。因此改為以現行
+prompt（cand0）對**同一批 id** 各跑一次，比對兩者的原始輸出。這不是 proposal 刪掉的「舊 prompt 跑兩次」
+自我差異基準。
+
+| 比較（舊 cand0 → 新 cand1，同批 65 筆） | 差異筆數 |
+|------|------|
+| category | 13 |
+| event_form | 5 |
+| gate 判定（is_relevant=false 且 confidence ≥ 0.8） | 2 |
+
+逐筆判讀（engineer）：差異都在合理替代選項之間來回，方向不一致，沒有出版物規則外溢到活動的跡象（沒有
+因此新增 `books_media`、沒有空分類、沒有 `RECORD_TYPE`）。判為非退步；較明顯的幾筆：
+- 改善：「台湾巨匠傑作選2026」exhibition→movie；gguide 節目的無效 slug `broadcast`→`tv_program`；
+  台湾華語講座 study_abroad→workshop；負向案例「台湾に1か月住んでみた」出版記念イベント，舊 prompt
+  gate 會丟、新 prompt 保留。
+- 同一場羊毛フェルト工作坊（eslite／peatix 兩筆重複）舊 prompt 丟 1 筆、新 prompt 丟 2 筆：屬模型
+  不穩定，非 prompt 修改造成（新段落只對 `RECORD_TYPE: publication` 生效）。
+- 兩版都會輸出無效 slug（例：category `performance`、`music`、`screening_with_talk`，event_form
+  `interview`），屬既有行為，由正式流程的白名單過濾，不在本計畫範圍。
+
+負向 5 筆：`record_type_for()` 全為 None、payload 區塊前沒有 `RECORD_TYPE` 行；新 prompt 沒有對任何一筆
+輸出 `publication` event_form（mixed form 那筆輸出 `["lecture"]`）。全數符合。
+
