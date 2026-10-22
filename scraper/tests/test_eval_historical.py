@@ -73,6 +73,15 @@ def test_classify_event_uses_locks_and_semantic_scores():
                        "category": "regression", "event_form": "agree"}
 
 
+def test_new_output_goes_through_production_validators_and_publication_form_is_skipped():
+    event = {"id": "e3", "source_name": "ndl_opensearch", "name_zh": None, "name_en": None,
+             "description_zh": None, "description_en": None,
+             "category": ["performing_arts"], "event_form": ["publication"]}
+    annotation = {"category": ["performance", "networking"], "event_form": ["lecture"]}
+    results = classify_event(event, annotation, locked_fields=set(), semantic={})
+    assert [(r["field"], r["class"]) for r in results] == [("category", "agree")]
+
+
 def test_report_lists_review_queue_with_event_links(tmp_path: Path):
     results = [
         {"event_id": "abcdef12-0000", "source_name": "peatix", "field": "category", "class": "silent_drift",

@@ -16,7 +16,10 @@ new output with what is stored. Each compared field lands in one class:
 Only fields the LLM owns are compared: names, descriptions, category and
 event_form. location_name and is_paid mostly come from scrapers and defaults,
 and movie titles come from the works / eiga.com lookup (scoring v2 lookup
-bucket), so re-running the LLM alone would flag them wrongly.
+bucket), so re-running the LLM alone would flag them wrongly. For the same
+reason event_form is skipped on pure publication records (the scraper sets
+it), and the new category / event_form go through the annotator's own
+validators first, as they do before production stores them.
 
 Usage:
     python eval_historical.py --output ../docs/evaluation/historical/2026-11-monthly.md
@@ -46,6 +49,7 @@ from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
+from annotator import _validate_categories, _validate_event_forms  # noqa: E402
 from eval_annotator import (  # noqa: E402
     BUCKET_LOOKUP,
     _estimate_cost,
@@ -130,8 +134,19 @@ def stored_as_expected(event: dict) -> dict:
     }
 
 
+def normalize_annotation(annotation: dict) -> dict:
+    """Apply the validators production runs before storing the LLM output."""
+    out = dict(annotation)
+    out["category"] = _validate_categories(annotation.get("category"))
+    out["event_form"] = _validate_event_forms(annotation.get("event_form"))
+    return out
+
+
 def classify_event(event: dict, annotation: dict, locked_fields: set[str], semantic: dict) -> list[dict]:
+    annotation = normalize_annotation(annotation)
     case = {"source_name": event.get("source_name"), "expected": stored_as_expected(event)}
+    if event.get("event_form") == ["publication"]:
+        case["expected"]["event_form"] = None  # scraper-owned on pure publications
     entries = compare_fields(
         case["expected"], annotation,
         title_lookup=is_title_lookup_case(case, annotation),
