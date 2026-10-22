@@ -32,9 +32,12 @@
 -- This migration only creates the function; it does not touch any RLS policy
 -- or table grant.
 --
--- APPLY STATUS: not yet applied. Apply through Supabase Dashboard -> SQL
--- Editor as postgres. The trailing DO block fails the transaction if the
--- function is not exactly as described above.
+-- APPLY STATUS: APPLIED in production 2026-10-23 through Supabase Dashboard ->
+-- SQL Editor as postgres, after a rollback-only dry-run. Read-back:
+-- prosecdef=false, owner postgres, proconfig search_path=pg_catalog and
+-- lock_timeout=5s, ACL {postgres=X/postgres,service_role=X/postgres}. The
+-- trailing DO block fails the transaction if the function is not exactly as
+-- described above.
 -- ============================================================
 
 begin;
