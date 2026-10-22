@@ -2,6 +2,35 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-10-22：權限閘門先實作後評審，評審找到可推到 main 的繞過
+
+### Mistake
+
+pr-flow-tiering 依使用者指定的順序，先由實作者完成 `check_push` 分流（推 feature branch 放行、推 main 詢問），最後才請
+不同模型家族做 Plan Critic。評審指出 `git -c remote.origin.push=refs/heads/feat/x:refs/heads/main push origin feat/x`
+會被 hook 判為推 feature branch，但標為「不確定能否利用」。協調者在 scratchpad 的本機 bare repo 重現，輸出
+`feat/x -> main`，遠端 main 確實被更新。同一個 spec 的 Phase D 第一版用 `pull_request_target` 加 GitHub auto-merge，
+資安審查又指出 auto-merge 開啟後會沿用到之後追加的非文件 commit，且 files API 超過 3000 個檔案會截斷。
+兩次都在實作完成後才發現，各多了一輪修正。
+
+### Repair
+
+hook 改為：`push` 前帶 `-C` 以外的 git 全域選項、未知的 push 選項、寫入影響 push 的 git config 或 `.git/config`，
+一律詢問。PR Tier workflow 改為 Secret Scan 成功後的 `workflow_run`，以 `--match-head-commit` 只合併被掃描的 commit，
+檔案數必須等於 `changed_files` 且少於 3000。
+
+### Lesson
+
+1. **會把「詢問」改成「放行」或「自動合併」的閘門，先請不同模型家族評審設計再實作。** 放寬類改動的錯誤成本不對稱：
+   漏一種寫法就等於開門。
+2. **評審標為「不確定」的繞過，當場用可丟棄的本機環境重現**（`git init --bare` 的 scratch repo、dry-run），
+   不要停在推論。重現成功就升級為 P1。
+3. **自動合併不要依賴會持續存在的狀態**（GitHub auto-merge、label）。把合併綁定到被檢查過的那個 commit，
+   之後的 push 各自重新檢查。
+4. 讀取 PR 檔案清單時，要驗證清單完整（筆數對上 `changed_files`、未達 API 上限），不完整就走最嚴格的分支。
+
+---
+
 ## 2026-10-22：計畫裡的「現況值」沿用舊值送審，審查審到過期基準
 
 ### Mistake
