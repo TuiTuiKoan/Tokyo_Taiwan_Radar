@@ -79,3 +79,10 @@ M1 移除 researcher（1）、discovery_accounts（2）、qa_auto_fix 備援（1
 - `apply_migration` 套用 `099_llm_usage`（commit `2671f162` 的版本）；migration 紀錄 `20261022135429 099_llm_usage`。
 - 讀回：`llm_usage`／`llm_pricing`／`llm_cache` 為 table 且 RLS 開啟，`llm_cost_daily` 為 view 且 `security_invoker=true`；`llm_pricing` 2 列；`llm_usage` 0 列；anon 無權限；authenticated 只有三個物件的 SELECT；policy 為兩條 admin read。
 - Security advisor：新物件只有 INFO `rls_enabled_no_policy`（`llm_cache`，刻意只給 service_role）。其餘警告為既有項目，與本 migration 無關，已另行口頭回報使用者（repo 公開，不在 issue 寫細節）。
+
+## M4 實測（2026-10-22，使用者執行）
+
+- 以 `get_client("eval.smoke")` 送一次 gpt-4o-mini（`max_tokens=1`）。API 回 13 input／1 output tokens。
+- production `llm_usage` id 1：`eval.smoke`、`gpt-4o-mini`、`chat`、13／0／1、`ok`。`llm_cost_daily` 算出 $0.000003（手算 $0.00000255），`unpriced_calls=0`。
+- 這一列保留在表中，caller 為 `eval.smoke`，彙總時可依 caller 排除。
+- 網站端：`tsc`、eslint、`web/tests/llm-usage.test.ts`（7 項）通過；`pnpm run build` 的 prebuild 與編譯通過，prerender 因 worktree 沒有網站的 Supabase 環境變數而停下，留給 PR 的 Vercel preview 驗證。
