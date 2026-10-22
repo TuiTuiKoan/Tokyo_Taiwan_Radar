@@ -4,9 +4,10 @@ spec: evaluation-framework
 
 # Tasks
 
-> **對帳紀錄（最後對帳 2026-08-11）**：本清單先前長期未更新，P1 實際上大致已完成卻仍全部標為未勾選，
+> **對帳紀錄（最後對帳 2026-10-22）**：本清單先前長期未更新，P1 實際上大致已完成卻仍全部標為未勾選，
 > 導致「P2 卡在 P1 沒做完」的錯誤判斷。2026-08-06 首次逐項比對程式碼與 CI 實況後修正；
-> 2026-08-11 複查下列四項全數維持原判定，勾選狀態未變動。
+> 2026-08-11 與 2026-10-22 複查下列四項全數維持原判定。2026-10-22 起剩餘工作改由 issue 追蹤（#353–#356），
+> 量尺修正見 #324，地點分段 eval 見下方 G 段。
 >
 > - **P1-A**：4 個指標全部存在於 `monthly_health_check.py`，輸出已產出（`docs/monthly_review/2026-06-evaluation.md`）
 > - **P1-B**：golden set、`eval_annotator.py`、2 個 CI workflow、README 均已存在；
@@ -56,6 +57,10 @@ spec: evaluation-framework
 - [ ] 輸出三類報表：沉默漂移 / 保護命中 / GPT 倒退
 - [ ] 一次性執行，產出首份 baseline 報表
 - [ ] 排程：每月 1 號隨 monthly_health_check 執行
+
+### G. 地點分段 eval（#325，2026-10-22 加入）
+- [x] 抽取與解析兩段上線（`scraper/eval_venues.py`、`.github/workflows/eval-venues.yml`），基準見 `docs/evaluation/venues/2026-10-22-baseline.md`
+- [ ] 定位段：等 geocoding 上線（#372）
 
 ## P3 — Guards 元評估（持續）
 
