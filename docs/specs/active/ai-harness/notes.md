@@ -52,3 +52,69 @@
 - `cheap` profile 未建：Ollama 只有 14 到 16 個月前的 7B 與 3B 模型，等 Phase 5。
 
 grunt 的取捨：tester 與 lianbu-spokesperson 在 `grunt`（Haiku）。tester 要判讀爬蟲輸出，lianbu 要寫日文貼文，兩者若品質不足，調 tier 是治理決定，需使用者核准。
+
+## 3. Phase 0 量測：`/context` baseline（2026-10-23）
+
+使用者在 `ttr-ai-harness-worktree` 根目錄啟動 `claude`（Sonnet 5.5）執行 `/context`：
+
+| 類別 | tokens | 佔 1M 視窗 |
+|---|---|---|
+| System prompt | 2.9k | 0.3% |
+| System tools | 16.6k | 1.7% |
+| MCP tools＋MCP server instructions | 0.6k＋3.3k | 0.4% |
+| Custom agents | 0.9k | 0.1% |
+| Memory files | 8.7k | 0.9% |
+| Skills | 8.5k | 0.8% |
+| 合計 | 41.6k | 4% |
+
+專案端估算（`.claude/skills/*/SKILL.md` frontmatter bytes ÷ 3.5，粗估，非 `/context` 實測）：
+
+| 項目 | 數量 | 估計 tokens |
+|---|---|---|
+| 專案 skill 全部 | 68 | 約 2.6k |
+| 其中 `sources/` 來源 skill | 54 | 約 2.1k（79%） |
+
+D6 判定：D6 的門檻是專案 skill 常駐超過約 3k tokens。`/context` 的 Skills 8.5k 含內建與使用者層 skill，專案端估計約 2.6k，低於門檻，且只占視窗 0.2%。**不合併 54 個來源 skill。** Phase 4 的該項改為「不做」，除非日後來源 skill 數量或 description 長度明顯增加。
+
+意外發現：Memory files 8.7k 是專案端最大的常駐項。`AGENTS.md` 17,013 bytes（中文，約 5k 至 6k tokens），其中 hooks 規則表與「未涵蓋」清單占大半。這些內容 Claude 每個 session 都載入，但多數 session 用不到。Phase 4 的精簡目標改為：把 hooks 規則表與殘餘風險清單移到 `docs/` 並以一行連結取代，`AGENTS.md` 只保留 5 點摘要、路徑規則表、角色路由與模型政策。需先確認 Codex 與 Copilot 不依賴這些段落的字面內容。
+
+不確定：`/context` 沒列出各 skill 的個別 token，上表專案端數字是估算；若要確認可暫時移開 `.claude/skills` 後重測（會動到工作樹，不建議）。
+
+## 4. D7：agents-repo worktree 已不存在（2026-10-23）
+
+Close Campaign agent 的 Phase A 稽核與本 session 的獨立查證一致：
+
+| 檢查 | 結果 |
+|---|---|
+| `git worktree list` | 15 筆，沒有 `tokyo-taiwan-radar-agents-repo`，也沒有 prunable |
+| 登記路徑下的目錄 | 不存在；`/Users/flyingship/Development/Tokyo Taiwan Radar.worktrees` 是指向 `3-TTR/Tokyo Taiwan Radar.worktrees` 的符號連結，裡面只有 `agents-vscode-performance-issues` |
+| 分支 `agents/tokyo-taiwan-radar-agents-repo` | 本地與遠端都沒有 |
+| `.git/info/exclude` | 無相關行（該路徑在 repo root 外，本來就不需要） |
+| 先前觀測 | 2026-10-15 與 2026-10-20 的 `git worktree list` 仍列出它，HEAD `3b04a6d3`，工作樹乾淨；10-23 已不在，移除者與時間不明 |
+
+結論：D7 的目標（該 worktree 不再存在）已達成，沒有寫結案紀錄（無 slug、無 commit、無 spec）。`3b04a6d3` 是 origin/main 的祖先，沒有遺失的工作。先前記載的「87 behind」是 10-15 的觀測，現在同一個 commit 落後約 203，數字差異來自 main 前進。
+
+另一個觀察（不屬本 campaign）：`Tokyo Taiwan Radar.worktrees/agents-vscode-performance-issues` 目錄存在但不在 `git worktree list`，疑似未登記的殘骸，由使用者決定是否處理。
+
+## 5. Plan Critic（Codex）與 plan.md rev.2（2026-10-23）
+
+使用者貼回 Codex 的輸出，內容是一份給 Claude 的修訂提示，列六項必須處理的意見；Codex 的批評全文未提供，所以沒有另存 critique 檔。執行者：Claude Code，Opus 5.5。
+
+| # | 意見 | 處理 |
+|---|---|---|
+| 1 | Secrets 與 D4 | 撤回 D4；plan §3 Phase 2、§4、§5 改寫；以實測證明爬蟲 dry-run 不需要 `.env` |
+| 2 | 進度漂移 | plan 狀態、Phase 0、Phase 1、§6 更新；proposal 的裁決表更新 |
+| 3 | 模型投影 | plan §1.3 與 Phase 1 改為「來源檔不寫 `model:`」；NOT TESTED 四項保留 |
+| 4 | Phase 4 | 合併來源 skill 標為已否決；改為 `AGENTS.md` 瘦身 |
+| 5 | Phase 3 前置決策 | 提出 `harness.lock`（pinned commit SHA）方案與驗收條件，列為 D8，待裁決 |
+| 6 | 繼續工作的門槛 | plan 新增 §3.1 Go/No-Go；tasks.md 各 phase 加前置條件 |
+
+新證據：
+- 在沒有 `.env` 的 `ttr-ai-harness-worktree`（`test -f scraper/.env` 回傳 1）執行 `python main.py --dry-run --source taiwan_cultural_center`：exit 0，輸出事件 JSON。結論：爬蟲 dry-run 不需要 secrets。Python 依賴（playwright、supabase、dotenv）已安裝。
+- `web/.env.example` 不存在；`scraper/.env.example` 存在。web 程式讀取 `NEXT_PUBLIC_SUPABASE_URL`（36 處）、`NEXT_PUBLIC_SITE_URL`（21）、`NEXT_PUBLIC_SUPABASE_ANON_KEY`（17）、`SUPABASE_SERVICE_ROLE_KEY`（19）、`GITHUB_TOKEN`（10）、`OPENAI_API_KEY`（6）等。web build 以佔位值通過與否：NOT TESTED。
+- 這個 worktree 本來就沒有 `.env`，所以 rev.1 的 D4 建議會「新增」secrets 副本，不是維持現狀。
+- cc-statusline 目錄（`~/.claude/cc-statusline/`）有 579 個 `active-*.json` 與 `agents-*.json`；抽查的檔案只含 `activeMs`、`turnStartAt`，未確認含配額歷史。Phase 1 之前的配額基準：沒有留下。
+
+觀察：從 worktree 的 `scraper/` 子目錄執行命令時，Claude Code 的 hooks 不載入（AGENTS.md「生效條件」）。本 session 的命令先 `cd` 到子目錄再回到根目錄，期間 hooks 實際上沒有保護那一次執行；dry-run 本身只讀取與列印，不涉及 secrets。以後在子目錄執行命令應改用絕對路徑或在根目錄用 `python3 scraper/main.py`。
+
+尚未 commit：plan.md、proposal.md、tasks.md、notes.md 的修訂等使用者核准。

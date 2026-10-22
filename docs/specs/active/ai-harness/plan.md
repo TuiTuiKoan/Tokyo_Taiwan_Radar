@@ -1,8 +1,22 @@
-# AI Harness v2 計畫 rev.1 — Orca 平行開發、模型分級、跨專案可攜 harness
+# AI Harness v2 計畫 rev.2 — Orca 平行開發、模型分級、跨專案可攜 harness
 
-日期：2026-10-15　作者：Architect（Claude Fable 5.1，Claude Code 2.1.300）　狀態：草案，待使用者裁決 D1–D7
+rev.1：2026-10-15，Architect（Claude Fable 5.1，Claude Code 2.1.300）。rev.2：2026-10-23，依 Codex Plan Critic 的六項修訂意見更新（Claude Opus 5.5 執行）。
 
-依 AGENTS.md「Copilot 對照表」：本計畫沒有 spec slug，先落在 `~/.ai-notes/ttr/`。使用者核准 slug 後，由 Engineer 在 campaign worktree 內建立 `docs/specs/active/<slug>/` 並原樣存檔本文。
+狀態（2026-10-23）：D1、D2、D3、D5、D6、D7 已定案；**D4 撤回，需重新裁決（D4'）**；**D8（Phase 3 的版本釘選機制）待裁決**。Phase 0 與 Phase 1 的程式碼已完成，Phase 1 的使用端驗證與配額量測未完成。進度真值是 [tasks.md](./tasks.md)，執行證據是 [notes.md](./notes.md)；本文與兩者衝突時以兩者為準。
+
+rev.1 原檔保留在 `~/.ai-notes/ttr/ai-harness-plan-rev1.md`（SHA-256 `5f492d901f2846a6865aee0de5ebc1d73bed9889e88ccc1c00edc0e77ec585bf`）。rev.2 完整替代 rev.1。
+
+## rev.2 變更摘要
+
+| # | Codex 意見 | rev.2 處理 | 位置 |
+|---|---|---|---|
+| 1 | Secrets 與 D4：`.worktreeinclude` 不得複製 `scraper/.env`、`web/.env.local` | 撤回 D4 的建議；改為「worktree 不帶正式 secrets」。以實測證明 scraper dry-run 不需要 `.env`；web 驗證改用不含 secrets 的方式。D4 標為需重新裁決。移除「hooks 禁止 agent 讀寫 `.env` 所以可複製」的論述 | §3 Phase 2、§4、§5 |
+| 2 | 進度漂移 | D1–D7 已於 2026-10-20 裁決；Phase 0、1 狀態、仍未完成項目已同步；刪除「回覆 D1–D7、再執行 Phase 0→1」的下一步 | 全文、§6 |
+| 3 | 模型投影 | 移除「放寬 `pinned_models()`」；來源 `.agent.md` 只宣告 `tier`，別名只寫入生成的 Claude wrapper；Codex effort 等 NOT TESTED 項目保留為待驗證 | §1.3、§3 Phase 1 |
+| 4 | Phase 4 | 合併 54 個來源 skill 標為已否決；改為 `AGENTS.md` 瘦身 | §3 Phase 4 |
+| 5 | Phase 3 前置決策 | 提出 pinned commit SHA（`harness.lock`）方案、更新與同步的責任流程、plugin 未安裝缺口的驗收條件；列為 D8，待使用者裁決 | §3 Phase 3、§5 |
+| 6 | 繼續工作的門槛 | 新增 Go/No-Go 門檻；一週配額曲線與使用端驗證是 Phase 2、3 的依據；明確聲明工具搬遷本身不是已證明的配額效益 | §3.1 |
+
 
 ## 0. 現況盤點（本 session 實測，2026-10-15）
 
@@ -14,7 +28,7 @@
 | 硬體 | Apple M1 Max、32 GB；Ollama 已安裝，只有舊的 `qwen2:7b`、`llama3.2`（14–16 個月前） |
 | 使用者層 Claude 設定 | 沒有 `~/.claude/CLAUDE.md`、`~/.claude/agents/`、`~/.claude/rules/`；只有 cc-statusline plugin |
 | ai-portability campaign | 已結案（2026-10-14 close-out record）；worktree 已退役；24 條後續項目在 `docs/specs/parked/ai-portability-followups.md`（含 X1–X4 角色裁決） |
-| `tokyo-taiwan-radar-agents-repo` worktree | 外部路徑、`agents/…` 分支、0 ahead／87 behind、無 spec、無 commit — 是「抽出 agents 成獨立 repo」想法的空殼 |
+| `tokyo-taiwan-radar-agents-repo` worktree | rev.1 撰寫時（2026-10-15）：外部路徑、`agents/…` 分支、0 ahead／87 behind、無 spec、無 commit。**2026-10-23 已不存在**（登記、目錄、本地與遠端分支皆無；notes.md §4），D7 目標已達成 |
 | 專案 harness 體積 | 13 個 agent 檔 3,138 行（architect 一檔 1,197 行）；68 個 SKILL.md 共 17,537 行、history.md 20,309 行；其中 54 個是 `sources/` 爬蟲來源 skill |
 | 防線 | `.claude/settings.json` 的 `permissions.ask`（push）＋ PreToolUse hooks（`scripts/claude/`）；只保護從 repo／worktree 根啟動的 Claude Code；Copilot、Codex 無防線 |
 
@@ -61,7 +75,7 @@ Orca（stablyai/orca，MIT，桌面 Electron app，macOS／Windows／Linux）是
 | build（engineer、designer、scraper-expert、vmd、closer） | `model: sonnet`、`effort: medium` | `"medium"` | 不投影 |
 | grunt（tester、history-teller、update-history、peatix／tcc subagent、lianbu） | `model: haiku`、`effort: low` | `"low"` | 不投影 |
 
-模型政策要修一句：禁止的是**具體 model ID**（`claude-sonnet-4-5` 這類會下架），**家族別名與 effort 不會過期**，允許投影。`sync_ai_adapters.py` 的 `pinned_models()` 目前攔所有 `model:`，要改成只攔 `claude-`／`gpt-` 開頭的完整 ID。
+模型政策（rev.2，已依實作更正）：**來源檔一律不寫 `model:`，連家族別名也不行**。具體 model ID 會下架（`claude-sonnet-4-5` 事故），而 Copilot 讀同一份 `.agent.md`，會把 `model: opus` 當模型名稱解析，是同型風險。`pinned_models()` 因此維持原行為。來源檔只宣告 `tier`；別名（opus／sonnet／haiku）與 effort 只出現在 sync 生成的 Claude wrapper，Codex agent 檔只含 `model_reasoning_effort`，不含 `model`。rev.1 曾要求放寬 `pinned_models()`，已撤回。
 
 使用者層（不入 repo）建議值：
 - `~/.claude/settings.json`：`model: "opusplan"`（日常）；需要 Fable 時 `/model fable` 只在規劃 session；`modelSettings` 的 `xhigh` 降到 `high`（規劃）／`medium`（執行）；`env.CLAUDE_CODE_SUBAGENT_MODEL: "haiku"` 兜住沒有 `tier` 的 agent（Explore、general-purpose、X1–X4 四個未投影角色）。
@@ -98,27 +112,36 @@ Layer 2  專案層（TTR repo）
 
 ## 3. 分階段計畫（各自一個 campaign worktree、各自 atomic commit）
 
-### Phase 0 — 盤點、量測、裁決（governance，主工作樹 docs-only）
-- `/context` 實測 TTR 內 68 個 skill 與 15 個 agent 的常駐 token，做為 Phase 4 精簡的 baseline。
-- 以 Close Campaign agent 退役 `tokyo-taiwan-radar-agents-repo` worktree（0 ahead、無 spec、無 commit），把「獨立 agents repo」的意圖轉入本計畫。
-- 建 spec：`docs/specs/active/ai-harness/`（proposal、tasks、notes）；本文存為 `plan.md`。
-- 使用者裁決 D1–D7（§5）。
-- 驗證：spec 檔不含 secret；`sync --check` 不受影響。
+### Phase 0 — 盤點、量測、裁決（狀態：僅剩使用者決定是否處理 D4'）
+- [x] 建 spec `docs/specs/active/ai-harness/`、worktree `ttr-ai-harness-worktree`（commit `a03ce9bf`）。
+- [x] 使用者裁決 D1–D7（2026-10-20）；D4 於 rev.2 撤回。
+- [x] `/context` 實測：整體 41.6k tokens（4%）；專案 skill 估計約 2.6k，低於 3k 門檻（notes.md §3）。
+- [x] D7：agents-repo worktree 已不存在（notes.md §4）。
+- [x] Plan Critic（Codex）已審；意見已在 rev.2 處理。Codex 回傳的是修訂提示，批評全文未提供，未另存。
+- [ ] D4'：worktree 不帶 secrets 的設計需使用者確認（§5）。
 
-### Phase 1 — 模型分級（最快見效；repo 1 commit + 使用者層設定）
-1. `.github/agents/*.agent.md` frontmatter 加 `tier`；`sync_ai_adapters.py`：投影 `model` 別名與 `effort`，新增 `.codex/agents/<kebab>.toml` 輸出，`pinned_models()` 改為只攔完整 ID，`--check` 要求每個受管 agent 都有 `tier`。
-2. AGENTS.md「模型政策」改寫（別名與 effort 允許、ID 禁止、tier 表、使用者層建議值）。
-3. 使用者層：`~/.claude/settings.json`（opusplan、effort、`CLAUDE_CODE_SUBAGENT_MODEL=haiku`）、`~/.codex/config.toml` profiles。
-4. 驗證：`python3 scripts/sync_ai_adapters.py --check`；`python3 -m pytest scripts/tests scripts/claude/tests -q`；啟動 `claude --agent tester` 看 `/status` 顯示 haiku；`codex -p cheap exec "…"` 看 provider 為 ollama（本機模型若未拉則跳過，記 NOT TESTED）。
-5. 量測：用既有 `monthly-experiment` skill 的框架，記錄一週的 cc-statusline 配額曲線，與 Phase 0 baseline 比。
+### Phase 1 — 模型分級（狀態：程式碼完成並 commit `361d17c1`；使用端驗證與配額量測未完成）
+1. [x] `.github/agents/*.agent.md` 加 `tier`；`sync_ai_adapters.py` 投影 Claude `model`／`effort` 與 `.codex/agents/<kebab>.toml`；`--check` 要求每個 agent 有已知 `tier`。**`pinned_models()` 不放寬**（§1.3）。
+2. [x] AGENTS.md「模型政策」改寫：tier 表、投影規則、執行前模型評估。
+3. [x] 使用者層：`~/.claude/settings.json`（`opusplan`、sonnet effort medium、`CLAUDE_CODE_SUBAGENT_MODEL=haiku`）、`~/.codex/plan.config.toml`、`[agents] default_subagent_reasoning_effort`。`cheap` profile 留到 Phase 5。
+4. 驗證：
+   - [x] `sync --check` exit 0；pytest 492 passed；`claude -p --agent tester` 的 `modelUsage` 只有 Haiku。
+   - **NOT TESTED**：Codex 是否讀取 `.codex/agents/*.toml` 並套用 effort；`codex -p plan` 載入 profile；`claude --agent plan-critic` 的 Opus 實測；`opusplan` 在 plan mode 與執行段的切換。這四項需互動 session，保留為待驗證，不得寫成通過。
+5. [ ] 量測：記錄 Phase 1 之後一週的 cc-statusline 配額曲線。**注意：Phase 1 之前沒有留下配額基準**（只有 `/context` 的 token 數，那不是配額），所以只能做「之後各週」的相對比較，結論僅供參考（§3.1）。
 
 ### Phase 2 — 平行開發（Orca + Claude 原生，不改治理規則）
 1. `.gitignore` 加 `.claude/worktrees/`（防止誤用 `--worktree` 污染主工作樹 untracked 清單）。
-2. `.worktreeinclude`：是否列 `scraper/.env`、`web/.env.local`（D4）。hooks 禁止 agent 讀寫 `.env`，但檔案在每個 worktree 存在才能跑 dry-run。
+2. **不複製 secrets**（取代 rev.1 的 D4 建議；D4' 待確認）：
+   - 不建立會複製 `scraper/.env` 或 `web/.env.local` 的 `.worktreeinclude`；若需要該檔，只列非 secrets 的 gitignored 設定，且逐項審過。
+   - 依據：secrets 一旦被複製進多個 worktree，就多了多份需要輪替與清理的副本，且 hooks 只擋 Claude Code 的讀寫、不保護 Codex 與 Copilot（AGENTS.md「Hooks 與 permissions」），所以「hooks 禁止 agent 讀寫 `.env`」不能當成複製 secrets 的安全依據。
+   - 實測：2026-10-23 在沒有 `.env` 的 `ttr-ai-harness-worktree` 執行 `python main.py --dry-run --source taiwan_cultural_center`，exit 0 並輸出事件 JSON（scraper 的 `--dry-run` 本來就不呼叫 DB 與 AI）。所以爬蟲 dry-run 不需要 secrets。
+   - web 驗證（NOT TESTED）：程式讀取 `NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY`、`NEXT_PUBLIC_SITE_URL` 等；repo 沒有 `web/.env.example`。方案是 Phase 2 驗證 build 能否以命令列傳入佔位值通過；若不行，補 `web/.env.example`（只含佔位值）需另案並讀 `web.instructions.md`。
+   - 需要正式 secrets 的操作（非 dry-run 的爬蟲、`annotator.py`、DB 寫入、連線 production 的 web）不在 agent 的 worktree 內做；由使用者在自己的環境執行，或另案設計。
 3. Orca：安裝；Repository settings 的「Auto-run commands on worktree create」填 `pnpm install --frozen-lockfile`（web）與 `.git/info/exclude` reconcile 片段（只對 repo root 內的 worktree）；每個 agent 的啟動 hooks 保持預設；**關閉／不使用** Orca 的 Delete。
 4. 治理文件補三句：（a）worktree 一律用 git 指令建立，Orca 只「顯示」；（b）清理只走 git；（c）V-M-D 推送、Close Campaign 結案後，用跨 session 訊息通知仍在跑的 worktree session（`git.instructions.md`、`validate-merge-deploy.agent.md`、`campaign-closer.agent.md`）。
-5. Spike（不入治理）：Orca orchestration 與 Claude agent teams 各做一次 3-agent 的唯讀研究任務（例如 plan-critic 三視角），記錄 token 用量與可用性到 notes.md；結果決定是否進 Phase 3 之後的治理。
-6. 驗證：在 Orca 開的 worktree 內跑 `claude`，確認 `/hooks` 列出兩組 PreToolUse、`git push` 觸發 ask；`/list-agents` 看得到另一個 worktree 的 session。
+5. 修正 `git.instructions.md` 的 exclude reconcile 片段：macOS 預設 bash 3.2 對 `$(… case … esac …)` 內的 `case` pattern 語法錯誤，pattern 需寫成 `("$root"/*)`（notes.md §1）。
+6. Spike（不入治理）：Orca orchestration 與 Claude agent teams 各做一次 3-agent 的唯讀研究任務（例如 plan-critic 三視角），記錄 token 用量與可用性到 notes.md；結果決定是否進 Phase 3 之後的治理。
+7. 驗證：在 Orca 開的 worktree 內跑 `claude`，確認 `/hooks` 列出兩組 PreToolUse、`git push` 觸發 ask；`/list-agents` 看得到另一個 worktree 的 session。
 
 ### Phase 3 — 抽出可攜 harness（新 repo + Claude plugin + Codex install）
 1. 建 `ai-harness` repo：`plugins/core/{.claude-plugin/plugin.json, agents/, skills/, hooks/hooks.json, scripts/}`、`.claude-plugin/marketplace.json`、`codex/{agents/*.toml, hooks.json}`、`install.sh`、tests（從 `scripts/claude/tests` 搬）。
@@ -127,8 +150,25 @@ Layer 2  專案層（TTR repo）
 4. 第二個專案試裝（任一非 TTR repo），確認 agents、hooks、skills 都在，且 hooks 的 fail-closed 行為一致。
 5. 風險：plugin 未安裝的機器沒有防線（與現在「從子目錄啟動就沒防線」同級的殘餘風險）；`claude plugin eval` 可做回歸。
 
+**Phase 3 前置決策（D8，待使用者裁決；以下為建議，不是已核准）**
+
+- **版本釘選：採 pinned commit SHA，不採 git submodule。** TTR 根目錄放 `harness.lock`（harness repo URL、commit SHA、plugin 版本）。理由：本 repo 同時有十多個 worktree，submodule 要每個 worktree 各自 init，且 `git clean`、`git stash` 對 submodule 的行為會讓既有的 worktree 治理更脆弱；lock 檔是純文字，可被 `sync --check` 與測試直接驗證。
+- **責任流程**：
+  1. harness repo 改動，並在 harness 自己的測試通過後打 tag。
+  2. TTR 開 campaign worktree，更新 `harness.lock` 的 SHA，執行 sync，再跑 `sync --check` 與 pytest；全部通過才 commit，並經 V-M-D 與使用者核准後 push。
+  3. `sync --check` 比對 `harness.lock` 與本機 harness checkout 的 `HEAD`；不一致即失敗。沒有 harness checkout 時，`--check` 必須明確失敗，不得略過。
+  4. 把 `sync --check` 與 pytest 接進 CI 是 parked 的後續項目（ai-portability-followups ①），Phase 3 開工前應先完成，否則漂移無人攔截。
+- **plugin 未安裝缺口的驗收條件**（全部通過才算 Phase 3 完成）：
+  1. `permissions.ask` 的 push 規則留在 TTR 的 `.claude/settings.json`，不依賴 plugin。
+  2. TTR 的 `.claude/settings.json` 宣告 `extraKnownMarketplaces` 與 `enabledPlugins`，讓新 clone 啟動時被提示安裝。
+  3. 在沒有安裝 plugin 的乾淨環境啟動 `claude`，實測並記錄：哪些防線消失（預期：PreToolUse hooks）、是否有可見警告。若沒有警告，加一個只在 plugin 缺失時輸出警告的 SessionStart 檢查，並實測。
+  4. AGENTS.md 的「未涵蓋」段明寫「plugin 未安裝＝沒有 hooks 防線」。
+  5. hooks 的 fail-closed 測試（現有 `scripts/claude/tests`）在 harness repo 內通過，且第二個專案實測同樣阻擋 `git push --force`。
+  6. 原 `.claude/settings.json` 的重複 hooks 已移除，同一事件不會跑兩次。
+
 ### Phase 4 — TTR 精簡（與 parked followups ④ 合併）
-1. 54 個 `sources/` skill 合併為 1 個 `scraper-sources` skill（SKILL.md 只放路由表與共通規則，各來源改為同資料夾 reference 檔，由 scraper-expert 依 `source_name` 讀取）。三個工具都讀同一份；常駐 context 從 54 條 description 降為 1 條。先用 Phase 0 的 `/context` 數字決定值不值得。
+1. ~~54 個 `sources/` skill 合併為 1 個~~ **已否決（D6，2026-10-23）**：`/context` 與估算顯示專案 skill 常駐約 2.6k tokens（來源 skill 約 2.1k，占 1M 視窗約 0.2%），低於 3k 門檻，不值得合併。除非日後來源 skill 數量或 description 長度明顯增加，否則不再討論。
+1b. **`AGENTS.md` 瘦身**（取代上一項）：Memory files 的 8.7k tokens 是專案端最大的常駐項，`AGENTS.md` 17KB，其中 hooks 規則表與殘餘風險清單占大半。把這兩段移到 `docs/`，`AGENTS.md` 只留 5 點摘要、路徑規則表、角色路由、模型政策與一行連結。動手前先確認 Codex 與 Copilot 不依賴那些段落的字面內容，並重量 `/context`。
 2. `architect.agent.md` 1,197 行瘦身：TTR 專屬段落（資料模型、scraper 契約）移到 `.github/instructions/`，通用規劃原則進 harness。
 3. `.github/prompts` → skills（Claude 的 `.claude/commands` 已是舊格式，官方建議新用 `skills/`）。
 4. X1–X4 裁決與 reviewer 去留（parked ④）一併處理。
@@ -139,6 +179,19 @@ Layer 2  專案層（TTR repo）
 2. Codex `cheap` profile、Copilot BYOK → Ollama。用途白名單寫進 `~/.codex/AGENTS.md` 與 `~/.claude/CLAUDE.md`：摘要、翻譯、commit 訊息、單檔重構、測試資料生成；禁止：DB 寫入、push、部署、任何 hooks 守的動作。
 3. 用 `monthly-experiment` 跑一個月 A/B，看配額節省是否值得維護成本；不值得就撤。
 
+### 3.1 Go/No-Go 門檻
+
+工具搬遷（Orca、plugin、harness repo）本身**不是**已證明的配額效益。配額效益只能來自 Phase 1 的降級，而且必須以量到的數據為準；其餘 phase 的價值是治理與可攜性，不要與配額混為一談。
+
+| 進入 | 必要條件（全部成立才 go） |
+|---|---|
+| Phase 2 | (a) Phase 1 commit 存在（`361d17c1`，已成立）。(b) Phase 1 的四項 NOT TESTED 已驗證，或使用者明確接受留作未驗證。(c) D4' 已由使用者裁決。 |
+| Phase 3 | (a) Phase 1 之後至少一週的 cc-statusline 配額紀錄（最早 2026-10-30），與之前沒有退步，或使用者明確接受。因為 Phase 1 前沒有配額基準，此比較只能是指標，不是證明。(b) D8 已裁決。(c) ai-portability-followups ① 的 CI 接線已完成。(d) Phase 2 的 spike 結果已記入 notes.md。 |
+| Phase 4 | Phase 3 完成；`AGENTS.md` 瘦身前先重量 `/context`。 |
+| Phase 5 | 本機模型僅限白名單用途；一個月 A/B 結果決定去留。 |
+
+任一必要條件未成立即 no-go，回報使用者，不自行放寬門檻。
+
 ## 4. 風險與限制（已查證）
 
 - **配額是真正的瓶頸。** Fable + xhigh 是目前最貴的組合；Orca 或 agent teams 一次 fan-out 5 個 agent 會更快撞到 Pro 限制。平行度上升必須伴隨 Phase 1 的降級，否則適得其反。
@@ -147,25 +200,31 @@ Layer 2  專案層（TTR repo）
 - **Codex custom agent 不能換 provider**；本機模型只能 session 級切換。
 - **Copilot BYOK 目前 GA 在 Business／Enterprise**；若 Enterprise 被撤銷，個人方案能否 BYOK 需到時實測。
 - **Plugin agent 的 frontmatter 限制**（hooks／mcpServers／permissionMode 被忽略）；hooks 改走 plugin 的 `hooks/hooks.json`。
+- **Secrets 副本**（rev.2 新增）：複製 `.env` 進多個 worktree 會增加需輪替與清理的副本；hooks 只保護 Claude Code。因此不複製（§3 Phase 2 第 2 點）。
+- **沒有配額基準**（rev.2 新增）：Phase 1 之前沒有留下配額紀錄，後續比較只是指標。
 - **跨 session 訊息不是指令通道**：收方不會因訊息改設定或核准任何事，這是設計上的好事，但也表示「讓 agent 彼此了解 context」仍以檔案為主。
 
-## 5. 待使用者裁決
+## 5. 裁決狀態
 
-| # | 問題 | 建議 |
+| # | 問題 | 狀態（2026-10-23） |
 |---|---|---|
-| D1 | spec slug 與 campaign worktree：`ai-harness` → `ttr-ai-harness-worktree`／`feat/ai-harness`？ | 採用；Phase 1、2 共用一個 worktree，Phase 3 在新 repo，Phase 4 另開 |
-| D2 | 權威位置反轉：通用 agent 的權威檔搬到 harness repo，TTR 的 `.github/agents` 變 generated | 採用，但到 Phase 3 才做；Phase 1、2 權威仍在 `.github` |
-| D3 | 主對話預設模型：`opusplan` 或維持 `fable` 但降 effort | `opusplan`；規劃 session 手動 `/model fable` |
-| D4 | `.worktreeinclude` 是否包含 `scraper/.env`、`web/.env.local`（secrets 會被複製到每個 worktree） | 包含，否則 worktree 內跑不了 dry-run；配合既有 `.env` hooks |
-| D5 | Orca 內是否允許建立 worktree（Orca 自己的位置與命名）或一律 git 指令建立後「顯示」 | 一律 git 指令建立；Orca 只顯示與啟動 |
-| D6 | 54 個來源 skill 合併為一個（Phase 4） | 先量 `/context`，超過常駐 3k tokens 就做 |
-| D7 | `tokyo-taiwan-radar-agents-repo` worktree 退役 | 退役，由本計畫取代 |
+| D1 | spec slug 與 campaign worktree：`ai-harness` → `ttr-ai-harness-worktree`／`feat/ai-harness` | 已裁決（2026-10-20，依建議） |
+| D2 | 權威位置反轉：通用 agent 權威檔搬到 harness repo，TTR 的 `.github/agents` 變 generated | 已裁決，但到 Phase 3 才做 |
+| D3 | 主對話預設模型：`opusplan`，規劃時手動 `/model fable` | 已裁決；`~/.claude/settings.json` 已設 |
+| D4 | ~~`.worktreeinclude` 包含 `scraper/.env`、`web/.env.local`~~ | **撤回**。rev.1 的建議不安全 |
+| D4' | worktree 一律不帶正式 secrets；爬蟲 dry-run 免 secrets（已實測）；web 驗證用佔位值或 `web/.env.example`（待驗證）；需要 secrets 的操作由使用者在自己的環境執行。建議：採用 | **待使用者裁決** |
+| D5 | Orca 只顯示與啟動，worktree 一律用 git 指令建立 | 已裁決 |
+| D6 | 合併 54 個來源 skill | 已裁決（先量測）；量測後結論：不合併 |
+| D7 | `tokyo-taiwan-radar-agents-repo` worktree 退役 | 已達成：該 worktree 已不存在 |
+| D8 | Phase 3 版本釘選：pinned commit SHA（`harness.lock`）而非 git submodule，含責任流程與驗收條件（§3 Phase 3）。建議：採用 | **待使用者裁決** |
 
-## 6. 下一步建議
+## 6. 下一步
 
-1. 使用者回覆 D1–D7。
-2. Plan Critic（建議用 Codex `codex -s read-only`，不同模型家族）審本 rev.1。
-3. Engineer 在 `ttr-ai-harness-worktree` 執行 Phase 0 → Phase 1。
+1. 使用者裁決 D4'（建議採用）。Phase 2 開工前必須完成。
+2. 在互動 session 驗證 Phase 1 的四項 NOT TESTED，或明確接受留作未驗證（Phase 2 go 條件 b）。
+3. 開始記錄 Phase 1 之後的每週配額（Phase 3 go 條件 a，最早 2026-10-30 可評估）。
+4. D4' 與上兩項就緒後，Engineer 在 `ttr-ai-harness-worktree` 開始 Phase 2。建議模型：Sonnet、medium effort。
+5. D8 與 Phase 3 的其他條件，在 Phase 2 結束後再處理。
 
 ## 7. 來源
 
