@@ -36,7 +36,7 @@ tags: [scraper, web, infra, tooling]
 parked → active → archived
 ```
 
-- `parked` → `active`：開新 git branch，把 `parked/<slug>.md` 移至 `active/<slug>/proposal.md` 並補 `tasks.md`
+- `parked` → `active`：開新 git branch，把 `parked/<slug>.md` 移至 `active/<slug>/proposal.md` 並補 `tasks.md`；建立 `spec:<slug>` label
 - `active` → `archived`：`git mv docs/specs/active/<slug> docs/specs/archive/$(date +%Y-%m)-<slug>`
 
 ## Worktree 生命週期（大型功能）
@@ -44,13 +44,26 @@ parked → active → archived
 每個規則上線後新建/重啟的 active implementation spec，1:1 對應一個 repo-root worktree（既有 spec grandfather，不回溯）。**worktree 路徑不寫進 frontmatter**，由 `slug` 推導：`ttr-<slug>-worktree`（branch `feat/<slug>`），每次以 `git worktree list --porcelain` 驗證實況。
 
 - `parked → active`：依 `.github/instructions/git.instructions.md § Isolated worktree` 的 state matrix 建 worktree + idempotent `.git/info/exclude`。
-- 開發期間：所有 commit 在 worktree 內；`tasks.md` 逐步打勾。
+- 開發期間：所有 commit 在 worktree 內；里程碑完成時在 `tasks.md` 打勾，過程中的細項開 issue（見「Spec 與 Issue 分工」）。
 - `active → archived`：merge 進 main 後，依 canonical 的 STOP 條件 `git worktree remove` + `git branch -d` + 移除 exclude 行，再 `git mv docs/specs/active/<slug> docs/specs/archive/$(date +%Y-%m)-<slug>`。
 
 命令細節一律見 canonical section；小改動不建 spec 也不建 worktree。
 
-## 給 Copilot 的使用守則
+## Spec 與 Issue 分工
+
+| 內容 | 放哪裡 |
+|---|---|
+| 現在做到哪、下一步 | TTR Roadmap 看板：https://github.com/users/TuiTuiKoan/projects/1 |
+| 為什麼做、做什麼、不做什麼、設計 | `proposal.md` |
+| 不超過十條的里程碑 | `tasks.md` |
+| 過程中增生的細項、評審意見、測試發現的 bug、之後要處理的待辦 | GitHub issue，貼 `spec:<slug>` label |
+
+- 每個 active spec 都有一個 `spec:<slug>` label；新 spec 在 `parked` → `active` 時建立。
+- 既有 `tasks.md` 裡已經存在的細項 checkbox 保留原狀，不搬移；新增的細項才開 issue。
+- 同一套規則寫在 `AGENTS.md`（Claude Code、Codex）與 `.github/copilot-instructions.md`（VS Code Copilot），agent 會自動遵守。
+
+## 給 AI agent 的使用守則
 
 1. **新功能前先建 spec**：在 `active/<slug>/proposal.md` 寫清楚 what/why/non-goals，再開 branch；大型 feature 依「Worktree 生命週期」建對應 `ttr-<slug>-worktree`。
-2. **tasks.md 是唯一進度依據**：每完成一步就把 `- [ ]` 改 `- [x]`，commit 進 git。
-3. **換 session 時**：把 `docs/specs/active/<slug>/tasks.md` 貼給 Copilot，說明「繼續執行未完成項目」，不需要重述背景。
+2. **tasks.md 只放里程碑**：完成一個里程碑就把 `- [ ]` 改 `- [x]` 並 commit。過程中的細項開 issue 貼 `spec:<slug>`；進度看 TTR Roadmap 看板。
+3. **換 session 時**：請 agent 先看 `label:spec:<slug>` 的 open issue，再讀 `docs/specs/active/<slug>/tasks.md` 的里程碑，接續未完成的項目，不需要重述背景。

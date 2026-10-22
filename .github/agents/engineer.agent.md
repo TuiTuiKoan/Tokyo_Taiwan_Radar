@@ -110,7 +110,7 @@ When changing any `GITHUB_TOKEN` / `--create-issue` behavior or documentation:
 1. **先讀** `.github/instructions/git.instructions.md` § Isolated worktree，依其 **state matrix** 決定 NEW 或 CONTINUING（用 `git worktree list --porcelain` 確認現況）。
 2. 在 `ttr-<slug>-worktree` 內、`feat/<slug>` 上開發；建立後立即 idempotent append `.git/info/exclude`（見 canonical）。
 3. rebase／preview 前確認 worktree clean——**絕不 `git stash`**（見 canonical）。
-4. 每完成一步在 `docs/specs/active/<slug>/tasks.md` 打勾並 commit（跨 session 進度真值）。
+4. 每完成一個里程碑在 `docs/specs/active/<slug>/tasks.md` 打勾並 commit；過程中增生的細項、評審意見與 bug 開 issue 貼 `spec:<slug>`（見 `AGENTS.md`「進度追蹤」）。跨 session 的進度看 TTR Roadmap 看板與該 spec 的 open issue。
 
 小改動（無 spec）跳過建立專用 worktree 這一步，但**仍須先走 Worktree 確認閘門**請使用者指定一個現有 worktree，在其中依既有 commit → V-M-D → approval 流程進行（不直推 main、不繞過 approval）。
 
