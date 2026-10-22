@@ -209,3 +209,14 @@ git -c remote.origin.push=refs/heads/feat/x:refs/heads/main push origin feat/x
 | `git push --dry-run origin HEAD:main` | 提示，文字為 `Ask rule Bash(git push *main) overrides auto mode for this command.`，使用者選 No。settings 規則先命中，hook 對此命令同樣回 ask |
 
 結論：推 feature branch 不再需要人工核准，推 main 仍由 hook 與 settings 兩層要求核准。
+
+## B6 Phase D 實測（2026-10-22）
+
+PR Tier workflow（`workflow_run` 版本）上線於 `6530ce38` 之後的兩次實測。
+
+| 實測 | 做法 | 結果 |
+|---|---|---|
+| Tier 0 自動合併 | PR #307 只改 `.github/skills/agents/architect/history.md`（head `87317583`） | Secret Scan 成功後，PR Tier 的 `classify` 與 `act` 都成功，貼 `tier:0`，由 `app/github-actions` 以 squash 合併為 `4a069d10`（單一父節點 `6530ce38`），合併的正是被掃描的 commit |
+| 升級情境不合併 | PR #308 第一個 commit 只改 docs（`ecab16a9`），開 PR 後 5 秒追加改 `scripts/ci/pr_tier.py` 的 commit（`955da4b9`） | 第一個 commit 的掃描完成時 PR head 已是 `955da4b9`，`classify` 找不到 head 相符的 open PR，`act` 被跳過；第二個 commit 的掃描完成後判為 `tier:2`，合併步驟被跳過。PR 保持開啟，驗證後手動關閉、未合併 |
+
+發現一個問題：repo 已開啟「合併後刪除 head branch」，但由 `GITHUB_TOKEN` 完成的合併沒有觸發，PR #307 的 branch 仍留在 origin。已在 merge 指令加上 `--delete-branch`。已留下的 `docs/architect-gate-review-lesson` 與 `test/pr-tier-upgrade` 兩個遠端 branch，依 hook 規則由使用者刪除。
