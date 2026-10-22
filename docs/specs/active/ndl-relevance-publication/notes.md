@@ -438,3 +438,28 @@ docs/specs/active/ndl-relevance-publication/notes.md「Plan Critic 評審處置�
 
 N 僅 5 筆：開發集的負例很少，候選 prompt 的 N 移除率在開發階段只能粗看，正式判定靠封存集。
 原始 69 列存檔備份在 `~/.ai-notes/ttr/p5-eval/blind_dev.user_69rows.csv`（不提交）。
+
+## Prompt 開發紀錄（2026-10-22，Phase C ②，只用 P_dev）
+
+模型 gpt-4o-mini；每輪對 P_dev 全部 303 筆執行，與正式流程相同的 feedback prompt。候選檔在
+`~/.ai-notes/ttr/p5-eval/prompts/`，輸出在 `out_dev_cand*.jsonl`（皆不提交）。指標只用開發集
+70 列盲標，**僅供參考，不能用來判定通過**（proposal 1.6）。prompt 內的例子一律自編，不引用開發集
+的真實標題或系列名：開發集與封存集逐筆切分，同一系列的文章兩邊都有，引用會灌水封存集。
+
+| 輪 | 候選（SHA-256 前 12 碼） | 改了什麼 | R＋B 保留 | N 丟掉 | 保留記錄空分類 | 花費 |
+|----|------|------|------|------|------|------|
+| 基準 | cand0 `cc755186b3b4` | 現行 SYSTEM_PROMPT（含 C1 的 RECORD_TYPE 說明） | 58／65 | 2／5 | 0 | $0.80 |
+| 1 | cand1 `cec390cd7a4e` | gate 加出版物判準＋`PUBLICATION RECORDS — FIELD RULES` | 65／65 | 0／5 | 0 | $0.83 |
+| 2 | cand2 `e8a8879ef2b0` | 判準改為三步驟（自身標題 → 系列脈絡 → 不明保留） | 65／65 | 0／5 | 0 | $0.83 |
+| 3 | cand3 `32af023d1ecd` | `taiwan_relevance` 加 `own_title`／`basis` 欄位強制先分類 | 63／65 | 0／5 | **11 筆輸出整個壞掉** | $0.85 |
+| 4 | cand4 `addeacdbb01e` | cand2＋prompt 結尾 FINAL CHECK | 64／65 | 0／5 | 0 | $0.85 |
+
+觀察：
+- 基準 prompt 以「不是活動」「沒有台灣文化元素」為由丟掉 R（例：台湾夜市大全、台中垃圾焚燒 BOT）。
+  cand1 起修好，分類也不再空白。
+- 5 筆 N 全部是「台灣只出現在系列名」：多國並列系列中這篇講別國（`: マレーシア`、`: 韓国`、朝鮮、
+  日本國防產業），以及台灣飲料系列中的新光合纖（該筆待揭盲裁決，可能應為 B）。四輪都沒有讓
+  gpt-4o-mini 把系列名與作品內容分開；它的 selection_reason 直接把系列名當成內容。
+- cand3 改輸出欄位後，11 筆只回 `taiwan_relevance` 的欄位，標題、分類等全部遺失：出版物不改輸出 schema。
+- 開發集外（未標註）各輪 gate 都只穩定丟掉 `仙台湾`（NDL 關鍵字誤中，正確丟掉）。
+
