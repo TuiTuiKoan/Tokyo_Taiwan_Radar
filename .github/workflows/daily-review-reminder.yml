@@ -1,55 +1,84 @@
 name: Daily Skills Review Reminder
 
+# Keeps one open reminder issue (label daily-review) and adds a comment with the
+# past 24 hours of commits each day. Days without commits add nothing. Closing
+# the issue means "caught up"; the next day with commits opens a new one.
+#
+# The campaign closer excludes label:daily-review from its issue search, so the
+# label must stay on the reminder and on nothing else.
+#
+# Commit subjects are untrusted text: they go into a file and reach gh through
+# --body-file, never into a shell command line.
+
 on:
   schedule:
     - cron: '0 18 * * *'  # 03:00 JST (UTC+9) = 18:00 UTC previous day
   workflow_dispatch:       # 可手動觸發測試
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
-  create-review-issue:
+  remind:
     runs-on: ubuntu-latest
-    permissions:
-      issues: write
-      contents: read
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Collect today's commits
+      - name: Collect the past 24 hours of commits
         id: commits
         run: |
-          # 抓取過去 24 小時的 commits（non-merge）
-          COMMITS=$(git log --since="24 hours ago" --format="- \`%h\` %s" --no-merges)
-          if [ -z "$COMMITS" ]; then
-            COMMITS="_（過去 24 小時無新 commit）_"
+          # shellcheck disable=SC2016  # literal backticks format the hash as Markdown code
+          git log --since="24 hours ago" --format='- `%h` %s' --no-merges > "$RUNNER_TEMP/commits.md"
+          if [ -s "$RUNNER_TEMP/commits.md" ]; then
+            echo "has_commits=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_commits=false" >> "$GITHUB_OUTPUT"
+            echo "No commits in the past 24 hours; nothing to add." >> "$GITHUB_STEP_SUMMARY"
           fi
-          # 多行輸出用 EOF 包裝
-          {
-            echo "list<<EOF"
-            echo "$COMMITS"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
 
-      - name: Create daily review issue
+      - name: Find or open the reminder issue
+        id: issue
+        if: steps.commits.outputs.has_commits == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
-          DATE=$(TZ=Asia/Tokyo date +%Y-%m-%d)
-          gh issue create \
-            --title "📓 Daily Skills Review ${DATE}" \
-            --label "daily-review" \
-            --body "## 今日 commits（過去 24 小時）
-
-          ${{ steps.commits.outputs.list }}
-
-          ---
+          number=$(gh issue list --repo "$REPO" --label daily-review --state open \
+            --json number --jq 'sort_by(.number) | last | .number // empty')
+          if [ -z "$number" ]; then
+            cat > "$RUNNER_TEMP/issue.md" <<'EOF'
+          每天有新 commit 時，這張 issue 會多一則留言，列出過去 24 小時的 commit。
 
           ## 如何執行復盤
 
           1. 開啟 Claude Code、Codex 或 VS Code Copilot Chat
-          2. Claude Code：執行 \`/daily-skills-review\`；Codex：請它完整讀取並執行 \`.github/prompts/daily-skills-review.prompt.md\`；VS Code Copilot Chat：叫出 \`daily-skills-review\` prompt
-          3. 將上方 commits 貼入作為 \`today_work\` 上下文
-          4. 完成後關閉此 Issue ✅
+          2. Claude Code：執行 `/daily-skills-review`；Codex：請它完整讀取並執行 `.github/prompts/daily-skills-review.prompt.md`；VS Code Copilot Chat：叫出 `daily-skills-review` prompt
+          3. 把尚未復盤的留言裡的 commits 貼入，作為 `today_work` 上下文
+          4. 全部復盤完就關閉這張 issue ✅；下一個有 commit 的日子會自動開新的一張
 
-          > _由 \`.github/workflows/daily-review-reminder.yml\` 自動建立_"
+          > _由 `.github/workflows/daily-review-reminder.yml` 自動維護_
+          EOF
+            url=$(gh issue create --repo "$REPO" --title "📓 Daily Skills Review" \
+              --label daily-review --body-file "$RUNNER_TEMP/issue.md")
+            number="${url##*/}"
+          fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+
+      - name: Add today's commits as a comment
+        if: steps.commits.outputs.has_commits == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ steps.issue.outputs.number }}
+        run: |
+          {
+            echo "## $(TZ=Asia/Tokyo date +%Y-%m-%d) commits（過去 24 小時）"
+            echo
+            cat "$RUNNER_TEMP/commits.md"
+          } > "$RUNNER_TEMP/comment.md"
+          gh issue comment "$NUMBER" --repo "$REPO" --body-file "$RUNNER_TEMP/comment.md"
+          echo "Commented on #$NUMBER" >> "$GITHUB_STEP_SUMMARY"
