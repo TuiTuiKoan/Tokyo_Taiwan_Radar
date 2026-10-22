@@ -125,3 +125,17 @@ def test_ja_wikipedia_strict_still_returns_zh_langlink_for_katakana_person(monke
     monkeypatch.setattr(person_name_lookup.requests, "get", fake_get)
 
     assert person_name_lookup._lookup_zh_via_ja_wikipedia("クー・チェンドン", strict=True) == "柯震東"
+
+
+def test_extract_katakana_names_keeps_fan_surname():
+    # ケイトリン・ファン (方郁婷): "ファン" is a surname here, not "fan".
+    assert person_name_lookup.extract_katakana_names("出演 ケイトリン・ファン") == ["ケイトリン・ファン"]
+
+
+def test_extract_katakana_names_still_drops_fan_compounds_and_other_noise():
+    text = "アニメファン・ミーティング ヒルトン・ホテル"
+    assert person_name_lookup.extract_katakana_names(text) == []
+
+
+def test_extract_katakana_names_fan_not_last_part_is_noise():
+    assert person_name_lookup.extract_katakana_names("ファン・ミーティング") == []
