@@ -86,3 +86,12 @@ M1 移除 researcher（1）、discovery_accounts（2）、qa_auto_fix 備援（1
 - production `llm_usage` id 1：`eval.smoke`、`gpt-4o-mini`、`chat`、13／0／1、`ok`。`llm_cost_daily` 算出 $0.000003（手算 $0.00000255），`unpriced_calls=0`。
 - 這一列保留在表中，caller 為 `eval.smoke`，彙總時可依 caller 排除。
 - 網站端：`tsc`、eslint、`web/tests/llm-usage.test.ts`（7 項）通過；`pnpm run build` 的 prebuild 與編譯通過，prerender 因 worktree 沒有網站的 Supabase 環境變數而停下，留給 PR 的 Vercel preview 驗證。
+
+## PR #391 的 Historical Backtest 失敗（2026-10-23）
+
+- 原因：`AttributeError: 'AsyncLLMClient' object has no attribute 'embeddings'`。`eval_annotator.semantic_scores_for` 用 `text-embedding-3-small` 評分，而共用 client 只有 chat 與 responses。
+- 為何漏掉：第一次盤點只 grep `chat.completions.create`／`responses.create`；`eval_annotator` 的單元測試用假 client，沒有碰到。這個 workflow 在 PR 只有改到 `eval_historical.py` 才會觸發，是 CI 抓到的。若沒抓到，每月的 monthly_health_check 會失敗。
+- CI 端的紀錄實證：失敗前的 100 次 gpt-4o-mini 呼叫（$0.18）與 Venue Pipeline Eval 的 38 次（$0.06）都寫進了 production `llm_usage`，`run_ref` 為 `Historical Backtest#39799126338` 等。表示 PR 上跑的 eval 也會入帳，彙總時 caller 以 `eval.` 開頭可篩出。
+- 修正：client 加 `embeddings`（只計 input tokens）；migration 101 放寬 `endpoint` 的 CHECK 並為 `text-embedding-3-small` 定價（$0.02／百萬 tokens，OpenAI 模型頁，2026-10-23 查）；新增 `test_every_sdk_surface_in_use_is_exposed`，舊版 client 會讓它失敗。
+- migration 編號：main 已有 `100_rpc_execute_lockdown.sql`（另一個 session，已替本 spec 的 099 保留編號），所以這次用 101。
+- `Auto-merge Dependabot` 的 skipped 是正常的：`if: github.actor == 'dependabot[bot]'`。

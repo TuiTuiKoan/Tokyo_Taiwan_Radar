@@ -95,11 +95,11 @@ enrich_addresses 的新流程：
 - `quota_monitor --check-budget` 改讀 `llm_cost_daily` 中 `caller like 'scraper/eval_annotator%'` 的當週成本。
 - 週報成本段落註明「以 OpenAI dashboard 為準」，並列出依 model 的小計，方便和 dashboard 逐項比對。
 
-**呼叫點清單（D1 完成後共 20 個）**
+**呼叫點清單（D1 完成後共 21 個）**
 
-原估 21 個；逐一確認後是 20 個，`enrich_ocr_event.py` 不呼叫 LLM。
+原估 21 個；`enrich_ocr_event.py` 不呼叫 LLM（−1），embeddings 漏算（+1），所以合計仍是 21 個（scraper 15、web 6）。
 
-scraper（14，M2 已改走 `llm_client`）：`annotator.py` ×5、`enrich_location.py`、`enrich_poster.py`、`weekly_line_broadcast.py`、`qa_heartbeat.py`、`sources/cinemaclair.py`、`auto_scraper/generate.py`、`auto_scraper/auto_research.py`、`eval_annotator.py` ×2。Eval session 之後新增的 `eval_historical.py`、`eval_venues.py` 本來各自建立 `AsyncOpenAI`，在 rebase 時被 `check_llm_callers.py` 抓到，已改走 `get_async_client`（它們透過 `eval_annotator.annotate_one_async` 呼叫，沒有新增呼叫點）。
+scraper（15，M2 已改走 `llm_client`）：`annotator.py` ×5、`enrich_location.py`、`enrich_poster.py`、`weekly_line_broadcast.py`、`qa_heartbeat.py`、`sources/cinemaclair.py`、`auto_scraper/generate.py`、`auto_scraper/auto_research.py`、`eval_annotator.py` ×3（chat ×2、embeddings ×1）。embeddings 是第一次盤點漏掉的：當時只 grep 了 `chat.completions` 與 `responses`，PR #391 的 Historical Backtest 才發現 `eval_annotator.semantic_scores_for` 呼叫 `client.embeddings.create`。`test_every_sdk_surface_in_use_is_exposed` 之後會擋下任何未被 wrapper 涵蓋的 SDK 類型。Eval session 之後新增的 `eval_historical.py`、`eval_venues.py` 本來各自建立 `AsyncOpenAI`，在 rebase 時被 `check_llm_callers.py` 抓到，已改走 `get_async_client`（它們透過 `eval_annotator.annotate_one_async` 呼叫，沒有新增呼叫點）。
 web（6）：`api/admin/annotate-event`、`api/admin/extract-from-image`、`api/account/annotate-event`、`api/account/extract-from-image`、`api/line-webhook`、`api/upload-with-qr`。
 
 禁止直接呼叫的檢查（M4）以「建立 client」為關卡：`scraper/llm_client.py` 以外出現 `OpenAI(`／`AsyncOpenAI(`，或 `web/lib/llm/openai.server.ts` 以外出現 `api.openai.com`，就失敗（`_oneoff_*.py` 與 tests 除外）。repo 沒有跑 Python 測試的 CI，所以落在兩處：`scripts/check_llm_callers.py` 由 pre-commit hook（b1b）執行；網站端的同一檢查在 `web/tests/llm-usage.test.ts`，由 `prebuild` 執行，Vercel build 時會擋下。
