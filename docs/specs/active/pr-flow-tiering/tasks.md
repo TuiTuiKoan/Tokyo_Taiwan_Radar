@@ -31,7 +31,7 @@
 - [x] 以 `codex exec -s read-only` 評審 `proposal.md` 與 Phase B diff，報告存成 `critique.md`
 - [x] 逐條回應批評：採納、修改或附理由駁回，更新 proposal 與 tasks（回應表在 `critique.md` 文末）
 - [x] B3：修正 `-c remote.*.push` 等繞過與未知選項，測試全綠（Fable，747 passed，見 `notes.md` B3）
-- [ ] Phase B 的 commit 在 Phase C 完成前不合併到 main
+- [x] Phase B 的 commit 在 Phase C 完成前不合併到 main（Phase A～C 於 2026-10-22 以 `167e2a33` 合併）
 
 ## Phase D: GitHub 設定與 Tier 0 workflow
 
