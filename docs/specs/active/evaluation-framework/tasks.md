@@ -57,6 +57,10 @@ spec: evaluation-framework
 - [ ] 一次性執行，產出首份 baseline 報表
 - [ ] 排程：每月 1 號隨 monthly_health_check 執行
 
+### G. 地點分段 eval（#325，2026-10-22 加入）
+- [x] 抽取與解析兩段上線（`scraper/eval_venues.py`、`.github/workflows/eval-venues.yml`），基準見 `docs/evaluation/venues/2026-10-22-baseline.md`
+- [ ] 定位段：等 geocoding 上線（#372）
+
 ## P3 — Guards 元評估（持續）
 
 ### F. Meta-Evaluation

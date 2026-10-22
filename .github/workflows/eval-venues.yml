@@ -5,8 +5,11 @@ name: Venue Pipeline Eval
 #   snapshot. No secrets; the baseline gate fails the PR on fewer correct cases
 #   or on any wrong venue.
 # - extract: raw text → location_name through the annotator LLM. Reads raw text
-#   from the DB (read-only) and calls OpenAI (~38 calls). Report only, no gate:
-#   single runs vary by a case or two.
+#   from the DB (read-only) and calls OpenAI (38 calls, about $0.10 because the
+#   annotator system prompt is long). Report only, no gate: single runs vary by
+#   a case or two. Runs on workflow_dispatch, or on a PR that touches the
+#   annotator, the eval code or the golden cases; a venue_registry.py-only PR
+#   runs the free resolve stage alone.
 
 on:
   pull_request:
@@ -33,6 +36,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v6
         with:
@@ -43,14 +48,29 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r scraper/requirements.txt
 
-      - name: Run resolve + extract (report)
+      - name: Decide whether the paid extract stage runs
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          stage=all
+          if [ "$EVENT" = pull_request ] && ! git diff --name-only "$BASE" HEAD \
+              | grep -qE '^scraper/(annotator|eval_annotator|eval_venues)\.py$|^scraper/tests/golden/venues\.jsonl$'; then
+            stage=resolve
+          fi
+          echo "stage=$stage" >> "$GITHUB_OUTPUT"
+          echo "Venue eval stage: $stage" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run eval (report)
         working-directory: scraper
         env:
           OPENAI_API_KEY: "${{ secrets.OPENAI_API_KEY }}"
           SUPABASE_URL: "${{ secrets.SUPABASE_URL }}"
           SUPABASE_SERVICE_ROLE_KEY: "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
+          STAGE: ${{ steps.scope.outputs.stage }}
         run: |
-          python eval_venues.py --stage all \
+          python eval_venues.py --stage "$STAGE" \
             --output venues_report.md \
             --json-output venues_snapshot.json
           echo "## Venue Pipeline Eval" >> "$GITHUB_STEP_SUMMARY"
