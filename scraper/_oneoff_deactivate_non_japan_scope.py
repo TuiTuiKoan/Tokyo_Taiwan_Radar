@@ -229,7 +229,9 @@ TARGET_SPECS = (
         "fe47a25c",
         "A4_japan_band_overseas_performance",
         "Japan band's Taipei tour leg",
-        (EvidenceSpec("raw_title", "台北公演"), EvidenceSpec("raw_description", "台北・香港公演")),
+        # 2026-08-31 the description was replaced by a one-line summary (no longer
+        # "台北・香港公演"); it is still the same Taipei concert, re-reviewed 2026-10-23.
+        (EvidenceSpec("raw_title", "台北公演"), EvidenceSpec("raw_description", "jizueの台北公演")),
     ),
     TargetSpec(
         "a62ce9e1",
