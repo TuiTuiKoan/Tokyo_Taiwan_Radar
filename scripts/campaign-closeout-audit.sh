@@ -57,7 +57,11 @@ Usage: scripts/campaign-closeout-audit.sh --worktree <registered-path> [options]
 
   --worktree <path>        registered or physical path of the worktree to audit
   --slug <slug>            campaign slug; without it the spec and issue sources
-                           report not_checked rather than a false zero
+                           report not_checked rather than a false zero. The spec
+                           is docs/specs/active/<slug>, else the one directory
+                           under docs/specs/archive/ named <slug> or
+                           <YYYY-MM>-<slug>. Two or more archived matches are
+                           spec_dir_ambiguous (not_checked), never guessed
   --range <base>..<head>   one pushed segment of the campaign's commit range;
                            repeatable. base is the origin/main tip before that
                            push, head is the HEAD that push delivered. Give one
@@ -305,14 +309,49 @@ count_or_zero() { # prints an integer, never empty
 #    question, not an answer of zero: a single mistyped letter would otherwise
 #    turn every unhandled task into "spec_tasks=0" and silently open the gate.
 #    Sources 1 and 2 therefore report not_checked whenever SPEC_DIR is empty.
+#
+#    Resolution order. docs/specs/README names an archived directory
+#    <YYYY-MM>-<slug>, so a bare archive/<slug> is only the legacy spelling.
+#      1. active/<slug> exists: use it. A live spec is unique, so archive is not
+#         consulted and ambiguity cannot arise.
+#      2. Otherwise compare every directory name under archive/ with the slug:
+#         the name itself, or the name without a leading <YYYY-MM>- (month
+#         01-12), must EQUAL the slug. The slug is data, never a glob: it is only
+#         ever compared with [ = ], so 'demo-*' cannot widen the match.
+#         0 hits -> unresolved, 1 hit -> use it, 2 or more -> ambiguous.
+#    Ambiguity is its own reason: a typo needs a new slug, a duplicate archive
+#    needs one of the directories removed, and a person must tell them apart.
+#    Several hits are reported, never narrowed to the newest month by guessing.
 SPEC_DIR=""
+SPEC_AMBIGUOUS=0
+SPEC_HIT_LIST=""
 if [ -n "$SLUG" ]; then
-  for cand in "$WT/docs/specs/active/$SLUG" "$WT/docs/specs/archive/$SLUG"; do
-    if [ -d "$cand" ]; then
-      SPEC_DIR="$cand"
-      break
+  if [ -d "$WT/docs/specs/active/$SLUG" ]; then
+    SPEC_DIR="$WT/docs/specs/active/$SLUG"
+  else
+    SPEC_HITS=0
+    for cand in "$WT"/docs/specs/archive/*/; do
+      [ -d "$cand" ] || continue   # an unmatched glob stays literal and is skipped here
+      name=${cand%/}
+      name=${name##*/}
+      case "$name" in
+        [0-9][0-9][0-9][0-9]-0[1-9]-*|[0-9][0-9][0-9][0-9]-1[0-2]-*) stem=${name#????-??-} ;;
+        *) stem=$name ;;
+      esac
+      if [ "$name" = "$SLUG" ] || [ "$stem" = "$SLUG" ]; then
+        SPEC_HITS=$(( SPEC_HITS + 1 ))
+        SPEC_DIR=${cand%/}
+        rel=${cand%/}
+        rel=${rel#"$WT"/}
+        if [ -z "$SPEC_HIT_LIST" ]; then SPEC_HIT_LIST="$rel"; else SPEC_HIT_LIST="$SPEC_HIT_LIST
+$rel"; fi
+      fi
+    done
+    if [ "$SPEC_HITS" -gt 1 ]; then
+      SPEC_DIR=""
+      SPEC_AMBIGUOUS=1
     fi
-  done
+  fi
 fi
 
 # 1. spec tasks.md unchecked boxes
@@ -321,10 +360,20 @@ if [ -z "$SLUG" ]; then
   echo "spec_tasks=not_checked  guessed from the directory or branch name)"
   NOT_CHECKED=$(( NOT_CHECKED + 1 ))
   add_undet "spec_tasks_not_checked"
+elif [ "$SPEC_AMBIGUOUS" -eq 1 ]; then
+  echo "spec_tasks=not_checked  (reason: slug '$SLUG' matches more than one archived"
+  echo "spec_tasks=not_checked  spec directory; remove the duplicate, never guess:"
+  printf '%s\n' "$SPEC_HIT_LIST" | while IFS= read -r hit; do
+    echo "spec_tasks=not_checked    candidate: $hit"
+  done
+  echo "spec_tasks=not_checked  )"
+  NOT_CHECKED=$(( NOT_CHECKED + 1 ))
+  add_undet "spec_dir_ambiguous"
 elif [ -z "$SPEC_DIR" ]; then
-  echo "spec_tasks=not_checked  (reason: slug '$SLUG' does not resolve to an"
-  echo "spec_tasks=not_checked  existing docs/specs/active/ or docs/specs/archive/"
-  echo "spec_tasks=not_checked  directory; a typo must never be reported as 0)"
+  echo "spec_tasks=not_checked  (reason: slug '$SLUG' does not resolve to an existing"
+  echo "spec_tasks=not_checked  docs/specs/active/<slug> or docs/specs/archive/ directory"
+  echo "spec_tasks=not_checked  named <slug> or <YYYY-MM>-<slug>; a typo must never be"
+  echo "spec_tasks=not_checked  reported as 0)"
   NOT_CHECKED=$(( NOT_CHECKED + 1 ))
   add_undet "spec_dir_unresolved"
 else
@@ -344,6 +393,11 @@ if [ -z "$SLUG" ]; then
   echo "deferred_markers=not_checked  (reason: --slug not supplied)"
   NOT_CHECKED=$(( NOT_CHECKED + 1 ))
   add_undet "deferred_not_checked"
+elif [ "$SPEC_AMBIGUOUS" -eq 1 ]; then
+  echo "deferred_markers=not_checked  (reason: slug '$SLUG' matches more than one"
+  echo "deferred_markers=not_checked  archived spec directory; see spec_tasks above)"
+  NOT_CHECKED=$(( NOT_CHECKED + 1 ))
+  add_undet "spec_dir_ambiguous"
 elif [ -z "$SPEC_DIR" ]; then
   echo "deferred_markers=not_checked  (reason: slug '$SLUG' does not resolve to an"
   echo "deferred_markers=not_checked  existing spec directory)"

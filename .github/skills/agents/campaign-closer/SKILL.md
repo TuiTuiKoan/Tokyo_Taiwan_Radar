@@ -159,7 +159,11 @@ push 之間若有別的 campaign 的 commit 進入 `origin/main`，單一跨度�
 要求五個來源全部有數字。
 
 **slug 解析不到 spec 目錄，屬於「沒查」。** 來源 1／2 必須先確認
-`docs/specs/active/<slug>/`（或 `archive/<slug>/`）存在，再去讀 `tasks.md` 與敘事檔。
+spec 目錄存在，再去讀 `tasks.md` 與敘事檔。解析規則：`docs/specs/active/<slug>/` 存在就用它
+（不查 archive）；否則比對 `docs/specs/archive/` 下各目錄名，「等於 slug」或「去掉
+`<YYYY-MM>-` 前綴後等於 slug」才算命中（字串相等，不是 glob）。命中 1 筆用它，0 筆是
+`spec_dir_unresolved`，≥2 筆是 `spec_dir_ambiguous`（`not_checked`，列出所有候選，要人清掉
+重複的 archive，不猜最新月份）。
 只判斷「檔案在不在」會讓一個打錯字的 slug 直接輸出 `spec_tasks=0`——實測
 `publication-polcy`（少一個 `i`）曾把 24 筆未處理待辦報成 0。目錄不存在時輸出
 `not_checked` 並計入 `not_checked_sources`。目錄存在但缺 `tasks.md` 才是真正的 `0`。

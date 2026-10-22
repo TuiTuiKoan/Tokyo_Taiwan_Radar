@@ -1,7 +1,7 @@
 ---
 title: Campaign Close-out Records
 description: When a campaign close-out is required, the ten sections every record must carry, and the identity, freshness, and correction contracts that govern them
-ms.date: 2026-08-11
+ms.date: 2026-10-22
 ms.topic: reference
 keywords:
   - campaign close-out
@@ -281,7 +281,7 @@ A campaign is not finished because its last commit landed. It is finished when n
 still waiting on it. Five sources are consulted before a worktree is proposed for
 retirement, and each one reports a number or reports `not_checked`:
 
-1. Unchecked items in `docs/specs/active/<slug>/tasks.md`.
+1. Unchecked items in the spec's `tasks.md`. The spec is `docs/specs/active/<slug>/` when it exists; otherwise the one directory under `docs/specs/archive/` named `<slug>` or `<YYYY-MM>-<slug>`. Two or more archived matches are reported as `spec_dir_ambiguous` (`not_checked`, every candidate listed), never narrowed to the newest by guessing.
 2. Deferred entries in that spec's `changes-log.md` and `proposal.md`.
 3. Unfinished items in the legacy `.copilot-tracking/plans/*.md` inside the worktree (old Copilot scratch: read-only check, nothing new is written there; reported as `legacy_tracking_plans`).
 4. `TODO` and `FIXME` on lines **added** by the campaign's own commits.

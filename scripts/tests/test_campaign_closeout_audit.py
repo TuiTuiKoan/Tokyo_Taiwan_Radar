@@ -656,3 +656,187 @@ def test_open_issue_search_excludes_the_daily_review_label(
     assert sent[sent.index("--state") + 1] == "open"
     assert result.field("open_issues") == expected
     assert "excluding label:daily-review" in result.line("open_issues")
+
+
+# --- spec directory resolution (source 0, read by sources 1 and 2) ----------
+
+OPEN_TASK = "- [ ] still open\n- [ ] also open\n"
+
+
+def build_spec_repo(
+    root: Path, env: dict[str, str], dirs: list[str], files: list[str] | None = None
+) -> Path:
+    """A repo whose docs/specs tree holds the given spec directories, each with
+    two unchecked tasks, and the given single-file entries."""
+    repo = root / "spec repo"  # a space in the path, as in this project
+    for rel in dirs:
+        (repo / "docs" / "specs" / rel).mkdir(parents=True)
+        (repo / "docs" / "specs" / rel / "tasks.md").write_text(OPEN_TASK)
+    for rel in files or []:
+        path = repo / "docs" / "specs" / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(OPEN_TASK)
+    repo.mkdir(parents=True, exist_ok=True)
+    git(repo, env, "init", "-q")
+    git(repo, env, "add", "-A")
+    git(repo, env, "commit", "-q", "-m", "specs")
+    return repo
+
+
+def spec_audit(repo: Path, state_dir: Path, env: dict[str, str], slug: str) -> Audit:
+    return run_script(
+        [
+            "--worktree", str(repo), "--slug", slug,
+            "--self-session", "test-session",
+            "--session-state-dir", str(state_dir),
+            "--skip-issues",
+        ],
+        env,
+    )
+
+
+def undetermined_reasons(result: Audit) -> list[str]:
+    match = re.search(r"^verdict=UNDETERMINED:(\S+)", result.out, re.MULTILINE)
+    return match.group(1).split(",") if match else []
+
+
+def assert_resolved(result: Audit, rel: str) -> None:
+    assert result.field("spec_tasks") == "2", result.out
+    assert f"({rel}/tasks.md)" in result.line("spec_tasks")
+    assert "spec_dir_unresolved" not in result.out
+    assert "spec_dir_ambiguous" not in result.out
+
+
+def assert_unresolved(result: Audit) -> None:
+    assert result.field("spec_tasks") == "not_checked", result.out
+    assert result.field("deferred_markers") == "not_checked", result.out
+    assert "spec_dir_unresolved" in undetermined_reasons(result)
+    assert "spec_dir_ambiguous" not in undetermined_reasons(result)
+
+
+def test_a_date_prefixed_archive_directory_resolves_by_its_bare_slug(
+    tmp_path, state_dir, env
+):
+    repo = build_spec_repo(tmp_path, env, ["archive/2026-10-demo-campaign"])
+
+    result = spec_audit(repo, state_dir, env, SLUG)
+
+    assert_resolved(result, "docs/specs/archive/2026-10-demo-campaign")
+
+
+def test_a_bare_archive_directory_still_resolves(tmp_path, state_dir, env):
+    repo = build_spec_repo(tmp_path, env, ["archive/demo-campaign"])
+
+    result = spec_audit(repo, state_dir, env, SLUG)
+
+    assert_resolved(result, "docs/specs/archive/demo-campaign")
+
+
+def test_the_full_dated_name_given_as_the_slug_resolves_too(tmp_path, state_dir, env):
+    repo = build_spec_repo(tmp_path, env, ["archive/2026-10-demo-campaign"])
+
+    result = spec_audit(repo, state_dir, env, "2026-10-demo-campaign")
+
+    assert_resolved(result, "docs/specs/archive/2026-10-demo-campaign")
+
+
+@pytest.mark.parametrize("prefix", ["2026-13-", "2026-00-", "2026-1-", "26-10-"])
+def test_an_invalid_month_prefix_is_not_stripped(tmp_path, state_dir, env, prefix):
+    repo = build_spec_repo(tmp_path, env, [f"archive/{prefix}demo-campaign"])
+
+    result = spec_audit(repo, state_dir, env, SLUG)
+
+    assert_unresolved(result)
+
+
+def test_a_source_name_that_only_ends_with_the_slug_does_not_match(
+    tmp_path, state_dir, env
+):
+    """archive/2026-04-source-prtimes must not answer for the slug 'prtimes'."""
+    repo = build_spec_repo(tmp_path, env, ["archive/2026-04-source-prtimes"])
+
+    result = spec_audit(repo, state_dir, env, "prtimes")
+
+    assert_unresolved(result)
+
+
+def test_a_glob_character_in_the_slug_never_widens_the_match(tmp_path, state_dir, env):
+    repo = build_spec_repo(
+        tmp_path, env,
+        ["archive/2026-10-demo-one", "archive/2026-10-demo-two", "archive/demo-three"],
+    )
+
+    result = spec_audit(repo, state_dir, env, "demo-*")
+
+    assert_unresolved(result)
+
+
+def test_a_glob_character_in_the_slug_still_matches_a_literal_directory(
+    tmp_path, state_dir, env
+):
+    repo = build_spec_repo(tmp_path, env, ["archive/2026-10-demo-*", "archive/2026-10-demo-x"])
+
+    result = spec_audit(repo, state_dir, env, "demo-*")
+
+    assert_resolved(result, "docs/specs/archive/2026-10-demo-*")
+
+
+def test_two_archive_matches_are_ambiguous_and_list_every_candidate(
+    tmp_path, state_dir, env
+):
+    repo = build_spec_repo(
+        tmp_path, env, ["archive/2026-09-demo-campaign", "archive/2026-10-demo-campaign"]
+    )
+
+    result = spec_audit(repo, state_dir, env, SLUG)
+
+    assert result.field("spec_tasks") == "not_checked", result.out
+    assert result.field("deferred_markers") == "not_checked", result.out
+    reasons = undetermined_reasons(result)
+    assert "spec_dir_ambiguous" in reasons
+    assert "spec_dir_unresolved" not in reasons
+    assert "docs/specs/archive/2026-09-demo-campaign" in result.out
+    assert "docs/specs/archive/2026-10-demo-campaign" in result.out
+    candidates = re.findall(r"candidate: (\S.*)$", result.out, re.MULTILINE)
+    assert sorted(candidates) == [
+        "docs/specs/archive/2026-09-demo-campaign",
+        "docs/specs/archive/2026-10-demo-campaign",
+    ]
+
+
+def test_a_dated_and_a_bare_archive_directory_together_are_ambiguous(
+    tmp_path, state_dir, env
+):
+    repo = build_spec_repo(
+        tmp_path, env, ["archive/demo-campaign", "archive/2026-10-demo-campaign"]
+    )
+
+    result = spec_audit(repo, state_dir, env, SLUG)
+
+    assert "spec_dir_ambiguous" in undetermined_reasons(result)
+    assert result.field("spec_tasks") == "not_checked"
+
+
+def test_an_active_spec_wins_over_archive_matches_without_ambiguity(
+    tmp_path, state_dir, env
+):
+    repo = build_spec_repo(
+        tmp_path, env,
+        [
+            f"active/{SLUG}",
+            "archive/2026-09-demo-campaign",
+            "archive/2026-10-demo-campaign",
+        ],
+    )
+
+    result = spec_audit(repo, state_dir, env, SLUG)
+
+    assert_resolved(result, f"docs/specs/active/{SLUG}")
+
+
+def test_a_single_file_archive_spec_is_not_resolved(tmp_path, state_dir, env):
+    repo = build_spec_repo(tmp_path, env, [], files=["archive/2026-10-demo-campaign.md"])
+
+    result = spec_audit(repo, state_dir, env, SLUG)
+
+    assert_unresolved(result)

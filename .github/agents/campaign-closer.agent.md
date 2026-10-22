@@ -132,7 +132,8 @@ Exit code：`0` = RETIRE_CANDIDATE、`10` = HOLD、`20` = UNDETERMINED、`2` = �
   `--range` 重跑。來源 5 搜尋時排除帶 `daily-review` label 的 issue：那是每日自動產生的提醒，內文
   列出 commit 主旨，主旨含 slug 就會命中，不是待辦。
 
-  來源 1 與 2 先解析 `docs/specs/active/<slug>/`（找不到再試 `archive/`）。**slug 解析不到
+  來源 1 與 2 先解析 `docs/specs/active/<slug>/`；不存在才比對 `archive/` 下名稱等於 `<slug>`
+  或 `<YYYY-MM>-<slug>` 的目錄（≥2 筆為 `spec_dir_ambiguous`，同樣是 `not_checked`）。**slug 解析不到
   目錄時輸出 `not_checked`，不是 `0`**——少打一個字母就把 24 筆待辦報成 0，這道閘門即形同
   虛設。`0` 永遠只代表「查過了、沒有」。
 * **A3 平行 session 偵測** — 單層、確定性、保守。判定方式與陷阱見 SKILL.md § A3。
