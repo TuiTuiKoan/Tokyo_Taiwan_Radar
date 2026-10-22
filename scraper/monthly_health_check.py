@@ -238,6 +238,34 @@ def _count_recurrence(sb) -> dict:
 
 # ─── A2: Protect hit trend (30/60/90 day windows) ────────────────────────────
 
+def _parse_annotator_notes(notes: str) -> tuple[int, int]:
+    """Return ``(field_protect_hits, annotated_events)`` from an annotator run note.
+
+    ``annotated=`` is the explicit denominator; ``total=`` is the historical
+    fallback (see ``_protect_hit_trend``). Missing tokens count as 0.
+    """
+    m_hits = re.search(r"field_protect_hits=(\d+)", notes)
+    m_ann = re.search(r"(?<![a-z_])annotated=(\d+)", notes) \
+        or re.search(r"(?<![a-z_])total=(\d+)", notes)
+    return (
+        int(m_hits.group(1)) if m_hits else 0,
+        int(m_ann.group(1)) if m_ann else 0,
+    )
+
+
+def _fields_per_event(hits: int, annotated: int) -> float | None:
+    """A2 — average number of protected fields per annotated event.
+
+    ``field_protect_hits`` is counted per field: one event with five corrected
+    fields adds five. Dividing by annotated events therefore gives a per-event
+    average, not a percentage. Reporting it as a percentage produced the
+    2026-09 "453.55%" reading (3515 fields / 775 events), see #324.
+    """
+    if not annotated or hits < 0:
+        return None
+    return round(hits / annotated, 2)
+
+
 def _protect_hit_trend(sb) -> dict:
     """A2 — field_protect_hits / annotated_events ratio for 30/60/90 day windows.
 
@@ -287,26 +315,122 @@ def _protect_hit_trend(sb) -> dict:
         for r in all_runs:
             if (r.get("ran_at") or "") < cutoff:
                 continue
-            notes = r.get("notes") or ""
-            m_hits = re.search(r"field_protect_hits=(\d+)", notes)
-            # Explicit denominator first, batch size as the historical fallback.
-            m_ann = re.search(r"(?<![a-z_])annotated=(\d+)", notes) \
-                or re.search(r"(?<![a-z_])total=(\d+)", notes)
-            if m_hits:
-                hits += int(m_hits.group(1))
-            if m_ann:
-                annotated += int(m_ann.group(1))
+            run_hits, run_annotated = _parse_annotator_notes(r.get("notes") or "")
+            hits += run_hits
+            annotated += run_annotated
         result[f"hit_{label}"] = hits
         result[f"annotated_{label}"] = annotated
-        result[f"rate_{label}"] = round(hits / annotated, 4) if annotated else None
+        result[f"fields_per_event_{label}"] = _fields_per_event(hits, annotated)
 
     return result
 
 
 # ─── A3: First-pass accuracy (reported within 24h / new events, per source) ──
 
+# A3 measures reader-submitted reports only. The public report form
+# (web/app/actions/submit-report.ts) always sends a locale; auto_qa.py,
+# annotator.py and error_recovery.py insert rows with locale = NULL. Counting
+# both made every source auto-QA touched read "100% reported within 24h" (#324).
+A3_MIN_NEW_EVENTS = 5
+A3_WINDOW_SECONDS = 86400
+
+
+def _parse_ts(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def _aggregate_first_pass(
+    events: list[dict],
+    reports: list[dict],
+    *,
+    min_new_events: int = A3_MIN_NEW_EVENTS,
+    limit: int = 10,
+) -> dict:
+    """Aggregate A3 from already-fetched events and their event_reports rows.
+
+    An event counts as reported when a reader report (``locale`` set) arrives
+    within 24h of the event's creation. System reports inside the same window
+    are counted separately so the report can show both. Sources with fewer than
+    ``min_new_events`` new events are left out of the ranking: one event with
+    one report would otherwise sit at the top as 100%.
+    """
+    created_at_by_id = {e["id"]: e.get("created_at") for e in events}
+    human: set[str] = set()
+    system: set[str] = set()
+    for rep in reports:
+        eid = rep.get("event_id")
+        ev_created = created_at_by_id.get(eid)
+        rep_created = rep.get("created_at")
+        if not (eid and ev_created and rep_created):
+            continue
+        try:
+            delta = (_parse_ts(rep_created) - _parse_ts(ev_created)).total_seconds()
+        except ValueError:
+            continue
+        if not 0 <= delta < A3_WINDOW_SECONDS:
+            continue
+        if rep.get("locale"):
+            human.add(eid)
+        else:
+            system.add(eid)
+
+    source_total: dict[str, int] = {}
+    source_reported: dict[str, int] = {}
+    for e in events:
+        src = e.get("source_name") or "unknown"
+        source_total[src] = source_total.get(src, 0) + 1
+        if e["id"] in human:
+            source_reported[src] = source_reported.get(src, 0) + 1
+
+    rows = []
+    for src, total in source_total.items():
+        if total < min_new_events:
+            continue
+        reported = source_reported.get(src, 0)
+        rows.append({
+            "source_name": src,
+            "total_new": total,
+            "reported_within_24h": reported,
+            "error_rate": round(reported / total, 4),
+        })
+    rows.sort(key=lambda x: (-x["error_rate"], -x["total_new"], x["source_name"]))
+    return {
+        "sources": rows[:limit],
+        "events_total": len(events),
+        "human_reported_24h": len(human),
+        "system_reported_24h": len(system),
+        "min_new_events": min_new_events,
+    }
+
+
+def a3_scope_note(a3: dict) -> str:
+    """One-line scope note shared by the evaluation md and docs_report."""
+    return (
+        f"只計前台回報（locale 非空）；只排名新事件 ≥ {a3.get('min_new_events', A3_MIN_NEW_EVENTS)} 筆的來源。"
+        f"同期 24h 內：讀者回報 {a3.get('human_reported_24h', '?')} 筆事件，"
+        f"系統自動回報 {a3.get('system_reported_24h', '?')} 筆事件（不計入）。"
+    )
+
+
+def _fetch_reports_for(sb, event_ids: list[str], caller: str) -> list[dict]:
+    reports: list[dict] = []
+    for i in range(0, len(event_ids), 200):
+        batch = event_ids[i:i + 200]
+        try:
+            reports += (
+                sb.table("event_reports")
+                .select("event_id,created_at,locale")
+                .in_("event_id", batch)
+                .execute()
+                .data or []
+            )
+        except Exception as exc:
+            logger.warning("%s: event_reports batch failed: %s", caller, exc)
+    return reports
+
+
 def _first_pass_accuracy(sb) -> dict:
-    """A3 — per source: events reported via event_reports within 24h of creation."""
+    """A3 — per source: events reported by readers within 24h of creation (30d)."""
     cutoff = (datetime.now(tz=UTC) - timedelta(days=30)).isoformat()
     try:
         events = (
@@ -325,57 +449,8 @@ def _first_pass_accuracy(sb) -> dict:
     if not events:
         return {"sources": []}
 
-    event_ids = [e["id"] for e in events]
-    created_at_by_id = {e["id"]: e["created_at"] for e in events}
-
-    # Fetch event_reports for those events
-    reports_within_24h: dict[str, bool] = {}
-    for i in range(0, len(event_ids), 200):
-        batch = event_ids[i:i + 200]
-        try:
-            reps = (
-                sb.table("event_reports")
-                .select("event_id,created_at")
-                .in_("event_id", batch)
-                .execute()
-                .data or []
-            )
-            for rep in reps:
-                eid = rep.get("event_id")
-                if not eid:
-                    continue
-                ev_created = created_at_by_id.get(eid)
-                rep_created = rep.get("created_at")
-                if ev_created and rep_created:
-                    try:
-                        ev_dt = datetime.fromisoformat(ev_created.replace("Z", "+00:00"))
-                        rep_dt = datetime.fromisoformat(rep_created.replace("Z", "+00:00"))
-                        if (rep_dt - ev_dt).total_seconds() < 86400:
-                            reports_within_24h[eid] = True
-                    except Exception:
-                        pass
-        except Exception as exc:
-            logger.warning("_first_pass_accuracy: event_reports batch failed: %s", exc)
-
-    # Aggregate per source
-    source_total: dict[str, int] = {}
-    source_reported: dict[str, int] = {}
-    source_by_source: dict[str, str] = {}
-    for e in events:
-        src = e.get("source_name", "unknown")
-        eid = e["id"]
-        source_total[src] = source_total.get(src, 0) + 1
-        if eid in reports_within_24h:
-            source_reported[src] = source_reported.get(src, 0) + 1
-
-    rows = []
-    for src, total in source_total.items():
-        reported = source_reported.get(src, 0)
-        rate = reported / total if total else 0.0
-        rows.append({"source_name": src, "total_new": total, "reported_within_24h": reported, "error_rate": round(rate, 4)})
-
-    rows.sort(key=lambda x: -x["error_rate"])
-    return {"sources": rows[:10]}
+    reports = _fetch_reports_for(sb, [e["id"] for e in events], "_first_pass_accuracy")
+    return _aggregate_first_pass(events, reports)
 
 
 # ─── A4: Repair latency (median days from event creation to field_correction) ─
@@ -571,13 +646,9 @@ def collect_monthly_health_metrics(
             .data or []
         )
         for r in run_rows:
-            notes = r.get("notes") or ""
-            m_hits = re.search(r"field_protect_hits=(\d+)", notes)
-            m_ann = re.search(r"annotated=(\d+)", notes)
-            if m_hits:
-                protect_hits += int(m_hits.group(1))
-            if m_ann:
-                annotated_total += int(m_ann.group(1))
+            run_hits, run_annotated = _parse_annotator_notes(r.get("notes") or "")
+            protect_hits += run_hits
+            annotated_total += run_annotated
     except Exception as exc:
         logger.warning("collect_monthly_health_metrics: protect_hits failed: %s", exc)
         protect_hits = -1
@@ -585,7 +656,7 @@ def collect_monthly_health_metrics(
     a2 = {
         "hits": protect_hits,
         "annotated": annotated_total,
-        "rate": round(protect_hits / annotated_total, 4) if annotated_total and protect_hits >= 0 else None,
+        "fields_per_event": _fields_per_event(protect_hits, annotated_total),
     }
 
     # ── Exclusion hits (by matched_at) ───────────────────────────────────────
@@ -663,51 +734,10 @@ def collect_monthly_health_metrics(
             .data or []
         )
         if events:
-            created_at_by_id = {e["id"]: e["created_at"] for e in events}
-            event_ids = [e["id"] for e in events]
-            reports_within_24h: dict[str, bool] = {}
-            for i in range(0, len(event_ids), 200):
-                batch = event_ids[i:i + 200]
-                try:
-                    reps = (
-                        sb.table("event_reports")
-                        .select("event_id,created_at")
-                        .in_("event_id", batch)
-                        .execute()
-                        .data or []
-                    )
-                    for rep in reps:
-                        eid = rep.get("event_id")
-                        ev_created = created_at_by_id.get(eid)
-                        rep_created = rep.get("created_at")
-                        if eid and ev_created and rep_created:
-                            try:
-                                ev_dt = datetime.fromisoformat(ev_created.replace("Z", "+00:00"))
-                                rep_dt = datetime.fromisoformat(rep_created.replace("Z", "+00:00"))
-                                if 0 <= (rep_dt - ev_dt).total_seconds() < 86400:
-                                    reports_within_24h[eid] = True
-                            except Exception:
-                                pass
-                except Exception as exc:
-                    logger.warning("collect_monthly_health_metrics: A3 reports batch failed: %s", exc)
-            source_total: dict[str, int] = {}
-            source_reported: dict[str, int] = {}
-            for e in events:
-                src = e.get("source_name", "unknown")
-                source_total[src] = source_total.get(src, 0) + 1
-                if e["id"] in reports_within_24h:
-                    source_reported[src] = source_reported.get(src, 0) + 1
-            rows = []
-            for src, total in source_total.items():
-                reported = source_reported.get(src, 0)
-                rows.append({
-                    "source_name": src,
-                    "total_new": total,
-                    "reported_within_24h": reported,
-                    "error_rate": round(reported / total, 4) if total else 0.0,
-                })
-            rows.sort(key=lambda x: -x["error_rate"])
-            a3 = {"sources": rows[:10]}
+            reports = _fetch_reports_for(
+                sb, [e["id"] for e in events], "collect_monthly_health_metrics: A3",
+            )
+            a3 = _aggregate_first_pass(events, reports)
     except Exception as exc:
         logger.warning("collect_monthly_health_metrics: A3 first-pass failed: %s", exc)
 
@@ -876,22 +906,22 @@ def build_line_message(reports: dict, corrections: dict, protect_hits: int, excl
             lines.append("  A1 重犯率: 取得失敗")
 
     if a2 is not None:
-        r30 = a2.get("rate_30d")
+        f30 = a2.get("fields_per_event_30d")
         h30 = a2.get("hit_30d", "?")
         h90 = a2.get("hit_90d", "?")
-        rate_str = f"{r30:.2%}" if r30 is not None else "n/a"
-        lines.append(f"  A2 保護命中率 (30d): {h30} hits ({rate_str}) | 90d: {h90} hits")
+        per_event = f"{f30:.2f}" if f30 is not None else "n/a"
+        lines.append(f"  A2 每筆受保護欄位數 (30d): {per_event}（{h30} 欄位次）| 90d: {h90} 欄位次")
 
     if a3 is not None:
         sources = a3.get("sources", [])
         if sources:
             top_src = sources[0]
             lines.append(
-                f"  A3 首次正確率 (30d): 最高錯誤率 {top_src['source_name']} "
+                f"  A3 讀者 24h 報錯 (30d): 最高 {top_src['source_name']} "
                 f"{top_src['error_rate']:.1%} ({top_src['reported_within_24h']}/{top_src['total_new']})"
             )
         else:
-            lines.append("  A3 首次正確率: 無資料")
+            lines.append("  A3 讀者 24h 報錯: 無資料")
 
     if a4 is not None:
         sources = a4.get("sources", [])
@@ -957,21 +987,24 @@ def _write_evaluation_md(
 
     lines += [
         "",
-        "## A2 — 保護命中率趨勢（Protect Hit Rate Trend）",
-        "| 期間 | Protect Hits | Annotated Events | 命中率 |",
+        "## A2 — 每筆受保護欄位數（Protected Fields per Event）",
+        "field_protect_hits 以欄位計數，一筆事件可貢獻多次，因此這是每筆平均值，不是百分比。",
+        "",
+        "| 期間 | 受保護欄位次 | Annotated Events | 每筆平均 |",
         "|---|---|---|---|",
     ]
     for period in ("30d", "60d", "90d"):
         hits = a2.get(f"hit_{period}", "?")
         annotated = a2.get(f"annotated_{period}", "?")
-        rate = a2.get(f"rate_{period}")
-        rate_str = f"{rate:.2%}" if rate is not None else "n/a"
-        lines.append(f"| {period} | {hits} | {annotated} | {rate_str} |")
+        per_event = a2.get(f"fields_per_event_{period}")
+        per_event_str = f"{per_event:.2f}" if per_event is not None else "n/a"
+        lines.append(f"| {period} | {hits} | {annotated} | {per_event_str} |")
 
     lines += [
         "",
         "## A3 — 首次正確率（First-Pass Accuracy）",
-        "過去 30 天新事件中，24h 內被 event_reports 報錯的比例（per source）：",
+        "過去 30 天新事件中，24h 內被讀者從前台報錯的比例（per source）。",
+        a3_scope_note(a3),
         "",
         "| source_name | 新事件數 | 24h 內報錯 | 錯誤率 |",
         "|---|---|---|---|",
@@ -1084,8 +1117,8 @@ def run(dry_run: bool = False) -> dict:
 
     if dry_run:
         logger.info("[dry-run] LINE message:\n%s", msg)
-        logger.info("[dry-run] recurrence=%s protect_hit_rate=%s first_pass=%s repair_latency=%s researcher=%s",
-                    a1.get("recurrence_pairs"), a2.get("rate_30d"),
+        logger.info("[dry-run] recurrence=%s protected_fields_per_event=%s first_pass=%s repair_latency=%s researcher=%s",
+                    a1.get("recurrence_pairs"), a2.get("fields_per_event_30d"),
                     a3.get("sources", [])[:1], a4.get("sources", [])[:1],
                     researcher.get("approval_rate"))
     else:

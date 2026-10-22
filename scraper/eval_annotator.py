@@ -15,17 +15,29 @@ Notes:
     - If cases.jsonl is empty, prints WARNING and exits 0 (CI-safe).
     - Async with asyncio.Semaphore(5) for rate limiting.
     - Does NOT write to the database.
+
+Scoring (scoring_version 2, #324):
+    - Names and location_name: normalized string, then fuzzy ratio >= FUZZY_THRESHOLD.
+    - Descriptions: embedding cosine >= SEMANTIC_THRESHOLD. Exact match scored every
+      free-text field 0% even when the translation was fine.
+    - Movie titles (name_zh / name_en on movie cases) go to the "lookup" bucket and are
+      not part of the annotator score: the expected value is the official Taiwanese title,
+      which the works table / eiga.com lookup resolves, not the LLM. Stage 2 measures it.
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import difflib
 import json
 import logging
+import math
 import os
+import re
 import sys
 import time
+import unicodedata
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -39,6 +51,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 from annotator import SYSTEM_PROMPT, _get_supabase, _resolve_movie_titles_for_event, build_event_user_content
 from category_feedback import load_corrections, build_feedback_prompt
 from selection_reason_feedback import load_sr_corrections, build_sr_feedback_prompt
+from sources._cinema_constants import FIXED_CINEMA_SOURCES
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +70,18 @@ MEASURED_FIELDS = frozenset({
 })
 
 LIST_FIELDS = frozenset({"category", "event_form"})
+BOOL_FIELDS = frozenset({"is_paid", "has_japanese_support", "has_english_support"})
+FUZZY_FIELDS = frozenset({"name_zh", "name_en", "location_name"})
+SEMANTIC_FIELDS = frozenset({"description_zh", "description_en"})
+TITLE_LOOKUP_FIELDS = frozenset({"name_zh", "name_en"})
+
+FUZZY_THRESHOLD = 0.85
+SEMANTIC_THRESHOLD = 0.85
+EMBEDDING_MODEL = "text-embedding-3-small"
+SCORING_VERSION = 2
+
+BUCKET_ANNOTATOR = "annotator"
+BUCKET_LOOKUP = "lookup"
 
 # ─── Async annotator ─────────────────────────────────────────────────────────
 
@@ -123,12 +148,58 @@ def load_cases(cases_path: Path, limit: int | None = None, case_id: str | None =
 
 # ─── Field comparison ─────────────────────────────────────────────────────────
 
-def compare_fields(expected_dict: dict, annotation: dict) -> list[dict]:
+# Quotes, brackets, separators and whitespace that differ between equally
+# correct answers (「」 vs 『』, full- vs half-width, "ADRIFT" vs ADRIFT).
+_IGNORABLE_RE = re.compile(
+    r"[\s\"'`“”‘’「」『』《》〈〉【】〔〕()（）\[\]{}<>・·•、，,。.!！?？:：;；/／|｜\-‐‑–—―~〜～_]+"
+)
+
+
+def normalize_text(value) -> str:
+    """NFKC, case-fold, and drop punctuation/whitespace."""
+    text = unicodedata.normalize("NFKC", str(value)).casefold()
+    return _IGNORABLE_RE.sub("", text)
+
+
+def fuzzy_score(expected, got) -> float:
+    """Similarity in [0, 1] between two short strings after normalization."""
+    if got is None:
+        return 0.0
+    a, b = normalize_text(expected), normalize_text(got)
+    if a == b:
+        return 1.0
+    if not a or not b:
+        return 0.0
+    return difflib.SequenceMatcher(None, a, b).ratio()
+
+
+def is_title_lookup_case(case: dict, annotation: dict) -> bool:
+    """True when name_zh / name_en should be scored as a title lookup.
+
+    A case is a movie when either side says so: the expected or produced category
+    contains ``movie``, or the source is a fixed cinema.
+    """
+    exp_cat = ((case.get("expected") or {}).get("category") or {}).get("value")
+    got_cat = annotation.get("category")
+    cats = set(exp_cat if isinstance(exp_cat, list) else []) | set(got_cat if isinstance(got_cat, list) else [])
+    return "movie" in cats or case.get("source_name") in FIXED_CINEMA_SOURCES
+
+
+def compare_fields(
+    expected_dict: dict,
+    annotation: dict,
+    *,
+    title_lookup: bool = False,
+    semantic_scores: dict[str, float] | None = None,
+) -> list[dict]:
     """Compare expected fields against annotation output.
 
-    Returns list of dicts with keys: field, tier, from_fc, expected, got, match.
-    Skips fields where expected value is None.
+    Returns list of dicts with keys: field, tier, from_fc, expected, got, match,
+    method, score, bucket. Skips fields where expected value is None.
+    ``semantic_scores`` maps a SEMANTIC_FIELDS name to its precomputed cosine;
+    a field without one falls back to fuzzy scoring.
     """
+    semantic_scores = semantic_scores or {}
     results = []
     for field, exp_entry in expected_dict.items():
         if exp_entry is None:
@@ -138,25 +209,32 @@ def compare_fields(expected_dict: dict, annotation: dict) -> list[dict]:
         from_fc = exp_entry.get("from_fc", False)
 
         got_val = annotation.get(field)
+        score = None
 
-        # Normalize and compare
         if field in LIST_FIELDS:
-            # Set equality for list fields
+            method = "set"
             exp_set = set(expected_val) if isinstance(expected_val, list) else set()
             got_set = set(got_val) if isinstance(got_val, list) else set()
             match = exp_set == got_set
-        elif isinstance(expected_val, bool) or field in {
-            "is_paid", "has_japanese_support", "has_english_support"
-        }:
-            # Boolean equality
+        elif isinstance(expected_val, bool) or field in BOOL_FIELDS:
+            method = "exact"
             match = expected_val == got_val
         elif expected_val is None:
+            method = "exact"
             match = got_val is None
+        elif field in SEMANTIC_FIELDS and field in semantic_scores:
+            method = "semantic"
+            score = semantic_scores[field]
+            match = score >= SEMANTIC_THRESHOLD
+        elif field in FUZZY_FIELDS or field in SEMANTIC_FIELDS:
+            method = "fuzzy"
+            score = fuzzy_score(expected_val, got_val)
+            match = score >= FUZZY_THRESHOLD
         else:
-            # String exact match after strip
-            exp_str = str(expected_val).strip() if expected_val is not None else ""
-            got_str = str(got_val).strip() if got_val is not None else ""
-            match = exp_str == got_str
+            method = "exact"
+            match = got_val is not None and normalize_text(expected_val) == normalize_text(got_val)
+
+        bucket = BUCKET_LOOKUP if title_lookup and field in TITLE_LOOKUP_FIELDS else BUCKET_ANNOTATOR
 
         results.append({
             "field": field,
@@ -165,18 +243,136 @@ def compare_fields(expected_dict: dict, annotation: dict) -> list[dict]:
             "expected": expected_val,
             "got": got_val,
             "match": match,
+            "method": method,
+            "score": None if score is None else round(score, 4),
+            "bucket": bucket,
         })
     return results
 
 
+# ─── Semantic similarity ──────────────────────────────────────────────────────
+
+def _cosine(u: list[float], v: list[float]) -> float:
+    dot = sum(a * b for a, b in zip(u, v))
+    nu = math.sqrt(sum(a * a for a in u))
+    nv = math.sqrt(sum(b * b for b in v))
+    return dot / (nu * nv) if nu and nv else 0.0
+
+
+async def semantic_scores_for(
+    client: AsyncOpenAI,
+    cases: list[dict],
+    annotations: list[dict],
+) -> tuple[list[dict[str, float]], dict[str, float], object]:
+    """Embed expected vs produced free text and return per-case cosine scores.
+
+    Returns ``(scores_per_case, negative_control, usage)``. ``negative_control``
+    maps each field to the mean cosine between a case's expected text and the
+    *next* case's output for the same field: the score two unrelated texts get,
+    which tells the reader how far above chance SEMANTIC_THRESHOLD sits.
+    An empty or missing output scores 0.0 without an embedding call.
+    """
+    scores: list[dict[str, float]] = [{} for _ in cases]
+    pairs: list[tuple[int, str, str, str]] = []
+    for i, (case, ann) in enumerate(zip(cases, annotations)):
+        for field in sorted(SEMANTIC_FIELDS):
+            entry = (case.get("expected") or {}).get(field)
+            if not entry or not entry.get("value"):
+                continue
+            got = ann.get(field)
+            if not isinstance(got, str) or not got.strip():
+                scores[i][field] = 0.0
+                continue
+            pairs.append((i, field, str(entry["value"]), got))
+
+    if not pairs:
+        return scores, {}, None
+
+    texts = [t for _, _, exp, got in pairs for t in (exp, got)]
+    resp = await client.embeddings.create(model=EMBEDDING_MODEL, input=texts)
+    vectors = [d.embedding for d in resp.data]
+
+    by_field: dict[str, list[tuple[list[float], list[float]]]] = {}
+    for k, (i, field, _exp, _got) in enumerate(pairs):
+        exp_vec, got_vec = vectors[2 * k], vectors[2 * k + 1]
+        scores[i][field] = _cosine(exp_vec, got_vec)
+        by_field.setdefault(field, []).append((exp_vec, got_vec))
+
+    negative: dict[str, float] = {}
+    for field, vecs in by_field.items():
+        if len(vecs) < 2:
+            continue
+        sims = [_cosine(vecs[k][0], vecs[(k + 1) % len(vecs)][1]) for k in range(len(vecs))]
+        negative[field] = round(sum(sims) / len(sims), 4)
+
+    return scores, negative, resp.usage
+
+
 # ─── Cost estimation ─────────────────────────────────────────────────────────
 
-def _estimate_cost(usages: list) -> float:
-    """Estimate cost in USD for GPT-4o-mini usage."""
+def _estimate_cost(usages: list, embedding_usage=None) -> float:
+    """Estimate cost in USD for GPT-4o-mini usage plus the embedding call."""
     total_in = sum((u.prompt_tokens if u else 0) for u in usages)
     total_out = sum((u.completion_tokens if u else 0) for u in usages)
     # GPT-4o-mini pricing: $0.15/1M input, $0.60/1M output
-    return total_in * 0.15 / 1_000_000 + total_out * 0.60 / 1_000_000
+    cost = total_in * 0.15 / 1_000_000 + total_out * 0.60 / 1_000_000
+    if embedding_usage is not None:
+        # text-embedding-3-small: $0.02/1M tokens
+        cost += (getattr(embedding_usage, "total_tokens", 0) or 0) * 0.02 / 1_000_000
+    return cost
+
+
+# ─── Aggregation ──────────────────────────────────────────────────────────────
+
+def _aggregate(diffs: list[list[dict]], bucket: str | None = None) -> dict[int, dict[str, dict]]:
+    """Per tier, per field: tested / passed / failed, methods and scores.
+
+    ``bucket=None`` aggregates every entry; otherwise only entries of that bucket.
+    """
+    stats: dict[int, dict[str, dict]] = {1: {}, 2: {}}
+    for diff_list in diffs:
+        for entry in diff_list:
+            if bucket is not None and entry.get("bucket", BUCKET_ANNOTATOR) != bucket:
+                continue
+            s = stats.setdefault(entry["tier"], {}).setdefault(
+                entry["field"],
+                {"tested": 0, "passed": 0, "failed": 0, "methods": set(), "scores": []},
+            )
+            s["tested"] += 1
+            s["passed" if entry["match"] else "failed"] += 1
+            s["methods"].add(entry.get("method", "exact"))
+            if entry.get("score") is not None:
+                s["scores"].append(entry["score"])
+    return stats
+
+
+def _mean(values: list[float]) -> float | None:
+    return round(sum(values) / len(values), 4) if values else None
+
+
+def _flatten(stats: dict[int, dict[str, dict]]) -> dict[str, dict]:
+    """Collapse tiers into one entry per field; Tier 1 wins if a field is in both."""
+    out: dict[str, dict] = {}
+    for tier in sorted(stats):
+        for f, s in stats[tier].items():
+            if f in out:
+                continue
+            out[f] = {
+                "tier": tier,
+                "tested": s["tested"],
+                "passed": s["passed"],
+                "failed": s["failed"],
+                "method": "/".join(sorted(s["methods"])),
+                "mean_score": _mean(s["scores"]),
+            }
+    return out
+
+
+def _totals(stats_by_field: dict[str, dict]) -> tuple[int, int]:
+    return (
+        sum(v["tested"] for v in stats_by_field.values()),
+        sum(v["passed"] for v in stats_by_field.values()),
+    )
 
 
 # ─── Report writer ────────────────────────────────────────────────────────────
@@ -187,57 +383,64 @@ def build_snapshot(
     snapshot_meta: dict,
     runtime_s: float,
     usages: list,
+    embedding_usage=None,
+    negative_control: dict[str, float] | None = None,
 ) -> dict:
     """Build a machine-readable snapshot of eval results.
 
     Used by CI KPI guards (eval-annotator.yml / eval-annotator-stage2.yml)
     so they can fail fast without parsing the markdown report.
+
+    ``per_field`` keeps every bucket so the existing name_zh / name_en guards
+    keep their denominator. ``annotator_fields`` and ``lookup_fields`` split it;
+    the ``tier*`` totals count the annotator bucket only.
     """
-    tier_stats: dict[int, dict[str, dict]] = {1: {}, 2: {}}
-    for diff_list in diffs:
-        for entry in diff_list:
-            t = entry["tier"]
-            f = entry["field"]
-            if f not in tier_stats[t]:
-                tier_stats[t][f] = {"tested": 0, "passed": 0, "failed": 0}
-            tier_stats[t][f]["tested"] += 1
-            if entry["match"]:
-                tier_stats[t][f]["passed"] += 1
-            else:
-                tier_stats[t][f]["failed"] += 1
+    annotator = _aggregate(diffs, BUCKET_ANNOTATOR)
+    lookup = _flatten(_aggregate(diffs, BUCKET_LOOKUP))
 
-    per_field: dict[str, dict] = {}
-    for tier in (1, 2):
-        for f, s in tier_stats[tier].items():
-            # Tier 1 wins if a field appears in both (Tier 1 is the strict baseline).
-            if f not in per_field:
-                per_field[f] = {
-                    "tier": tier,
-                    "tested": s["tested"],
-                    "passed": s["passed"],
-                    "failed": s["failed"],
-                }
-
-    t1_tested = sum(v["tested"] for v in tier_stats[1].values())
-    t1_passed = sum(v["passed"] for v in tier_stats[1].values())
-    t2_tested = sum(v["tested"] for v in tier_stats[2].values())
-    t2_passed = sum(v["passed"] for v in tier_stats[2].values())
+    t1_tested, t1_passed = _totals(annotator[1])
+    t2_tested, t2_passed = _totals(annotator.get(2, {}))
+    lk_tested, lk_passed = _totals(lookup)
 
     return {
+        "scoring_version": SCORING_VERSION,
         "mode": snapshot_meta.get("mode", "frozen"),
         "stage": snapshot_meta.get("stage", 1),
         "snapshot_at": snapshot_meta.get("snapshot_at"),
         "sha256": snapshot_meta.get("sha256"),
         "n_cases": len(cases),
-        "per_field": per_field,
+        "per_field": _flatten(_aggregate(diffs)),
+        "annotator_fields": _flatten(annotator),
+        "lookup_fields": lookup,
         "tier1_tested": t1_tested,
         "tier1_passed": t1_passed,
         "tier2_tested": t2_tested,
         "tier2_passed": t2_passed,
-        "cost_usd": round(_estimate_cost(usages), 6),
+        "lookup_tested": lk_tested,
+        "lookup_passed": lk_passed,
+        "semantic_negative_control": negative_control or {},
+        "cost_usd": round(_estimate_cost(usages, embedding_usage), 6),
         "runtime_s": round(runtime_s, 2),
         "ran_at": datetime.now(tz=JST).isoformat(),
     }
+
+
+def _field_table(title: str, stats_by_field: dict[str, dict]) -> list[str]:
+    lines = [
+        title,
+        "| Field | Method | Tested | Pass | Fail | Accuracy | Mean score |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    for field in sorted(stats_by_field):
+        s = stats_by_field[field]
+        acc = s["passed"] / s["tested"] if s["tested"] else 0.0
+        mean = s.get("mean_score")
+        mean_str = f"{mean:.2f}" if mean is not None else "—"
+        lines.append(
+            f"| {field} | {s['method']} | {s['tested']} | {s['passed']} | {s['failed']} | {acc:.1%} | {mean_str} |"
+        )
+    lines.append("")
+    return lines
 
 
 def write_report(
@@ -247,48 +450,19 @@ def write_report(
     output_path: Path,
     runtime_s: float,
     usages: list,
+    embedding_usage=None,
+    negative_control: dict[str, float] | None = None,
 ) -> None:
     """Write markdown accuracy report."""
     now_jst = datetime.now(tz=JST).strftime("%Y-%m-%d %H:%M JST")
-    cost = _estimate_cost(usages)
+    cost = _estimate_cost(usages, embedding_usage)
     n_cases = len(cases)
+    negative_control = negative_control or {}
 
-    # Aggregate per-field stats, split by tier
-    tier_stats: dict[int, dict[str, dict]] = {1: {}, 2: {}}
-    for diff_list in diffs:
-        for entry in diff_list:
-            t = entry["tier"]
-            f = entry["field"]
-            if f not in tier_stats[t]:
-                tier_stats[t][f] = {"tested": 0, "pass": 0, "fail": 0}
-            tier_stats[t][f]["tested"] += 1
-            if entry["match"]:
-                tier_stats[t][f]["pass"] += 1
-            else:
-                tier_stats[t][f]["fail"] += 1
-
-    def _accuracy(stats: dict) -> float:
-        return stats["pass"] / stats["tested"] if stats["tested"] else 0.0
-
-    # Failures (Tier 1 only, max 10)
-    tier1_failures: list[tuple[str, str, dict]] = []
-    for case, diff_list in zip(cases, diffs):
-        for entry in diff_list:
-            if entry["tier"] == 1 and not entry["match"]:
-                tier1_failures.append((case["case_id"], case.get("source_name", ""), entry))
-                if len(tier1_failures) >= 10:
-                    break
-        if len(tier1_failures) >= 10:
-            break
-
-    # Total accuracy per tier
-    def _tier_total(stats_by_field: dict) -> tuple[int, int]:
-        total_tested = sum(v["tested"] for v in stats_by_field.values())
-        total_pass = sum(v["pass"] for v in stats_by_field.values())
-        return total_tested, total_pass
-
-    t1_tested, t1_pass = _tier_total(tier_stats[1])
-    t2_tested, t2_pass = _tier_total(tier_stats[2])
+    annotator = _aggregate(diffs, BUCKET_ANNOTATOR)
+    tier1 = _flatten({1: annotator[1]})
+    tier2 = _flatten({2: annotator.get(2, {})})
+    lookup = _flatten(_aggregate(diffs, BUCKET_LOOKUP))
 
     lines = [
         f"# Annotator Golden Set Report — {now_jst}",
@@ -304,70 +478,89 @@ def write_report(
             f"- snapshot_at: {snapshot_meta.get('snapshot_at') or 'n/a'}",
         ]
     lines += [
+        f"- scoring: v{SCORING_VERSION}（名稱與 location_name：正規化後 fuzzy ≥ {FUZZY_THRESHOLD}；"
+        f"description：{EMBEDDING_MODEL} cosine ≥ {SEMANTIC_THRESHOLD}；電影片名另列為查詢型評估）",
         f"- cases: {n_cases}",
         f"- cost: ${cost:.4f} (est.)",
         f"- runtime: {int(runtime_s // 60)}m {int(runtime_s % 60)}s",
         "",
     ]
 
-    # Per-Field Accuracy — Tier 1
-    if tier_stats[1]:
-        lines += [
-            "## Per-Field Accuracy（Tier 1）",
-            "| Field | Tested | Pass | Fail | Accuracy |",
-            "|---|---|---|---|---|",
-        ]
-        for field in sorted(tier_stats[1]):
-            s = tier_stats[1][field]
-            acc = _accuracy(s)
-            lines.append(f"| {field} | {s['tested']} | {s['pass']} | {s['fail']} | {acc:.1%} |")
-        lines.append("")
+    if tier1:
+        lines += _field_table("## Per-Field Accuracy（Tier 1，annotator）", tier1)
     else:
-        lines += ["## Per-Field Accuracy（Tier 1）", "_No Tier 1 cases_", ""]
+        lines += ["## Per-Field Accuracy（Tier 1，annotator）", "_No Tier 1 cases_", ""]
 
-    # Per-Field Accuracy — Tier 2 (only if any)
-    if tier_stats[2]:
+    if tier2:
+        lines += _field_table("## Per-Field Accuracy（Tier 2，annotator）", tier2)
+
+    if lookup:
+        lines += _field_table("## 片名查詢（不計入 annotator 分數）", lookup)
         lines += [
-            "## Per-Field Accuracy（Tier 2）",
-            "| Field | Tested | Pass | Fail | Accuracy |",
-            "|---|---|---|---|---|",
+            "期望值是台灣官方片名，由 works 表與 eiga.com 查詢取得，不是 LLM 翻譯的結果。"
+            "Stage 1 只看 LLM 輸出，這裡的數字只供對照；查詢管線的成績看 Stage 2。",
+            "",
         ]
-        for field in sorted(tier_stats[2]):
-            s = tier_stats[2][field]
-            acc = _accuracy(s)
-            lines.append(f"| {field} | {s['tested']} | {s['pass']} | {s['fail']} | {acc:.1%} |")
-        lines.append("")
 
-    # Failures — Tier 1 only, max 10
-    if tier1_failures:
-        lines += ["## Failures（Tier 1 only，前 10 筆）"]
-        seen = set()
-        for case_id, source, entry in tier1_failures:
-            key = (case_id, entry["field"])
-            if key in seen:
-                continue
-            seen.add(key)
+    semantic_rows = []
+    for field in sorted(SEMANTIC_FIELDS):
+        s = (tier1.get(field) or tier2.get(field))
+        if not s or "semantic" not in s["method"]:
+            continue
+        neg = negative_control.get(field)
+        semantic_rows.append(
+            f"| {field} | {SEMANTIC_THRESHOLD} | "
+            f"{s['mean_score']:.2f} | {f'{neg:.2f}' if neg is not None else 'n/a'} |"
+        )
+    if semantic_rows:
+        lines += [
+            "## 語意比對校準",
+            "負對照是期望值與「下一筆 case 的輸出」之間的平均 cosine，代表兩段無關文字會拿到的分數。",
+            "",
+            "| Field | 門檻 | 平均 cosine | 負對照平均 |",
+            "|---|---|---|---|",
+            *semantic_rows,
+            "",
+        ]
+
+    # Failures — Tier 1 annotator bucket only, max 10
+    failures: list[tuple[str, str, dict]] = []
+    for case, diff_list in zip(cases, diffs):
+        for entry in diff_list:
+            if entry["tier"] == 1 and entry.get("bucket") == BUCKET_ANNOTATOR and not entry["match"]:
+                failures.append((case["case_id"], case.get("source_name", ""), entry))
+    if failures:
+        lines += ["## Failures（Tier 1 annotator，前 10 筆）"]
+        for case_id, source, entry in failures[:10]:
             label = "[T1, from FC]" if entry.get("from_fc") else "[T1]"
             exp_str = json.dumps(entry["expected"], ensure_ascii=False)
             got_str = json.dumps(entry["got"], ensure_ascii=False)
-            if case_id not in {k for k, _, _ in tier1_failures[:1]}:
-                lines.append("")
-            lines.append(f"### case {case_id} — source: {source}")
-            lines.append(f"- **{entry['field']}** {label}: expected `{exp_str}`, got `{got_str}`")
+            score = f", score {entry['score']:.2f}" if entry.get("score") is not None else ""
+            lines += [
+                "",
+                f"### case {case_id} — source: {source}",
+                f"- **{entry['field']}** {label} ({entry.get('method', 'exact')}{score}): "
+                f"expected `{exp_str}`, got `{got_str}`",
+            ]
         lines.append("")
 
-    # Summary
-    t1_acc_str = f"{t1_pass/t1_tested:.1%}" if t1_tested else "n/a"
-    t2_acc_str = f"{t2_pass/t2_tested:.1%}" if t2_tested else "n/a"
+    t1_tested, t1_pass = _totals(tier1)
+    t2_tested, t2_pass = _totals(tier2)
+    lk_tested, lk_pass = _totals(lookup)
     failed_cases = sum(
         1 for diff_list in diffs
-        if any(not e["match"] for e in diff_list)
+        if any(not e["match"] and e.get("bucket") == BUCKET_ANNOTATOR for e in diff_list)
     )
+
+    def _pct(passed: int, tested: int) -> str:
+        return f"{passed / tested:.1%}" if tested else "n/a"
+
     lines += [
         "## Summary",
-        f"- Total Tier 1 accuracy: {t1_acc_str}",
-        f"- Total Tier 2 accuracy: {t2_acc_str}",
-        f"- Failed cases: {failed_cases} / {n_cases}",
+        f"- Total Tier 1 accuracy (annotator): {_pct(t1_pass, t1_tested)}",
+        f"- Total Tier 2 accuracy (annotator): {_pct(t2_pass, t2_tested)}",
+        f"- Title lookup accuracy (not in annotator score): {_pct(lk_pass, lk_tested)}",
+        f"- Failed cases (annotator): {failed_cases} / {n_cases}",
     ]
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -502,17 +695,35 @@ async def run_golden(
             len(pipeline_log),
         )
 
+    try:
+        semantic, negative_control, embedding_usage = await semantic_scores_for(client, cases, annotations)
+    except Exception as exc:
+        # Scoring falls back to fuzzy for descriptions; the report's method column shows it.
+        logger.warning("Semantic scoring unavailable, descriptions use fuzzy: %s", exc)
+        semantic, negative_control, embedding_usage = [{} for _ in cases], {}, None
+
     diffs = [
-        compare_fields(c["expected"], ann)
-        for c, ann in zip(cases, annotations)
+        compare_fields(
+            c["expected"],
+            ann,
+            title_lookup=is_title_lookup_case(c, ann),
+            semantic_scores=sem,
+        )
+        for c, ann, sem in zip(cases, annotations, semantic)
     ]
 
     runtime_s = time.monotonic() - start_time
 
-    write_report(cases, diffs, snapshot_meta, output_path, runtime_s, usages)
+    write_report(
+        cases, diffs, snapshot_meta, output_path, runtime_s, usages,
+        embedding_usage=embedding_usage, negative_control=negative_control,
+    )
 
     if json_output is not None:
-        snap = build_snapshot(cases, diffs, snapshot_meta, runtime_s, usages)
+        snap = build_snapshot(
+            cases, diffs, snapshot_meta, runtime_s, usages,
+            embedding_usage=embedding_usage, negative_control=negative_control,
+        )
         json_output.parent.mkdir(parents=True, exist_ok=True)
         json_output.write_text(json.dumps(snap, ensure_ascii=False, indent=2))
         logger.info("Snapshot JSON written: %s", json_output)
