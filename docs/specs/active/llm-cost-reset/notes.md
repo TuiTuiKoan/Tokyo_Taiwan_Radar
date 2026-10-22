@@ -46,3 +46,10 @@ scraper：`annotator.py`（1558、1575、4187、4221、5176）、`discovery_acco
 web：`api/admin/extract-from-image`、`api/upload-with-qr`、`api/admin/annotate-event`、`api/line-webhook`、`api/account/annotate-event`、`api/account/extract-from-image`。
 
 M1 移除 researcher（1）、discovery_accounts（2）、qa_auto_fix 備援（1）、enrich_addresses（1）後，剩 scraper 15 個、web 6 個，共 21 個。
+
+## M1 dry-run（2026-10-22，使用者執行 `enrich_addresses.py --dry-run`）
+
+- 候選 26 筆（未來活動）；`field_corrections` 已鎖 9 筆，跳過。
+- 沿用其他事件的地址 2 筆：`銀座 蔦屋書店` → `東京都中央区銀座6丁目10-1`。
+- registry 命中 0 筆；查不到 15 筆。其中「青山 月見ル君想フ」（前綴地名）、「丸の内ピカデリー2」（廳號接在名稱後，不在 parent-suffix 分隔字元內）屬於 venue 解析的比對缺口，歸 #325，本 spec 不改 `venue_registry.py`。
+- 既有資料警告：`サロンシネマ1・2` 與 `サロンシネマ` 對到兩筆 authoritative venue，key 被拒（與本次改動無關）。

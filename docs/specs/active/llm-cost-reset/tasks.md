@@ -4,7 +4,7 @@
 過程中增生的細項、評審意見與 bug 開 GitHub issue，貼 `spec:llm-cost-reset` label，不寫進本檔；進度看 TTR Roadmap 看板。
 
 - [x] M0 建立 `ttr-llm-cost-reset-worktree`（`feat/llm-cost-reset`），spec 進 repo，11 張 issue 貼上 `spec:llm-cost-reset`
-- [ ] M1 #318：移除 researcher 與 discovery_accounts（含 workflow）、移除 qa_auto_fix 的 OpenAI 備援、enrich_addresses 改為只查 registry 與其他事件；dry-run 驗證
+- [x] M1 #318：移除 researcher 與 discovery_accounts（含 workflow）、移除 qa_auto_fix 的 OpenAI 備援、enrich_addresses 改為只查 registry 與其他事件；dry-run 驗證
 - [ ] M2 #319：`llm_client.py` 的錯誤分類與 `LLMConfigError`；模擬 404 時 step 失敗；週報標出連續兩週 0 產出的來源
 - [ ] M3 #363 schema：`llm_usage`、`llm_pricing`、`llm_cost_daily`、`llm_cache` migration，經使用者核准後套用到 production
 - [ ] M4 #363 遷移：scraper 15 個與 web 6 個呼叫點改走共用 client；CI 檢查禁止直接呼叫
