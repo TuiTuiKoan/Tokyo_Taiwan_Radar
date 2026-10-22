@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "updated_at": "2026-10-22",
+  "note": "Expected output pattern per scraper run key (scraper_runs.source), used by eval_scraper_quality.py. pattern: seasonal (active_months, 1-12) | sporadic (max_quiet_days) | broken (issue). Conclusions from #327 unless noted. Remove a broken entry when its issue closes.",
+  "sources": {
+    "oaff": {"pattern": "seasonal", "active_months": [2, 3, 4], "note": "大阪アジアン映画祭，每年 3 月舉行"},
+    "tiff": {"pattern": "broken", "issue": 341, "note": "4 個放映場館未登錄為權威場館，台灣片全部被略過；東京国際映画祭 10–11 月"},
+    "tokyo_art_beat": {"pattern": "broken", "issue": 375, "note": "08-19 起 0；錯誤處理用了不存在的 self.logger"},
+    "tokyo_now": {"pattern": "broken", "issue": 376, "note": "events REST API 404"},
+    "bookandbeer": {"pattern": "broken", "issue": 377, "note": "卡片在，解析 0 筆"},
+    "mot": {"pattern": "broken", "issue": 378, "note": "GitHub Actions 上 403；本機正常"},
+    "taipei_fukuoka": {"pattern": "broken", "issue": 378, "note": "GitHub Actions 上 0 posts；本機正常"},
+    "jposa_ja": {"pattern": "broken", "issue": 378, "note": "GitHub Actions 上 0 events；本機正常"},
+    "waseda_taiwan": {"pattern": "sporadic", "max_quiet_days": 120, "note": "只收未來的活動；學期中不定期公告"},
+    "ifi": {"pattern": "sporadic", "max_quiet_days": 180, "note": "活動列表正常，台灣相關活動少"},
+    "tokyo_city_i": {"pattern": "sporadic", "max_quiet_days": 180, "note": "活動列表正常，台灣相關活動少"},
+    "transit_store": {"pattern": "sporadic", "max_quiet_days": 90, "note": "商品列表正常，台灣商品不定期上架"},
+    "kawade_rss": {"pattern": "sporadic", "max_quiet_days": 365, "note": "RSS 只含最新書目，台灣相關新書少；120 天內 0 筆"},
+    "ginsee_hikariza": {"pattern": "sporadic", "max_quiet_days": 180, "note": "戲院，取決於台灣片上映"},
+    "ginsee_roble": {"pattern": "sporadic", "max_quiet_days": 180, "note": "戲院，取決於台灣片上映"},
+    "kino_cinema_shinsaibashi": {"pattern": "sporadic", "max_quiet_days": 180, "note": "戲院，取決於台灣片上映"},
+    "kbc_cinema": {"pattern": "sporadic", "max_quiet_days": 180, "note": "戲院，取決於台灣片上映"},
+    "ttcg_umeda": {"pattern": "sporadic", "max_quiet_days": 180, "note": "戲院，列表 19 部片，取決於台灣片上映"},
+    "cinelibre_kobe": {"pattern": "sporadic", "max_quiet_days": 180, "note": "戲院，列表 12 部片，取決於台灣片上映"}
+  }
+}

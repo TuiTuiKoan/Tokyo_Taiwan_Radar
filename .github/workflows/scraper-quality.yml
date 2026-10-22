@@ -1,0 +1,57 @@
+name: Scraper Quality Report
+
+# #354 — weekly per-source scraper quality report (scraper/eval_scraper_quality.py).
+# Read-only against production: output health with expected-zero handling
+# (scraper/source_expectations.json), field completeness, human vs script
+# correction rates, DOM drift, and annotator fill. No OpenAI calls.
+# scraper/reports/ is gitignored, so the report lives in the run summary and
+# the uploaded artifact.
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'  # Sunday 09:00 JST
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'scraper/eval_scraper_quality.py'
+      - 'scraper/quality_fields.py'
+      - 'scraper/source_expectations.json'
+      - '.github/workflows/scraper-quality.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: 'scraper/requirements.txt'
+
+      - name: Install Python dependencies
+        run: pip install -r scraper/requirements.txt
+
+      - name: Build report
+        working-directory: scraper
+        env:
+          SUPABASE_URL: "${{ secrets.SUPABASE_URL }}"
+          SUPABASE_SERVICE_ROLE_KEY: "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
+        run: |
+          DAY=$(TZ=Asia/Tokyo date +%F)
+          python eval_scraper_quality.py \
+            --output "reports/scraper_quality_${DAY}.md" \
+            --json-output "reports/scraper_quality_${DAY}.json"
+          cat "reports/scraper_quality_${DAY}.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scraper-quality
+          path: scraper/reports/scraper_quality_*
+          if-no-files-found: ignore
