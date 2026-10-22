@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { openaiApiKey, openaiChat } from "@/lib/llm/openai.server";
+import { consumeAccountAiQuota } from "@/lib/llm/accountQuota.server";
 import { CATEGORIES, EVENT_FORMS } from "@/lib/types";
 import { PURE_PUBLICATION_EVENT_FORM_GUIDANCE } from "@/lib/intakeGuidance";
 import {
@@ -47,6 +48,10 @@ export async function POST(req: NextRequest) {
   const apiKey = openaiApiKey();
   if (!apiKey)
     return NextResponse.json({ error: "OPENAI_API_KEY not configured" }, { status: 500 });
+
+  // 2b. Daily AI quota (#322)
+  const quotaRefused = await consumeAccountAiQuota(serviceClient, user.id, "extract");
+  if (quotaRefused) return quotaRefused;
 
   // 3. Call GPT-4o Vision via REST API
   const payload = {
