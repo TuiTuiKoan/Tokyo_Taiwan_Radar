@@ -13,7 +13,7 @@ updated: 2026-10-23
 | --- | --- | --- |
 | 22 筆是否都存在 | `targets_found = 22`，全部 `is_active=true`，`deactivated_reason` 皆 NULL | 可進入 capture |
 | 名單外的 child | `children_not_in_list = []` | `external_children` 預期為空 |
-| `parent_event_id` | 有 FK：`FOREIGN KEY (parent_event_id) REFERENCES events(id) ON DELETE SET NULL`；另有 `merged_into_event_id`、`organizer_id`、`owner_user_id`、`venue_id`、`work_id` 的 FK | UPDATE 不觸發 `ON DELETE SET NULL`。其他表（`saved_events`、`event_reports`、`announcement_events` 等）insert 時的 FK 檢查會對 `events` 取表級鎖，與 `SHARE ROW EXCLUSIVE` 衝突，apply 期間會短暫等待，驗收矩陣要測 |
+| `parent_event_id` | 有 FK：`FOREIGN KEY (parent_event_id) REFERENCES events(id) ON DELETE SET NULL`；另有 `merged_into_event_id`、`organizer_id`、`owner_user_id`、`venue_id`、`work_id` 的 FK | UPDATE 不觸發 `ON DELETE SET NULL`。其他表（`saved_events` 等）insert 時的 FK 檢查只取 `ROW SHARE`，與 `SHARE ROW EXCLUSIVE` 不衝突（PostgreSQL 17.11 實測）；只有指向 target 列的 FK 檢查會等 apply commit |
 | `events` trigger | 只有 `events_updated_at BEFORE UPDATE … set_updated_at()` | `updated_at` 嚴格相等等於「自 capture 後沒有任何 UPDATE」；apply 自己的 UPDATE 也會刷新 `updated_at`，rollback 無法還原它 |
 | 寫入 `events` 的 public 函式 | 只有 `confirm_scope_report(uuid,text,text)`（migration 098） | DB 側沒有其他 writer |
 | `events` 表權限 | `service_role` 有 UPDATE；`anon`、`authenticated` 也有全部表權限（含 `TRUNCATE`），靠 RLS 擋 | `LOCK TABLE` 需要的權限具備 |

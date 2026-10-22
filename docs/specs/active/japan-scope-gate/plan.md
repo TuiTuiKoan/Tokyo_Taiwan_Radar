@@ -29,7 +29,7 @@ updated: 2026-10-23
 - 4 個 child 本來就在 22 筆內。原 gate 把「target 有 parent」與「有 active 列指向 target」都當 blocker；要改成封閉家族判定：每個 target 的 `parent_event_id` 必須是 NULL 或屬於 target 集合；非 target 的 child 集合必須等於 manifest 的 `external_children`，且全部 inactive。
 - 現行 snapshot 分頁讀、逐筆讀、關係另讀，不是單一快照；before-image 缺 `deactivated_at`、`deactivated_reason`、`deactivated_by_pass` 與 `raw_description_sha256`，無法 exact rollback。
 - 沒有可靠的安靜時段：`scraper.yml` 實際啟動約 02:47–03:10 UTC、單次約 2.5–2.8 小時；`merger.yml` 延遲 4–5 小時。所以用 disable＋drain，不靠避開排程。
-- Migration 編號：`scripts/migration_next_id.py` 目前回 `102`（099 被 `feat/llm-cost-reset` 保留，100、101 已在 main）。動工時再執行一次，不寫死 099。
+- Migration 編號：`scripts/migration_next_id.py` 在 2026-10-23 動工時回 `103`（099、102 已被 llm-cost-reset 使用，100、101 是 RPC lockdown）。本 RPC 使用 `103_scope_cleanup_rpc.sql`；若套用前被占用，依腳本重新編號。
 - 先例：migration 100／101 用 `REVOKE … FROM PUBLIC, anon, authenticated` 加 `GRANT … TO service_role`，並用尾端 `DO` 區塊在 ACL 不符時讓 transaction 失敗。本 RPC 沿用這個模式。
 
 ## RPC 設計
@@ -54,7 +54,7 @@ updated: 2026-10-23
 
 DB 不重算 digest（無法重現 Python canonical JSON）；digest 對 DB 只是稽核字串。digest 與核准的綁定由 CLI 負責（script SHA、`--expect-digest`、沿用 `a18e1a49`）。
 
-**表鎖的修正（Codex 指出）**：`SHARE ROW EXCLUSIVE` 會擋住一般寫入，也會和 FK 檢查需要的表級鎖衝突，所以帶外鍵的其他交易也可能等待或逾時。不得宣稱「FK 不受影響」。拋棄式 Postgres 測試必須涵蓋：FK 寫入、既有交易先持鎖、鎖等待與 `lock_timeout` 零寫入、PostgREST 對 `40001` 與逾時的回應（CLI 解析 JSON body 的 `code`，不依賴 HTTP 狀態）、concurrent child insert、約束違反整批回滾、`updated_at` timestamp 精度與 JSON 往返一致。
+**表鎖與 FK（Codex 評審有誤，已實測更正）**：Codex 認為 `SHARE ROW EXCLUSIVE` 會和 FK 檢查需要的表級鎖衝突。在 PostgreSQL 17.11 實測，FK 檢查只取 `ROW SHARE`，與 `SHARE ROW EXCLUSIVE` 不衝突：對非 target 事件的 `saved_events` insert 不受阻；只有指向 target 列的 FK 檢查會因 apply 的 `FOR UPDATE` 等到 commit。events 本身的 INSERT／UPDATE／DELETE 一律被擋（`tests/test_scope_cleanup_rpc.py`）。其餘驗收項目（既有交易先持鎖、`lock_timeout` 零寫入、concurrent child insert、約束違反整批回滾、timestamp 精度與時區）已涵蓋；PostgREST 對 `40001` 與逾時的實際回應仍待 CLI 階段在 staging 外無法實測，CLI 以 JSON body 的 `code` 判斷。
 
 **替代方案**：CLI 產生一次性 `DO $$…$$` 區塊由使用者貼 Dashboard。保留為退路；需另外綁定 SQL 文字，且 Dashboard 多語句的交易行為未驗證。
 
