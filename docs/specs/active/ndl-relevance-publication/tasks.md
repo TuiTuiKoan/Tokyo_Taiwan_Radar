@@ -61,7 +61,7 @@
 ## Phase C: 標註、開發與凍結（人工步驟）
 
 - [x] 標籤定義（proposal 1.2＋D1）定稿，寫入 `notes.md`
-- [ ] `snapshot`，記錄快照時間、筆數、SHA-256、seed、每層 n 與 P_dev／P_seal 筆數到 `notes.md`
+- [x] `snapshot`，記錄快照時間、筆數、SHA-256、seed、每層 n 與 P_dev／P_seal 筆數到 `notes.md`
 - [ ] ① 使用者盲標開發集（約 90 列）
 - [ ] ② 只用 P_dev 開發候選 prompt（最多約 4 輪）
 - [ ] ③ 凍結：候選 prompt 檔的 SHA-256 寫入 `notes.md`
