@@ -65,6 +65,7 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - When repairing one, prefer a **consumer-side fallback to an older token** so existing historical rows become usable immediately, rather than a producer-only fix that restarts the metric from zero. Document why the fallback exists so it is not later deleted as dead defensive code.
 - Anchor every token regex with a boundary assertion — `(?<![a-z_])annotated=(\d+)` — because sibling keys sharing a suffix (`re_annotated=`, `re_annotate_all=`) are normal, not exotic.
 - **看似 legacy 的路徑也可能是程式的 I/O 介面。** 改寫或刪除 guidance 裡的路徑前，先 `rg` 程式碼與 `.github/workflows/` 找讀寫它的程式；有消費者就是介面，只加註、不搬移，要搬就連同程式一起改。實例：`.copilot-tracking/research/{candidates,sources}/` 是 `scraper/researcher.py`、`scraper/update_source.py` 的輸入輸出，照字面搬走會讓 `--create-issue` 的 Issue 內文靜默退化（2026-10-07 ai-portability Phase A）。
+- **搬 spec 目錄時，同一個 commit 要改 `proposal.md` 的 `status`。** spec 看板（`web/scripts/build-specs-snapshot.ts`）的 `relativePath` 與欄位由 frontmatter `status` 決定，目錄只決定掃描範圍（約 L270–271、L290）：`git mv` 到 `docs/specs/archive/` 卻留著 `status: active`，會產生不存在的 `active/<dir>` 路徑，並寫進「繼續此 spec」提示（`web/lib/specs/reader.ts`）。資料夾叫 `archive`、status 值是 `archived`。看板 slug 取自目錄名（不是 frontmatter `slug:`），歸檔成 `<YYYY-MM>-<slug>` 後 admin URL 變成 `/admin/specs/<YYYY-MM>-<slug>`。搬完用 `grep -m1 '^status:' docs/specs/archive/<dir>/proposal.md` 驗證。既有漂移（`archive/feedback-loop` 仍是 `active`、`archive/2026-05-02-artist-cafe-scraper.md` 仍是 `parked`）另案處理（2026-10-22，見 history）。
 
 ## CSS Selector Specificity Pitfalls
 

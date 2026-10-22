@@ -9,6 +9,51 @@ ms.date: 2026-08-12
 
 ---
 
+## 2026-10-22 — 稽核腳本只試 `archive/<slug>`，與 README 規定的日期前綴命名對不上
+
+**事實**：2026-08-12 的 `spec_dir_unresolved` 修正（見下方同日條目）把 fallback 寫成 `archive/<slug>/`。但 `docs/specs/README.md`
+規定的歸檔命名是 `archive/<YYYY-MM>-<slug>`。ai-portability 的結案記錄（2026-10-14）在 spec 還在 `active/` 時就預告：
+歸檔後重跑稽核，兩個 spec 來源會因 slug 解析不到而 `not_checked`。2026-10-20 歸檔成 `archive/2026-10-ai-portability/` 之後，
+這個預告成真，改由 commit `fix(agents): campaign closeout audit resolves date-prefixed archive directories`（2026-10-22）
+修腳本（目錄維持 README 規約，不為了遷就腳本改名）。
+
+**為何當初只試 bare slug（推測）**：2026-08-12 時 repo 唯一的歸檔實例是沒有前綴的 `archive/feedback-loop/`
+（plan-critic history 2026-08-02 已記錄 README 與實況矛盾）；推測當時是對著這個唯一樣本實作，沒有用 README 寫的拼法造測資。
+
+**如何被發現**：不是稽核跑出錯誤——bare slug 的 fallback 對現存樣本沒有問題。從結案記錄的文字可見，是撰寫記錄時把腳本的解析規則與
+README 的命名規約並排比對，才看出兩者不是同一個拼法，並在歸檔前就寫成預告。
+
+**教訓**：腳本要解析的命名規約若由文件定義，測資必須用**文件寫的拼法**造，不能只用現存實例；現存實例只有一個且與文件不一致時，
+風險最高。規則本文（active 優先；archive 以目錄名或去掉 `^YYYY-(01-12)-` 後做字串相等，不是 glob；0 筆
+`spec_dir_unresolved`、≥2 筆 `spec_dir_ambiguous`，皆 `not_checked`、不猜）已在 SKILL.md § `not_checked` 與 `0` 是不同的主張、
+agent 檔 A2 與 `docs/evaluation/campaigns/README.md` 同步複述，這裡不重複；改這條規則要三處同動。實作用 `case` 樣式與
+`${name#????-??-}` 剝前綴（相容 macOS 預設的 bash 3.2）；slug 只做 `=` 比較，不進 glob。
+
+---
+
+## 2026-10-22 — 搬移 spec 後的結案記錄：搬移可能由兩顆 commit 承載，且已提交的陳述不原地改寫
+
+**事實 A（rename 被併進別的 commit）**：ai-portability 的 `docs/specs/active/ai-portability` → `docs/specs/archive/2026-10-ai-portability/`
+共 10 檔 rename。`docs(specs): archive ai-portability and repoint live references`（2026-10-20）只改了 `status` 欄位與 7 個檔案的引用，
+`git show --stat` 看不到任何 rename；真正的 10 檔 rename 在同日的 `docs(specs): drop the retired ttr-v8 worktree from the workstream ledger`
+裡。`git log --follow --diff-filter=R -- <新路徑>` 只印出這顆 ledger commit，主旨與本 campaign 無關，若直接拿它的輸出當「搬移
+commit」引用，讀者會看到一個牛頭不對馬嘴的主旨。
+
+**事實 B（原地改寫已提交陳述）**：上述 archive commit 把結案記錄中「The move has **not happened**」整段原地改成「The spec moved to …」。
+記錄當時的陳述是真的，被改掉之後，讀者無法分辨記錄當時知道什麼、現在知道什麼。事後由
+`docs(agents): append post-move update to ai-portability record, repoint parked`（2026-10-22）還原原段，並追加
+`### Update after the move (2026-10-22)`。
+
+**教訓**：
+1. 結案記錄引用「搬移 commit」前，用 `git show --stat <commit>` 核對它**實際承載 rename**（輸出有 `rename`／`=>` 的檔案行）；
+   `--follow --diff-filter=R` 只是定位指令，印出來的可能是不相干的 commit。若 rename 與 status／引用更新分在兩顆，如實寫「兩顆
+   commit 承載」，各自附主旨與日期，不放裸 SHA（rebase 會改 hash）。
+2. **已提交的結案記錄不原地改寫。** 搬移後才成立的事實，只在記錄尾端追加 `### Update after the move (<date>)` 段：不刪既有行、
+   不放裸 SHA、Correction 區維持原狀（那裡只放「當時就是錯的」）。「當時是真的、現在過期」不是 Correction，也不是改寫的理由。
+   這條與 `docs/evaluation/campaigns/README.md` § Correction（錯誤陳述不得靜默覆蓋或刪除）同一精神，只是對象換成「已過期」的陳述。
+
+---
+
 ## 2026-10-20 — vmd-summary-ai-scope 退役：整塊對帳順帶移除過期行，且對帳指令被 guard 擋下
 
 **事實 A（順帶移除過期行）**：退役 `ttr-vmd-summary-ai-scope-worktree` 時，依 `git.instructions.md` 以 live worktree 推導目標清單、

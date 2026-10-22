@@ -426,6 +426,20 @@ git 只拒絕有修改或未追蹤檔的 worktree。**不要為了 remove 預先
 
 同日準備移除時，主工作樹 `main` 領先 `origin/main` 2 個、落後 1 個（別的 session 留下未推送的 commit），`git pull --ff-only` 會失敗。上一節的 `-d` 以主工作樹 HEAD 判定，`main` 不含分支 tip 就被拒，`-D` 又被禁止。檢查 `git rev-list --left-right --count origin/main...main` 要 `0 0`，或至少 `main` 已含分支 tip；否則先停手，等該 session 推送完，再寫 capsule 與給指令。
 
+### spec 歸檔後補寫結案記錄：搬移 commit 要核對，已提交的陳述不改寫
+
+2026-10-22 `ai-portability`：spec 在記錄寫成之後才搬到 `docs/specs/archive/2026-10-ai-portability/`。
+
+* **引用搬移 commit 前用 `git show --stat <commit>` 核對它真的承載 rename。** 這次 10 檔 rename 被併進同日一顆主旨為
+  `docs(specs): drop the retired ttr-v8 worktree from the workstream ledger` 的 ledger commit，而主旨為
+  `docs(specs): archive ai-portability and repoint live references`（2026-10-20）的 commit 只改 `status` 與 7 個檔的引用。
+  `git log --follow --diff-filter=R -- <新路徑>` 只是定位指令，印出的可能是不相干的 commit。兩顆分別承載就如實寫「兩顆 commit」，
+  各附主旨與日期，不放裸 SHA。
+* **已提交的記錄不原地改寫。** 搬移後才成立的事實，只在記錄尾端追加 `### Update after the move (<date>)`：不刪既有行、不放
+  裸 SHA、Correction 區維持原狀（「當時是真的、現在過期」不是 Correction）。這次先被原地改成「moved」，事後才還原並追加
+  Update 段，見 history 2026-10-22。
+* **稽核限制是否仍在，重跑稽核確認，不憑記憶寫。** 日期前綴目錄的解析規則見 § `not_checked` 與 `0` 是不同的主張。
+
 ---
 
 ## Metrics（Stage 2，已凍結）

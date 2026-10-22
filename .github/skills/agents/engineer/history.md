@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-10-22 - Archiving a spec: the dashboard path follows the frontmatter `status`, not the directory
+
+**Error**: The ai-portability spec was archived on 2026-10-20 in two commits that carry the same timestamp and are both on `origin/main`: the `git mv` of the ten files was carried by the commit with subject `docs(specs): drop the retired ttr-v8 worktree from the workstream ledger`, and the `status: active` to `status: archived` flip by `docs(specs): archive ai-portability and repoint live references`. Between the two, the tree held a directory under `docs/specs/archive/` whose `proposal.md` still said `active`. I did not observe the dashboard in that state; the effect is derived from the code. In `web/scripts/build-specs-snapshot.ts`, `loadSpecFromDir()` takes `finalStatus` from the frontmatter `status` when it is a valid value and uses the scanned directory's status only as a fallback (lines 270–271), then sets `relativePath` to `${STATUS_DIR_MAP[finalStatus]}/${slug}` (line 290). A directory moved without the flip therefore gets `relativePath: active/<dir>`, a path that does not exist, and `buildCopilotPrompt()` in `web/lib/specs/reader.ts` writes that path into the "continue this spec" prompt.
+
+**Fix**: None needed in code; the pair landed together and the final state is correct (`status: archived`). The rule is recorded here and in the Engineer SKILL.
+
+**Lesson**:
+1. The directory only decides which folder is scanned; the card's column, `relativePath` and the prompt paths come from `proposal.md` frontmatter `status`. Moving a spec between `active/`, `parked/` and `archive/` means changing `status` in the same commit (`archived` for `archive/`; note the folder is `archive`, the status value is `archived`).
+2. The dashboard slug is the directory name (`entry.name`), never the frontmatter `slug:`. A spec archived as `<YYYY-MM>-<slug>` is reached at `/admin/specs/<YYYY-MM>-<slug>`, so the admin URL changes with the move.
+3. The same rule means existing drift is silent: `docs/specs/archive/feedback-loop/proposal.md` still says `status: active` and `docs/specs/archive/2026-05-02-artist-cafe-scraper.md` says `status: parked`, so both render under the wrong `relativePath`. Not fixed here; file it as its own small task rather than folding it into an unrelated change.
+4. After a move, check the result from the data, not from the folder: `grep -m1 '^status:' docs/specs/archive/<dir>/proposal.md` must print `archived`.
+
+---
+
 ## 2026-10-20 - Lockfile regenerated through the local npm proxy rewrote 232 resolutions
 
 **Error**: While preparing the `chore/deps-security-2026-10` overrides, a plain `pnpm install` read `~/.npmrc`, which points at a corporate package-feed proxy. The proxy returned 404 for newer versions (so the PR #205 check could not run) and, when the lockfile was regenerated through it, rewrote 232 resolutions to `ms-feed-25` tarball URLs with sha1 integrity values.

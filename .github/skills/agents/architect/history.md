@@ -2,6 +2,32 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-10-22：計畫裡的「現況值」沿用舊值送審，審查審到過期基準
+
+### Mistake
+
+ai-portability 歸檔計畫（rev.1、rev.2 沿用同一個基準）把規劃當下量到的現況值寫成事實：規劃基準 commit、「parked 有 24 條未勾選」、
+工作樹有 6 個未提交 WIP 檔。第二輪審查實際在 repo 上重現後，把「基準過期」列為阻擋項：`main` 已前進，那 6 個 WIP 檔已經提交，
+parked 檔案也已有 5 條被勾掉，變成 19 條未勾選、7 條已勾選。同一輪還抓到計畫的前置指令 `git rev-parse --short HEAD origin/main`
+會失敗：`--short` 搭配兩個 revision 時 git 回 `fatal: Needed a single revision`、exit 128（已在本 repo 重現）；
+這條指令在送審前沒有實跑過。
+
+### Repair
+
+重定基準後重送；§1、Phase 0、驗收改為「digest 與 diff 行數」，不寫死計數；刪掉 WIP 清單與過期的理由；前置指令改成
+不帶 `--short` 的 `git rev-parse HEAD origin/main`（兩行必須相同，漂移即 STOP）。
+
+### Lesson
+
+1. **每次送審（含重送）前，重取計畫裡所有「現況值」**：基準 commit、`origin/main` 對齊狀態、計數類斷言（條目數、檔案數、
+   勾選數）、工作樹是否乾淨。它們是快照，會被並行 session 改掉；沿用舊值，等於請審查者審一個已不存在的基準。能不寫死就不寫死，
+   改用不隨狀態漂移的驗收（內容 digest、diff 行數）。
+2. **計畫裡寫進去的指令要實際跑過一次再送審**，尤其是 `git rev-parse` 這類看似無害的指令；`git rev-parse --short HEAD origin/main`
+   exit 128，要分開跑兩次或去掉 `--short`。
+3. 計畫引用的 commit 一律「subject + 日期」，不放裸 SHA（rebase 會改 hash，也讀不出是哪一顆）。
+
+---
+
 ## 2026-09-29：agent frontmatter 寫死模型，模型下架後全體 agent 無法啟動
 
 ### Mistake
