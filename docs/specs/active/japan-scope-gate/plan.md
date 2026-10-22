@@ -101,4 +101,6 @@ read-back：RPC 的 per-id after-image；獨立唯讀查詢確認 22 筆 `is_act
 
 ## 待補證據
 
+live 唯讀事實（FK、trigger、權限、097 未套用、22 筆現況與關聯計數）已在 2026-10-23 取得，見 `notes.md`。A4 的 `3f693869` 與 `fe47a25c` 在 8/4 probe 之後（2026-08-31）被寫入過，必須重驗。
+
 Architect 引用的 GitHub 事實（`origin/main=02dfcf4c`、workflow 啟動延遲與執行時長、近期失敗次數、沒有 disabled workflow）Codex 無法獨立驗證，進入 7 前由 Engineer 重新查詢並附查詢日期與輸出。annotator 行號以計畫鎖定的 exact SHA 為準（`is_active: True` 約在 3903 行，非 3936）。
