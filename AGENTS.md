@@ -2,13 +2,14 @@
 
 本檔供 Codex / Claude Code 使用。專案總規則的權威來源是 `.github/copilot-instructions.md`；開始任何工作前，必須先完整讀取該檔，不要以本摘要取代原文。
 
-最關鍵的 5 點摘要：
+最關鍵的 6 點摘要：
 
 1. 回覆語言預設使用繁體中文。
 2. 列出活動時不可只列 event id，必須提供 `https://tokyotaiwanradar.com/ja/events/<event_id>` 格式的可點擊連結；若使用者指定 locale，替換 `ja`。
 3. 專案地理範圍是全日本；不要只因活動不在東京就排除。
 4. 主工作樹只供治理與盤點；實作前必須先向使用者確認要用哪個 worktree，並依 `.github/instructions/git.instructions.md` 建立或切換。
 5. 不得提交 secrets；任何 `.env`、token、API key 僅能留在本機或平台 secrets。
+6. 進度看 TTR Roadmap 看板；spec 只放設計與里程碑；過程中增生的細項、評審意見與 bug 一律開 issue，貼 `spec:<slug>` label，不需使用者提醒（見下方「進度追蹤」）。
 
 ## 路徑規則表
 
@@ -21,6 +22,24 @@
 | `scraper/**` | `.github/instructions/scraper.instructions.md` |
 | `supabase/**` | `.github/instructions/database.instructions.md` |
 | `web/**` | `.github/instructions/web.instructions.md` |
+
+## 進度追蹤：看板、spec 與 issue
+
+進度入口是 GitHub Project **TTR Roadmap**：https://github.com/users/TuiTuiKoan/projects/1 。三者分工如下，所有 agent 自動遵守，不需使用者提醒。
+
+| 內容 | 放哪裡 |
+| --- | --- |
+| 現在做到哪、下一步 | 看板。每張卡片是一個 issue，Status 是進度，「階段」對應主題 |
+| 為什麼做、做什麼、不做什麼、設計、里程碑 | `docs/specs/active/<slug>/`；`tasks.md` 只放不超過十條里程碑 |
+| 過程中增生的細項、評審意見、測試發現的 bug、之後要處理的待辦 | GitHub issue，貼 `spec:<slug>` label；不寫進 `tasks.md` |
+
+- 開 issue 用 `gh issue create --label "spec:<slug>" …`。label 不存在時先建立：`gh label create "spec:<slug>" --color 1D76DB --description "Work tracked by this spec"`。看板的 Auto-add workflow 會自動把新的 open issue 加入看板。
+- 不屬於任何 spec 的待辦也開 issue，只是不貼 spec label。
+- 向使用者回報時，列出本次新開 issue 的連結。
+- 里程碑完成時在 `tasks.md` 打勾並 commit；細項以關閉 issue 為完成。
+- 換 session 或換工具接續時，先看該 spec 的 open issue（`label:spec:<slug>`），再讀 `tasks.md` 的里程碑。
+- 既有 `tasks.md` 裡已經存在的細項 checkbox 保留原狀，不搬移；新增的細項才開 issue。
+- VS Code Copilot 讀的是 `.github/copilot-instructions.md`，該檔有同一段規則；修改時兩處一起改。
 
 ## 角色路由表
 

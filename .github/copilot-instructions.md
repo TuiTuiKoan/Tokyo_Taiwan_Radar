@@ -5,6 +5,19 @@
 Unless the user explicitly requests otherwise, **always respond in Traditional Chinese (繁體中文)**.
 This applies to all agents (Researcher, Architect, Engineer, Scraper Expert, Tester, etc.).
 
+## Progress Tracking: Board, Specs and Issues（進度追蹤）
+
+The progress entry is the GitHub Project **TTR Roadmap**: https://github.com/users/TuiTuiKoan/projects/1 . Follow this split without being reminded:
+
+- **Where things stand** lives on the board. Each card is an issue; Status is progress.
+- **Why, what, non-goals, design and up to ten milestones** live in `docs/specs/active/<slug>/`. `tasks.md` holds milestones only.
+- **Sub-tasks, review findings, bugs and follow-ups found along the way** become GitHub issues labeled `spec:<slug>`, not new lines in `tasks.md`. Create the label first if it is missing: `gh label create "spec:<slug>" --color 1D76DB --description "Work tracked by this spec"`. The board's Auto-add workflow picks up new open issues.
+- Work that belongs to no spec is still an issue, just without a spec label.
+- When reporting back, list the links of issues you opened.
+- Tick a milestone in `tasks.md` and commit when it is done; a sub-task is done when its issue is closed.
+- Existing checkboxes already in a `tasks.md` stay as they are; only new sub-tasks go to issues.
+- The same rule lives in `AGENTS.md` for Claude Code and Codex; change both together.
+
 ## Event Link Output Rule
 
 When listing events in chat, never output event IDs alone.

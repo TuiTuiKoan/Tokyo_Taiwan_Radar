@@ -74,7 +74,7 @@ Before writing any plan, classify the feature's size — it drives spec + worktr
 
 For every **Large feature** plan, include a **"Worktree & Spec Tracking"** section stating:
 
-1. Spec slug + path `docs/specs/active/<slug>/` (create from `_template/`).
+1. Spec slug + path `docs/specs/active/<slug>/` (create from `_template/`), plus the `spec:<slug>` issue label. `tasks.md` lists milestones only; sub-tasks found later become issues with that label (see `AGENTS.md`「進度追蹤」).
 2. Derived worktree dir `ttr-<slug>-worktree` + branch `feat/<slug>`; whether NEW or CONTINUING (verify with `git worktree list --porcelain`).
 3. **Phase 0**: instruct the Engineer to read `.github/instructions/git.instructions.md` § Isolated worktree and set up per its state matrix — never assume the worktree exists.
 4. The plan names the spec slug and is stored as `docs/specs/active/<slug>/plan.md` (Architect returns the full text; the Engineer or the user saves it), so a resumed session rehydrates from `tasks.md`.
