@@ -472,3 +472,20 @@ def test_parser_wires_the_four_subcommands():
 
 def test_no_regex_is_catastrophic_on_long_titles():
     assert ev.classify_stratum("台湾" + "・日本" * 5000) in ("S2", "S3")
+
+
+def test_jsonl_readers_keep_unicode_line_separators_inside_strings(tmp_path):
+    # ensure_ascii=False leaves U+2028/U+2029 raw; str.splitlines() would cut the record.
+    import json
+
+    path = tmp_path / "out.jsonl"
+    rows = [
+        {"event_id": "a", "annotation": {"description_ja": "前\u2029後"}, "gate_deactivates": False},
+        {"event_id": "b", "annotation": {"description_ja": "x\u2028y\x85z"}, "gate_deactivates": True},
+    ]
+    path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
+    outputs = ev.load_outputs([path])
+    assert set(outputs) == {"a", "b"}
+    assert outputs["a"]["annotation"]["description_ja"] == "前\u2029後"
+    assert ev._done_ids(path) == {"a", "b"}
+

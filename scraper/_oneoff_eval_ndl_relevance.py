@@ -509,7 +509,7 @@ def _done_ids(path: Path) -> set[str]:
     if not path.exists():
         return set()
     done = set()
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in path.read_text(encoding="utf-8").split("\n"):  # not splitlines(): U+2028/2029 occur inside JSON strings
         if line.strip():
             done.add(json.loads(line)["event_id"])
     return done
@@ -591,7 +591,7 @@ def load_labels(paths) -> dict[str, dict]:
 def load_outputs(paths) -> dict[str, dict]:
     outputs: dict[str, dict] = {}
     for path in paths:
-        for line in Path(path).read_text(encoding="utf-8").splitlines():
+        for line in Path(path).read_text(encoding="utf-8").split("\n"):  # not splitlines(): U+2028/2029 occur inside JSON strings
             if line.strip():
                 row = json.loads(line)
                 outputs[row["event_id"]] = row
