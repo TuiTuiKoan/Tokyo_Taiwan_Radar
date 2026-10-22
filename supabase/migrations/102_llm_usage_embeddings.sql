@@ -1,6 +1,7 @@
--- 101_llm_usage_embeddings.sql
+-- 102_llm_usage_embeddings.sql
 -- Let llm_usage record embeddings calls (llm-cost-reset spec, #363).
--- 100 is taken by 100_rpc_execute_lockdown.sql on main.
+-- Applied to production as 101_llm_usage_embeddings (record 20261022165956);
+-- renumbered 102 because 101_rpc_lockdown_followup.sql took 101 on main.
 --
 -- 099 allowed endpoint in ('chat', 'responses'). eval_annotator.py scores the
 -- annotator golden set by meaning with text-embedding-3-small, so the shared

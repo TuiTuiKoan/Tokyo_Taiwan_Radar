@@ -51,6 +51,12 @@ _NOISE_SUFFIXES = (
     "タブレット", "イヤホン", "フィギュア",
 )
 
+# Noise suffixes that are also real romanised surnames (范/樊/方 → ファン).
+# A bare "ファン" as the LAST part of a multi-part name is kept ("ケイトリン・ファン");
+# a longer part ending in it ("アニメファン") stays noise. A false positive here
+# only costs one lookup that resolves to nothing.
+_SURNAME_NOISE_SUFFIXES = frozenset({"ファン"})
+
 # Max ・-separated parts for a person name (Chinese/Taiwanese names: 2–3 parts)
 _MAX_NAME_PARTS = 3
 
@@ -397,6 +403,13 @@ def lookup_person_names(name_ja: str) -> dict[str, PersonInfo]:
 # General (non-movie) person name lookup
 # ---------------------------------------------------------------------------
 
+def _is_noise_part(part: str, *, is_last: bool) -> bool:
+    """True if a ・-separated part looks like a compound noun, not a name part."""
+    if is_last and part in _SURNAME_NOISE_SUFFIXES:
+        return False
+    return any(part.endswith(suf) for suf in _NOISE_SUFFIXES)
+
+
 def extract_katakana_names(text: str) -> list[str]:
     """Extract katakana foreign name patterns (with ・) from text.
 
@@ -410,7 +423,10 @@ def extract_katakana_names(text: str) -> list[str]:
         if len(parts) > _MAX_NAME_PARTS:
             continue
         # Any part ending with a noise suffix → compound noun, not a name
-        if any(p.endswith(suf) for p in parts for suf in _NOISE_SUFFIXES):
+        if any(
+            _is_noise_part(p, is_last=(i == len(parts) - 1))
+            for i, p in enumerate(parts)
+        ):
             continue
         # Person name parts are typically short (≤7 katakana chars)
         if any(len(p) > 7 for p in parts):

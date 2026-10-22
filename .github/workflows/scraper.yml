@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   scrape:
-    runs-on: ubuntu-24.04  # pinned: Playwright has no chromium build for ubuntu-26.04 (default runner moved to 26.04 on 2026-10-21); unpin once supported
+    runs-on: ubuntu-latest
     outputs:
       summary: ${{ steps.summarize.outputs.summary }}
       annotate_outcome: ${{ steps.annotate_pending.outcome }}
@@ -263,7 +263,7 @@ jobs:
 
   validate:
     needs: scrape
-    runs-on: ubuntu-24.04  # pinned: Playwright has no chromium build for ubuntu-26.04 (default runner moved to 26.04 on 2026-10-21); unpin once supported
+    runs-on: ubuntu-latest
     if: always()
     outputs:
       warnings: ${{ steps.check.outputs.warnings }}
@@ -295,7 +295,7 @@ jobs:
 
   notify:
     needs: [scrape, validate]
-    runs-on: ubuntu-24.04  # pinned: Playwright has no chromium build for ubuntu-26.04 (default runner moved to 26.04 on 2026-10-21); unpin once supported
+    runs-on: ubuntu-latest
     if: always()
 
     steps:
