@@ -539,3 +539,18 @@ prompt（cand0）對**同一批 id** 各跑一次，比對兩者的原始輸出�
 負向 5 筆：`record_type_for()` 全為 None、payload 區塊前沒有 `RECORD_TYPE` 行；新 prompt 沒有對任何一筆
 輸出 `publication` event_form（mixed form 那筆輸出 `["lecture"]`）。全數符合。
 
+## 揭盲裁決（2026-10-22）
+
+不一致只有開發集 5 筆（使用者標 N、凍結 prompt 保留）；A 區 16 筆 G 全保留，與 R／B 一致。使用者裁決
+（`~/.ai-notes/ttr/p5-eval/adjudication_dev.csv`，保留 `blind_label`）：
+
+| event | blind | final | 理由 |
+|------|------|------|------|
+| [10fcb5ab](https://tokyotaiwanradar.com/ja/events/10fcb5ab-90a1-4cbf-a03a-398bee20fabd) 新光合成繊維 | N | **B** | 台灣企業，台灣飲料系列內，依 L2 |
+| [1a132f06](https://tokyotaiwanradar.com/ja/events/1a132f06-27fe-43ba-b463-0ed85524fdbe) …: マレーシア | N | N | 多國系列中講馬來西亞 |
+| [7f2003f1](https://tokyotaiwanradar.com/ja/events/7f2003f1-e064-4c6c-b339-27c54795bc1d) 民族抹殺した朝鮮支配 | N | N | 講朝鮮，台灣只在系列名 |
+| [94ceddfe](https://tokyotaiwanradar.com/ja/events/94ceddfe-1005-4cec-bdb0-55970ccf6c05) …: 韓国 | N | N | 多國系列中講韓國 |
+| [ccb2e6e1](https://tokyotaiwanradar.com/ja/events/ccb2e6e1-8e6c-4d78-8a07-02220423f3b4) 防衛産業をどう再建するか | N | N | 講日本防衛產業 |
+
+裁決後 R1 與 G 的結論不變。final N 的 4 筆是 Phase F 處置清單的候選（仍需逐批核准）。
+
