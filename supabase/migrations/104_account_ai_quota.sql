@@ -1,4 +1,4 @@
--- 103_account_ai_quota.sql
+-- 104_account_ai_quota.sql
 -- Daily per-user and site-wide limits for the two account AI routes
 -- (llm-cost-reset spec, #322).
 --

@@ -57,8 +57,8 @@ test("every quota error the routes return has a message in all three locales", (
   }
 });
 
-test("migration 103 keeps the quota RPC service-role only", () => {
-  const sql = read("../supabase/migrations/103_account_ai_quota.sql");
+test("migration 104 keeps the quota RPC service-role only", () => {
+  const sql = read("../supabase/migrations/104_account_ai_quota.sql");
   assert.match(sql, /security invoker/);
   assert.match(sql, /set search_path = pg_catalog/);
   assert.match(sql, /revoke execute on function public\.consume_account_ai_quota\(uuid, text, integer, integer\)\s+from public, anon, authenticated/);

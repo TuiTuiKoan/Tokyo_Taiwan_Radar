@@ -87,7 +87,7 @@ enrich_addresses 的新流程：
 **TypeScript：`web/lib/llm/openai.server.ts`**
 
 - `callOpenAI({ caller, userId, body, timeoutMs })`：送出 fetch、解析 `usage`、以 service-role client 寫入 `llm_usage`（用 Next.js `after()`，不拖慢回應）、統一錯誤處理。6 個 route 改用它。
-- ~~`assertLlmQuota(userId, caller, limitPerDay)`：數 `llm_usage` 中該使用者 24 小時內的列數~~（2026-10-23 改設計）：`llm_usage` 在回應送出後才由 `after()` 寫入，同時送出的多個請求都會看到舊的列數，擋不住連發。改用既有的 `account_usage` 計數表（migration 086），由 migration 103 加上 `extract_count` 與 service-role 專用的 `consume_account_ai_quota()`，在呼叫 OpenAI 前以列鎖原子地加一；`web/lib/llm/accountQuota.server.ts` 在 RPC 失敗時拒絕（fail closed）。上限由使用者裁決：每人每日 annotate 30、image 10，全站每日 annotate 300、image 100，以日本日期計。admin 路由不受限。2026-06-05 曾有同樣的限流（`4da6dede` 移除），當時兩個路由共用 `annotate_count`，annotate 會吃掉 image 的 5 次額度，而且 wizard 沒有對應的錯誤訊息。
+- ~~`assertLlmQuota(userId, caller, limitPerDay)`：數 `llm_usage` 中該使用者 24 小時內的列數~~（2026-10-23 改設計）：`llm_usage` 在回應送出後才由 `after()` 寫入，同時送出的多個請求都會看到舊的列數，擋不住連發。改用既有的 `account_usage` 計數表（migration 086），由 migration 104 加上 `extract_count` 與 service-role 專用的 `consume_account_ai_quota()`，在呼叫 OpenAI 前以列鎖原子地加一；`web/lib/llm/accountQuota.server.ts` 在 RPC 失敗時拒絕（fail closed）。上限由使用者裁決：每人每日 annotate 30、image 10，全站每日 annotate 300、image 100，以日本日期計。admin 路由不受限。2026-06-05 曾有同樣的限流（`4da6dede` 移除），當時兩個路由共用 `annotate_count`，annotate 會吃掉 image 的 5 次額度，而且 wizard 沒有對應的錯誤訊息。
 
 **報表（#322）**
 

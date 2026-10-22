@@ -1,4 +1,4 @@
-// Daily limits for the two account AI routes (llm-cost-reset #322, migration 103).
+// Daily limits for the two account AI routes (llm-cost-reset #322, migration 104).
 //
 // /api/account/annotate-event (gpt-4o-mini) and /api/account/extract-from-image
 // (gpt-4o Vision) are open to every signed-in organizer. Each route consumes one
@@ -6,7 +6,7 @@
 // consume_account_ai_quota() before it calls OpenAI. Days follow the Japan date.
 // A unit is consumed even when the OpenAI call later fails, so retries count.
 //
-// Fail closed: when the RPC errors (or migration 103 is missing) the route
+// Fail closed: when the RPC errors (or migration 104 is missing) the route
 // refuses instead of calling OpenAI without a limit.
 // Server-only by the `.server.ts` naming discipline (see lib/maintenanceLock.server.ts).
 

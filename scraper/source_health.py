@@ -8,6 +8,10 @@ retired. So health here is about events_processed.
   Many are legitimate (a cinema with no Taiwan film this month).
 - newly_silent: silent sources that did produce events in the LOOKBACK_WEEKS
   before the streak. These are the likely breakages and the ones to alert on.
+
+Home-IP sources (#407) run weekly from a Mac via launchd, outside GitHub
+Actions, so nothing else notices when the Mac is off or the job fails.
+home_ip_stale() flags them by the age of their last successful run.
 """
 
 from __future__ import annotations
@@ -20,6 +24,13 @@ from db_paging import fetch_all
 WEEK = timedelta(days=7)
 STREAK_WEEKS = 2
 LOOKBACK_WEEKS = 6
+
+# Blocked from GitHub Actions IPs (#378); main.HOME_IP_ONLY_SOURCES must match
+# (tests/test_source_health.py checks it).
+HOME_IP_ONLY_SOURCES = frozenset({"mot", "taipei_fukuoka", "jposa_ja"})
+# The job runs weekly; a day of slack covers a Mac that wakes late on Monday.
+HOME_IP_MAX_AGE = timedelta(days=8)
+HOME_IP_LOOKBACK = timedelta(days=30)
 
 # scraper_runs rows that are not event sources.
 _NON_SOURCES = frozenset({"annotator"})
@@ -81,3 +92,52 @@ def check(sb, window_end: datetime, **kwargs) -> dict[str, list[str]]:
     lookback = kwargs.get("lookback_weeks", LOOKBACK_WEEKS)
     start = window_end - (streak + lookback) * WEEK
     return zero_output(fetch_runs(sb, start, window_end), window_end, **kwargs)
+
+
+def fetch_home_ip_runs(sb, now: datetime, sources=HOME_IP_ONLY_SOURCES) -> list[dict]:
+    return fetch_all(lambda: (
+        sb.table("scraper_runs")
+        .select("source,success,ran_at")
+        .in_("source", sorted(sources))
+        .gte("ran_at", (now - HOME_IP_LOOKBACK).isoformat())
+        .order("id")
+    ))
+
+
+def home_ip_stale(
+    runs: list[dict],
+    now: datetime,
+    *,
+    sources=HOME_IP_ONLY_SOURCES,
+    max_age: timedelta = HOME_IP_MAX_AGE,
+) -> dict[str, dict]:
+    """Home-IP sources that need attention: {source: {"reason", "last_success"}}.
+
+    - failed: the latest run failed after the last success (or there was never one)
+    - stale: the last success is older than max_age
+    - missing: no run at all within HOME_IP_LOOKBACK
+    """
+    latest: dict[str, tuple[datetime, bool]] = {}
+    last_success: dict[str, datetime] = {}
+    for r in runs:
+        name = r.get("source")
+        if name not in sources:
+            continue
+        ran_at = datetime.fromisoformat(r["ran_at"])
+        ok = bool(r.get("success", True))
+        if name not in latest or ran_at > latest[name][0]:
+            latest[name] = (ran_at, ok)
+        if ok and (name not in last_success or ran_at > last_success[name]):
+            last_success[name] = ran_at
+
+    out: dict[str, dict] = {}
+    for name in sorted(sources):
+        success_at = last_success.get(name)
+        info = {"last_success": success_at.isoformat() if success_at else None}
+        if name not in latest:
+            out[name] = {"reason": "missing", **info}
+        elif not latest[name][1]:
+            out[name] = {"reason": "failed", **info}
+        elif now - success_at > max_age:
+            out[name] = {"reason": "stale", **info}
+    return out
