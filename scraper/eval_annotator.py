@@ -18,7 +18,7 @@ Notes:
 
 Scoring (scoring_version 2, #324):
     - Names and location_name: normalized string, then fuzzy ratio >= FUZZY_THRESHOLD.
-    - Descriptions: embedding cosine >= SEMANTIC_THRESHOLD. Exact match scored every
+    - Descriptions: embedding cosine >= SEMANTIC_THRESHOLD (0.70). Exact match scored every
       free-text field 0% even when the translation was fine.
     - Movie titles (name_zh / name_en on movie cases) go to the "lookup" bucket and are
       not part of the annotator score: the expected value is the official Taiwanese title,
@@ -76,7 +76,11 @@ SEMANTIC_FIELDS = frozenset({"description_zh", "description_en"})
 TITLE_LOOKUP_FIELDS = frozenset({"name_zh", "name_en"})
 
 FUZZY_THRESHOLD = 0.85
-SEMANTIC_THRESHOLD = 0.85
+# Calibrated on the 2026-10-22 baseline (PR #365): description_zh negative-control
+# cosines topped out at 0.48 and description_en at 0.57 apart from one same-film
+# pair (0.78); accepted translations scored from 0.73 up. See
+# docs/evaluation/annotator/2026-10-22-scoring-v2-baseline.md.
+SEMANTIC_THRESHOLD = 0.70
 EMBEDDING_MODEL = "text-embedding-3-small"
 SCORING_VERSION = 2
 

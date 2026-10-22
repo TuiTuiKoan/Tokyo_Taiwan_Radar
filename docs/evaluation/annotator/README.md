@@ -24,7 +24,7 @@ Fields from `annotation_status='reviewed'` events that were manually confirmed d
 | `category`, `event_form` | Set equality |
 | `is_paid`, `has_japanese_support`, `has_english_support` | Boolean equality |
 | `name_zh`, `name_en`, `location_name` | NFKC＋去標點後比對，`difflib` 相似度 ≥ 0.85 視為通過（`fuzzy`） |
-| `description_zh`, `description_en` | `text-embedding-3-small` cosine ≥ 0.85（`semantic`）；embedding 失敗時退回 `fuzzy`，報表的 Method 欄會顯示 |
+| `description_zh`, `description_en` | `text-embedding-3-small` cosine ≥ 0.70（`semantic`，依 2026-10-22 基準校準）；embedding 失敗時退回 `fuzzy`，報表的 Method 欄會顯示 |
 | 其他字串 | 正規化後完全相同（`exact`） |
 
 v1（2026-10-01 以前的報表）對所有字串欄位用精確比對，description 因此恆為 0%，與 v2 的數字不可直接比較。
@@ -33,7 +33,9 @@ v1（2026-10-01 以前的報表）對所有字串欄位用精確比對，descrip
 電影 case（期望或輸出的 category 含 `movie`，或來源在 `FIXED_CINEMA_SOURCES`）的 `name_zh`／`name_en` 列在「片名查詢」表，不計入 annotator 的 Tier 1／Tier 2 分數。期望值是台灣官方片名，由 works 表與 eiga.com 查詢取得，不是 LLM 翻譯；查詢管線的成績看 Stage 2（`--stage 2`）。
 
 ### 語意比對校準
-報表的「負對照」是期望值與下一筆 case 輸出之間的平均 cosine，也就是兩段無關文字會拿到的分數。門檻應明顯高於負對照；兩者太接近時，代表門檻需要調整。
+報表的「負對照」是期望值與下一筆 case 輸出之間的 cosine，也就是兩段無關文字會拿到的分數；報表列出平均與最高值。門檻應明顯高於負對照最高值；兩者太接近時，代表門檻需要調整。同一部片在不同戲院的兩筆 case 相鄰時，負對照會偏高，判讀時要排除。
+
+語意比對只能判斷「內容是否相同」，無法判斷日期、地點這類細節是否正確；這些細節要看結構化欄位。
 
 ### JSON snapshot（`--json-output`）
 - `per_field`：所有分桶合計，保留給既有的 CI KPI guard（`name_zh`／`name_en` 分母不變）。
