@@ -43,7 +43,7 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 import venue_registry  # noqa: E402
-from eval_annotator import FUZZY_THRESHOLD, fuzzy_score  # noqa: E402
+from eval_annotator import FUZZY_THRESHOLD, fuzzy_score, normalize_text  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -188,17 +188,24 @@ def _clean(value) -> str | None:
     return value or None
 
 
-def score_extract(case: dict, got) -> dict:
+def score_extract(case: dict, got, raw_text: str = "") -> dict:
     """Score one extract case.
 
-    Expected null means the raw text names no venue: only an empty answer passes,
-    anything else is a hallucination. Otherwise the best fuzzy score over the
-    expected label and its accepted alternatives must reach FUZZY_THRESHOLD.
+    Expected null means the raw text names no venue, only an area or an address:
+    only an empty answer passes. A filled answer that appears in the raw text is
+    ``non_venue`` (an area or address copied into the venue field); one that does
+    not is ``hallucinated``. Otherwise the best fuzzy score over the expected label
+    and its accepted alternatives must reach FUZZY_THRESHOLD.
     """
     expected = case.get("expected_location_name")
     got = _clean(got)
     if expected is None:
-        outcome = "correct" if got is None else "hallucinated"
+        if got is None:
+            outcome = "correct"
+        elif normalize_text(got) in normalize_text(raw_text):
+            outcome = "non_venue"
+        else:
+            outcome = "hallucinated"
         score = None
     else:
         candidates = [expected, *case.get("accepted", [])]
@@ -230,6 +237,7 @@ def summarize_extract(results: list[dict], drifted: list[dict]) -> dict:
         "missed": sum(1 for r in named if r["outcome"] == "missed"),
         "wrong": sum(1 for r in named if r["outcome"] == "wrong"),
         "null_tested": len(null_cases),
+        "non_venue": sum(1 for r in null_cases if r["outcome"] == "non_venue"),
         "hallucinated": sum(1 for r in null_cases if r["outcome"] == "hallucinated"),
         "drifted": [d["case_id"] for d in drifted],
     }
@@ -269,7 +277,10 @@ async def run_extract(cases: list[dict]) -> tuple[list[dict], list[dict], list]:
             return await annotate_one_async(client, raw.get("raw_title") or "", raw.get("raw_description") or "")
 
     outputs = await asyncio.gather(*[_one(raw) for _, raw in ready])
-    results = [score_extract(c, ann.get("location_name")) for (c, _), (ann, _usage) in zip(ready, outputs)]
+    results = [
+        score_extract(c, ann.get("location_name"), f"{raw.get('raw_title') or ''}\n{raw.get('raw_description') or ''}")
+        for (c, raw), (ann, _usage) in zip(ready, outputs)
+    ]
     results += [
         {"case_id": c["case_id"], "source_name": c.get("source_name"), "event_id": c.get("event_id"),
          "expected": c.get("expected_location_name"), "got": None, "score": None, "outcome": "drifted"}
@@ -350,7 +361,8 @@ def write_report(
             "## 抽取（raw 文字 → location_name）",
             f"- 正確 {s['correct']}／{s['tested']}（{_pct(s['correct'], s['tested'])}）",
             f"- 文中有場館：{s['named_correct']}／{s['named_tested']} 正確，漏抽 {s['missed']}，抽錯 {s['wrong']}",
-            f"- 文中沒有場館：{s['null_tested']} 筆中 {s['hallucinated']} 筆自行編出地點",
+            f"- 文中沒有場館：{s['null_tested']} 筆中 {s.get('non_venue', 0)} 筆把區域或地址填進場館欄，"
+            f"{s['hallucinated']} 筆填入原文沒有的地點",
             f"- raw 已變動而跳過：{', '.join(s['drifted']) or '無'}",
             "",
         ]

@@ -94,10 +94,12 @@ def test_extract_accepts_alternatives_and_normalizes():
     assert score_extract(case, "東京駅")["outcome"] == "wrong"
 
 
-def test_extract_null_expected_flags_hallucination():
-    assert score_extract(_xcase(None), None)["outcome"] == "correct"
-    assert score_extract(_xcase(None), "   ")["outcome"] == "correct"
-    assert score_extract(_xcase(None), "台湾文化センター")["outcome"] == "hallucinated"
+def test_extract_null_expected_separates_area_copy_from_hallucination():
+    raw = "大阪・北堀江にて体験イベントを開催しました。"
+    assert score_extract(_xcase(None), None, raw)["outcome"] == "correct"
+    assert score_extract(_xcase(None), "   ", raw)["outcome"] == "correct"
+    assert score_extract(_xcase(None), "北堀江", raw)["outcome"] == "non_venue"
+    assert score_extract(_xcase(None), "台湾文化センター", raw)["outcome"] == "hallucinated"
 
 
 def test_extract_summary_separates_named_null_and_drifted():
@@ -105,11 +107,12 @@ def test_extract_summary_separates_named_null_and_drifted():
         {"expected": "A", "outcome": "correct"},
         {"expected": "B", "outcome": "missed"},
         {"expected": None, "outcome": "hallucinated"},
+        {"expected": None, "outcome": "non_venue"},
         {"expected": "C", "outcome": "drifted"},
     ]
     s = summarize_extract(results, [{"case_id": "x9"}])
-    assert (s["tested"], s["correct"], s["named_tested"], s["missed"]) == (3, 1, 2, 1)
-    assert (s["null_tested"], s["hallucinated"], s["drifted"]) == (1, 1, ["x9"])
+    assert (s["tested"], s["correct"], s["named_tested"], s["missed"]) == (4, 1, 2, 1)
+    assert (s["null_tested"], s["non_venue"], s["hallucinated"], s["drifted"]) == (2, 1, 1, ["x9"])
 
 
 def test_raw_md5_matches_the_sql_recipe():
