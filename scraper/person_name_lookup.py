@@ -41,6 +41,9 @@ _CHAR_NAME_PREFIX_RE = re.compile(r"^[^）)]+[）)]\s*")
 # Katakana foreign name with ・ separator: ギデンズ・コー, リン・チーリン
 _KATAKANA_NAME_RE = re.compile(r"[ァ-ヶー]{2,}(?:・[ァ-ヶー]{2,})+")
 
+# Any hiragana/katakana character
+_KANA_RE = re.compile(r"[\u3040-\u30ff]")
+
 # Suffixes that indicate compound nouns rather than person names
 _NOISE_SUFFIXES = (
     "ホテル", "センター", "サービス", "プログラム", "セミナー",
@@ -248,6 +251,12 @@ def _lookup_zh_via_ja_wikipedia(
     if not ja_name:
         return None
 
+    # A name with no kana (e.g. the stage name "9m88") is not a katakana
+    # transliteration; the wiki search would match unrelated articles such as
+    # "Ju 88" (aircraft). Strict mode only trusts katakana input.
+    if strict and not _KANA_RE.search(ja_name):
+        return None
+
     params = {
         "action": "query",
         "list": "search",
@@ -268,6 +277,11 @@ def _lookup_zh_via_ja_wikipedia(
         return None
 
     title = results[0]["title"]
+
+    # Strict mode: a person's ja-wiki title is CJK only; Latin letters or
+    # digits ("Ju 88 (航空機)") mean the hit is a product/object, not a person.
+    if strict and re.search(r"[A-Za-z0-9]", title):
+        return None
 
     # If the ja-wiki article title itself is CJK (common for Chinese/Taiwanese people)
     if re.search(r"[\u4e00-\u9fff]", title) and not re.search(r"[\u3040-\u309f\u30a0-\u30ff]", title):
