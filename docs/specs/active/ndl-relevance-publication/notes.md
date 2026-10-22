@@ -463,3 +463,14 @@ N 僅 5 筆：開發集的負例很少，候選 prompt 的 N 移除率在開發�
 - cand3 改輸出欄位後，11 筆只回 `taiwan_relevance` 的欄位，標題、分類等全部遺失：出版物不改輸出 schema。
 - 開發集外（未標註）各輪 gate 都只穩定丟掉 `仙台湾`（NDL 關鍵字誤中，正確丟掉）。
 
+## 凍結（2026-10-22，Phase C ③）
+
+使用者選定凍結 cand1（開發集 R＋B 65／65 保留、保留記錄 0 空分類；N 0／5）。
+
+- 凍結檔：`~/.ai-notes/ttr/p5-eval/prompts/frozen_cand1.txt`（唯讀，與 `cand1.txt` 相同內容）
+- **凍結 SHA-256：`cec390cd7a4e981990394e0e04ae517eef3912d41d0777360fc7efe7652c9a64`**
+- 之後 `run --split seal|hanmoto|holdout` 必須帶這個 `--frozen-sha`。C4 寫入 `SYSTEM_PROMPT` 後，
+  `annotator.SYSTEM_PROMPT` 的 SHA-256 必須等於此值。
+- 預期（開發集僅供參考）：G 的 recall 可能過門檻，但 N 移除率很可能低於 60%，依固定停止規則不開 gate；
+  分類修正（問題 2）不受影響，照常進 C4。此預期不影響封存集的判定方式。
+

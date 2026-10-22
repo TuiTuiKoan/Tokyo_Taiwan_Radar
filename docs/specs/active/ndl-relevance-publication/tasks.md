@@ -63,8 +63,8 @@
 - [x] 標籤定義（proposal 1.2＋D1）定稿，寫入 `notes.md`
 - [x] `snapshot`，記錄快照時間、筆數、SHA-256、seed、每層 n 與 P_dev／P_seal 筆數到 `notes.md`
 - [x] ① 使用者盲標開發集（70 列；R 55／B 10／N 5）
-- [ ] ② 只用 P_dev 開發候選 prompt（最多約 4 輪）
-- [ ] ③ 凍結：候選 prompt 檔的 SHA-256 寫入 `notes.md`
+- [x] ② 只用 P_dev 開發候選 prompt（最多約 4 輪）：cand1–cand4，見 notes
+- [x] ③ 凍結：候選 prompt 檔的 SHA-256 寫入 `notes.md`（cand1）
 - [ ] ④ 凍結的 prompt 對 S 全部執行；R1 對 P 執行
 - [ ] ⑤ 使用者盲標 A 區（P_seal 與 P_h 中被任一候選規則丟掉、尚未標過的記錄）
 - [ ] ⑥ 使用者盲標 K 區隨機 60；⑦ 樣本不足時從未抽中的記錄加抽 40（剩不到 40 就全取，只能一次）
