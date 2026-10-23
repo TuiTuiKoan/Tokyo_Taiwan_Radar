@@ -406,6 +406,18 @@ dry-run 表（proposal 2.5）：
 
 Decision guides 合併後沒有重跑非出版物 60 筆（只刪除一條要求「不得選 publication」的矛盾句，`publication` 本來就不在候選清單）。
 
+### Rebase 到 origin/main（2026-10-23，Phase E）
+
+- 本分支 22 個 commit rebase 到 `origin/main`（落後 89 個）。唯一衝突在 C1：上游 OpenAI 成本重整（#391）把
+  `_annotate_one` 的 client 型別改為 `LLMClient`；解法為保留上游型別、加上本分支的 `record_type` 參數。
+  備份分支 `backup/ndl-relevance-pre-rebase-1023`（push 後可刪）。
+- 上游「Taiwan location gate 輸出 scope decision」改了 SYSTEM_PROMPT 的 LOCATION GATE 段與 JSON schema。
+  **rebase 後出貨 prompt SHA-256 = `77ac1e6c47db75516ff5fc4c07d3ad7d26fd5d5215cc5960233186ba51c7b58c`**。
+  與凍結 cand6 的差異只有：上游 scope_decision 規則（EXCLUSION、SCOPE 兩行、schema 兩個欄位）＋本分支的
+  publication 導引合併。cand6 的兩段出版物文字逐字未變。
+- 出版物沒有地址，`_build_scope_finding()` 的 region 不會是 TAIWAN／OTHER_FOREIGN，不會進 scope 審核佇列。
+- 驗證：`pytest scraper/tests` 1531 passed、1 skipped；`check_enum_parity` OK；`sync_ai_adapters --check` OK。
+
 ## 處置批次
 
 （Phase F 每批填入：批次編號、核准字句與時間、完整 event id 與連結、讀回驗證結果。）
