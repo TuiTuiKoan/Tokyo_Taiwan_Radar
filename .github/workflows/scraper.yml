@@ -118,23 +118,6 @@ jobs:
         run: python annotator.py --enrich-person-names
         continue-on-error: true
 
-      - name: Run Vision OCR enrichment
-        id: enrich_poster
-        # Paused 2026-10-22: sent ~65 posters/day to gpt-4o (detail high) and applied 0 on
-        # 2026-10-16..21, about 60% of current OpenAI spend. Since #317 each image is sent
-        # once (llm_cache step poster_ocr) and every outcome is counted; re-enable after a
-        # dry-run shows writes. Manual runs still work: cd scraper && python enrich_poster.py
-        if: ${{ false }}
-        continue-on-error: true
-        working-directory: scraper
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_API_KEY_ANNOTATOR: ${{ secrets.OPENAI_API_KEY_ANNOTATOR }}
-          OPENAI_API_KEY_ENRICH: ${{ secrets.OPENAI_API_KEY_ENRICH }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: python enrich_poster.py
-
       - name: Enrich missing location addresses via GPT
         id: enrich_location
         working-directory: scraper
@@ -268,7 +251,6 @@ jobs:
           [ "${{ steps.annotate_pending.outcome }}" = "failure" ] && FAILED="$FAILED annotate"
           [ "${{ steps.fix_reviewed.outcome }}" = "failure" ] && FAILED="$FAILED fix-reviewed"
           [ "${{ steps.enrich_person_names.outcome }}" = "failure" ] && FAILED="$FAILED enrich-person-names"
-          [ "${{ steps.enrich_poster.outcome }}" = "failure" ] && FAILED="$FAILED enrich-poster"
           [ "${{ steps.enrich_location.outcome }}" = "failure" ] && FAILED="$FAILED enrich-location"
           if [ -n "$FAILED" ]; then
             echo "::error::LLM steps failed:$FAILED"

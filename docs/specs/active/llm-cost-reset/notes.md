@@ -119,3 +119,17 @@ M1 移除 researcher（1）、discovery_accounts（2）、qa_auto_fix 備援（1
 - `quota_monitor --check-budget`：`eval.annotator*` 10-17..10-23 為 $0.0000、0 次，exit 0；請求以 `limit=1000` 分頁。
 - `docs_report --mode weekly --dry-run`：預設週（10-12..10-18）在帳本之前，費用 $0.0000，並顯示「以 OpenAI dashboard 為準」與帳本起始日兩則註記。
 
+## M6 #317 enrich_poster：查明與退役（2026-10-23）
+
+- 歷史：每日步驟的摘要，9/2x 與 9/0x 寫入 0、8/1x 寫入 1。10-21 那次 79 張的原因：信心不足 36、沒有新欄位 31、回覆無法解析 12，全部被算成 `skipped(confidence)`。
+- 候選：124 筆 annotated 且有 `image_url` 的活動，guard 擋掉 44 筆（純出版品與 hanmoto 佔位圖），剩 79 筆，其中 77 筆是 `note_creators` 的部落格標題圖。
+- 修正後 dry-run（使用者執行，兩次共 158 次呼叫、$0.40，平均 785 input／55 output tokens）：
+
+| 設定 | 會寫入 | 信心不足 | 沒有新欄位 | 失敗 |
+| --- | --- | --- | --- | --- |
+| gpt-4o、detail high | 0 | 41 | 33 | 5 |
+| gpt-4o、detail low | 1 | 54 | 21 | 3 |
+
+- low 的那 1 筆是錯的：fde7c1a6（姬路台灣夜市）的正確日期 2026-09-19～21 會被覆寫成 2023-09-01～30。「失敗」是 JSON mode 下 `message.content` 為 None（模型拒答）。
+- 裁決：退役。刪除 `enrich_poster.py`、兩個測試檔與 `scraper.yml` 步驟；hanmoto 佔位圖判斷移到 `publication_rules.is_placeholder_image_url`（`_oneoff_backfill_publication_metadata.py` 仍在用）；`llm_cache.py` 保留給 #321、#360。
+

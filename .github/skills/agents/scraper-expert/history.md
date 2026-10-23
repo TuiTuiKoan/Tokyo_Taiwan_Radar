@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-10-23 - enrich_poster 每天花錢卻沒有產出，退役
+
+### Error
+
+`enrich_poster.py` 每天把同一批約 80 張圖片以 high detail 送給 gpt-4o，8 月以後幾乎每天寫入 0 筆，約佔當時 OpenAI 支出的六成。log 只有一個 `skipped(confidence)` 計數，把信心不足、沒有新欄位、回覆無法解析全部算在一起，看不出原因。
+
+### Fix
+
+先讓每張圖只送一次（`llm_cache`）、改用 JSON mode、分開計數，再做 dry-run（79 張，high 與 low 各一次，$0.40）：high 寫入 0；low 只有 1 筆，而且是錯的，會把 fde7c1a6 正確的 2026-09-19～21 覆寫成 2023-09-01～30。79 張中有 77 張是 note_creators 的部落格標題圖，confidence 多為 0.0。使用者裁決退役：刪除腳本、測試與 `scraper.yml` 步驟，hanmoto 佔位圖判斷移到 `publication_rules.is_placeholder_image_url`。
+
+### Lesson
+
+LLM 步驟的成功計數要分原因，否則「每天 0 筆」看起來像門檻問題而不是沒有輸入。恢復或保留一個付費步驟前先做 dry-run，並逐筆看「會寫入」的內容：唯一的一筆寫入是錯的，比 0 筆更糟。候選查詢要先篩掉不可能有資料的輸入（部落格標題圖不是海報）。
+
+---
+
 ## 2026-08-09 - official venue hours and subspace precedence
 
 ### Error

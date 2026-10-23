@@ -2,6 +2,7 @@ from publication_rules import (
     PUBLICATION_NULL_FIELDS,
     canonicalize_publisher_url,
     is_ndl_periodical_article,
+    is_placeholder_image_url,
     is_pure_publication_record,
     normalize_event_forms,
     normalize_publisher_name,
@@ -113,3 +114,12 @@ def test_publisher_validator_rejects_unverified_identity():
     )
     assert not result.accepted
     assert result.reason == "publisher-identity-unverified"
+
+
+def test_hanmoto_placeholder_guard_canonicalizes_variants_without_blocking_real_cover():
+    assert is_placeholder_image_url("http://www.hanmoto.com/bd/img/noimage.jpg?cache=1")
+    assert is_placeholder_image_url("https://hanmoto.com/assets/no-cover_large.webp#v2")
+    assert not is_placeholder_image_url("https://www.hanmoto.com/bd/img/9784868140771.jpg")
+    assert not is_placeholder_image_url("https://images.example.test/noimage.jpg")
+    assert not is_placeholder_image_url(None)
+

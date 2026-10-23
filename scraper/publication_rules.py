@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import re
 import unicodedata
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import unquote, urlsplit, urlunsplit
 
 PUBLICATION_NULL_FIELDS = (
     "location_address",
@@ -58,6 +58,10 @@ _DENIED_HOST_SUFFIXES = (
     "note.com",
 )
 _DENIED_PATH_SUFFIXES = (".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx")
+_HANMOTO_PLACEHOLDER_RE = re.compile(
+    r"^no[-_]?(?:image|cover)(?:[-_][a-z0-9]+)?\.(?:gif|jpe?g|png|webp)$",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -131,6 +135,24 @@ def is_pure_publication_in_db(sb: Any, event_id: str) -> bool:
         .data
     ) or []
     return bool(rows) and is_pure_publication_record(rows[0])
+
+
+def is_placeholder_image_url(image_url: object) -> bool:
+    """True for hanmoto's "no image / no cover" placeholder, which is not a real cover.
+
+    Moved from enrich_poster.py when that step was retired (#317).
+    """
+    if not isinstance(image_url, str) or not image_url.strip():
+        return False
+    try:
+        parsed = urlsplit(image_url.strip())
+    except ValueError:
+        return False
+    host = (parsed.hostname or "").lower().rstrip(".")
+    if host != "hanmoto.com" and not host.endswith(".hanmoto.com"):
+        return False
+    filename = unquote(parsed.path).rstrip("/").rsplit("/", 1)[-1]
+    return bool(_HANMOTO_PLACEHOLDER_RE.fullmatch(filename))
 
 
 def is_ndl_periodical_article(record: object) -> bool:

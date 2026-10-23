@@ -14,7 +14,7 @@ tags: [scraper, web, infra, cost]
 1. #318 處理 `gpt-4o-search-preview` 下架後的四個呼叫者
 2. #319 LLM 錯誤變成步驟失敗，健康檢查改看產出量
 3. 帳本修準：#363 共用用量紀錄，加上 #322 分頁與限流、#320 分帳
-4. #317 修好 enrich_poster 再恢復每日執行
+4. #317 修好 enrich_poster 再恢復每日執行（2026-10-23 結果：dry-run 沒有正確寫入，退役）
 5. #360、#321、#361
 6. #323 移除 DeepL
 7. #362 annotator 重標注成本
@@ -109,6 +109,7 @@ web（6）：`api/admin/annotate-event`、`api/admin/extract-from-image`、`api/
 ### D4. 其餘 issue 的做法
 
 - #317 enrich_poster：以 `llm_cache(step='poster_ocr', subject_key=<image sha256>)` 讓同一張圖只送一次；查清 `skipped(confidence)` 計數錯誤；比較 `detail: low` 與 gpt-4o-mini 的抽取結果。dry-run 確認有實際寫入後，才移除 `scraper.yml` 的 `if: ${{ false }}`。
+  - 2026-10-23 結果：照上述修好後做 dry-run（79 張，high 與 low 各一次），沒有任何正確寫入，使用者裁決退役，刪除腳本與 `scraper.yml` 步驟。`llm_cache` 留給 #321、#360 使用。數字見 notes.md「M6」。
 - #360 enrich_location：候選限未來活動，先查 venue_registry，查過的以 `llm_cache(step='location_extract', subject_key=<event_id>)` 標記，30 天內不重送。
 - #321 qa_heartbeat 先以 report type 規則分類，規則判斷不了的才呼叫 gpt-4o-mini；dry-run 不呼叫 API；分類結果以 report id 快取。cinemaclair 以圖片 URL 快取 OCR 結果。
 - #361 由 `main.py` 執行 annotate 與兩個 enrich 步驟，刪掉 `scraper.yml` 的重複 step；`enrich_person_names` 加 `is_active` 與日期條件。

@@ -3,10 +3,10 @@
 A step records one row per subject it sent to the model, so later runs skip it
 instead of paying for the same answer again:
 
-    if llm_cache.seen(sb, "poster_ocr", [image_sha]):
+    if llm_cache.seen(sb, "cinemaclair_ocr", [image_sha]):
         continue
     ...
-    llm_cache.record(sb, "poster_ocr", image_sha, "applied", {"event_id": ...})
+    llm_cache.record(sb, "cinemaclair_ocr", image_sha, "applied", {"image_url": ...})
 
 seen() raises when the table cannot be read: a step that cannot tell what it
 already sent would resend everything, which is the cost this table exists to
