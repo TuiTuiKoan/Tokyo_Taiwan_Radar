@@ -16,7 +16,8 @@
     "AI工具鏈": "Claude Code、Codex、Copilot 的 agent、hooks 與模型政策",
     "資料修復": "資料、地點、範圍與出版品政策的修復",
     "來源健康": "來源連續 0 產出或原因未知的健康問題",
-    "爬蟲管線": "爬蟲管線本身的缺陷與守門問題"
+    "爬蟲管線": "爬蟲管線本身的缺陷與守門問題",
+    "SNS governance": "社群發文（X、Threads、Instagram）的規劃與治理"
   },
   "specs": {
     "llm-cost-reset": "成本",
@@ -32,15 +33,28 @@
     "workstream-tracking": "追蹤清理",
     "closer-auto-retire": "追蹤清理",
     "admin-qa-cleanup": "追蹤清理",
-    "scraper-zero-output": "來源健康"
+    "scraper-zero-output": "爬蟲管線"
   },
   "exempt": {
     "labels": [
       "daily-review"
     ],
     "issues": {
-      "342": "X 發文規劃是單點事項，不是 roadmap 主題（使用者 2026-10-23 同意不設主題）",
       "351": "後台與 UI 的 4 個小項，沒有歸屬主題（使用者 2026-10-23 同意不設主題）"
+    }
+  },
+  "overrides": {
+    "328": {
+      "theme": "追蹤清理",
+      "reason": "屬於 spec:ai-harness（要和 #426 的 session 查詢腳本合併），但內容是 worktree 與 branch 的清理，領域是追蹤清理（使用者 2026-10-23 決定）"
+    },
+    "376": {
+      "theme": "來源健康",
+      "reason": "tokyo_now 的活動 API 已消失（單一來源的故障，已退役），不是管線缺陷；屬 spec:scraper-zero-output（使用者 2026-10-23 決定該 spec 對應爬蟲管線）"
+    },
+    "377": {
+      "theme": "來源健康",
+      "reason": "bookandbeer 的卡片 selector 改版（單一來源的故障），不是管線缺陷；屬 spec:scraper-zero-output（使用者 2026-10-23 決定該 spec 對應爬蟲管線）"
     }
   }
 }

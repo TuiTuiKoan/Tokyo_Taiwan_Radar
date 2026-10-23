@@ -4,6 +4,7 @@
 Rules, for every OPEN issue on the board:
 
 * an issue with a label in `exempt.labels`, or whose number is in `exempt.issues`, is skipped and only listed;
+* an entry in `overrides` (issue number, theme, reason) decides that one issue's theme instead of its spec;
 * a `spec:<slug>` label whose slug is in the map decides the theme (derived, not typed by hand);
 * an issue with no spec label and no theme needs a human decision;
 * a theme that differs from the mapped one, a spec missing from the map, two specs that map to
@@ -38,6 +39,13 @@ def validate_map(mapping: dict) -> None:
     for key in mapping.get("exempt", {}).get("issues", {}):
         if not str(key).isdigit():
             raise AuditError(f"exempt.issues key {key!r} must be an issue number")
+    for key, entry in mapping.get("overrides", {}).items():
+        if not str(key).isdigit():
+            raise AuditError(f"overrides key {key!r} must be an issue number")
+        if entry.get("theme") not in themes:
+            raise AuditError(f"override for issue {key} uses theme {entry.get('theme')!r}, which is not in the theme list")
+        if not str(entry.get("reason", "")).strip():
+            raise AuditError(f"override for issue {key} needs a reason")
 
 
 def spec_labels(item: dict) -> list[str]:
@@ -47,9 +55,10 @@ def spec_labels(item: dict) -> list[str]:
 def audit_items(items: list[dict], mapping: dict) -> dict:
     validate_map(mapping)
     themes, specs = mapping["themes"], mapping["specs"]
-    report = {"derive": [], "mismatch": [], "unmapped_spec": [], "ambiguous": [], "needs_decision": [], "unknown_theme": [], "exempt": [], "ok": 0}
+    report = {"derive": [], "mismatch": [], "unmapped_spec": [], "ambiguous": [], "needs_decision": [], "unknown_theme": [], "exempt": [], "overridden": [], "ok": 0}
     exempt_labels = set(mapping.get("exempt", {}).get("labels", []))
     exempt_issues = {int(k): v for k, v in mapping.get("exempt", {}).get("issues", {}).items()}
+    overrides = {int(k): v for k, v in mapping.get("overrides", {}).items()}
     seen_specs: set[str] = set()
     for item in sorted((i for i in items if i["state"] == "OPEN"), key=lambda i: i["number"]):
         row = {k: item[k] for k in ("number", "title", "url", "item_id")}
@@ -61,6 +70,19 @@ def audit_items(items: list[dict], mapping: dict) -> dict:
             continue
         if theme is not None and theme not in themes:
             report["unknown_theme"].append({**row, "theme": theme})
+            continue
+        if item["number"] in overrides:
+            override = overrides[item["number"]]
+            expected = override["theme"]
+            spec_themes = {specs[label[len(SPEC_PREFIX):]] for label in labels if label[len(SPEC_PREFIX):] in specs}
+            seen_specs.update(label[len(SPEC_PREFIX):] for label in labels)
+            report["overridden"].append({**row, "theme": expected, "spec_theme": next(iter(spec_themes)) if len(spec_themes) == 1 else None, "reason": override["reason"]})
+            if theme is None:
+                report["derive"].append({**row, "theme": expected, "specs": labels or ["override"]})
+            elif theme != expected:
+                report["mismatch"].append({**row, "theme": theme, "expected": expected, "specs": labels or ["override"]})
+            else:
+                report["ok"] += 1
             continue
         if not labels:
             if theme is None:
@@ -126,6 +148,10 @@ def render_report(report: dict) -> str:
     lines += section(
         "主題不在主題清單（拼錯或舊選項）",
         [f"- {link(r)} {cell(r['title'])}：{r['theme']}" for r in report["unknown_theme"]],
+    )
+    lines += section(
+        "覆寫（資訊）：這些 issue 的主題刻意不同於 spec 推導的主題",
+        [f"- {link(r)} {cell(r['title'])}：{r['theme']}（spec 主題：{r['spec_theme'] or '無'}）— {cell(r['reason'])}" for r in report["overridden"]],
     )
     lines += section(
         "豁免（資訊）：不需要主題，也不會被稽核",

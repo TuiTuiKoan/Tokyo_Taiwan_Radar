@@ -19,6 +19,7 @@ MAPPING = {
     "themes": {"成本": "cost", "Eval": "eval", "追蹤清理": "tidy", "AI工具鏈": "ai"},
     "specs": {"llm-cost-reset": "成本", "evaluation-framework": "Eval", "workstream-tracking": "追蹤清理", "ai-harness": "AI工具鏈"},
     "exempt": {"labels": ["daily-review"], "issues": {"9": "single-point item, not a roadmap theme"}},
+    "overrides": {"7": {"theme": "追蹤清理", "reason": "the work is cleanup although the spec is ai-harness"}},
 }
 
 
@@ -142,6 +143,55 @@ def test_a_non_numeric_exempt_issue_key_is_rejected(audit):
 def test_the_report_lists_exempt_issues_with_their_reason(audit):
     text = audit.render_report(audit.audit_items([item(9, ["enhancement"])], MAPPING))
     assert "豁免" in text and "single-point item" in text
+
+
+def test_an_override_replaces_the_spec_theme_for_that_issue_only(audit):
+    report = audit.audit_items([item(7, ["spec:ai-harness"], theme="追蹤清理"), item(8, ["spec:ai-harness"], theme="追蹤清理")], MAPPING)
+    assert report["ok"] == 1
+    assert [(r["number"], r["theme"], r["expected"]) for r in report["mismatch"]] == [(8, "追蹤清理", "AI工具鏈")]
+
+
+def test_an_override_is_derived_when_the_theme_is_missing(audit):
+    report = audit.audit_items([item(7, ["spec:ai-harness"])], MAPPING)
+    assert [(r["number"], r["theme"]) for r in report["derive"]] == [(7, "追蹤清理")]
+
+
+def test_an_override_that_disagrees_with_the_board_is_a_mismatch(audit):
+    report = audit.audit_items([item(7, ["spec:ai-harness"], theme="AI工具鏈")], MAPPING)
+    assert [(r["number"], r["theme"], r["expected"]) for r in report["mismatch"]] == [(7, "AI工具鏈", "追蹤清理")]
+
+
+def test_overrides_are_listed_with_their_reason(audit):
+    report = audit.audit_items([item(7, ["spec:ai-harness"], theme="追蹤清理")], MAPPING)
+    assert [(r["number"], r["theme"], r["spec_theme"]) for r in report["overridden"]] == [(7, "追蹤清理", "AI工具鏈")]
+    text = audit.render_report(report)
+    assert "覆寫" in text and "the work is cleanup" in text
+
+
+def test_an_override_works_for_an_issue_without_a_spec_label(audit):
+    report = audit.audit_items([item(7, ["scraper"])], MAPPING)
+    assert [(r["number"], r["theme"]) for r in report["derive"]] == [(7, "追蹤清理")]
+    assert report["needs_decision"] == []
+
+
+def test_an_override_with_an_unknown_theme_or_no_reason_is_rejected(audit):
+    bad_theme = json.loads(json.dumps(MAPPING))
+    bad_theme["overrides"]["7"]["theme"] = "Nope"
+    with pytest.raises(audit.AuditError):
+        audit.validate_map(bad_theme)
+    no_reason = json.loads(json.dumps(MAPPING))
+    no_reason["overrides"]["7"]["reason"] = ""
+    with pytest.raises(audit.AuditError):
+        audit.validate_map(no_reason)
+    bad_key = json.loads(json.dumps(MAPPING))
+    bad_key["overrides"]["abc"] = {"theme": "成本", "reason": "x"}
+    with pytest.raises(audit.AuditError):
+        audit.validate_map(bad_key)
+
+
+def test_a_map_without_overrides_still_works(audit):
+    bare = {k: v for k, v in MAPPING.items() if k != "overrides"}
+    assert audit.audit_items([item(1, ["spec:llm-cost-reset"], theme="成本")], bare)["overridden"] == []
 
 
 def test_the_real_map_is_internally_consistent(audit):
