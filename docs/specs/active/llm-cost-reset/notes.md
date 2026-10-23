@@ -141,3 +141,9 @@ M1 移除 researcher（1）、discovery_accounts（2）、qa_auto_fix 備援（1
 - **#321 cinemaclair**：週時刻表 OCR 以 `sha256(圖片 URL + 排序後的片名)` 為 key 存進 `llm_cache(step='cinemaclair_ocr')`，結果放 `result.showtimes`；命中就直接用，失敗不留標記。快取無法讀取時退回重新辨識。
 - 成效要等 `llm_cost_daily` 累積一週後，看 `enrich.location`、`qa.heartbeat`、`enrich.cinemaclair_ocr` 與 annotator 的 person_names 用量。
 
+## M8 #323、#362（2026-10-23）
+
+- **#323**：`translator.py` 沒有呼叫者，連同 `deepl` 套件、六個 workflow（含 issue 沒列到的 `scrape-now.yml`）與 `.env.example` 的 `DEEPL_API_KEY` 一起移除；更新 ARCHITECTURE、TRANSLATION_PIPELINE、SETUP、SECRETS_LIFECYCLE、scraper instructions 與 skills。`scraper_runs.deepl_chars` 欄位、admin stats 頁與週報的 DeepL 列保留，用來看歷史資料。GitHub secret 由使用者決定何時刪。
+- **#362 延後**（使用者裁決）：`llm_cost_daily` 10-23 的 annotator 是 72 次、$0.14；一個月約 $4，重標注減半也省不到 $1，卻要改 prompt 並跑 golden set。同一天 eval 約 $0.9（`eval.historical` 403 次 $0.71、`eval.venues` 114 次 $0.19），另開 #429 追。
+- **CI 確認 #360 的 bug**：10-23 的 Daily Scraper（run 39893398246）只有 `enrich-location` 失敗，`NameError: name 'OpenAI' is not defined`。原因是 PR #391 移除了 `from openai import OpenAI` 卻留下型別標註；本機 Python 3.14 延遲求值標註，所以測試沒抓到。修正在本分支（M7），合併前每天的 Daily Scraper 都會是紅的。
+
