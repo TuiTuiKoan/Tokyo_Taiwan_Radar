@@ -774,3 +774,57 @@ R3 到 R6 尚未做。未 commit。
 使用者確認 S5 成立，agent view 小試驗的最終判定為**可列入 Phase 2b 正式使用，不是採用**（§22.3 的限制仍然有效）。使用者並決定：ai-harness 分支要 rebase；核准 commit；並提問是否需要先 V-M-D 推送，因為 `docs/specs/active/ai-harness/` 目前不在 GitHub 上。
 
 事實：這個 spec 與全部 ai-harness 的 commit 都只在本機分支 `feat/ai-harness`（領先 origin/main 12 個 commit，落後 128 個），從未 push。GitHub 上帶 `spec:ai-harness` 標籤的 issue（#328、#346、#420）因此指向一個 main 上不存在的 spec。順序與理由見 §24。
+
+## 24. rebase 與推送前的閘門（2026-10-23）
+
+更正：§23 寫「領先 origin/main 12 個 commit」是筆誤；rebase 前實際是領先 11 個、落後 128 個（含 §23 當時的 commit）。
+
+### 24.1 rebase（使用者核准）
+
+起點：rebase 前的 HEAD 是 `0cd4b237`（docs(specs): record the agent-view trial verdict and the ai-harness branch state）。`git rebase origin/main`，11 個 commit 中 3 個有衝突，都只是內容衝突：
+
+| 衝突的 commit | 檔案 | 處理 |
+|---|---|---|
+| Phase 1（`tier`） | `.github/agents/validate-merge-deploy.agent.md`、`.github/agents/plan-critic.agent.md` | main 改寫了 `description`（V-M-D 改為「交付推送指令、使用者推送後驗證部署」；plan-critic 改為「透過 Codex read-only 執行，不當作 Claude subagent」）；保留 main 的 `description`，加上我們的 `tier: build`／`tier: plan` |
+| Phase 1（`tier`） | `AGENTS.md` | main 把 push 的 ask 規則改寫成縮窄版；保留 main 那一條，並保留我們「新增 agent 必須加 `tier`」的那一條 |
+| rev.3 | `AGENTS.md` | 保留 main 的兩條，並把我們的「Plan Critic 的批評全文必須存檔」放在中間（移除與 main 重複的 VS Code Copilot 句子） |
+
+每次解完衝突都重新執行 `python3 scripts/sync_ai_adapters.py` 重生成 `.claude/`、`.codex/`，不逐行合併生成物。
+
+結果：`feat/ai-harness` 領先 origin/main 11、落後 0；`sync --check` exit 0；`python3 -m pytest scripts` 967 passed（含 main 的新測試，先前我們只有 554）。限制：只驗證了 rebase 後的最終狀態，**沒有逐個中間 commit 驗證**能否單獨通過測試。rebase 前的 commit 仍可由 reflog 取回，不另開備份分支（hooks 擋 `branch -D`，備份分支之後沒辦法由我刪）。
+
+另外：我先前 `pnpm run build` 的 prebuild 在 `web/lib/specs/` 產生了未追蹤的 `specs-snapshot.json`（main 沒有追蹤它、也沒有 ignore），已刪除，沒有提交。這表示在 worktree 裡跑 web build 會留下需要手動清理的檔案；是否該加進 `.gitignore` 沒有評估。
+
+### 24.2 推送前閘門（V-M-D 的 Step 0 到 3，已在本機跑完，沒有 push）
+
+| 閘門 | 結果 |
+|---|---|
+| 衝突檢查與 rebase | 落後 0；rebase 完成 |
+| 推送範圍 | 11 個 commit、66 個檔案、+2969／−40；**沒有 `web/` 檔案**，所以跳過本機 `pnpm run build` |
+| gitleaks（`origin/main..HEAD`） | 11 個 commit 掃描，no leaks found |
+| 個資與密鑰字串 | 對新增行 grep（電子郵件、`gmail.com`、`ghp_`、`github_pat_`、`sk-…`、`password`）沒有命中 |
+| 測試與同步 | 同上：967 passed、`sync --check` exit 0 |
+| 其他分支的影響 | 15 個 worktree 分支逐一檢查：沒有任何一個動到 `.github/agents`、`sync_ai_adapters.py`、`AGENTS.md` 或 `.claude/settings.json`，所以現在推送不會讓它們因「新 agent 必須有 `tier`」而失敗 |
+| 主工作目錄 | 本機 `main` 落後 origin/main 4 個 commit（GitHub 上已合併的 people-ground-truth，#392）；不影響推送，推送後要 `git pull` |
+
+未涵蓋：Vercel deployment 要推送後才能以 exact-SHA 查；`.githooks/pre-push` 是否另外檢查是在使用者推送時才會執行，我沒有預跑。
+
+### 24.3 要不要先 V-M-D 推送（使用者提問）與我的建議
+
+**建議：現在推。** 理由：
+1. **GitHub 上沒有這個 spec**：`docs/specs/active/ai-harness/` 只在本機分支，帶 `spec:ai-harness` 標籤的 #328、#346、#420 指向一個 main 上不存在的 spec；其他 session、Codex 與 `/feature-kickoff` 讀不到。
+2. **分支漂移已經付過代價**：落後 128 個 commit，rebase 時 3 個 commit 有衝突；多放一天只會更多。
+3. **其他 session 才能用到成果**：`tier` 投影、`.codex/agents`、sync 的 all-or-nothing 寫入與符號連結處理、`/feature-kickoff`、治理文件都在這 11 個 commit 裡。
+
+風險：
+- 一次推 66 個檔案、11 個 commit，其中 `AGENTS.md` 的模型政策與「新 agent 必須有 `tier`」會影響所有之後新增 agent 的 session；目前沒有分支受影響（見上表），但推送後新開的分支要遵守。
+- 推送範圍沒有 `web/`，但 repo 實測 docs-only 的 push 也會產生 Production deployment（V-M-D 檔已記載），仍須以 exact-SHA 查。
+- notes 內有 `~/.ai-notes/ttr/...` 與本機路徑引用，GitHub 上沒有那些檔案；已確認沒有密鑰或個資。
+
+推送指令（依 V-M-D 規則由使用者從**主工作目錄**執行，ref 明寫分支名，行尾不加註解；不在 worktree 內執行，避免之後結案偵測誤命中）：
+
+```bash
+git -C "/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar" push origin feat/ai-harness:main
+```
+
+推送後：我用 exact-SHA 查 Vercel deployment（先看 commit status 是否 pending）；使用者在主工作目錄 `git pull`；依 `git.instructions.md` § Telling other running sessions 通知其他 Claude Code session。
