@@ -88,6 +88,37 @@ def test_hand_written_files_in_codex_agents_are_left_alone(tmp_repo, run_sync):
     assert binary.read_bytes() == b"\xff\xfe\x00"
 
 
+def test_subdirectories_of_codex_agents_hand_written_untouched_generated_reported(tmp_repo, run_sync, sync):
+    sub = tmp_repo / ".codex" / "agents" / "sub"
+    sub.mkdir()
+    note_md = sub / "notes.md"
+    note_toml = sub / "mine.toml"
+    leftover = sub / "old.toml"
+    note_md.write_text("# notes\n", encoding="utf-8")
+    note_toml.write_text('name = "mine"\n', encoding="utf-8")
+    leftover.write_text(f'{sync.TOML_MARKER}\nname = "old"\n', encoding="utf-8")
+    result = run_sync(tmp_repo, "--check")
+    assert result.returncode == 1
+    assert "stale .codex/agents/sub/old.toml" in result.stdout
+    assert "notes.md" not in result.stdout and "mine.toml" not in result.stdout
+    assert run_sync(tmp_repo).returncode == 0
+    assert not leftover.exists()
+    assert note_md.read_text(encoding="utf-8") == "# notes\n"
+    assert note_toml.read_text(encoding="utf-8") == 'name = "mine"\n'
+    assert run_sync(tmp_repo, "--check").returncode == 0
+
+
+def test_copy_repo_inputs_tolerates_a_missing_source_directory(tmp_path, root, copy_inputs):
+    src = tmp_path / "src"
+    shutil.copytree(root / ".github" / "agents", src / ".github" / "agents")
+    shutil.copytree(root / ".claude", src / ".claude")
+    assert not (src / ".codex").exists()
+    dest = tmp_path / "dest"
+    copy_inputs(src, dest)
+    assert (dest / ".github" / "agents").is_dir()
+    assert not (dest / ".codex").exists()
+
+
 def test_check_reports_every_missing_codex_agent_when_the_directory_is_absent(tmp_repo, run_sync):
     shutil.rmtree(tmp_repo / ".codex")
     result = run_sync(tmp_repo, "--check")

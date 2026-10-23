@@ -1082,3 +1082,16 @@ push 並在主工作目錄 pull 之後，才可以用相對路徑在主工作目
 執行：`git worktree remove <路徑>`（不帶 --force）成功；`git branch -d feat/agent-view-trial` 成功（was `92a5bd45`）；目錄已不存在，`git worktree list` 無殘留；`.git/info/exclude` 的 `ttr-agent-view-trial-worktree/` 行已刪除（grep 計數 0）。未 push；未通知其他 session（無 worktree 需要行動）。
 
 未涵蓋：A2 待辦五來源不適用（無 spec、無 commit range）。紀錄只改本機，隨下一次推送上去。
+
+## 34. Phase 1 修正第二批 R3 到 R6 完成（2026-10-23）
+
+執行者：Claude Code（Sonnet 5.5）。`scripts` 全部測試 1009 passed，`sync --check` exit 0。
+
+| 項目 | 修改 | Mutation check |
+|---|---|---|
+| R3 | `conftest` 抽出 `copy_repo_inputs(src_root, dest)`，來源目錄不存在就略過；以 `copy_inputs` fixture 提供給測試（不能 `import conftest`：`scripts/claude/tests` 也有同名 conftest，一起跑會衝突） | 把存在檢查改成 `if True` → 新測試紅 |
+| R4 | 移除 `len(sources) * 2`；名稱集合 source ＝ `.claude/agents` ＝ `.codex/agents` | 暫時移走 `tester.toml` → 紅（原先計畫的「加第三種輸出」沒做） |
+| R5 | 移除 `MODEL_ID_PREFIXES` 與其斷言 | 無（刪除冗餘；`{opus, sonnet, haiku}` 白名單仍擋模型 ID） |
+| R6 | `.codex/agents/sub/` 下手寫 `.md`、`.toml` 不動；帶 marker 的殘留檔被 `--check` 報 stale、寫入時被清掉 | `generated_files` 只掃頂層 → 紅 |
+
+過程中一次失誤：mutation 時誤用 `git mv` 移走 `tester.toml`，已用 `git mv` 還原，`--check` 回 0、工作樹只剩預期的三個測試檔變更。
