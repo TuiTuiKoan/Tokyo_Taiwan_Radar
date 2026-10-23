@@ -584,7 +584,7 @@ R3 到 R6 尚未做。未 commit。
 事實：
 
 - 相關 issue：#367（10 個來源自 2026-09 中起連續 0 產出，prtimes 之前 6 週有 1148 筆；issue 自己推測「可能有共同原因（runner、依賴版本、網站改版或封鎖）」）、#381（30 個「28 天以上 0、原因未知」的來源，接續已完成的 #327）、#375、#376、#377（個別來源）。兩個彙總 issue 都已有明確做法與完成條件。
-- 本機有 worktree `ttr-scraper-zero-output-worktree`（分支 `fix/scraper-zero-output`），**但它是空的**：乾淨、沒有任何 commit、與 origin/main 沒有差異；docs/specs/active 裡也沒有對應的 spec。它不是本 session 建立的，沒有動它。
+- 本機有 worktree `ttr-scraper-zero-output-worktree`（分支 `fix/scraper-zero-output`），**當時我寫「它是空的」是錯的**，更正見 §26.5：它的 HEAD 是已合併進 main 的 #378 修復，並有一個忙碌中的 session 在用。docs/specs/active 裡沒有對應的 spec。它不是本 session 建立的，沒有動它。
 - 看板 README 的原則：spec 只放 why、what 與不超過十條里程碑；細項與 bug 開 issue 並貼 `spec:<slug>`。
 
 建議：**建立一個很薄的 spec**（proposal 加不超過 6 條里程碑，tasks 只放決策規則），理由：(1) #367 自己懷疑有共同原因，需要一個地方記錄「修、確認是自然的 0 件、還是退役」的決策規則與結論；(2) 涉及 CI、爬蟲程式、`scraper/source_expectations.json` 與 `docs/evaluation/scrapers/`，不是單一來源的修補；(3) 讓 `spec:scraper-zero-output` 標籤把 #367、#375、#376、#377、#381 分在一起，之後 `/feature-kickoff` 與看板都能依標籤找到。每個來源的實際工作仍然是 issue，不是 spec 的任務。
@@ -855,3 +855,50 @@ git -C "/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar" push origin feat
 ### 25.2 之後新增的本機變更
 
 本節與規則修正是推送後才寫的，需要隨下一次推送上去；每次推送後再補紀錄會形成「推送、再補、再推」的循環，所以下一次推送要等有實質變更一併進行，不單獨為了紀錄而推。
+
+## 26. 標記設計落地、`scraper-zero-output` 草稿（2026-10-23）
+
+使用者決定：`scraper-zero-output` 建薄 spec；標記設計採用「主題比 spec 粗、由 spec 推導」；「階段」改名「主題」；`workstream-tracking`、`closer-auto-retire`、`admin-qa-cleanup` → 追蹤清理；`publication-policy`、`ndl-relevance-publication` → 資料修復；做稽核腳本與每週回顧的一步。執行者：Claude Code（Opus 5.5）。
+
+### 26.1 欄位改名（先實測再動真實看板）
+
+臨時私人 project 實測（建立、改名、驗證、刪除）：`updateProjectV2Field` 只傳 `name` 時欄位 ID 不變、選項不變、項目的值保留；**舊名稱改名後就查不到值了**，所以讀這欄的程式都要用新名稱。真實看板：先備份（`~/.ai-notes/ttr/board-theme-backup-before-rename-2026-10-23.json`，含 README 與描述原文），改名後以新名稱讀回全部 96 個 issue，值與備份完全相同；看板 README 的「階段」那句改為說明「主題」，描述改為「主題為領域分組」。臨時 project 已刪除。
+
+### 26.2 對照表、稽核腳本、規則文件
+
+| 交付 | 內容 |
+|---|---|
+| `docs/specs/board-themes.json` | 單一來源：12 個主題（含說明）、14 個 spec 到主題的對應、豁免（標籤 `daily-review`；issue #342、#351，附理由）、看板位置與欄位名稱 |
+| `scripts/board_audit.py` | 預設唯讀；經 GraphQL 讀看板（`gh project item-list` 會弄壞這個欄位的 JSON 鍵）；對每個開放 issue 判斷：可推導、不一致、兩個 spec 對應不同主題、spec 不在對照表、需要決定、主題不在清單、豁免；`--apply --yes` 只寫「可推導」列，且只用 `gh project item-edit`，不改 issue、標籤或看板結構（測試守住）；`--strict` 有發現就 exit 1，供未來 CI 用；離線可用 `--items-json` |
+| 測試 | `scripts/tests/test_board_audit.py` 27 個，先寫並先紅；全部測試 994 passed；`sync --check` exit 0 |
+| `docs/specs/README.md` § 看板標記分工 | 五種標記各回答什麼問題、誰決定；主題規則（比 spec 粗、對照表是唯一來源、命名、稽核） |
+| `.github/prompts/weekly-review.prompt.md` Step 2b | 每週跑 `python3 scripts/board_audit.py`；可推導列確認後 `--apply --yes`；其餘寫進週報待使用者決定；稽核失敗要在週報註明，不得略過 |
+
+### 26.3 套用到真實看板
+
+稽核第一次執行（唯讀）：30 個可推導、1 個不一致（#328）、3 個需要決定（#342、#351、#421）。之後新增「豁免」設定（#421 是機器人的滾動 issue；#342、#351 是使用者同意不設主題的單點事項），需要決定降為 0。套用前再備份一次（`board-theme-backup-before-apply-2026-10-23.json`），`--apply --yes` 寫入 30 個主題；之後比對：原有 54 個值全部不變、新設定 30 個、共 84／96 有主題（其餘 12 個是已完成的項目）；重新稽核：可推導 0、需要決定 0、不一致 1。目前分布：Eval 21、成本 13、資料修復 9、AI工具鏈 7、追蹤清理 7、爬蟲管線 6、來源 intake 6、QA heartbeat 5、來源健康 5、止血 3、PR 分層 1、架構圖 1。
+
+### 26.4 已知問題與限制
+
+- **#328 不一致**：看板主題是「追蹤清理」（來自 10-22 roadmap 的追蹤清理章節），但它現在帶 `spec:ai-harness`，對照表推導為「AI工具鏈」。稽核不會自動改；待使用者決定改主題或改標籤。
+- **推導相信 spec 標籤**：#344（campaign-closer 的結案教訓）帶 `spec:evaluation-framework`，推導成 Eval，但標題看起來不像評測；標籤可能貼錯。稽核無法判斷，這是設計的代價，報告已要求在週報點名可疑項。
+- 稽核只涵蓋開放的 issue；已完成的不處理。`scraper-zero-output` 在對照表但還沒有標籤，稽核列為「目前沒有開放 issue 的 spec」。
+- 沒有做 GitHub Action（需要放有 project 權限的 PAT 到 secrets，牽涉輪替規則）；目前靠每週回顧人工觸發。
+- 腳本在真實看板上跑過一次（含套用），但 `--apply` 路徑的自動化測試用的是注入的 runner，沒有對 GitHub 寫入做自動測試。
+
+### 26.5 `scraper-zero-output` 薄 spec：草稿與一個我先前的錯誤
+
+草稿在 `~/.ai-notes/ttr/scraper-zero-output-spec-draft/`（`proposal.md`、`tasks.md`，6 條里程碑），還沒放進任何 worktree。內容依 `/feature-kickoff` 的腳本與 `gh` 查到的事實：#367（10 個來源）與 #381（30 個來源）有 4 個重疊（ciema、faam_fukuoka、nagano_aioiza、walkerplus）；#367 中的 waseda_taiwan、kbc_cinema、kino_cinema_shinsaibashi、bookandbeer、tokyo_now 在 #327 已判斷過；#375、#376、#377 的原因各不相同（token 與 `self.logger`、端點 404、selector 改版），所以**不能假設單一共同原因**；已有 `docs/evaluation/scrapers/2026-10-22-zero-output-triage.md` 與 `scraper/source_expectations.json`（18 筆）可沿用。
+
+**更正 §18.3 的說法**：我先前寫 `ttr-scraper-zero-output-worktree`「是空的」，依據只是 `git log origin/main..HEAD` 沒有輸出。實際查證：
+
+| 查證 | 結果 |
+|---|---|
+| HEAD 是否已在 origin/main | 是（`27b9539e`，feat(scraper): run the GitHub-blocked sources weekly from a home IP，也就是 #378 的修復） |
+| 遠端分支 `origin/fix/scraper-zero-output` | 存在 |
+| 工作樹與落後 | 乾淨；落後 origin/main 31 個 commit |
+| 是否有 session 在用 | **有**：互動 session `ttr-scraper-zero-output-worktree-dd` 目前是 busy，工作目錄就是這個 worktree |
+
+所以它不是「為新 spec 預備的空 worktree」，而是已完成並合併的 #378 campaign 的 worktree，**而且現在有人在用**。沒有動它。這帶來兩個後果：(1) 不能把新 spec 放進去；`ttr-scraper-zero-output-worktree` 這個路徑名稱也被占用，新 spec 若沿用 slug `scraper-zero-output`，依命名規則的 worktree 名稱會撞名；(2) 那個忙碌的 session 很可能正在做同一批 0 產出的工作，應先確認，避免重複。
+
+教訓：判斷 worktree 是否「空的、閒置的」，要同時看它是否追蹤遠端分支、HEAD 是否已合併、以及是否有 live session（`claude agents --json` 的 `cwd`），不能只看 `origin/main..HEAD`。

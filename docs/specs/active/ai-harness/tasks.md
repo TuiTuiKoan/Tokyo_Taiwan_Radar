@@ -103,7 +103,9 @@
 - [x] 盤點的決定（2026-10-23）：#328、#346 已貼 `spec:ai-harness`（GitHub 寫入，已驗證）；QA Heartbeat 的 5 個 issue 保留，不動
 - [ ] `scraper-zero-output` 是否建 spec：我的建議與依據見 notes.md §18.3，待使用者決定（使用者這次沒有回覆這項）
 - [x] 其餘無標籤 issue 補上看板「階段」：使用者採用「來源健康」「爬蟲管線」兩個新名稱；已由我用 GraphQL 新增選項並設定 12 個 issue（#367、#375、#376、#377、#381 → 來源健康；#364、#394、#395、#398、#404、#407 → 爬蟲管線；#346 → AI工具鏈）；原有 42 個值全部未動（notes.md §19）
-- [ ] 看板標記的長期設計（使用者 2026-10-23 提問）：我的評估與建議見 notes.md §19.4，待使用者決定
+- [x] 看板標記設計（使用者 2026-10-23 決定採用）：主題比 spec 粗且由 spec 推導；「階段」已改名「主題」；對照表 `docs/specs/board-themes.json`；稽核腳本 `scripts/board_audit.py`（27 個測試）；每週回顧新增 Step 2b；規則寫進 `docs/specs/README.md` § 看板標記分工；已對 30 個 issue 套用推導的主題。細節與限制見 notes.md §26
+- [ ] #328 的主題不一致：看板為「追蹤清理」，對照表（`spec:ai-harness`）為「AI工具鏈」，待使用者決定要改主題或改標籤
+- [ ] `scraper-zero-output` 薄 spec：草稿在 `~/.ai-notes/ttr/scraper-zero-output-spec-draft/`；**不能放進 `ttr-scraper-zero-output-worktree`**（那是已合併的 #378 修復，且有一個忙碌中的 session 正在用，見 notes.md §26.5）；待使用者決定 worktree 與是否先協調該 session
 - [ ] 在互動 session 實際用 `/feature-kickoff` 跑一次完整流程（需要一個真的要啟動的功能；`/feature-kickoff` 的行為目前只有腳本有測試，prompt 本身 NOT TESTED）
 - [ ] 第 3 段（同功能內 agent teams 做實作）暫緩，實作型切分尚未驗證
 - [ ] 同步改窄 `validate-merge-deploy.agent.md` 與 `campaign-closer.agent.md` 的「通知其他 session」描述（現行寫法仍是無條件通知；規則已在 `git.instructions.md` 改為只通知受影響者，notes.md §25.1）
