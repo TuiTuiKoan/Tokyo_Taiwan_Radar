@@ -62,7 +62,7 @@
 - [x] 拋棄式 worktree `ttr-agent-view-trial-worktree` 已建立（使用者 2026-10-23 核准；分支 `feat/agent-view-trial`，起點 origin/main `92a5bd45`，`.git/info/exclude` 已對帳）
 - [x] agent view 小試驗完成（重跑，2026-10-23）：S1 到 S4 成立；用量前後 5%／31%／8% 到 7%／31%／8%；B 選 No 後未執行 push；沒有自己 commit 或 push；VS Code 沒有通知。證據與限制見 notes.md §22；試驗 session 已停止並移除、試驗檔已清除
 - [x] S5 已由使用者明確確認成立（2026-10-23）；agent view 小試驗的判定為「可列入 Phase 2b 正式使用，不是採用」
-- [ ] 後續小試驗（NOT TESTED）：從不同 worktree 派出 session 是否都能出現在同一個 agent view 的清單；`Notification` hook 能否補上 VS Code 沒有通知的缺口。規劃見 [spike-agent-view-followups.md](./spike-agent-view-followups.md)（尚未執行）
+- [ ] 後續小試驗（NOT TESTED）：從不同 worktree 派出 session 是否都能出現在同一個 agent view 的清單；`Notification` hook 能否補上 VS Code 沒有通知的缺口。規劃見 [spike-agent-view-followups.md](./spike-agent-view-followups.md)。**試驗 1 已執行（notes.md §36）：清單是全域的，S4（TUI）未測。試驗 2 已執行（notes.md §37）：三個情境（背景 session、終端機、VS Code 面板）都觸發 hook 並有通知；`agent_needs_input` 與 `idle_prompt` 未測**
 - [x] **ai-harness 分支已 rebase**（2026-10-23，使用者核准）：3 個 commit 有衝突（`validate-merge-deploy.agent.md`、`plan-critic.agent.md`、`AGENTS.md`），各自保留 main 的新敘述並加上我們的 `tier` 與「批評全文必須存檔」；生成物重新生成；結果領先 origin/main 11、落後 0；`sync --check` exit 0；`scripts` 全部測試 967 passed（含 main 的測試）；詳見 notes.md §24
 - [x] **V-M-D 推送完成**（2026-10-23，使用者從主工作目錄執行）：origin/main 就是 `97db47f2`；Vercel Production deployment `7270206104` success；詳見 notes.md §25。`docs/specs/active/ai-harness/` 現在在 GitHub 上
 - [ ] 下一步候選（使用者決定）：標記設計（notes.md §19.4）、`scraper-zero-output` spec、`feature-kickoff` 的互動驗證、Phase 2b 的每週配額基準（最早 2026-10-30）、從不同 worktree 派出 session 的小試驗、`Notification` hook（agent view 試驗 worktree 已於 2026-10-23 退役，見 notes.md §33）
