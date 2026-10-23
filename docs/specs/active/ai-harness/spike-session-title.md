@@ -24,6 +24,13 @@
 
 腳本與 log 在使用者層（不進 repo）：`~/.ai-notes/ttr/tools/session_title_hook.py`、`~/.ai-notes/ttr/session-title-hook.log`（只記時間、session 前 8 碼、決定與名稱）。fail-open，永遠 exit 0。已用 8 種假輸入測過（worktree、主工作目錄、子目錄、已有名稱、非 TTR、`clear`、resume、壞輸入）。
 
+## 已知限制（寫在試驗前）
+
+- 名稱只在 session 開啟時決定，之後不更新。先在主工作目錄討論、再建立 worktree 的 session，名稱會一直是 `root·…`；SessionStart 不會因 `cd` 或 `EnterWorktree` 再觸發。
+- 刻意不做隨 cwd 動態改名：Claude Code 的工作目錄會因一次 `cd` 改變（2026-10-23 本 session 就在主工作目錄與 worktree 之間切換多次），動態改名會讓同一個 session 的名稱跳動。
+- 「這個 session 現在實際在哪個 worktree」的準確來源是 `session_map.py`（讀 transcript 每則訊息的 `cwd`、`gitBranch`），不是名稱。
+- 後續可能的規則：建立 worktree 的步驟，要求 agent 給交接卡片，二選一：另開新 session 並帶 `-n`，或給出可貼上的 `/rename <slug>·<用途>`（agent 無法替使用者改名）。尚未採用，待使用者決定。
+
 ## 情境與成功條件
 
 | # | 情境 | 做法 | 成立條件 |
