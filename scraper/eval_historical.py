@@ -49,13 +49,13 @@ from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
-from annotator import _validate_categories, _validate_event_forms  # noqa: E402
 from eval_annotator import (  # noqa: E402
     BUCKET_LOOKUP,
     _estimate_cost,
     annotate_one_async,
     compare_fields,
     is_title_lookup_case,
+    normalize_annotation,
     semantic_scores_for,
 )
 
@@ -132,14 +132,6 @@ def stored_as_expected(event: dict) -> dict:
         f: ({"value": event.get(f), "tier": 1, "from_fc": False} if is_filled(event.get(f)) else None)
         for f in COMPARED_FIELDS
     }
-
-
-def normalize_annotation(annotation: dict) -> dict:
-    """Apply the validators production runs before storing the LLM output."""
-    out = dict(annotation)
-    out["category"] = _validate_categories(annotation.get("category"))
-    out["event_form"] = _validate_event_forms(annotation.get("event_form"))
-    return out
 
 
 def classify_event(event: dict, annotation: dict, locked_fields: set[str], semantic: dict) -> list[dict]:

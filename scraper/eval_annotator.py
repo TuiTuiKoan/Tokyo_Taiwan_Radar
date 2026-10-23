@@ -58,6 +58,8 @@ from annotator import (
     _resolve_event_people,
     _replace_title_in_desc,
     _resolve_movie_titles_for_event,
+    _validate_categories,
+    _validate_event_forms,
     build_event_user_content,
 )
 from category_feedback import load_corrections, build_feedback_prompt
@@ -223,6 +225,19 @@ def fuzzy_score(expected, got) -> float:
     if not a or not b:
         return 0.0
     return difflib.SequenceMatcher(None, a, b).ratio()
+
+
+def normalize_annotation(annotation: dict) -> dict:
+    """Apply the validators production runs before storing the LLM output.
+
+    annotator maps e.g. ``performance`` to ``performing_arts`` and drops values
+    that are not categories or event forms. Scoring the raw LLM output counted
+    those as misses (#383).
+    """
+    out = dict(annotation)
+    out["category"] = _validate_categories(annotation.get("category"))
+    out["event_form"] = _validate_event_forms(annotation.get("event_form"))
+    return out
 
 
 def is_title_lookup_case(case: dict, annotation: dict) -> bool:
@@ -461,6 +476,7 @@ def build_snapshot(
         "stage": snapshot_meta.get("stage", 1),
         "snapshot_at": snapshot_meta.get("snapshot_at"),
         "sha256": snapshot_meta.get("sha256"),
+        "validator_changed": snapshot_meta.get("validator_changed"),
         "n_cases": len(cases),
         "per_field": _flatten(_aggregate(diffs)),
         "annotator_fields": _flatten(annotator),
@@ -545,6 +561,11 @@ def write_report(
             f"- frozen sha256: {snapshot_meta.get('sha256') or 'n/a'}",
             f"- snapshot_at: {snapshot_meta.get('snapshot_at') or 'n/a'}",
         ]
+    changed = snapshot_meta.get("validator_changed")
+    if changed:
+        lines.append(
+            f"- 正式環境驗證改動的 LLM 輸出：category {changed['category']} 筆、event_form {changed['event_form']} 筆（比較的是驗證後的值）"
+        )
     lines += [
         f"- scoring: v{SCORING_VERSION}（名稱與 location_name：正規化後 fuzzy ≥ {FUZZY_THRESHOLD}；"
         f"description：{EMBEDDING_MODEL} cosine ≥ {SEMANTIC_THRESHOLD}；電影片名另列為查詢型評估）",
@@ -713,8 +734,14 @@ async def run_golden(
     logger.info("Annotating %d cases with concurrency=5 ...", len(cases))
     results = await asyncio.gather(*[annotate_one(c) for c in cases])
 
-    annotations = [r[0] for r in results]
+    # Production validates category / event_form before storing, and the
+    # enrichment stages below read the stored values.
+    annotations = [normalize_annotation(r[0]) for r in results]
     usages = [r[1] for r in results]
+    snapshot_meta["validator_changed"] = {
+        f: sum(1 for (raw, _u), ann in zip(results, annotations) if raw.get(f) != ann[f])
+        for f in ("category", "event_form")
+    }
 
     # ── Stage 2 / --full-pipeline ────────────────────────────────────────
     # After LLM annotation, apply enrich_movie_titles() title resolution
