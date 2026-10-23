@@ -1065,3 +1065,20 @@ push 並在主工作目錄 pull 之後，才可以用相對路徑在主工作目
 | 遠端 `origin/feat/ai-harness` | 仍在，頂端 `071e246f`（rebase 前的舊 commit，與 main 已分叉）；hooks 擋 `--force` 與 `--delete`，待使用者在 GitHub 網頁刪除 |
 
 這次紀錄（本節與 tasks.md 的勾選）只改本機、未 push，隨下一次有實質變更的推送一起上去（見 §25.2：不為紀錄單獨推送）。
+
+## 33. agent view 試驗 worktree 退役（2026-10-23）
+
+使用者核准（原話「先做退役」）。執行者：Close Campaign agent（Claude Code，Sonnet 5.5）。這是拋棄式 worktree，不寫 campaign 結案記錄與 recovery capsule（沒有自己的 commit、沒有 ignored 檔案）。
+
+| 審計項 | 結果 |
+|---|---|
+| 路徑／分支 | `ttr-agent-view-trial-worktree`／`feat/agent-view-trial`，HEAD `92a5bd45`（feat(scraper): count person-name lookup requests as a baseline (#392)） |
+| 工作樹 | 乾淨，無 ignored 檔案，無 rebase／merge／cherry-pick 進行中，無 stash |
+| 已合併 | `git merge-base --is-ancestor` 通過；`origin/main..feat/agent-view-trial` 為空（ahead 0） |
+| 遠端 | `ls-remote` 無 `feat/agent-view-trial` |
+| 占用 | `lsof -a -d cwd +D` 無程序；`session_map.py` 列出的 4 個該路徑 session 都是 4 小時前的已停止試驗 session（§22），無 live |
+| 主工作樹 | `origin/main...main` 為 `0 0` |
+
+執行：`git worktree remove <路徑>`（不帶 --force）成功；`git branch -d feat/agent-view-trial` 成功（was `92a5bd45`）；目錄已不存在，`git worktree list` 無殘留；`.git/info/exclude` 的 `ttr-agent-view-trial-worktree/` 行已刪除（grep 計數 0）。未 push；未通知其他 session（無 worktree 需要行動）。
+
+未涵蓋：A2 待辦五來源不適用（無 spec、無 commit range）。紀錄只改本機，隨下一次推送上去。
