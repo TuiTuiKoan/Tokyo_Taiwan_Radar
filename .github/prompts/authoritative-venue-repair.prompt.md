@@ -355,6 +355,8 @@ before CAS 寫入，不得只比對 `venue_id`。
 
 ## 實作與驗證 protocol
 
+要使用者執行的指令、開新 session 與兩個批准閘門，依 `.github/instructions/handoff.instructions.md` 寫成交接卡片；Phase 4 的 apply 標 `寫 production`，獨立一張卡片。
+
 ### Phase 0: 建立或續接隔離工作區
 
 1. 依 state matrix 從最新 `origin/main` 建立或續接指定 worktree 與 branch。

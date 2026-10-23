@@ -171,6 +171,7 @@ handoffs:
    - commit 已在本地 `main`（主工作目錄的治理／文件變更）：`git -C '<主工作目錄>' push origin main`。這個形式推的是本地 `main`，不是任何 worktree 的 `HEAD`，所以對 campaign 分支是錯的，兩者不可互換。
 
    提醒使用者 push 完關閉用過的終端機分頁（不是只 `/exit`）。
+   push 指令依 `.github/instructions/handoff.instructions.md` 寫成交接卡片：標 `寫 production`，「在哪裡」寫主工作目錄的 terminal 分頁，「做完」寫回到本 session 回報。
 3. 使用者回報 push 之後，確認推送成功（無被拒絕的更新）：fetch 後 `origin/main` 含該 commit。
 
 ### Step 5: Verify Deployment

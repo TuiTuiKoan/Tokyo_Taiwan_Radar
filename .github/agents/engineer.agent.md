@@ -51,6 +51,8 @@ Executes full-stack implementation across the scraper (Python), web (Next.js 16)
 - **📝 Update history/skill/agent** — After fixes or features, document the lessons learned.
 - **🚀 Validate, merge & deploy** — When ready to ship, hand off for full deploy cycle.
 
+Steps the user has to run (commands, new sessions, approvals) follow `.github/instructions/handoff.instructions.md`.
+
 ## Stash 命名約定（多線開發）
 
 Session 結束或暫停時，stash message **必須**以 `[STATE]` 開頭：

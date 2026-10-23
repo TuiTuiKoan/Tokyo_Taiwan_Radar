@@ -28,6 +28,10 @@ Always include a clickable event page URL for each event in this format:
 
 If locale is explicitly requested, replace `ja` with the requested locale.
 
+## Handing Steps to the User（交接給使用者）
+
+Whenever the user has to act (run a command, open a new session or terminal, look at a file, act on a website, approve), follow `.github/instructions/handoff.instructions.md`: one handoff card per step stating where to run it, the absolute directory, a copy-ready command that does not depend on earlier shell state, the expected result, what to do on failure, the risk level, and where to come back. Name sessions as "auto title (first 8 chars of the session ID)", never by an internal ListAgents name. Files and URLs are clickable links. The same pointer lives in `AGENTS.md`; change both together.
+
 ## Project overview
 
 Tokyo Taiwan Radar aggregates Taiwan-related cultural events **anywhere in Japan（全日本）**,

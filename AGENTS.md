@@ -18,6 +18,7 @@
 | 修改路徑 | 必讀檔案 |
 | --- | --- |
 | `**` | `.github/instructions/token-rotation.instructions.md` |
+| `**` | `.github/instructions/handoff.instructions.md`（要使用者執行指令、開新 session、看檔案或核准時的格式） |
 | `.github/**` | `.github/instructions/git.instructions.md` |
 | `scraper/**` | `.github/instructions/scraper.instructions.md` |
 | `supabase/**` | `.github/instructions/database.instructions.md` |
@@ -80,7 +81,7 @@ Codex 不會因為 `.codex/agents/*.toml` 存在就自動派用 subagent（2026-
 | `vscode_askQuestions` / `ask_user` | 在對話中直接向使用者提問並等待回答。 |
 | `/memories/session/plan.md`（legacy 路徑，僅供閱讀舊檔） | 優先寫到 `docs/specs/active/<slug>/`；沒有 slug 時寫到本機 `~/.ai-notes/ttr/plan.md` 並告知使用者。舊檔讀不到時，向使用者要 slug 或內容，不改讀其他位置。 |
 | `semantic_search` / `grep_search` / `read_file` / `fetch_webpage` / `get_errors` | 使用 Claude Code / Codex 內建的對應搜尋、讀檔、網頁抓取與診斷工具。 |
-| handoff 按鈕 | 在回覆結尾列出建議下一步 agent 與建議提示。 |
+| handoff 按鈕 | 在回覆結尾列出建議下一步 agent 與建議提示；要使用者動手的步驟依 `.github/instructions/handoff.instructions.md` 寫成交接卡片。 |
 | instructions 的 `applyTo` 自動注入 | 依上方「路徑規則表」手動讀取相關 instruction。 |
 | agent frontmatter 的 `model:` | 本 repo 已不再寫死模型；若在舊分支看到，一律忽略，見下方「模型政策」。 |
 

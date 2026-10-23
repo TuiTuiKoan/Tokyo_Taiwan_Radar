@@ -201,7 +201,7 @@ Phase A 輸出之後**結束本輪回覆，等使用者回應**。同一輪不�
 
 ## Phase D — 退役
 
-本 agent **不自動執行移除**。它產生檢查結果與指令，由使用者執行。
+本 agent **不自動執行移除**。它產生檢查結果與指令，由使用者執行。指令依 `.github/instructions/handoff.instructions.md` 寫成交接卡片，移除步驟標 `不可逆`。
 
 * **D1** 重新觀測 Freshness 六值。任一項與 Phase A 不同即 `STALE`：重新觀測、重新決策。
   **絕不把先前的 PASS 帶進移除**。實例：`ttr-admin-qa-cleanup-worktree` 在同一個工作 session 內，
