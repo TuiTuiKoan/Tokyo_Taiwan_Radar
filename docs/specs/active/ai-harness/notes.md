@@ -902,3 +902,116 @@ git -C "/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar" push origin feat
 所以它不是「為新 spec 預備的空 worktree」，而是已完成並合併的 #378 campaign 的 worktree，**而且現在有人在用**。沒有動它。這帶來兩個後果：(1) 不能把新 spec 放進去；`ttr-scraper-zero-output-worktree` 這個路徑名稱也被占用，新 spec 若沿用 slug `scraper-zero-output`，依命名規則的 worktree 名稱會撞名；(2) 那個忙碌的 session 很可能正在做同一批 0 產出的工作，應先確認，避免重複。
 
 教訓：判斷 worktree 是否「空的、閒置的」，要同時看它是否追蹤遠端分支、HEAD 是否已合併、以及是否有 live session（`claude agents --json` 的 `cwd`），不能只看 `origin/main..HEAD`。
+
+## 27. 標記調整、#351 的來源、0 產出 session 的確認、session 辨識（2026-10-23）
+
+使用者決定：#342 設成 SNS governance；#328 維持 ai-harness、主題不變；請查 #351 的來源；請確認那個忙碌 session 並決定是否換名稱；詢問 session 命名與 ID 怎麼看。執行者：Claude Code（Opus 5.5）。
+
+### 27.1 看板與對照表
+
+| 變更 | 結果 |
+|---|---|
+| 新增主題「SNS governance」 | 先備份（`board-theme-backup-before-sns-2026-10-23.json`），以 GraphQL 傳入全部既有選項的 id 加一個新選項；選項現為 13 個；102 個項目的值全部不變；#342 設為 SNS governance。顏色 PURPLE，說明「社群發文（X、Threads、Instagram）的規劃與治理」。名稱照使用者指定，因此 README 的命名規則改為「使用者指定的名稱照用」 |
+| #328 | 使用者說明它仍屬 `spec:ai-harness`、內容牽涉清理，並問主題不是可以對應多個 spec 嗎。**我的解讀**：主題確實可以收多個 spec（是），但原先對照表一個 spec 只有一個主題，所以 #328 這種「spec 屬工具鏈、內容屬清理」的 issue 沒地方放。新增「個別 issue 覆寫」：`board-themes.json` 的 `overrides` 記錄 issue、主題、理由（理由必填），稽核會列出覆寫供檢視。#328 覆寫為「追蹤清理」；若使用者其實要「AI工具鏈」，刪掉那一筆即可。測試 34 個（先寫、先紅 7 個、再綠）；全部測試 1001 passed |
+| #342 豁免 | 移除（它現在有主題） |
+| 新 issue | 看板從 96 個變成 102 個。稽核找到 5 個新 issue 可推導（#422、#423 → 資料修復；#425、#426 → AI工具鏈；#427 → 資料修復），已套用；#424 沒有 spec 標籤也沒有主題，列為需要決定 |
+
+### 27.2 #351 的來源（唯讀查證）
+
+#351 的內文說：ledger（`docs/specs/active/workstream-tracking/tasks.md`）「工作線 D」有 4 項標為「無歸屬」的後台／UI 小項；前三項 D 線已由 `ab3bbfde`（feat(web): apply publication labels to detail and admin surfaces，2026-08-08）交付，其餘 4 項未開始。備註寫明：2026-10-22 publication-policy 結案稽核（`HOLD:unhandled_work`）時提出，這 4 項被記在 publication worktree 名下，但不在其 spec 內，不先給歸屬，退役該 worktree 時會變成沒有 owner。
+
+結論：**來源 worktree 是 `ttr-publication-policy-worktree`（分支 `feat/publication-policy`，tip `a09208d8` 已是 origin/main 的祖先），但這 4 項不屬於 publication-policy 的 spec**；真正的記錄處是 workstream-tracking ledger 的「工作線 D：Backlog」，原始描述只有一行，更早的來源查不到。所以它沒有「源自哪個 spec」，這正是它被標為「無歸屬」、也被豁免主題的原因。如果日後要給它歸屬，最接近的是 `workstream-tracking`（它擁有那份 ledger），但那會把後台與 UI 小項放進追蹤清理主題，我沒有這樣做，等使用者決定。
+
+### 27.3 忙碌 session 的確認（唯讀，讀 transcript）
+
+使用者推測那個 session 在做 0 產出工作。查證：
+
+| 項目 | 結果 |
+|---|---|
+| 身分 | session `d9658c7d`，標題 `ttr-scraper-zero-output-worktree-dd`，terminal 分頁（tty `ttys010`，pid 92090），2026-10-23 00:18 開始；現在 idle；工作目錄 `ttr-scraper-zero-output-worktree` |
+| 它在做什麼 | transcript 中提到最多的是 #375（28 次）、#378（27）、#376（27）、#395（27）、#377（24），也有 #394、#404；`zero-output` 出現 121 次（分支與目錄名）。第一則訊息是貼上的「你是這次的實作者…」提示；最後的訊息在回報今天的監測：Daily Scraper 的失敗來自 #391 留下的 `NameError`（`enrich_location.py` 的 `OpenAI` 未定義），與它自己修的 issue 無關 |
+| 它沒做什麼 | **#367、#381、prtimes、ciema、walkerplus 在它的 transcript 裡出現 0 次**：它是已知故障的「修復」session，沒有做「還沒判斷的來源」那一批 |
+| 已合併進 main 的成果（2026-10-23 01:03 到 02:11） | tokyo_art_beat 改讀 CDA 並在失敗時報錯（#375，已關閉）；mot、taipei_fukuoka、jposa_ja 被擋時失敗並改為家用 IP 每週執行（#378，已關閉）；tokyo_now 退役；bookandbeer 第 1 頁沒有卡片時拋例外；單一來源執行只 enrich 自己的新事件。#376、#377、#394、#395、#404、#407 仍是 open |
+
+結論：使用者的推測**一半正確**：它是 0 產出相關的修復 session，但不是我草稿裡 M1、M2（prtimes 與 #381 其餘來源的判斷）那一塊；M3 大部分是它已經做完的。
+
+### 27.4 要不要換名稱：不換
+
+保留 spec slug `scraper-zero-output`。理由：(1) 既有 worktree 與分支（`fix/scraper-zero-output`）、那個 session 的工作都已經用這個名稱，換名稱會把同一個主題拆成兩個名字與兩個 worktree；(2) 先前擔心的撞名，只有在「新 worktree 與舊 worktree 並存」時才成立；如果 spec 由那個 session 在它自己的 worktree 建立（spec 與 worktree 一對一），就沒有撞名。限制：它的分支是 `fix/` 開頭，不是 `feat/<slug>`（規則允許 `fix/<topic>`）；那個 worktree 落後 origin/main 31 個 commit、HEAD 已合併，該 session 要先同步；spec 草稿已更新為「只做還沒判斷的來源」。我沒有動那個 worktree，也沒有傳訊息給那個 session。
+
+### 27.5 session 的命名與辨識（#426）
+
+`ai-harness·handoff`（`72ddde89`，VS Code side chat）已在處理並實測，結論已記在 `.github/instructions/handoff.instructions.md` 第 3 節與 #426 的留言：自動標題看得到、`/rename`（VS Code side chat）與 `claude -n "<名稱>"`（terminal）可命名並取代自動標題；session ID 是 `~/.claude/projects/<專案>/<UUID>.jsonl` 的檔名，面板上看不到，`claude -r <UUID>` 可接續；給使用者看的 session 一律寫成「標題 (UUID 前 8 碼)」；新 session 命名格式 `<spec-slug>·<用途>`。它接下來要寫一支唯讀的查詢腳本（session 樹、所在 worktree、branch、最後活動時間），並與 #328 的 worktree 狀態腳本合併。**我沒有重複做這支腳本。**
+
+我的發現補充：`claude agents --json` 列出的 `cwd` 是 session 啟動時的目錄，不是它實際工作的 worktree（我自己的 session 登記的是主工作目錄，卻在 `ttr-ai-harness-worktree` 工作；`72ddde89` 也是），所以用 `cwd` 找 session 不可靠，要看 transcript。這對 #426 的查詢腳本是一個要注意的設計點。
+
+### 27.6 同一個 worktree 有兩個 session 在寫
+
+`72ddde89` 在我的 worktree 裡 commit 了 `b18d5467`（docs(ai): add handoff cards and session naming rules，15:33），我的 commit 在它之後，只加了我自己的路徑，沒有收進它的檔案，已用 `git show --stat` 核對。它是同一個 campaign 的 session，所以不算誤闖，但兩個 session 共用一個工作目錄有互相踩到的風險，這正是 worktree 一對一規則想避免的事。
+
+### 27.7 順帶發現（不在本次範圍）
+
+#424（今天 14:39 開，open，無留言）：`enrich_location.py` 的 `NameError: name 'OpenAI' is not defined`，使 Daily Scraper 每天在 LLM gate 失敗。`gh run list` 顯示今天 12:08（JST）的 scraper run 結論是 failure（昨天 12:03 也是 failure、12:34 與 12:05 success）。issue 沒有 spec 標籤、也沒有主題，稽核列為需要決定；我建議主題「止血」，但沒有設。我不知道有沒有 session 正在修；明天 09:00 JST 的排程若沒修好會再失敗一次。
+
+## 28. 找 terminal 分頁的更正（2026-10-23）
+
+我先前給的交接卡片叫使用者「在每個分頁輸入 `tty`」。**這個步驟本身有問題**：跑著 Claude Code 的分頁沒有 shell prompt，輸入的字會被當成訊息送給那個 Claude session。使用者照做後，`tty` 被送進另一個 session（ndl-relevance-publication 的 Engineer），那個 session 回覆「你只傳了 tty，看起來像是誤觸」。沒有造成其他影響，但這是我的疏漏。
+
+教訓（給 #426／#425 的規則參考）：交接卡片不能叫使用者在「正在跑 Claude 的分頁」輸入 shell 指令；要辨識這種分頁，應從外部查出它的特徵（tty、父程序、所在應用程式、session 標題），再告訴使用者怎麼在畫面上找。
+
+查證（唯讀）：`d9658c7d`（`ttr-scraper-zero-output-worktree-dd`）仍在執行；pid 92090、tty `ttys010`、已跑約 15 小時 29 分；父程序鏈是 `claude` → `/bin/zsh`（pid 91655）→ `Code Helper` → `Visual Studio Code`，所以它在 **VS Code 整合終端機**裡，不是獨立的 terminal 應用程式。
+
+## 29. 0 產出 session 建立的 spec、session_map 腳本、對照表衝突（2026-10-23）
+
+使用者找到那個 terminal，並回報 session `d9658c7d` 已建立並 commit spec（`366cf0ac`，本機、未 push），並問我先前的一段話「是要誰做、做什麼」。執行者：Claude Code（Opus 5.5）。
+
+### 29.1 那段話是誰的事
+
+| 內容 | 性質 |
+|---|---|
+| 命名與 session ID 的規則（`/rename`、`claude -n`、ID 是 transcript 檔名、寫成「標題 (UUID 前 8 碼)」） | **資訊**，給使用者用；不是待辦 |
+| 「它接下來要寫查詢腳本」 | 是 `ai-harness·handoff`（72ddde89）的工作，**我寫那句時已經過時**：它在 15:41 就完成並 commit 了 `scripts/session_map.py`（`071e246f`，附測試），我沒有先看 #426 的最新留言就下了判斷 |
+| 「我補充一個發現給它」（`claude agents --json` 的 `cwd` 是啟動目錄） | 我原本打算轉告，**但我從來沒有送出**，而且不需要送：它的腳本讀 transcript 裡每則訊息記錄的 `cwd` 與 `gitBranch`（#426 的留言寫明「每則訊息已經記錄 cwd、gitBranch、entrypoint」），本來就不依賴啟動目錄 |
+
+結論：沒有任何人需要做任何事。教訓：在轉述「某個 session 接下來要做 X」之前，先查它的 issue 與 commit，確認 X 還沒做完。
+
+### 29.2 `scripts/session_map.py`
+
+`python3 scripts/session_map.py` 實測可用：每個 session 兩行，第一行是標題（自動標題或 `/rename` 的名稱）、`(UUID 前 8 碼)`、`claude-vscode` 或 `cli`、最後活動時間；第二行是所在目錄與 branch。選項：`--days N`（預設 3）、`--repo 字串`。例如：`修 scraper 零產出 #375-378, CI 被封 IP 實測, to… (d9658c7d) · cli`，所在 `ttr-scraper-zero-output-worktree [fix/scraper-zero-output]`。這直接解決「太多 chat session 找不到」。限制：標題是自動產生的摘要，同一件事的多個 session 標題可能很像；沒有 `/rename` 的舊 session 仍是自動標題。
+
+### 29.3 spec 與我的草稿不同，也和看板對照表衝突
+
+那個 session 建的 spec（`docs/specs/active/scraper-zero-output/`）是它自己的範圍：「Make scrapers that return 0 events fail loudly, and move the sources GitHub Actions cannot reach to a home-IP weekly run」，Phase A（查明與修復，已完成）、Phase B（驗證與收尾：修好 #424、更新 `source_expectations.json`、關閉 #375、#376、#377、#395、歸檔 spec）。**不涵蓋 prtimes 與 #381 的其餘來源**，所以我草稿的 M1、M2 沒有落到任何 spec；我的草稿不再使用。#424 在它的 Phase B，所以那個問題有 owner。
+
+`spec:scraper-zero-output` 標籤已存在並貼在 8 個 issue（#375、#376、#377、#378、#394、#395、#404、#424；我先用 `gh label list --search` 查不到，是搜尋方式不對，用 `gh issue list --label` 才確認）。對照表原本把這個 spec 對應「來源健康」，但稽核現在報：
+
+| issue | 目前主題 | 對照表 | 狀況 |
+|---|---|---|---|
+| #424 | （無） | 來源健康 | 可推導 |
+| #394、#395、#404 | 爬蟲管線 | 來源健康 | 不一致 |
+
+這是因為我先前依標題把這三個歸「爬蟲管線」，而它們現在被放進這個 spec。**需要使用者決定這個 spec 對應哪個主題。** 兩個選項：
+
+- **A. 維持「來源健康」**：#394、#395、#404 改為「來源健康」（3 個變動），「爬蟲管線」之後只剩 #398、#407。
+- **B. 改對應「爬蟲管線」（我的建議）**：spec 的目標是「讓 0 產出失敗得明顯」與「被擋的來源改家用 IP」，偏管線而不是來源判斷；#424 推導為「爬蟲管線」；#376、#377（單一來源的故障）用覆寫保持「來源健康」。「來源健康」留給 #367、#381 的來源判斷。
+
+未動：沒有修改對照表，也沒有改任何看板值。
+
+### 29.4 其他
+
+- 那個 spec 的 worktree 落後 origin/main 55 個 commit，推送前要同步；spec 的 `created: 2026-10-22`、分支是 `fix/scraper-zero-output`（不是 `feat/`）。
+- prtimes 與 #381 其餘來源的判斷沒有 spec；我建議不另開第二個 spec：#381 已有做法與完成條件，主題已是「來源健康」，用 issue 追蹤即可。
+
+## 30. 選項 B 與 session_map 執行失敗的原因（2026-10-23）
+
+### 30.1 對照表採選項 B
+
+使用者選 B：`spec:scraper-zero-output` 對應「爬蟲管線」。`board-themes.json`：`specs.scraper-zero-output` 改為「爬蟲管線」；新增覆寫 #376、#377 為「來源健康」（理由：單一來源的故障，不是管線缺陷）。稽核：不一致由 3 個變 0；#424 推導為「爬蟲管線」並以 `--apply --yes` 寫入（1 個）；`--strict` exit 0；正常 79 個。全部測試 1007 passed；`sync --check` exit 0。「來源健康」現在留給 #367、#381 的來源判斷，以及 #376、#377 兩個覆寫。
+
+### 30.2 使用者執行 `python3 scripts/session_map.py` 失敗
+
+使用者在主工作目錄（`.../Tokyo Taiwan Radar`，分支 `main`）執行，得到 `can't open file '.../Tokyo Taiwan Radar/scripts/session_map.py': No such file or directory`。原因：`session_map.py` 只存在於 `feat/ai-harness` 分支，而那個分支的檔案在 `ttr-ai-harness-worktree` 裡；主工作目錄是另一個 checkout、在 `main`，**在這個分支 push 並 pull 之前不會有這個檔案**。這是**我的交接寫得不夠**：我只寫了相對路徑 `python3 scripts/session_map.py`，沒有說明要在哪個目錄、檔案目前只在哪個 worktree，正是 #425 剛訂的交接卡片規則（絕對路徑、不依賴所在目錄）要避免的事，而我在讀完那份規則之後還是犯了。腳本只讀 `~/.claude/projects`，所以用絕對路徑從任何目錄都可以執行：
+
+`python3 "/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-ai-harness-worktree/scripts/session_map.py"`
+
+push 並在主工作目錄 pull 之後，才可以用相對路徑在主工作目錄執行。

@@ -104,8 +104,12 @@
 - [ ] `scraper-zero-output` 是否建 spec：我的建議與依據見 notes.md §18.3，待使用者決定（使用者這次沒有回覆這項）
 - [x] 其餘無標籤 issue 補上看板「階段」：使用者採用「來源健康」「爬蟲管線」兩個新名稱；已由我用 GraphQL 新增選項並設定 12 個 issue（#367、#375、#376、#377、#381 → 來源健康；#364、#394、#395、#398、#404、#407 → 爬蟲管線；#346 → AI工具鏈）；原有 42 個值全部未動（notes.md §19）
 - [x] 看板標記設計（使用者 2026-10-23 決定採用）：主題比 spec 粗且由 spec 推導；「階段」已改名「主題」；對照表 `docs/specs/board-themes.json`；稽核腳本 `scripts/board_audit.py`（27 個測試）；每週回顧新增 Step 2b；規則寫進 `docs/specs/README.md` § 看板標記分工；已對 30 個 issue 套用推導的主題。細節與限制見 notes.md §26
-- [ ] #328 的主題不一致：看板為「追蹤清理」，對照表（`spec:ai-harness`）為「AI工具鏈」，待使用者決定要改主題或改標籤
-- [ ] `scraper-zero-output` 薄 spec：草稿在 `~/.ai-notes/ttr/scraper-zero-output-spec-draft/`；**不能放進 `ttr-scraper-zero-output-worktree`**（那是已合併的 #378 修復，且有一個忙碌中的 session 正在用，見 notes.md §26.5）；待使用者決定 worktree 與是否先協調該 session
+- [x] #328 維持 `spec:ai-harness`、主題維持「追蹤清理」：用新增的「個別 issue 覆寫」記錄（`board-themes.json` 的 `overrides`，理由必填）；#342 設為新主題「SNS governance」並移出豁免（notes.md §27.1）
+- [x] `scraper-zero-output` spec 已由那個 session（`d9658c7d`）自己建立並 commit（`366cf0ac`，本機、未 push；在 `ttr-scraper-zero-output-worktree`，該 worktree 落後 origin/main 55 個 commit，推送前要同步）。**內容是它自己的範圍，不是我的草稿**：只涵蓋已知故障的修復與收尾（#375–#378、#394、#395、#404、#424）；prtimes 與 #381 其餘來源的判斷**不在這個 spec 內**，仍是 #367、#381 兩個 issue（主題「來源健康」）。我的草稿不再使用（notes.md §29）
+- [x] 看板對照表已重新決定（使用者 2026-10-23 選 B）：`spec:scraper-zero-output` 對應「爬蟲管線」；#376、#377（單一來源故障）用覆寫保持「來源健康」；#424 推導為「爬蟲管線」並已套用；稽核嚴格模式 exit 0（notes.md §30）
+- [ ] #424（Daily Scraper 每天因 `enrich_location.py` 的 `NameError` 失敗）：**已有 owner**：`scraper-zero-output` 的 spec 在 Phase B 列了「修好 #424，讓 Daily Scraper 回到 success」，標籤已貼；我先前建議的主題「止血」作廢，主題由對照表決定（上一項）
+- [x] 查詢 session 的腳本已完成（`ai-harness·handoff` 72ddde89，`071e246f`，本機、未 push）：`python3 scripts/session_map.py [--days N] [--repo 字串]`，唯讀，列出 session 樹、標題、ID 前 8 碼、VS Code／CLI、最後活動、所在 worktree 與 branch；它讀 transcript 中每則訊息記錄的 `cwd` 與 `gitBranch`，所以我先前提醒的「`claude agents --json` 的 `cwd` 不可靠」已被它的設計涵蓋，不需要再轉告（notes.md §29.2）
+- [ ] 同一個 worktree 有兩個 session 在寫（`72ddde89` 在 `ttr-ai-harness-worktree` commit 了 `b18d5467`）：是否要為它另開 worktree，待使用者決定（notes.md §27.6）
 - [ ] 在互動 session 實際用 `/feature-kickoff` 跑一次完整流程（需要一個真的要啟動的功能；`/feature-kickoff` 的行為目前只有腳本有測試，prompt 本身 NOT TESTED）
 - [ ] 第 3 段（同功能內 agent teams 做實作）暫緩，實作型切分尚未驗證
 - [ ] 同步改窄 `validate-merge-deploy.agent.md` 與 `campaign-closer.agent.md` 的「通知其他 session」描述（現行寫法仍是無條件通知；規則已在 `git.instructions.md` 改為只通知受影響者，notes.md §25.1）

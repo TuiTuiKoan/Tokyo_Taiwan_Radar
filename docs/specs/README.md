@@ -78,8 +78,9 @@ parked → active → archived
 主題的規則：
 
 - **主題比 spec 粗**：多個 spec 可以共用一個主題（例如 `evaluation-framework` 與 `people-ground-truth` 都是「Eval」），所以主題回答的是「領域」，spec 回答的是「文件」，兩者不重複。
-- **對照表是唯一來源**：[`board-themes.json`](./board-themes.json) 記錄 12 個主題、spec 到主題的對應，以及豁免（機器人 issue、單點事項）。新增 spec 時在這裡加一行；新增主題時先在看板網頁新增選項，再加進這個檔案。
-- **命名**：主題用 roadmap 領域的短名詞，不加前綴，最多一個英文詞或縮寫（現有：止血、PR 分層、成本、Eval、追蹤清理、架構圖、來源 intake、QA heartbeat、AI工具鏈、資料修復、來源健康、爬蟲管線）。值是領域，不是依序進行的階段。
+- **對照表是唯一來源**：[`board-themes.json`](./board-themes.json) 記錄 13 個主題、spec 到主題的對應、個別覆寫與豁免（機器人 issue、單點事項）。新增 spec 時在這裡加一行；新增主題時先在看板網頁新增選項，再加進這個檔案。
+- **命名**：主題用領域的短名詞，不加前綴；多半是中文，英文詞或縮寫只在原本就是慣用說法時使用，使用者指定的名稱照用（現有：止血、PR 分層、成本、Eval、追蹤清理、架構圖、來源 intake、QA heartbeat、AI工具鏈、資料修復、來源健康、爬蟲管線、SNS governance）。值是領域，不是依序進行的階段。
+- **一個 spec 對應一個主題，個別 issue 可以覆寫**：同一個主題可以收多個 spec，但一個 spec 在對照表裡只有一個主題。個別 issue 的領域與 spec 不同時，在 `board-themes.json` 的 `overrides` 記錄 issue 編號、主題與理由（例如 #328 屬 `spec:ai-harness`，但內容是 worktree 清理，主題為「追蹤清理」）；稽核會把覆寫列出來供檢視，理由必填。
 - **稽核**：`python3 scripts/board_audit.py` 唯讀，列出缺主題、與對照表不一致、spec 不在對照表、需要決定的 issue；`--apply --yes` 只寫對照表已決定的主題。每週回顧的 Step 2b 會跑它。稽核只相信 `spec:` label，標籤貼錯主題就會錯。
 
 ## 給 AI agent 的使用守則
