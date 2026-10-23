@@ -63,6 +63,25 @@ parked → active → archived
 - 既有 `tasks.md` 裡已經存在的細項 checkbox 保留原狀，不搬移；新增的細項才開 issue。
 - 同一套規則寫在 `AGENTS.md`（Claude Code、Codex）與 `.github/copilot-instructions.md`（VS Code Copilot），agent 會自動遵守。
 
+## 看板標記分工
+
+看板上每個 issue 有幾種標記，各回答一個問題，不要混用：
+
+| 標記 | 回答的問題 | 誰決定 |
+|---|---|---|
+| Status（Todo、In Progress、Done） | 進度 | 開始、進行、完成時 |
+| `spec:<slug>` label | 這個 issue 屬於哪份 spec | 建立 issue 時；屬於 active spec 就一定要貼 |
+| 主題（看板欄位，2026-10-23 前叫「階段」） | 在看板上要到哪個領域區塊找它 | 有 `spec:` label 的，由 `board-themes.json` 的對照表推導；沒有 spec 的，手動設定或列入豁免 |
+| 類型 label（`scraper`、`bug`、`enhancement`、`documentation`、`source-intake`） | 工作性質 | 建立時 |
+| `tier:0`／`tier:1`／`tier:2`（只用在 PR） | 合併方式 | PR workflow |
+
+主題的規則：
+
+- **主題比 spec 粗**：多個 spec 可以共用一個主題（例如 `evaluation-framework` 與 `people-ground-truth` 都是「Eval」），所以主題回答的是「領域」，spec 回答的是「文件」，兩者不重複。
+- **對照表是唯一來源**：[`board-themes.json`](./board-themes.json) 記錄 12 個主題、spec 到主題的對應，以及豁免（機器人 issue、單點事項）。新增 spec 時在這裡加一行；新增主題時先在看板網頁新增選項，再加進這個檔案。
+- **命名**：主題用 roadmap 領域的短名詞，不加前綴，最多一個英文詞或縮寫（現有：止血、PR 分層、成本、Eval、追蹤清理、架構圖、來源 intake、QA heartbeat、AI工具鏈、資料修復、來源健康、爬蟲管線）。值是領域，不是依序進行的階段。
+- **稽核**：`python3 scripts/board_audit.py` 唯讀，列出缺主題、與對照表不一致、spec 不在對照表、需要決定的 issue；`--apply --yes` 只寫對照表已決定的主題。每週回顧的 Step 2b 會跑它。稽核只相信 `spec:` label，標籤貼錯主題就會錯。
+
 ## 給 AI agent 的使用守則
 
 1. **新功能前先建 spec**：在 `active/<slug>/proposal.md` 寫清楚 what/why/non-goals，再開 branch；大型 feature 依「Worktree 生命週期」建對應 `ttr-<slug>-worktree`。

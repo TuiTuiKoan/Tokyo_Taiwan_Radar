@@ -120,6 +120,23 @@ git log --since="7 days ago" --oneline --no-merges | wc -l
 
 ---
 
+## Step 2b：看板主題稽核（唯讀）
+
+```bash
+python3 scripts/board_audit.py
+```
+
+稽核 TTR Roadmap 看板的「主題」欄位是否與 `docs/specs/board-themes.json` 的對照表一致（規則見 `docs/specs/README.md` § 看板標記分工）。需要 `gh` 已登入且有 project 權限；失敗時在週報註明原因，不要略過這一步。
+
+處理方式：
+
+- **可由對照表推導、尚未設定主題**：確認清單合理後執行 `python3 scripts/board_audit.py --apply --yes`。它只寫這一類，而且只寫對照表已決定的主題。
+- **主題不一致、兩個 spec 對應不同主題、spec 不在對照表、需要決定**：不要自行改，寫進週報的「下週優先事項」，由使用者決定。新 spec 要先決定它的主題，再在 `board-themes.json` 加一行。
+- **不要**貼 issue 標籤、新增或改名主題選項、改看板其他欄位；稽核腳本本來就不會做這些。
+- 稽核只相信 issue 的 `spec:` 標籤；標籤貼錯，主題也會跟著錯。報告中看起來標籤可疑的 issue，在週報點名。
+
+---
+
 ## Step 3：撰寫週報並存檔
 
 > **自動化說明**：常態週報已由 `.github/workflows/weekly-docs-report.yml` 於每週一 00:10 JST 自動產出 — 它呼叫 `python scraper/docs_report.py --mode weekly`，以「上一個完整 Mon–Sun 週」的週末星期日日期為 file key，冪等寫入 `docs/weekly_review/<YYYY-MM-DD>.md`，並由 `github-actions[bot]` 提交。重跑只會更新同一檔案，不會產生重複檔。
