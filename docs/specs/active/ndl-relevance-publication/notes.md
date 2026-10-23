@@ -638,16 +638,16 @@ P_dev 已用於 cand5／cand6 的開發，這 20 筆不是獨立驗證；P_h 的
 
 | 集合 | 新版 N | 現行 N | 新 Y／舊 N | 新 N／舊 Y | 兩者皆 N | 符號檢定（雙尾） |
 |------|------|------|------|------|------|------|
-| P_dev 20 | 2 | 16 | 14 | 0 | 2 | — |
-| P_h 20 | 5 | 11 | 7 | 1 | 4 | p ≈ 0.070 |
-| 合計 40 | **7** | **27** | 21 | 1 | 6 | p ≈ 1.1×10⁻⁵ |
+| P_dev 20 | 2 | 16 | 14 | 0 | 2 | p ≈ 1.2×10⁻⁴ |
+| P_h 20 | 4 | 11 | 8 | 1 | 3 | p ≈ 0.039 |
+| 合計 40 | **6** | **27** | 22 | 1 | 5 | p ≈ 5.7×10⁻⁶ |
 
-P_h 單獨看方向一致，但 20 筆不足以在 0.05 下顯著；合計含 P_dev（非獨立）。
+已含裁決（#25 新版 N→Y，見下）。裁決前為新版 N 7、P_h p ≈ 0.070。P_dev 非獨立；P_h 單獨在 0.05 下顯著。
 
 現行分類被判 N 的主因：`books_media` 當萬用標籤（11 筆只有它或以它為主）、出版物帶 `lecture`／`report`（8 筆）、
 `senses` 當補位（4 筆）。這些在新版都消失。
 
-新版仍為 N 的 7 筆（剩下的錯誤型態，另開 issue）：
+新版仍為 N 的 6 筆（剩下的錯誤型態，另開 issue；#25 已裁決為 Y，保留在表中供對照）：
 
 | # | 記錄 | 新版 | 使用者意見 | 型態 |
 |---|------|------|------|------|
@@ -655,14 +655,16 @@ P_h 單獨看方向一致，但 20 筆不足以在 0.05 下顯著；合計含 P_
 | 19 | [2025年の台湾 好景気のなか深まる不安](https://tokyotaiwanradar.com/ja/events/15d0cf60-f2cf-4fd6-a326-2578a76fe312) | geopolitics academic | geopolitics | 期刊文章多加 academic |
 | 22 | [奇天烈老画家と軟弱娘の台湾妖怪探索珍道中](https://tokyotaiwanradar.com/ja/events/eebeba83-1d24-4f78-aaad-912335ff67d5) | art | folklore | 漏 folklore |
 | 24 | [台湾で待ち合わせ 気ままに食べたい中年旅](https://tokyotaiwanradar.com/ja/events/c4167080-278e-4700-989c-8da22618301c) | literature | tourism | 旅遊書漏 tourism |
-| 25 | [台湾有事、日本の決断](https://tokyotaiwanradar.com/ja/events/b437abd9-3512-4d34-a4f4-58d4fc59acbd)（hanmoto） | geopolitics history | geopolitics | 多加 history |
+| 25 | [台湾有事、日本の決断](https://tokyotaiwanradar.com/ja/events/b437abd9-3512-4d34-a4f4-58d4fc59acbd)（hanmoto） | geopolitics history | geopolitics | ~~多加 history~~ 裁決改 Y |
 | 35 | [最新版 台湾 旅人地図帳](https://tokyotaiwanradar.com/ja/events/4cd09525-2661-451d-b053-0c12b939d5d5) | history | tourism | 旅遊書漏 tourism、誤標 history |
 | 39 | [旅して学ぶ台湾](https://tokyotaiwanradar.com/ja/events/f1095b88-5b13-4973-9f9f-dada6c3c53ea) | history geopolitics academic | （現行 tourism study_abroad 為 Y，建議再加 history） | 旅遊書漏 tourism；唯一新版退步的一筆 |
 
 判為 Y 但附建議的：#2、#12、#18 建議加 geopolitics，#8 建議加 art（漏次要主題）。
 
 同一本書兩筆判定不同：#15（ndl，[d6d80433](https://tokyotaiwanradar.com/ja/events/d6d80433-5be8-466c-8a99-4f3e2ae2c2b8)）新版 geopolitics history academic 判 Y，
-#25（hanmoto）新版 geopolitics history 判 N。不改判，照填寫結果計入。
+#25（hanmoto）新版 geopolitics history 判 N。使用者裁決（2026-10-23）：#25 新版改 Y，與 #15 一致；
+理由是 `academic` 常有曖昧性，期刊文章乍看難判斷是否具學術性。盲標原值保留在 `category_check2.csv`。
+#16、#19 的 N 判定不變（使用者未改判；#16 另漏 tech），但其中的 academic 可能同屬邊界情況。
 
 剩下的錯誤型態已開 issue [#422](https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/issues/422)。
 

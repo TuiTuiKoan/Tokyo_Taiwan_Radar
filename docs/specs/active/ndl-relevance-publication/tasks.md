@@ -76,7 +76,7 @@
 - [x] 重新凍結 cand6（SHA 寫入 notes），對 P_h 執行
 - [x] 程式規則：純出版物有其他分類時移除 `books_media`；出版物不做 lecture／report／tv_program 關鍵字補分類；加測試
 - [x] 使用者分類檢查第二輪：P_dev 保留記錄隨機 20＋P_h 未檢查過的保留記錄隨機 20，盲測 A／B（現行 vs 新），
-      門檻改為「新版 N 明顯少於現行」（使用者 2026-10-23 決定）：**通過**，新版 N 7 vs 現行 N 27，見 notes
+      門檻改為「新版 N 明顯少於現行」（使用者 2026-10-23 決定）：**通過**，新版 N 6 vs 現行 N 27（含 1 筆裁決），見 notes
 - [x] `weekly_line_broadcast.py` 書籍分組改依純出版物（`event_form`），不再只看 `books_media`；加測試
 - [x] 非出版物 60 筆新舊對照，逐筆判讀差異；5 筆負向案例（改以 cand0 同批重跑比對，見 notes）
 - [ ] `metrics`：各候選規則的 recall、下界、N 移除率、P_h 結果寫入 `notes.md` § 量測結果，
