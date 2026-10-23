@@ -828,3 +828,30 @@ git -C "/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar" push origin feat
 ```
 
 推送後：我用 exact-SHA 查 Vercel deployment（先看 commit status 是否 pending）；使用者在主工作目錄 `git pull`；依 `git.instructions.md` § Telling other running sessions 通知其他 Claude Code session。
+
+## 25. 推送與部署驗證（2026-10-23）
+
+使用者從主工作目錄執行 `git -C "<主工作目錄>" push origin feat/ai-harness:main`。以下是推送後的查證（唯讀）。
+
+| 查證 | 結果 |
+|---|---|
+| origin/main 的頂端 | `97db47f2`（docs(specs): record the ai-harness rebase and the pre-push gates）；與本分支 HEAD 相同，本分支是它的祖先，領先 0、落後 0；origin/main 上沒有更晚的 commit |
+| GitHub 上的 spec | `docs/specs/active/ai-harness/proposal.md`（4906 bytes）可由 contents API 讀到 |
+| commit status（13:28:07） | `pending`（"Vercel is deploying your app"），deployments 為 `[]`——正是 V-M-D 檔記載的「build 完成前回空」情況，所以**沒有**在這時記成沒有部署 |
+| 輪詢後（13:28:26） | status `success`（"Deployment has completed"）；1 個 deployment：id `7270206104`，環境 Production，建立於 2026-10-23T04:28:15Z，狀態 success，immutable URL `https://tokyo-taiwan-radar-kimg3p0t5-tuituikoans-projects.vercel.app` |
+| workflow runs（此 commit） | Secret Scan：completed success；PR Tier：completed skipped（直接推送，不是 PR，符合預期） |
+| 正式站 | `https://tokyotaiwanradar.com/ja` 回 HTTP 200（一次請求；這批推送沒有 `web/` 檔案，所以沒有做 app-level 的完整 smoke） |
+| 主工作目錄 | `## main...origin/main`，已與 origin/main 同步（使用者已 pull） |
+| 帶 `spec:ai-harness` 的開放 issue | #420、#346、#328，它們指向的 spec 現在存在於 main |
+
+這是本 campaign 第一次進 main。未涵蓋：`.githooks/pre-push` 的輸出是使用者在自己的終端機看到的，我沒有看到；immutable URL 我沒有請求（可能落在 Deployment Protection 之後，V-M-D 檔已說明這不算應用錯誤）。
+
+### 25.1 通知其他 session：這次沒有發，原因與規則修正
+
+`git.instructions.md` 先前寫「推送與結案後通知其他 Claude Code session」。這次沒有通知，理由：(1) §24.2 已查證 15 個分支都沒動到受影響的檔案，沒有任何 session 需要 rebase 或改變做法；(2) 本機有 36 個互動 session（2 個忙碌、33 個閒置），**對閒置的 session 傳訊息會讓它開一個新的 model turn，消耗配額**，廣播給全部是不划算的；訊息也不能替代核准。
+
+因此把規則改窄：只通知「worktree 需要採取行動」的 session（需要 rebase、被退役、必須遵守新規則）；沒有受影響者就不發。已修改 `git.instructions.md`（本機 commit，隨下一次推送上去）。V-M-D 與 campaign-closer 兩個 agent 檔的描述仍寫「向其他 session 傳一則通知」，沒有同步改窄，是遺留的不一致；已列入 tasks。
+
+### 25.2 之後新增的本機變更
+
+本節與規則修正是推送後才寫的，需要隨下一次推送上去；每次推送後再補紀錄會形成「推送、再補、再推」的循環，所以下一次推送要等有實質變更一併進行，不單獨為了紀錄而推。

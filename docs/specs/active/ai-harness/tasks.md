@@ -64,7 +64,8 @@
 - [x] S5 已由使用者明確確認成立（2026-10-23）；agent view 小試驗的判定為「可列入 Phase 2b 正式使用，不是採用」
 - [ ] 後續小試驗（NOT TESTED）：從不同 worktree 派出 session 是否都能出現在同一個 agent view 的清單；`Notification` hook 能否補上 VS Code 沒有通知的缺口
 - [x] **ai-harness 分支已 rebase**（2026-10-23，使用者核准）：3 個 commit 有衝突（`validate-merge-deploy.agent.md`、`plan-critic.agent.md`、`AGENTS.md`），各自保留 main 的新敘述並加上我們的 `tier` 與「批評全文必須存檔」；生成物重新生成；結果領先 origin/main 11、落後 0；`sync --check` exit 0；`scripts` 全部測試 967 passed（含 main 的測試）；詳見 notes.md §24
-- [ ] **V-M-D 推送**（使用者提問，2026-10-23）：我的建議是現在就推；閘門已跑完，等使用者核准並從主工作目錄執行推送指令，見 notes.md §24.3
+- [x] **V-M-D 推送完成**（2026-10-23，使用者從主工作目錄執行）：origin/main 就是 `97db47f2`；Vercel Production deployment `7270206104` success；詳見 notes.md §25。`docs/specs/active/ai-harness/` 現在在 GitHub 上
+- [ ] 下一步候選（使用者決定）：標記設計（notes.md §19.4）、`scraper-zero-output` spec、`feature-kickoff` 的互動驗證、Phase 2b 的每週配額基準（最早 2026-10-30）、從不同 worktree 派出 session 的小試驗、`Notification` hook、agent view 試驗 worktree 的退役
 - [ ] Orca 安裝並釘版本、設定 worktree 建立後的安裝命令、不使用 Delete
 - [ ] 驗證（NOT TESTED，通過前不得稱相容）：Orca 內 `claude` 的 `/hooks` 與 push ask 生效；`/list-agents` 可見其他 worktree
 
@@ -105,3 +106,4 @@
 - [ ] 看板標記的長期設計（使用者 2026-10-23 提問）：我的評估與建議見 notes.md §19.4，待使用者決定
 - [ ] 在互動 session 實際用 `/feature-kickoff` 跑一次完整流程（需要一個真的要啟動的功能；`/feature-kickoff` 的行為目前只有腳本有測試，prompt 本身 NOT TESTED）
 - [ ] 第 3 段（同功能內 agent teams 做實作）暫緩，實作型切分尚未驗證
+- [ ] 同步改窄 `validate-merge-deploy.agent.md` 與 `campaign-closer.agent.md` 的「通知其他 session」描述（現行寫法仍是無條件通知；規則已在 `git.instructions.md` 改為只通知受影響者，notes.md §25.1）
