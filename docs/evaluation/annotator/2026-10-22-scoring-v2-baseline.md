@@ -60,3 +60,15 @@ A3 修正後的 0 是實際狀況：讀者從前台回報的件數很少。原�
 - `05aefbdf`（peatix）：期望 category 被存成 Postgres 陣列字串 `'{movie,indigenous,…}'`，不是 list，set 比對必然失敗。
 - `b26019c7`（taiwan_cultural_center）：期望 description_zh 是「雲門舞集的《WAVES》將在雲門舞集上演。」，地點錯置。
 - location_name 的期望值來自 `field_corrections`，但該欄位 1324 筆中有 1323 筆是腳本寫入的鎖定值（`corrected_by` 為空），不是人工修正。golden 標籤的 `from_fc` 不能當作「人工確認」。
+
+## 2026-10-23：比較驗證後的輸出（#383，PR #432）
+
+`run_golden()` 改為在比較前先套用正式環境的 `_validate_categories()`、`_validate_event_forms()`。PR #432 的 CI（Stage 1、frozen、50 cases）結果：
+
+| 指標 | #324 基準 | #383 之後 |
+|---|---|---|
+| category | 4／13（30.8%） | 3／13（23.1%） |
+| 驗證改動的輸出 | 未記錄 | category 4 筆、event_form 1 筆 |
+| Total Tier 1（annotator） | 48.7% | 47.4% |
+
+category 少 1 筆是 LLM 每次輸出不同，不是驗證造成：golden 的期望值除了 `05aefbdf`（見上一節）以外都是有效值，而驗證只會把別名換成正式值、丟掉無效值，原本相等的集合驗證後仍相等，所以只可能把失敗變成通過。這次 10 筆失敗都是 LLM 選的 category 本身不同（例：期望 `["history", "indigenous", "documentary"]`，輸出 `["movie"]`）。13 筆的樣本太小，單次執行差 1 筆在雜訊範圍內；#353 補到 100 筆後再看趨勢。
