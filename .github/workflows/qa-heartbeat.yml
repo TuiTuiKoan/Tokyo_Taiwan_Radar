@@ -70,7 +70,7 @@ jobs:
         run: |
           python qa_heartbeat.py ${{ steps.mode.outputs.dry }} \
             --limit ${{ steps.mode.outputs.limit }} \
-            --model gpt-4o \
+            --model gpt-4o-mini \
             --max-input-chars 1200
 
       - name: Upload report

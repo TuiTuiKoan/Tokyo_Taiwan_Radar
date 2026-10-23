@@ -133,3 +133,11 @@ M1 移除 researcher（1）、discovery_accounts（2）、qa_auto_fix 備援（1
 - low 的那 1 筆是錯的：fde7c1a6（姬路台灣夜市）的正確日期 2026-09-19～21 會被覆寫成 2023-09-01～30。「失敗」是 JSON mode 下 `message.content` 為 None（模型拒答）。
 - 裁決：退役。刪除 `enrich_poster.py`、兩個測試檔與 `scraper.yml` 步驟；hanmoto 佔位圖判斷移到 `publication_rules.is_placeholder_image_url`（`_oneoff_backfill_publication_metadata.py` 仍在用）；`llm_cache.py` 保留給 #321、#360。
 
+## M7 #360、#321、#361（2026-10-23）
+
+- **#361**：`main.py` 本來就在同一次執行裡跑 annotate、`enrich_movie_titles`、`enrich_person_names`，`scraper.yml` 又各跑一次。刪掉 workflow 的三個重複 step，`annotate_outcome` 與「Fail on LLM step errors」改看 `run_scraper`；原本 movie-titles step 帶的 `TMDB_API_KEY`、`SERPAPI_KEY` 移到 `run_scraper`。`enrich_person_names` 的全量候選加上 `is_active` 與「結束不超過 30 天或沒有結束日」（`annotator._restrict_to_live_events`）；指定 `event_ids` 時不套用。dry-run 候選數要等 workflow 實際跑過才能比較，這裡沒有數字。
+- **#360**：`enrich_location.py` 的候選改成未來活動（與 `enrich_addresses` 相同的 `or_` 寫法），先用 `enrich_addresses.registry_address` 查 venue registry，命中就不呼叫模型；其餘以 `llm_cache(step='location_extract', subject_key=<event_id>)` 標記，30 天內不重送（`llm_cache.seen(..., max_age_days=30)`）。模型呼叫失敗不留標記，下次重試。issue 要求的「結果寫入 scraper_runs」沒做：每次呼叫已經是 `llm_usage` 一列，caller 為 `enrich.location`。順帶修掉型別標註用了沒 import 的 `OpenAI`，在 Python 3.12 會於 import 時 NameError（本機 3.14 不會）。
+- **#321 qa_heartbeat**：四種安全的 report type 各對應一個 handler，改為依 type 規則分類（`RULE_BY_REPORT_TYPE`，信心 0.95，審計列的 `model_used` 記為 `rule`）。只有規則不認得的 type 才呼叫模型，預設 `gpt-4o-mini`，結果以 `llm_cache(step='qa_classify', subject_key=<report id>)` 標記，已分類過的不再送；dry-run 一律不呼叫。行為差異：以前模型可以把內容不符的 report 判成 R-AMBIGUOUS 留給人看，現在改由各 handler 自己的檢查把關。
+- **#321 cinemaclair**：週時刻表 OCR 以 `sha256(圖片 URL + 排序後的片名)` 為 key 存進 `llm_cache(step='cinemaclair_ocr')`，結果放 `result.showtimes`；命中就直接用，失敗不留標記。快取無法讀取時退回重新辨識。
+- 成效要等 `llm_cost_daily` 累積一週後，看 `enrich.location`、`qa.heartbeat`、`enrich.cinemaclair_ocr` 與 annotator 的 person_names 用量。
+

@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       summary: ${{ steps.summarize.outputs.summary }}
-      annotate_outcome: ${{ steps.annotate_pending.outcome }}
+      annotate_outcome: ${{ steps.run_scraper.outcome }}
       backlog_health: ${{ steps.backlog.outputs.json }}
       quality_alert: ${{ steps.quality.outputs.alert }}
 
@@ -51,6 +51,8 @@ jobs:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           CONTENTFUL_TOKEN: ${{ secrets.CONTENTFUL_TOKEN }}
           DEEPL_API_KEY: ${{ secrets.DEEPL_API_KEY }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
           INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}
           NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
         run: python main.py
@@ -65,26 +67,6 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python merger.py
 
-      - name: Annotate pending events
-        id: annotate_pending
-        working-directory: scraper
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_API_KEY_ANNOTATOR: ${{ secrets.OPENAI_API_KEY_ANNOTATOR }}
-          OPENAI_API_KEY_ENRICH: ${{ secrets.OPENAI_API_KEY_ENRICH }}
-        run: python annotator.py --limit 500
-        continue-on-error: true
-
-      - name: Flag annotate failure
-        if: steps.annotate_pending.outcome != 'success'
-        run: |
-          echo "::warning::Annotate step failed (outcome=${{ steps.annotate_pending.outcome }}). Backlog may not have been drained."
-          echo "## \u26a0\ufe0f Annotate Failed" >> $GITHUB_STEP_SUMMARY
-          echo "Outcome: \`${{ steps.annotate_pending.outcome }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "Pending backlog\u6d88\u5316\u672a\u57f7\u884c\uff0c\u8acb\u53c3\u8003\u4e0b\u65b9 Backlog Health \u5340\u584a\u3002" >> $GITHUB_STEP_SUMMARY
-
       - name: Fix reviewed events missing translations
         id: fix_reviewed
         working-directory: scraper
@@ -97,26 +79,7 @@ jobs:
         run: python annotator.py --fix-reviewed
         continue-on-error: true
 
-      - name: Enrich movie titles from eiga.com + TMDB + SerpAPI
-        working-directory: scraper
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
-          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
-        run: python annotator.py --enrich-movie-titles
-
-      - name: Enrich person names via eiga.com + Wikipedia (all events)
-        id: enrich_person_names
-        working-directory: scraper
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_API_KEY_ANNOTATOR: ${{ secrets.OPENAI_API_KEY_ANNOTATOR }}
-          OPENAI_API_KEY_ENRICH: ${{ secrets.OPENAI_API_KEY_ENRICH }}
-        run: python annotator.py --enrich-person-names
-        continue-on-error: true
+      # annotate, movie-title and person-name enrichment run once, inside main.py (#361).
 
       - name: Enrich missing location addresses via GPT
         id: enrich_location
@@ -248,9 +211,7 @@ jobs:
         run: |
           FAILED=""
           [ "${{ steps.run_scraper.outcome }}" = "failure" ] && FAILED="$FAILED main.py"
-          [ "${{ steps.annotate_pending.outcome }}" = "failure" ] && FAILED="$FAILED annotate"
           [ "${{ steps.fix_reviewed.outcome }}" = "failure" ] && FAILED="$FAILED fix-reviewed"
-          [ "${{ steps.enrich_person_names.outcome }}" = "failure" ] && FAILED="$FAILED enrich-person-names"
           [ "${{ steps.enrich_location.outcome }}" = "failure" ] && FAILED="$FAILED enrich-location"
           if [ -n "$FAILED" ]; then
             echo "::error::LLM steps failed:$FAILED"

@@ -95,6 +95,10 @@ class _Query:
         # evaluated by this double; every row passes.
         return self._filter("or", None, expression)
 
+    def gte(self, column, value):
+        # llm_cache age window; the double keeps every row.
+        return self._filter("gte", column, value)
+
     def limit(self, value):
         self.limit_n = value
         return self

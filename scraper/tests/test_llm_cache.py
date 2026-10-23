@@ -44,3 +44,31 @@ def test_seen_raises_when_the_table_cannot_be_read():
 
     with pytest.raises(RuntimeError):
         llm_cache.seen(Broken(), "poster_ocr", ["k"])
+
+
+def test_fetch_returns_the_stored_result_or_none():
+    class Q:
+        def __init__(self, rows):
+            self.rows = rows
+
+        def select(self, *a):
+            return self
+
+        def eq(self, *a):
+            return self
+
+        def limit(self, *a):
+            return self
+
+        def execute(self):
+            return type("R", (), {"data": self.rows})()
+
+    class SB:
+        def __init__(self, rows):
+            self.rows = rows
+
+        def table(self, name):
+            return Q(self.rows)
+
+    assert llm_cache.fetch(SB([{"result": {"a": 1}}]), "s", "k") == {"a": 1}
+    assert llm_cache.fetch(SB([]), "s", "k") is None

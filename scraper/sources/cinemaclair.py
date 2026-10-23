@@ -161,7 +161,51 @@ def _fetch_schedule_image_url() -> str | None:
     return None
 
 
+_OCR_CACHE_STEP = "cinemaclair_ocr"
+
+
+def _ocr_cache_key(image_url: str, taiwan_titles: list[str]) -> str:
+    """The image URL changes every week; the titles decide what was asked of it."""
+    return hashlib.sha256("|".join([image_url, *sorted(taiwan_titles)]).encode("utf-8")).hexdigest()
+
+
+def _cache_client():
+    """A Supabase client for the OCR cache, or None when this run has no credentials."""
+    url, key = os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not (url and key):
+        return None
+    from supabase import create_client  # noqa: PLC0415
+
+    return create_client(url, key)
+
+
 def _ocr_schedule_showtimes(image_url: str, taiwan_titles: list[str]) -> dict[str, str]:
+    """Cached by image URL and titles: the same weekly image is read once (#321)."""
+    import llm_cache  # noqa: PLC0415
+
+    cache_key = _ocr_cache_key(image_url, taiwan_titles)
+    sb = None
+    try:
+        sb = _cache_client()
+        cached = llm_cache.fetch(sb, _OCR_CACHE_STEP, cache_key) if sb else None
+        if cached is not None:
+            logger.info("cinemaclair: OCR cache hit for %s", image_url)
+            return cached.get("showtimes", {})
+    except Exception as exc:
+        logger.warning("cinemaclair: OCR cache unreadable, reading the image again: %s", exc)
+        sb = None
+
+    result = _ocr_schedule_showtimes_uncached(image_url, taiwan_titles)
+    # A failed read returns None and is not recorded, so the next run tries again.
+    if sb is not None and result is not None:
+        llm_cache.record(
+            sb, _OCR_CACHE_STEP, cache_key, "applied" if result else "no_result",
+            {"image_url": image_url, "showtimes": result},
+        )
+    return result or {}
+
+
+def _ocr_schedule_showtimes_uncached(image_url: str, taiwan_titles: list[str]) -> dict[str, str] | None:
     """GPT-4o Vision でスケジュール画像をOCRし、台湾映画の上映時刻を返す。
 
     Args:
@@ -176,7 +220,7 @@ def _ocr_schedule_showtimes(image_url: str, taiwan_titles: list[str]) -> dict[st
 
     if not (api_key_for("enrich.cinemaclair_ocr") or os.environ.get("OPENAI_API_KEY")):
         logger.debug("cinemaclair: OPENAI_API_KEY not set, skipping OCR schedule")
-        return {}
+        return None
 
     titles_str = "\n".join(f"- {t}" for t in taiwan_titles)
     prompt = (
@@ -229,7 +273,7 @@ def _ocr_schedule_showtimes(image_url: str, taiwan_titles: list[str]) -> dict[st
         return result
     except Exception as exc:
         logger.warning("cinemaclair: OCR schedule failed: %s", exc)
-        return {}
+        return None
 
 
 def _match_schedule(schedule_map: dict[str, str], title: str) -> str | None:
