@@ -61,9 +61,10 @@ updated: 2026-10-23
 * [x] Phase 5 PR：PR #359 的 required checks（Vercel build、eval、gitleaks）皆 pass
 * [x] Phase 5 merge：2026-10-22 以 rebase merge 整合 main，exact merged SHA `b19a08e9`，main 歷史線性
 * [ ] Phase 5 deploy：exact-SHA Vercel Production deployment 7249765880（`b19a08e9`）已 success；三筆 runtime canary 尚未執行
-* [ ] Phase 6b：建立 transactional DB RPC，盤點並 pause/drain/resume service-role writers（設計見 `plan.md`，追蹤 issue #385）
-* [ ] Phase 6b：以 RPC 重新 capture immutable manifest，取得新 digest-bound production apply 核准
-* [ ] Phase 6c：production apply 與 read-back，僅能在 Phase 6b 新核准後執行
+* [x] Phase 6b：建立 transactional DB RPC（migration 103，PR #413，2026-10-23 套用）、盤點 writers 並寫成 runbook（PR #418）；設計見 `plan.md`，追蹤 issue #385
+* [x] Phase 6b：以 RPC 重新 capture immutable manifest（digest `f9f7238452330f4ccd4e2eff6af695183f57a2be9e6fe6ba3e55ed64515fb054`），並取得使用者針對該 digest 的 production apply 核准
+* [x] Phase 6c：production apply 與 read-back（2026-10-23 15:21 JST，22 筆停用，`active` 2406 → 2384，`readback=ok`），經過程見 `notes.md`
+* [ ] Phase 6c 復驗：第一個完整 `scraper.yml` run 成功結束後再跑一次 `--readback`，確認沒有被蓋回去（2026-10-24 09:00 JST 排程）；公開網址殘留追蹤於 issue #427
 
 ## Changes Log
 

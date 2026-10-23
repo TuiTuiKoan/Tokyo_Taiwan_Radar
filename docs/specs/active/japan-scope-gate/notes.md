@@ -50,3 +50,39 @@ updated: 2026-10-23
 
 此判斷需要使用者在核准包審核時確認，不是自動核准。
 
+## 2026-10-23 production apply 執行紀錄
+
+使用者對 manifest digest `f9f7238452330f4ccd4e2eff6af695183f57a2be9e6fe6ba3e55ed64515fb054` 說出明確核准句（涵蓋 workflow 暫停與還原、launchd 卸載與重載、094 維護鎖、apply 22 筆），並親自執行 runbook。agent 只做唯讀檢查。核准包審核時，使用者重看 `3f693869`、`fe47a25c`、`f925a943`（NHK 報導 5/15 上海 APEC 會議，已過期）、`9e1c9b0b`（有 1 筆 pending report），決定四筆都照其餘一起停用，清單與 digest 不變。
+
+| 時間（JST） | 動作 | 結果 |
+| --- | --- | --- |
+| 14:5x | `gh workflow disable`（`to_pause.txt` 的 16 個） | 讀回全部 `disabled_manually`，其餘 27 個維持 active |
+| 14:5x | `launchctl bootout com.ttr.home-ip-scrape` | `launchctl list` 不再列出 |
+| 14:53 | drain：`Run Merger`（run 39908079646，14:51 以 schedule 啟動）自然結束 | `success`；之後沒有任何 in-flight run |
+| 14:56 | 094 維護鎖 `acquire` | window_id `6664d275f2b641df835d8d2abef94697` |
+| 14:5x | idleness probe 兩次 | 完全相同：events 3373、active 2406、`max_updated` 05:31:57 UTC、`max_created` 04:10:12 UTC、`last_run` 04:55:56 UTC |
+| 15:0x | `--validate` | `validate=ok target_count=22` |
+| 15:21 | `--apply` | `status=applied`、`applied_count=22` |
+| 15:2x | `--readback` + Dashboard SQL | `readback=ok`；`active` 2384（少 22）、`marked` 22 |
+| 15:29 | 維護鎖 `release` | `active=false` |
+| 15:3x | `gh workflow enable`、`launchctl bootstrap` | 43 個 workflow 與暫停前逐行比對相同；`home-ip-scrape` 重新載入 |
+
+留存於使用者本機 `~/.ai-notes/ttr/japan-scope-gate/`（0400）：`scope_manifest_20261022T190533Z.json`、`approval_package_f9f7…fb054.md`、`rollback_f9f7…fb054.sql`（SHA256 `2119c4072fc38dcb2ca3c729f98fbda97959da1742caefffe67483cb33191cb3`，**未使用**）、apply journal `scope_manifest_20261022T190533Z.json.apply-20261023T062124Z.json`。
+
+### 公開網址檢查（agent 唯讀，2026-10-23 15:2x–15:3x JST）
+
+- 22 筆詳情頁（ja）全部回 **HTTP 200**，內容是 Next.js not-found 畫面：`<title>` 為通用站名並帶 `<meta name="robots" content="noindex">`；對照用 active 事件有事件標題且無 noindex。推測是 `[id]/loading.tsx` 先送出 200 串流，之後 `page.tsx` 才呼叫 `notFound()`（未驗證）。因此 runbook 的驗收標準由「回 404」改為「not-found 內容加 noindex」。
+- 首頁（ja）不含這 22 筆。
+- sitemap（`last-modified` 06:23:36 GMT，apply 後約 2 分鐘）仍含 22 筆中的 10 筆；`web/app/sitemap.ts` 查詢有 `is_active=true`，推測是快取尚未更新。追蹤於 issue #427。
+
+### 待辦
+
+- 第一個完整的 `scraper.yml` run 成功結束後（2026-10-24 09:00 JST 排程，約 2.5–2.8 小時），再跑一次 `--readback`，確認沒有被蓋回去（見 `tasks.md`）。
+- 停用期間 `gh run list` 還有兩個從未開始的 queued run（Refetch Thin Events 32219879166，自 2026-08-19；web-darkmode-smoke 25906992019，自 2026-05-15），drain 檢查須排除；歸入 issue #403 追蹤。
+
+### 對 runbook 的修正（已併入 `runbook.md`）
+
+- 貼上長指令會被終端機在中間換行拆成兩條，這次又發生一次（`xargs` 迴圈與 `--validate`，都在參數檢查階段失敗、零寫入）；指令改成短行，並用縮寫變數 `P`、`S`。
+- `gh workflow disable／enable` 經 `xargs` 執行時不是互動終端機，不會逐項印出 ✓，要用 `gh workflow list --all` 讀回確認。
+- 維護鎖的 `--reason` 被換行拆開，reason 欄位帶了一段換行；只影響註解文字。
+

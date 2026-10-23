@@ -7,6 +7,8 @@ updated: 2026-10-23
 
 使用者親自執行本手冊的所有指令（apply 與 `gh workflow disable／enable` 的決定，2026-10-23）。agent 只做唯讀 read-back 與公開網址檢查。設計與取捨見 `plan.md`；writer 盤點由 `scripts/inventory_events_writers.py` 產生。
 
+**已於 2026-10-23 依本手冊執行一次**（digest `f9f7…fb054`，22 筆停用），過程與修正見 `notes.md`。下一次 cleanup 要重新 capture、重新核准，不能沿用這份 manifest 與核准。
+
 **每行指令保持短行**：終端機會在長行中間換行，貼上時會把一行拆成兩個指令（2026-10-23 發生過一次）。
 
 ## 變數（每個新終端機視窗先設一次）
@@ -16,7 +18,11 @@ REPO="$HOME/Development/3-TTR/Tokyo Taiwan Radar"
 D="$HOME/.ai-notes/ttr/japan-scope-gate"
 M="$D/scope_manifest_20261022T190533Z.json"
 DG=f9f7238452330f4ccd4e2eff6af695183f57a2be9e6fe6ba3e55ed64515fb054
+P=../.venv/bin/python
+S=_oneoff_deactivate_non_japan_scope.py
 ```
+
+`P`、`S` 是縮寫，讓第 3、4 節的指令不會長到被換行；它們是相對路徑，**只能在 `$REPO/scraper` 目錄使用**。貼上變數後用 `echo "$M"`、`echo "$DG"` 確認有值（2026-10-23 曾因變數是空的，指令被拆成兩條而失敗）。
 
 `M` 與 `DG` 是 2026-10-23 的 snapshot。重新 capture 後兩者都要換成新的值；舊 digest 的核准不能用在新 manifest。
 
@@ -37,10 +43,15 @@ gh workflow list --all
 gh run list --status in_progress --limit 20
 launchctl list | grep ttr
 python3 scripts/inventory_events_writers.py --workflows > "$D/pause_list.txt"
-gh workflow list --all --json path,state --jq '.[]|select(.state=="active")|.path|sub(".github/workflows/";"")' > "$D/active_before.txt"
+Q='.[]|select(.state=="active")|.path'
+gh workflow list --all --json path,state --jq "$Q" > "$D/ap.txt"
+sed 's#.github/workflows/##' "$D/ap.txt" > "$D/active_before.txt"
 grep -Fxf "$D/active_before.txt" "$D/pause_list.txt" > "$D/to_pause.txt"
+wc -l "$D/to_pause.txt"
 cat "$D/to_pause.txt"
 ```
+
+`wc -l` 是 0 就不要繼續。2026-10-23 實際清單是 16 個。
 
 `to_pause.txt` 是「目前是 active 且可能寫 events」的 workflow；resume 時只還原這份，原本就停用的不動。盤點是過度近似（能 import 到會寫 events 的模組就列入），多停幾個無害。
 
@@ -49,22 +60,24 @@ cat "$D/to_pause.txt"
 1. **launchd**：`launchctl bootout "gui/$(id -u)/com.ttr.home-ip-scrape"`，再確認 `launchctl list | grep ttr` 沒有輸出、`pgrep -fl main.py` 沒有輸出。
 2. **GitHub workflows**：
    ```
-   while read -r w; do gh workflow disable "$w"; done < "$D/to_pause.txt"
+   test -s "$D/to_pause.txt" && echo OK
+   xargs -n1 gh workflow disable < "$D/to_pause.txt"
    gh workflow list --all
    ```
-   讀回確認 `to_pause.txt` 的每一個都不是 active。**停用期間任何人都不要手動 dispatch**（`annotate-now`、`scrape-now`、`enrich-and-annotate` 等）。
+   `xargs` 不是互動終端機，`gh` 不會逐項印出 ✓，所以一定要用 `gh workflow list --all` 讀回，確認 `to_pause.txt` 的每一個都不是 active（顯示 `disabled_manually`）。**停用期間任何人都不要手動 dispatch**（`annotate-now`、`scrape-now`、`enrich-and-annotate` 等）。
 3. **等 in-flight run 結束（drain）**：不取消執行中的 run（取消可能留下半寫入的 annotation）。`scraper.yml` 單次約 2.5–2.8 小時，預留 3 小時。
    ```
-   while read -r w; do for s in in_progress queued; do gh run list --workflow "$w" --status $s --json databaseId,workflowName,status --jq '.[]'; done; done < "$D/to_pause.txt"
+   gh run list --status in_progress --limit 20
+   gh run list --status queued --limit 20
    ```
-   整段沒有任何輸出才算 drain 完；有輸出就等，每 10–15 分鐘再跑一次。
+   `in_progress` 沒有輸出才算 drain 完；有輸出就等，每 10–15 分鐘再跑一次，可用 `gh run view <run-id> --json status,conclusion` 看單一 run。`queued` 若有數週甚至數月前就排隊、從未開始的 run（2026-10-23 有兩個：Refetch Thin Events 自 2026-08-19、web-darkmode-smoke 自 2026-05-15），視為殘留，不用等，也先不要取消。
 4. **web 維護鎖**（094；擋住 admin／owner 對 events 的寫入）：
    ```
    cd "$REPO/scraper"
-   ../.venv/bin/python _oneoff_admin_reports_maintenance.py acquire --reason "japan-scope-gate cleanup"
-   ../.venv/bin/python _oneoff_admin_reports_maintenance.py status
+   $P _oneoff_admin_reports_maintenance.py acquire --reason "cleanup"
+   $P _oneoff_admin_reports_maintenance.py status
    ```
-   **記下印出的 `window_id`**，release 要用。
+   `--reason` 用單一短字，不要有空白或換行（2026-10-23 的 reason 被貼上換行拆成帶換行的文字）。**記下印出的 `window_id`**，release 要用。
 5. **idleness probe**（Dashboard SQL Editor，間隔約 60 秒執行兩次，兩次結果必須完全相同）：
    ```sql
    select count(*) as events, count(*) filter (where is_active) as active,
@@ -78,8 +91,8 @@ cat "$D/to_pause.txt"
 
 ```
 cd "$REPO/scraper"
-../.venv/bin/python _oneoff_deactivate_non_japan_scope.py --validate --manifest "$M" --expect-digest "$DG"
-../.venv/bin/python _oneoff_deactivate_non_japan_scope.py --apply --manifest "$M" --expect-digest "$DG"
+$P $S --validate --manifest "$M" --expect-digest "$DG"
+$P $S --apply --manifest "$M" --expect-digest "$DG"
 ```
 
 `--validate` 回 `validate=ok` 才繼續。`--apply` 會再驗證一次，然後要求輸入 digest 前 12 碼（`f9f723845233`）。成功會印 `status=applied`、`applied_count=22` 與 journal 路徑。
@@ -91,7 +104,7 @@ cd "$REPO/scraper"
 ## 4. Read-back
 
 ```
-../.venv/bin/python _oneoff_deactivate_non_japan_scope.py --readback --manifest "$M" --expect-digest "$DG"
+$P $S --readback --manifest "$M" --expect-digest "$DG"
 ```
 
 預期 `readback=ok`（22 筆都停用且帶本 manifest 的標記、`deactivated_at` 一致、沒有 active 子事件）。再在 Dashboard 執行：
@@ -102,16 +115,17 @@ select count(*) filter (where is_active) as active,
 from public.events;
 ```
 
-預期 `active` = 第 2 節記下的值 − 22，`marked` = 22。接著告訴 agent「apply 完成」，agent 會用公開網址確認這 22 筆回 404、首頁與 sitemap 不含它們（agent 只做唯讀檢查）。
+預期 `active` = 第 2 節記下的值 − 22，`marked` = 22。接著告訴 agent「apply 完成」，agent 會用公開網址做唯讀檢查：這 22 筆的詳情頁要顯示 not-found 內容並帶 `noindex`（HTTP 狀態碼是 200，不是 404：`[id]/loading.tsx` 先串流送出 200，見 issue #427），首頁不含它們，sitemap 在快取更新後不含它們（apply 後數分鐘內仍可能含部分，見 issue #427）。這些公開頁面的現象不影響是否可以進第 5 節恢復；是否恢復只看 `--readback` 與 Dashboard SQL。
 
 ## 5. 恢復
 
-1. 釋放維護鎖：`../.venv/bin/python _oneoff_admin_reports_maintenance.py release --window-id <WINDOW_ID>`，再 `status` 確認 inactive。
+1. 釋放維護鎖：`$P _oneoff_admin_reports_maintenance.py release --window-id <WINDOW_ID>`，再 `status` 確認 inactive。
 2. 啟用 workflow（只還原原本 active 的）：
    ```
-   while read -r w; do gh workflow enable "$w"; done < "$D/to_pause.txt"
+   xargs -n1 gh workflow enable < "$D/to_pause.txt"
    gh workflow list --all
    ```
+   讀回時所有 workflow 應與暫停前一致；可用 `gh workflow list --all --json path,state --jq "$Q"` 與 `active_before.txt` 比對。
 3. 重新載入 launchd：`launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.ttr.home-ip-scrape.plist`，再 `launchctl list | grep ttr`。
 4. 第一個完整的 `scraper.yml` run 成功結束後，再跑一次 `--readback`，確認沒有被蓋回去（復驗起點是第一個「成功完成」的 run，不是固定 24 小時）。
 
