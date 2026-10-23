@@ -634,3 +634,35 @@ cand6 結果（P_dev，$0.836）：books_media 33、taiwan_japan **8**、白名�
 （`order_key(SEED+"category-check-2-dev")`）＋ P_h 未在第一輪出現的保留記錄隨機 20；40 筆中 9 筆 A=B。
 P_dev 已用於 cand5／cand6 的開發，這 20 筆不是獨立驗證；P_h 的 20 筆沒有在開發時看過。
 
+### 第二輪結果（2026-10-23，揭盲）：**通過**（新版 N 明顯少於現行）
+
+| 集合 | 新版 N | 現行 N | 新 Y／舊 N | 新 N／舊 Y | 兩者皆 N | 符號檢定（雙尾） |
+|------|------|------|------|------|------|------|
+| P_dev 20 | 2 | 16 | 14 | 0 | 2 | — |
+| P_h 20 | 5 | 11 | 7 | 1 | 4 | p ≈ 0.070 |
+| 合計 40 | **7** | **27** | 21 | 1 | 6 | p ≈ 1.1×10⁻⁵ |
+
+P_h 單獨看方向一致，但 20 筆不足以在 0.05 下顯著；合計含 P_dev（非獨立）。
+
+現行分類被判 N 的主因：`books_media` 當萬用標籤（11 筆只有它或以它為主）、出版物帶 `lecture`／`report`（8 筆）、
+`senses` 當補位（4 筆）。這些在新版都消失。
+
+新版仍為 N 的 7 筆（剩下的錯誤型態，另開 issue）：
+
+| # | 記錄 | 新版 | 使用者意見 | 型態 |
+|---|------|------|------|------|
+| 16 | [台湾ハイテクが抱えるインフラの制約](https://tokyotaiwanradar.com/ja/events/5ebaa745-d174-438c-95ae-99dbebb87cdd) | geopolitics academic | tech geopolitics | 漏 tech；期刊文章多加 academic |
+| 19 | [2025年の台湾 好景気のなか深まる不安](https://tokyotaiwanradar.com/ja/events/15d0cf60-f2cf-4fd6-a326-2578a76fe312) | geopolitics academic | geopolitics | 期刊文章多加 academic |
+| 22 | [奇天烈老画家と軟弱娘の台湾妖怪探索珍道中](https://tokyotaiwanradar.com/ja/events/eebeba83-1d24-4f78-aaad-912335ff67d5) | art | folklore | 漏 folklore |
+| 24 | [台湾で待ち合わせ 気ままに食べたい中年旅](https://tokyotaiwanradar.com/ja/events/c4167080-278e-4700-989c-8da22618301c) | literature | tourism | 旅遊書漏 tourism |
+| 25 | [台湾有事、日本の決断](https://tokyotaiwanradar.com/ja/events/b437abd9-3512-4d34-a4f4-58d4fc59acbd)（hanmoto） | geopolitics history | geopolitics | 多加 history |
+| 35 | [最新版 台湾 旅人地図帳](https://tokyotaiwanradar.com/ja/events/4cd09525-2661-451d-b053-0c12b939d5d5) | history | tourism | 旅遊書漏 tourism、誤標 history |
+| 39 | [旅して学ぶ台湾](https://tokyotaiwanradar.com/ja/events/f1095b88-5b13-4973-9f9f-dada6c3c53ea) | history geopolitics academic | （現行 tourism study_abroad 為 Y，建議再加 history） | 旅遊書漏 tourism；唯一新版退步的一筆 |
+
+判為 Y 但附建議的：#2、#12、#18 建議加 geopolitics，#8 建議加 art（漏次要主題）。
+
+同一本書兩筆判定不同：#15（ndl，[d6d80433](https://tokyotaiwanradar.com/ja/events/d6d80433-5be8-466c-8a99-4f3e2ae2c2b8)）新版 geopolitics history academic 判 Y，
+#25（hanmoto）新版 geopolitics history 判 N。不改判，照填寫結果計入。
+
+剩下的錯誤型態已開 issue [#422](https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/issues/422)。
+
