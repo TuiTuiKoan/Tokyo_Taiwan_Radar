@@ -1104,3 +1104,47 @@ push 並在主工作目錄 pull 之後，才可以用相對路徑在主工作目
 - 候選 #351 是誤命中：關鍵字 `worktree` 出現在它的備註裡。符合 prompt「關鍵字命中只是提示」的設計。
 - 偏離與限制：(1) 本次只寫 proposal.md 與 tasks.md 的現有項目；#346、#420、#328 的新任務因需要使用者確認，沒有寫進 tasks.md。(2) 「切分平行度」只做文字判斷：#346（`.githooks/`）、#420（只驗證）、#328 與 #426（同一支腳本）。(3) 沒有貼任何標籤，也沒有對 issue 寫入。
 - 一個觀察：腳本把 #426 判為「提到 #328」，但兩者實質上要合併成同一支腳本；引用關係看得出，合併建議要靠人讀內文。
+
+## 36. 後續小試驗 1：跨 worktree 的 agent view 清單（2026-10-23）
+
+規劃見 [spike-agent-view-followups.md](./spike-agent-view-followups.md)。執行者：Claude Code（Sonnet 5.5）；兩個測試 session 用 Haiku。用量基準 21:37：12%／1%／0%；結束後 21:4x：14%／1%／0%。
+
+| # | 結果 | 說明 |
+|---|---|---|
+| S1 | 成立 | 從 A（`ttr-ai-harness-worktree`）與 B（主工作目錄）各自執行 `claude agents --json`，兩邊都同時列出 `trial-A` 與 `trial-B`（共 45 筆，含所有互動 session）。清單是全域的，不依啟動目錄分開 |
+| S2 | 成立 | 每筆 `cwd` 與啟動目錄一致（trial-A 在 worktree、trial-B 在主工作目錄） |
+| S3 | 規劃有誤，部分成立 | `--cwd <A>` 只回 trial-A；`--cwd <B>` 回兩個，因為 A 在 B 底下，過濾是**前綴比對**。原計畫「指到 B 只回 B」不成立，是規劃疏漏，不是 CLI 缺陷 |
+| S4 | 未測 | TUI 肉眼確認需要使用者；只用 `--json` 驗證 |
+| S5 | 成立 | 兩個 session 只回報目錄與分支（A：`feat/ai-harness`；B：`main`）；兩處 `git status` 沒有新變更；沒有 commit、push |
+| S6 | 成立（上界） | session 12%→14%（+2）、週 1%→1%、Fable 0%→0%。差值含本 session 同時段的活動（含查 hook 文件的 subagent），所以試驗本身的用量更小 |
+
+判定：核心問題「不同 worktree 派出的背景 session 是否出現在同一個清單」**成立**（以 `--json` 驗證）。S4 未測、S3 規劃有誤，所以不套用原判定規則的「全部成立」字樣，只記為：**清單是全域的，可用 `--json` 集中監看；TUI 顯示未驗證**。
+
+附帶發現：
+- `--json` 的 `cwd` 是啟動目錄，不是實際工作的 worktree（互動 session `ai-harness·next` 顯示主工作目錄）。看實際所在仍要用 `session_map.py`。
+- 清理時 `claude daemon stop --any` 回報「terminated 1 background session」。trial-A、trial-B 已先 `claude rm`，所以那 1 個不是這兩個，來源不明；若有其他背景工作消失，可能是這次造成的。
+- `claude --bg -n "名稱"` 的名稱立即出現在清單，不需要等第一則訊息（與 §32 之前 session 命名討論有關：背景 session 用 `-n` 可以確實命名）。
+
+## 37. 後續小試驗 2：`Notification` hook（2026-10-23）
+
+規劃見 [spike-agent-view-followups.md](./spike-agent-view-followups.md)。hook 腳本與套用腳本在使用者層（`~/.ai-notes/ttr/tools/notify_hook.py`、`apply_notify_hook.py`，不在 repo）；`~/.claude/settings.json` 由使用者以套用腳本寫入（有備份），並在新 session 以 `/hooks` 確認載入。腳本只記錄通知類型、session 前 8 碼與目錄名（不記通知文字），並呼叫 `osascript` 發通知（含 Glass 音效）。
+
+查官方文件（claude-code-guide 查詢，來源 code.claude.com 的 hooks、hooks-guide、agent-view、vs-code 頁）的幾點：`Notification` 的 `notification_type` 含 `permission_prompt`、`idle_prompt`、`agent_needs_input`、`agent_completed` 等；使用者層與專案層 hooks 是**合併**不是覆蓋；`osascript` 靠 Script Editor 發通知，沒有通知權限時**靜默失敗**；文件未載明純 `claude --bg`（agent view 沒開）是否觸發。
+
+| 情境 | 啟動方式 | log | 通知 |
+|---|---|---|---|
+| N2a 背景 session（agent view 沒開） | `claude --bg --model haiku -n notif-N2a`，由本 session 派出 | 21:52:03 `permission_prompt` `bd1dba4f`（派出後約 10 秒） | 使用者聽到音效、看到通知 |
+| N1 終端機互動 session | 使用者 `claude -n notif-N1 --model haiku` | 22:04:08 `permission_prompt` `a9dc82c7` | 有通知（使用者估 2 到 3 秒，從送出提示詞算起） |
+| N3 VS Code 面板 session | 使用者新開面板對話 | 22:06:02 `permission_prompt` `61aacd18` | 有通知（使用者估約 3 秒） |
+
+三個情境的提示詞都是 `git push origin HEAD --dry-run`，使用者在 N1、N3 選了拒絕，N2a 由我 stop 並 rm；遠端沒有 `feat/ai-harness`，工作樹沒有新變更，沒有任何 push 被執行。
+
+判定（依規劃的判定規則）：N2 的 O1 與 O2 成立 → **Notification hook 可補背景 session 的通知缺口**；N1、N3 各自成立，不互相推論。
+
+先前觀察到的「VS Code 整合終端機沒有通知」（§22）在這裡不再成立，前提是安裝了這條 hook 並給 Script Editor 通知權限；沒有 hook 時的原生行為這次沒有重測。
+
+未測與限制：
+- `agent_needs_input`、`agent_completed`（文件說只在 agent view 開啟時才有）沒有測；這次三個情境都是 `permission_prompt`。
+- `idle_prompt`（回應後約 60 秒未輸入）沒有測。
+- 雙螢幕時通知只出現在主要螢幕（macOS 限制）；用音效與把 Script Editor 的通知樣式改成「提示」緩解，後者是使用者端設定，沒有驗證。
+- 用量差（試驗 2，22:1x 結束）：session 14%→15%（+1）、週 1%→2%（+1）、Fable 0%→0%，在 ≤ 3 點內；數字含本 session 同時段的其他活動，是上界。
