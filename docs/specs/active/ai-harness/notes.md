@@ -1015,3 +1015,39 @@ git -C "/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar" push origin feat
 `python3 "/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-ai-harness-worktree/scripts/session_map.py"`
 
 push 並在主工作目錄 pull 之後，才可以用相對路徑在主工作目錄執行。
+
+## 31. 第二次 rebase 與推送前的閘門（2026-10-23）
+
+使用者核准 rebase 並準備下一次推送。執行者：Claude Code（Opus 5.5）。
+
+### 31.1 rebase
+
+工作樹乾淨、共用這個 worktree 的 side chat（`ai-harness·handoff`，72ddde89）閒置，才開始。`git rebase origin/main`：領先 9、落後 24 → 領先 9、落後 0；**沒有衝突**（兩邊動過的檔案沒有交集：main 改了 20 個檔案、我們改了 19 個）。
+
+### 31.2 兩個意外的發現
+
+| 發現 | 說明 |
+|---|---|
+| **這個 repo 是公開的** | `gh repo view` 回 `isPrivate: false`。先前我多處假設「推到 GitHub 只有使用者看得到」是錯的；notes 與規則檔裡的 `/Users/flyingship/...`、`~/.ai-notes/...` 路徑、issue 編號、決策紀錄都是公開可讀的。已用 gitleaks 與字串檢查確認沒有密鑰、電子郵件或權杖，但公開性本身要記得 |
+| **功能分支已被推上 origin** | side chat（72ddde89）在 2026-10-23 15:57（JST）執行了 `git push -u origin feat/ai-harness`（transcript 可查），把當時的 7 個 commit 公開推到 `origin/feat/ai-harness`（頂端 `071e246f`），沒有 PR。它不觸發核准提示，因為 main 的 ask 規則已縮窄成只針對「像 main 的目的地」（見 §21.1）。後果：(1) rebase 重寫了 commit，本機分支與 `origin/feat/ai-harness` 現在分叉（領先 33、落後 7）；(2) hooks 擋 `--force` 與 `--delete`，所以**我不能更新或刪除那個遠端分支**；(3) 本機分支的 upstream 現在是 `origin/feat/ai-harness`（被那次 `-u` 改的），在這個 worktree 不帶參數的 `git push` 會被拒絕（非 fast-forward），不會造成損害 |
+
+建議：推到 main 之後，那個遠端分支就多餘了，請使用者在 GitHub 網頁刪除 `feat/ai-harness`（merged 後 GitHub 通常會提供刪除分支的按鈕；若沒有 PR，則從分支頁面刪除）。在此之前它公開保留 rebase 前的舊 commit，內容與要推到 main 的相同。
+
+### 31.3 推送前閘門（V-M-D Step 0 到 3，本機跑完，沒有 push）
+
+| 閘門 | 結果 |
+|---|---|
+| 同步與 rebase | 落後 0 |
+| 測試與同步 | `python3 -m pytest scripts` 1007 passed；`sync --check` exit 0 |
+| 推送範圍 | 9 個 commit（加上這份紀錄是 10 個）、19 個檔案、+1234／−6；**沒有 `web/` 檔案**，跳過本機 web build |
+| gitleaks（`origin/main..HEAD`） | no leaks found |
+| 個資與密鑰字串 | 對新增行 grep（電子郵件、`@gmail.com`、`ghp_`、`github_pat_`、`sk-…`、`password`、`SUPABASE_SERVICE_ROLE_KEY=`）沒有命中 |
+| 其他進行中的分支 | 逐一檢查，沒有任何分支動到 `.github/agents`、`sync_ai_adapters.py`、`AGENTS.md`、`.claude/settings.json` |
+
+### 31.4 這次推送帶上去的內容
+
+10 個 commit（rebase 後的 SHA）。**不是本 session 寫的**共 3 個，來自 side chat（`ai-harness·handoff`，72ddde89）：`96bca5e2`（交接卡片與 session 命名規則）、`039097ab`（父 session 行與 transcript 欄位）、`e9e890bd`（`scripts/session_map.py` 與測試）。其餘 7 個是本 session 的：`cdd94373`（縮窄通知規則）、`c8d36836`（看板稽核）、`4dd0d67f`（看板標記規則與每週回顧步驟）、`58127535`（主題落地紀錄）、`7a3b361e`（覆寫機制與 SNS governance）、`fb3a0aae`（決定與紀錄）、以及記錄這次 rebase 的最後一個。
+
+**會改變每個 agent session 行為的檔案**（推到 main 後，其他 session 下次 rebase 或 pull 才會看到）：`AGENTS.md`、`.github/copilot-instructions.md`、`.github/instructions/git.instructions.md`、新增的 `.github/instructions/handoff.instructions.md`（要求每個要使用者動手的步驟寫成交接卡片：在哪裡、絕對路徑、預期結果、失敗時怎麼辦、風險標記）、4 個 agent 定義（campaign-closer、engineer、scraper-expert、validate-merge-deploy）、3 個 prompt（admin-qa-cleanup、authoritative-venue-repair、weekly-review）。
+
+未涵蓋：`.githooks/pre-push` 的輸出要使用者推送時才看得到；Vercel deployment 要推送後才能以 exact-SHA 查。

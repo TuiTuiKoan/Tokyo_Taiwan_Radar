@@ -113,3 +113,7 @@
 - [ ] 在互動 session 實際用 `/feature-kickoff` 跑一次完整流程（需要一個真的要啟動的功能；`/feature-kickoff` 的行為目前只有腳本有測試，prompt 本身 NOT TESTED）
 - [ ] 第 3 段（同功能內 agent teams 做實作）暫緩，實作型切分尚未驗證
 - [ ] 同步改窄 `validate-merge-deploy.agent.md` 與 `campaign-closer.agent.md` 的「通知其他 session」描述（現行寫法仍是無條件通知；規則已在 `git.instructions.md` 改為只通知受影響者，notes.md §25.1）
+- [x] 第二次 rebase 完成（2026-10-23，使用者核准）：領先 origin/main 9（加紀錄為 10）、落後 0，沒有衝突；閘門全過（notes.md §31）
+- [ ] **第二次 V-M-D 推送**：等使用者從主工作目錄執行推送指令；推送後我用 exact-SHA 查 Vercel、使用者在主工作目錄 pull
+- [ ] 推送後請使用者在 GitHub 網頁刪除 `feat/ai-harness` 遠端分支（side chat 在 15:57 推上去的；rebase 後已分叉，hooks 擋 `--force` 與 `--delete`，我不能更新或刪除；notes.md §31.2）
+- [ ] 注意 repo 是公開的（`isPrivate: false`）：先前假設「推上去只有使用者看得到」不成立；之後 notes 與規則檔避免寫入不想公開的本機資訊
