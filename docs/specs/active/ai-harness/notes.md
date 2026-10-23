@@ -1095,3 +1095,12 @@ push 並在主工作目錄 pull 之後，才可以用相對路徑在主工作目
 | R6 | `.codex/agents/sub/` 下手寫 `.md`、`.toml` 不動；帶 marker 的殘留檔被 `--check` 報 stale、寫入時被清掉 | `generated_files` 只掃頂層 → 紅 |
 
 過程中一次失誤：mutation 時誤用 `git mv` 移走 `tester.toml`，已用 `git mv` 還原，`--check` 回 0、工作樹只剩預期的三個測試檔變更。
+
+## 35. `/feature-kickoff` 第一次互動實跑（2026-10-23）
+
+參數 `ai-harness worktree`。結果見 proposal.md「涵蓋的 issue」。
+
+- 流程可用：名單（4 個已標籤 + 1 個候選）→ 逐一讀 issue → 對照程式碼查證（#346 仍未修，`.githooks/pre-push` 無 `cat-file`／`merge-base` 檢查）→ 寫 proposal。
+- 候選 #351 是誤命中：關鍵字 `worktree` 出現在它的備註裡。符合 prompt「關鍵字命中只是提示」的設計。
+- 偏離與限制：(1) 本次只寫 proposal.md 與 tasks.md 的現有項目；#346、#420、#328 的新任務因需要使用者確認，沒有寫進 tasks.md。(2) 「切分平行度」只做文字判斷：#346（`.githooks/`）、#420（只驗證）、#328 與 #426（同一支腳本）。(3) 沒有貼任何標籤，也沒有對 issue 寫入。
+- 一個觀察：腳本把 #426 判為「提到 #328」，但兩者實質上要合併成同一支腳本；引用關係看得出，合併建議要靠人讀內文。
