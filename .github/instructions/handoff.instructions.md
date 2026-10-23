@@ -71,6 +71,7 @@ agent 要使用者動手時（執行指令、開新 session、看檔案、在網
 - 父子關係靠子 session 的第一則訊息記錄，不靠 hook：第一則訊息的第一行寫 `父 session：<標題> (<ID 前 8 碼>)`。
   - terminal：`claude -n "japan-scope-gate·apply" "父 session：ai-harness·handoff (72ddde89)。<任務說明>"`。
   - VS Code side chat：`/rename` 之後，下一則訊息的第一行寫同樣的內容。
+- 查詢：`python3 scripts/session_map.py [--days N] [--repo 字串]` 唯讀列出最近的 session 樹、所在目錄與 branch（預設最近 3 天、目錄含 `Tokyo Taiwan Radar`）。
 - transcript 每則訊息都記錄 `cwd`、`gitBranch`、`entrypoint`（`claude-vscode` 或 CLI）與時間，所在 worktree 與 branch 可直接從 transcript 讀出，不需要另外記錄。
 
 ## 4. 連結
