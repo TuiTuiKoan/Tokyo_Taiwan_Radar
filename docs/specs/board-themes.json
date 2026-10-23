@@ -1,0 +1,46 @@
+{
+  "board": {
+    "owner": "TuiTuiKoan",
+    "project": 1,
+    "field": "主題"
+  },
+  "themes": {
+    "止血": "緊急止血：CI runner、停擺修復",
+    "PR 分層": "PR 分層合併流程（tier:0／1／2）",
+    "成本": "OpenAI 成本與靜默失效",
+    "Eval": "評測、golden set 與量尺",
+    "追蹤清理": "追蹤系統、spec、worktree 與 issue 的整理",
+    "架構圖": "system-map 與架構圖",
+    "來源 intake": "新增來源，一個 issue 一個來源",
+    "QA heartbeat": "QA Heartbeat 自癒管線（2026-05 起停滯）",
+    "AI工具鏈": "Claude Code、Codex、Copilot 的 agent、hooks 與模型政策",
+    "資料修復": "資料、地點、範圍與出版品政策的修復",
+    "來源健康": "來源連續 0 產出或原因未知的健康問題",
+    "爬蟲管線": "爬蟲管線本身的缺陷與守門問題"
+  },
+  "specs": {
+    "llm-cost-reset": "成本",
+    "ai-portability-followups": "AI工具鏈",
+    "ai-harness": "AI工具鏈",
+    "pr-flow-tiering": "PR 分層",
+    "evaluation-framework": "Eval",
+    "people-ground-truth": "Eval",
+    "japan-scope-gate": "資料修復",
+    "authoritative-venue-repair": "資料修復",
+    "publication-policy": "資料修復",
+    "ndl-relevance-publication": "資料修復",
+    "workstream-tracking": "追蹤清理",
+    "closer-auto-retire": "追蹤清理",
+    "admin-qa-cleanup": "追蹤清理",
+    "scraper-zero-output": "來源健康"
+  },
+  "exempt": {
+    "labels": [
+      "daily-review"
+    ],
+    "issues": {
+      "342": "X 發文規劃是單點事項，不是 roadmap 主題（使用者 2026-10-23 同意不設主題）",
+      "351": "後台與 UI 的 4 個小項，沒有歸屬主題（使用者 2026-10-23 同意不設主題）"
+    }
+  }
+}
