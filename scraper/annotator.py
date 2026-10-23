@@ -1100,6 +1100,15 @@ REJECT (taiwan_relevance.is_relevant = false) if:
   - The event is a book launch where Taiwan appears only as a passing reference in the description
   - The event is a Japanese TV programme that once covered Taiwan
   - SOURCE=bookandbeer: apply STRICT standard. The event MUST feature a Taiwanese author, a book about Taiwan/Taiwan-Japan relations, or an explicit Taiwan cultural theme. A book merely mentioning Taiwan incidentally does NOT qualify.
+PUBLICATION RECORDS (only when the line `RECORD_TYPE: publication` precedes the data block) — judge the relevance of the WORK itself, not of an event:
+  - RELEVANT (is_relevant = true) when Taiwan — or a Taiwanese person, place, language, work, company or organisation — is the subject of the work or one of its main subjects. This includes:
+      * multi-country comparisons or lists where Taiwan is one of the countries covered (e.g. a title comparing 日本・台湾・タイ);
+      * works on Japan–Taiwan relations, cross-strait relations, a Taiwan contingency (台湾有事), or the security environment in which Taiwan is a named actor;
+      * works by or about Taiwanese authors, artists, students or companies;
+      * an article inside a Taiwan-themed special issue / series (特集, シリーズ名) whose own title does not say "Taiwan" but whose topic plausibly belongs to that special issue (e.g. an article on regional security inside a special issue about Taiwan).
+  - NOT RELEVANT (is_relevant = false) only when the work's own title and description show a clearly different, specific subject AND Taiwan appears only in the series name (シリーズ名), special-issue name (特集), journal name (掲載誌) or as a passing mention. Typical cases: one chapter of a multi-country series whose own subtitle names a different country; an article about another country or about Japan's domestic affairs that merely sits in a series or journal whose name mentions Taiwan.
+  - Bibliographic records contain only a title and short metadata. Do not mark a publication not relevant because it is "not an event", has no venue, no date or no Japanese location — those are expected.
+  - Confidence: use confidence ≥ 0.8 for is_relevant = false ONLY when the title clearly names a different subject as described above. If Taiwan may be a meaningful part of the work, or you cannot tell from the title, set is_relevant = true.
 
 LOCATION GATE — JAPAN FOCUS:
 This radar covers events with a Japan connection. An event qualifies if it meets at least one of the following rules:
@@ -1115,6 +1124,13 @@ scope_reason must be one sentence naming the intended audience evidence. Do not 
 EXCLUSION: If an event takes place ONLY in Taiwan AND does not meet Rule 4, output scope_decision="out_of_scope" and explain who it is for in scope_reason.
 IMPORTANT INTEGRATION: Rule 4 corresponds to category labels tourism, study_abroad, scholarship, and business when the target audience is Japanese. If GPT has already assigned any of these categories AND the description clearly targets Japanese participants, the event PASSES the LOCATION GATE — regardless of whether the physical location is in Taiwan. Do NOT double-penalise.
 SCOPE — PROSPECTIVE ONLY: This gate applies at annotation time to events in pending / re-annotation state. Human-reviewed events remain active; any scope concern must be handled manually.
+
+PUBLICATION RECORDS — FIELD RULES (only when `RECORD_TYPE: publication` precedes the data block):
+The record is a bibliographic entry (book, journal article, thesis, report), not an event. It is in scope for this radar; the LOCATION GATE does not apply.
+  - category: choose by the SUBJECT of the work (e.g. geopolitics, history, art, business, literature, indigenous, academic, healthcare, urban, tourism, folklore, photography, taiwan_mandarin …). Use ONLY slugs from the allowed category list below and never invent new ones (travel → tourism, architecture → urban, technology / engineering → tech, photo book → photography). Every publication needs at least one subject category: when the record gives little beyond a title, pick the closest allowed subject the title supports (a travel guide → tourism; a language textbook or phrasebook → taiwan_mandarin; a book of folk tales or spirits → folklore). Never return an empty category just because the record is not an event. Literary works (novels, poetry, essays) may additionally get "literature". Apply the normal category definitions — e.g. "senses" stays NARROW and is not a fallback.
+  - "books_media" for a publication (this overrides the general "books_media" definition below): use it ONLY when the work is ABOUT media or publishing — the media ecosystem, journalism, the publishing industry or publishing environment, disinformation / fake news, post-truth, media studies. The format of the record never qualifies: books, guidebooks, photo books, textbooks, dictionaries, magazines, newspapers, columns and book reviews do NOT get "books_media" unless their subject is media or publishing. When unsure, leave "books_media" out.
+  - Do not invent dates, venues, hours, prices or performers. Leave them null / [] when the record does not state them.
+  - selection_reason: name the concrete Taiwan subject of the work (who / what / which topic).
 
 LANGUAGE RULE — CRITICAL: ALL *_zh fields (name_zh, description_zh, location_name_zh, location_address_zh, business_hours_zh, selection_reason.zh, and sub-event zh fields) MUST be written in Traditional Chinese (繁體中文). NEVER use Simplified Chinese (简体字). This applies to every single zh field without exception.
 
@@ -1298,8 +1314,7 @@ Decision guides:
 - ツアー / 巡迴 / 街歩き = ["tour"].
 - コンテスト / コンクール / 公募 = ["competition"].
 - 留学プログラム / 大学院進学 / 修士課程募集 / 奨学金付き海外留学 = ["study_abroad"].
-- "publication" is ONLY for publication metadata with no physical attendance, venue, or session.
-- 出版記念, 刊行記念, book launch, Talk, signing, lecture, or workshop with physical participation must use the matching physical form (lecture/networking/workshop/etc.) and must not include "publication".
+- Never output "publication": the pipeline assigns it to bibliographic records. 出版記念, 刊行記念, book launch, talk, signing, lecture or workshop with physical participation must use the matching physical form (lecture / networking / workshop / …).
 - If genuinely none apply = ["other"]. NEVER leave event_form empty.
 
 LANGUAGE RULES:

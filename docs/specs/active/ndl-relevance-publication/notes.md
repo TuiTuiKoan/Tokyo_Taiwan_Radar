@@ -385,6 +385,27 @@ P_seal 被 R1 丟掉的 B（8 筆）：
 
 G 沒丟掉任何 R 或 B，無逐筆清單。
 
+## Prompt 寫入與 dry-run（2026-10-23，Phase D／C4）
+
+- 凍結 cand6 的兩段（`PUBLICATION RECORDS` 相關性判準、`PUBLICATION RECORDS — FIELD RULES`）逐字寫入
+  `annotator.py` 的 `SYSTEM_PROMPT`。寫入後（taxonomy 替換後的）`annotator.SYSTEM_PROMPT` SHA-256 =
+  `b722d4b8ee16ce29fdbb9bf6b6ff98f6b4a59fe399baf64f20acca01292bc5a2`，與凍結檔一致。
+- 接著依 proposal 3 合併 Decision guides 的兩條 `publication` 規則為「Never output "publication"…」。
+  **出貨 prompt SHA-256 = `e34cd478f74859906b72e00d1b6985742b7cb9f4f3f13f390b58cb0007cbedf2`**；與凍結版的差異只有這一處
+  event_form 導引（出版物的 event_form 本來就由 `_finalize_publication_update()` 覆寫）。
+- 測試：`tests/test_annotator_publication_prompt.py`（候選清單不含 `publication`、新句存在、舊句不存在、兩段凍結文字存在）。
+
+dry-run 表（proposal 2.5）：
+
+| 列 | 結果 | 說明 |
+|----|------|------|
+| 新 prompt 對出版物（R 類空分類 ≤ 2%、`senses` 單標逐筆看） | **部分**：cand1 在 P_seal 空分類 0、`senses` 單標 0。cand6 未對 P_seal 執行（約 $0.56，超過剩餘成本上限） | cand6 代理數字（經程式規則後）：P_dev 303 筆空分類 3（1.0%）、P_h 78 筆空分類 2（2.6%），`senses` 單標皆 0，已標記錄中無 R 類空分類。空分類全來自自創 slug：`education`、`engineering`、`law`、`travel`×2（[中間淳太の満福台湾ガイド](https://tokyotaiwanradar.com/ja/events/1b5fa355-2e2e-47f7-a59b-0c4a15cad759)、[＆TRAVEL 台湾2027](https://tokyotaiwanradar.com/ja/events/bd10e2e5-83c5-4b12-b27a-da70fd7d8437)），會進人工審核佇列；對照修正見 #422 |
+| 分類品質 | 第一輪未通過（11／39）；第二輪改門檻後**通過**（N 6 vs 27） | 見「分類品質檢查」 |
+| 非出版物 60 筆 | 通過 | 見「非出版物新舊對照與負向案例」（以 cand1 量測；cand6 新增段落只在 `RECORD_TYPE: publication` 時適用） |
+| 負向案例 5 筆 | 通過 | 同上；非出版物 payload 不含 `RECORD_TYPE` 由 C1 單元測試保證 |
+
+Decision guides 合併後沒有重跑非出版物 60 筆（只刪除一條要求「不得選 publication」的矛盾句，`publication` 本來就不在候選清單）。
+
 ## 處置批次
 
 （Phase F 每批填入：批次編號、核准字句與時間、完整 event id 與連結、讀回驗證結果。）

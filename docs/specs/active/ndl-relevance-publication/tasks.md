@@ -86,17 +86,17 @@
 
 ## Phase D: prompt 修正（C4）
 
-- [ ] 凍結的 `PUBLICATION RECORDS` 段落與 `TAIWAN RELEVANCE GATE` 出版物判準寫入
+- [x] 凍結的 `PUBLICATION RECORDS` 段落與 `TAIWAN RELEVANCE GATE` 出版物判準寫入
       `SYSTEM_PROMPT`；寫入後 prompt 文字與凍結 SHA 的來源檔一致
-- [ ] Decision guides 的兩條 `publication` 規則合併為「Never output "publication"…」；
+- [x] Decision guides 的兩條 `publication` 規則合併為「Never output "publication"…」；
       候選清單不動；測試清單不含 `publication`、新句存在、舊句不存在
-- [ ] Lesson-in-fix-commit：gate 被 sentinel FC 靜默停用的教訓寫入
+- [x] Lesson-in-fix-commit：gate 被 sentinel FC 靜默停用的教訓寫入
       `.github/skills/sources/ndl_opensearch/history.md` 與 Architect／Engineer 對應 SKILL
-- [ ] 修正 `.github/skills/sources/ndl_opensearch/SKILL.md` 過期內容（`title=台湾`、90 天 `from=`）
-- [ ] `python3 scripts/check_enum_parity.py`、`python -m pytest scraper/tests -q`、
+- [x] 修正 `.github/skills/sources/ndl_opensearch/SKILL.md` 過期內容（`title=台湾`、90 天 `from=`）
+- [x] `python3 scripts/check_enum_parity.py`、`python -m pytest scraper/tests -q`、
       `python3 scripts/sync_ai_adapters.py --check`
-- [ ] Tester：proposal 2.5 的四列 dry-run 表全部通過
-- [ ] commit C4
+- [x] Tester：proposal 2.5 的四列 dry-run 表（第 1 列只有 cand6 代理數字，第 2 列依第二輪門檻；見 notes「Prompt 寫入與 dry-run」）
+- [x] commit C4
 
 ## Phase E: 合併與部署（gate 旗標關閉）
 

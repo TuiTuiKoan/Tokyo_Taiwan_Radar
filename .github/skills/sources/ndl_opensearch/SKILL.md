@@ -9,9 +9,13 @@ description: NDL OpenSearch API scraper for Taiwan-related books (Publication In
 
 - **来源名**: `ndl_opensearch`
 - **URL**: `https://ndlsearch.ndl.go.jp/api/opensearch`
-- **資料類型**: 国立国会図書館（NDL）蔵書データベースの台湾関連書籍（mediatype=1）
+- **資料類型**: 国立国会図書館（NDL）蔵書データベースの台湾関連書誌（書籍・雑誌記事など。`mediatype` 指定なし）
 
-NDL OpenSearch API に `q=台湾, mediatype=1, cnt=100` でクエリし、書籍書誌情報を取得する。
+NDL OpenSearch API に `title=台湾, cnt=100, from=<今日−90日>` でクエリし、書誌情報を取得する
+（`scraper/sources/ndl_opensearch.py` の `_BASE_PARAMS`、`_LOOKBACK_DAYS = 90`）。
+
+- `title=台湾` はシリーズ名・特集名にもヒットするため、台湾が主題でない記事（朝鮮半島有事、他国の投資動向など）が混入する。
+  関連性は annotator が判定する（下記「関連性判定」）。
 
 ## 技術規格
 
@@ -29,10 +33,10 @@ NDL OpenSearch API に `q=台湾, mediatype=1, cnt=100` でクエリし、書籍
 ### ⚠️ NDL は発売日降順ソートではない
 
 NDL OpenSearch のデフォルトソートは**相関度 / 書誌 ID** であり、発売日降順ではない。
-このため、古い書籍が先頭ページに登場することがある。
+広い期間で検索すると、新刊が `_MAX_RESULTS=500` の外へ押し出される。
 
-**対策**: 180 日 client-side フィルタを必ず実施（`cutoff = date.today() - timedelta(days=180)`）。
-Server-side の日付フィルタは NDL API が提供していないため省略できない。
+**対策**: server-side の `from=YYYY-MM-DD`（今日−90 日）で期間を絞る。短い `from=` 窓では NDL が
+発売日降順に近い順で返すため、新刊が 500 件の窓に収まる。
 
 ### Active ビュー表示について
 
@@ -41,7 +45,16 @@ Server-side の日付フィルタは NDL API が提供していないため省�
 
 ### ZERO_EVENT_OK 理由
 
-180 日ウィンドウ内に台湾関連書籍が 0 件の日は正常（出版サイクルに依存）。
+90 日ウィンドウ内に台湾関連書誌が 0 件の日は正常（出版サイクルに依存）。
+
+### 関連性判定と分類（2026-10-23，ndl-relevance-publication）
+
+- annotator は pure publication に `RECORD_TYPE: publication` を付けて送り、prompt の `PUBLICATION RECORDS` 段落で
+  「台湾が作品の主題か」を判定する。シリーズ名・特集名・掲載誌名だけの台湾は関連としない。
+- 出版物専用の relevance gate は `PUBLICATION_RELEVANCE_GATE_ENABLED = False`（量測で G が N をほぼ除去しないため開かない）。
+- 分類は作品の主題で選ぶ。pure publication では他の分類があれば `books_media` を除去し、
+  `lecture` / `report` / `tv_program` のキーワード補完をしない。
+- `title=台湾` を title-only ルール（R1）に絞る案は recall 門檻を満たさず不採用。
 `health_check.py` の `ZERO_EVENT_OK_SOURCES` に登録済み。
 
 ## 特殊規則
