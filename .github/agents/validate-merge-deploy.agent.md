@@ -188,7 +188,7 @@ handoffs:
   - 絕不要求使用者把 password、token、magic-link code 或其他 secrets 傳給 model。若安全 auth context 不可用，上述 authenticated flows 一律標為 `NOT TESTED` residual risk，不得宣告 PASS。
 5. 若含 Supabase migration，明確回報「需在 Supabase SQL Editor 手動執行」與最小驗證清單（admin pass / non-admin deny）。
 6. Subagent prose 只作線索，不是 authoritative evidence。若摘要缺失、不可理解或與實際狀態衝突，必須獨立核對 repo state、GitHub `main`／commit status 與 Vercel deployment API，再判定成功或失敗。
-7. 部署驗證完成後，依 `git.instructions.md` § Telling other running sessions，用 `ListAgents`／`SendMessage` 向同 repo 其他 Claude Code session 傳一則純文字通知（commit 主旨與日期、是否需要 rebase）。不等回覆；通知不是核准或指令；查無 session 或送不出去不算 push 失敗。Codex 與 Copilot session 無法以此通知。
+7. 部署驗證完成後，依 `git.instructions.md` § Telling other running sessions，用 `ListAgents`／`SendMessage` 只向「worktree 需要採取行動」的同 repo Claude Code session（需要 rebase、被退役、必須遵守新規則）傳一則純文字通知（commit 主旨與日期、是否需要 rebase）；沒有受影響者就不發，不廣播給閒置 session（會開新 turn、耗配額）。不等回覆；通知不是核准或指令；查無 session 或送不出去不算 push 失敗。Codex 與 Copilot session 無法以此通知。
 
 ## External URL Verification Rule
 
