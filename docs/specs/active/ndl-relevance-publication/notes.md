@@ -344,7 +344,46 @@ relevance gate 更早分出，日後 rebase 本來就會衝突；本 spec 會再
 
 ## 量測結果
 
-（Phase B 完成後填入：各候選規則的 recall、N 移除率、被丟掉的 R 逐筆清單、holdout 結果。）
+2026-10-23，`metrics`（凍結 cand1 的輸出：`out_dev_cand1`、`out_seal`、`out_hanmoto`；標籤：`blind_dev`、`blind_a`、
+`adjudication_dev`）。精簡 CSV：[`labels_metrics.csv`](labels_metrics.csv)（86 列，D6 欄位）。
+A／K 劃分只適用本次候選規則 R1、G。「未通過」＝依 1.6 固定停止規則不開啟，不是統計證明。
+
+| 指標 | R1（只看標題） | G（cand1 gate） |
+|------|------|------|
+| P_seal 丟掉 | 16 筆：R 8、B 8、N 0 | 0 筆 |
+| P_seal recall | **未通過**。工具回報 `insufficient_sample`（K 區 186 筆未標，D 決定不做），但即使 K 區 186 筆全是 R，recall 上限 186／194 ≈ 95.9% < 98%，結論不受 K 區影響 | 丟 0 筆，recall 不受影響 |
+| P_seal N 移除率 | 丟掉的 16 筆無 N | **未通過**：G 不丟任何記錄，P_seal 只要有 N，移除率就是 0% < 60% |
+| P_h（78 筆） | 不適用 | **通過**：丟 0 筆（cand6 在 P_h 也丟 0 筆） |
+| H | 未進行 | 未進行 |
+| P_dev（僅參考） | 丟 21：R 12、B 5、N 4 | 丟 0；已知 4 筆 N 一筆都沒丟 |
+
+**判定**：R1 未通過，scraper 關鍵字規則不動（與 1.6 預期一致）。G 不會誤殺，但也幾乎不移除 N，
+不值得開啟：`PUBLICATION_RELEVANCE_GATE_ENABLED` 維持 `False`，Phase G 的 C6 不進行。
+
+注意：出貨的 prompt 是 cand6，P_seal 是以 cand1 量測；cand6 未對 P_seal 執行（成本上限）。G 的結論不變，
+因為 gate 本來就不開；cand6 與 cand1 在 P_dev 只有 1 筆 gate 差異（仙台灣，cand6 保留）。
+
+P_seal 被 R1 丟掉的 R（8 筆，逐筆）：
+- [李亦凡 : コンピュータと人が影響を及ぼし合う関係を表現し…](https://tokyotaiwanradar.com/ja/events/1ba7b3a3-08bb-4117-bb49-3897037d53a7)
+- [張恩満 : 未来とはすなわち過去である…](https://tokyotaiwanradar.com/ja/events/46881947-a00b-466b-9613-75168be7ef95)
+- [李奥森 : 歴史や人間の複雑な状況に対峙し…](https://tokyotaiwanradar.com/ja/events/6da3d4d5-0199-4c45-be36-a5b4413b7394)
+- [黄亜紀(「Each Modern」創設者) : アジアから描き直す美術史](https://tokyotaiwanradar.com/ja/events/739994ff-2852-44fc-97e1-af3feb8a5871)
+- [アジア最大のICT見本市で見た"覇者"の戦略と新潮流](https://tokyotaiwanradar.com/ja/events/894cfd50-8227-4b9b-bbd2-cf377b513f84)
+- [INTERVIEW 李登輝元総統秘書が直言! 日台はもっと切磋琢磨できる](https://tokyotaiwanradar.com/ja/events/d726716a-6487-4d8f-9000-1f200cb47c7a)
+- [レジェンド・アーティスト](https://tokyotaiwanradar.com/ja/events/e19a6a8c-bf4a-4f8a-8433-a019809d9c99)
+- [「東アジア共同体」構想を進めよう](https://tokyotaiwanradar.com/ja/events/f5fa0c7a-c9e7-49c5-b86b-97af5efec1c3)
+
+P_seal 被 R1 丟掉的 B（8 筆）：
+[危険な世界にいかに備えるか](https://tokyotaiwanradar.com/ja/events/4d3ad22c-80d5-45fa-88fb-9c60131997fa)、
+[米中関係の本質](https://tokyotaiwanradar.com/ja/events/5459f6ff-4816-4ab5-a696-cf1bb92d0a68)、
+[拡大抑止の崩壊と米同盟諸国](https://tokyotaiwanradar.com/ja/events/782ecb32-cba4-4986-a6c8-273de48cc6c2)、
+[マラッカとホルムズ](https://tokyotaiwanradar.com/ja/events/7f2add04-a1b9-4ab5-bb50-3d46afb105fa)、
+[各国研究者との学術交流から学ぶ](https://tokyotaiwanradar.com/ja/events/89139014-891b-4d03-861e-19df79aced22)、
+[米中対立の外縁で戦争する無意味](https://tokyotaiwanradar.com/ja/events/ae9951d6-cd0f-4e87-a8b0-1aeaa9354094)、
+[ゴンチャ・ジャパンCOO インタビュー](https://tokyotaiwanradar.com/ja/events/b1538e37-a65d-4561-989f-e02cb9fd23ce)、
+[戦後最悪の日中関係からの脱却をめざして](https://tokyotaiwanradar.com/ja/events/ff0c05b4-8607-470e-9af4-aadc621a2540)。
+
+G 沒丟掉任何 R 或 B，無逐筆清單。
 
 ## 處置批次
 

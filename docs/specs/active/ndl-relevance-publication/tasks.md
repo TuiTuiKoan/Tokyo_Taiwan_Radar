@@ -79,10 +79,10 @@
       門檻改為「新版 N 明顯少於現行」（使用者 2026-10-23 決定）：**通過**，新版 N 6 vs 現行 N 27（含 1 筆裁決），見 notes
 - [x] `weekly_line_broadcast.py` 書籍分組改依純出版物（`event_form`），不再只看 `books_media`；加測試
 - [x] 非出版物 60 筆新舊對照，逐筆判讀差異；5 筆負向案例（改以 cand0 同批重跑比對，見 notes）
-- [ ] `metrics`：各候選規則的 recall、下界、N 移除率、P_h 結果寫入 `notes.md` § 量測結果，
+- [x] `metrics`（R1 未通過；G 不誤殺但不移除 N，gate 不開；P_h 通過）：各候選規則的 recall、下界、N 移除率、P_h 結果寫入 `notes.md` § 量測結果，
       被丟掉的 R、B 逐筆列出；依 proposal 1.6 判定通過／樣本不足／未通過（未通過＝依固定停止規則
       不開啟，不是統計證明）；註明 A／K 劃分只適用本次候選規則
-- [ ] commit C5（量測結果＋精簡 CSV）
+- [x] commit C5（量測結果＋精簡 CSV）
 
 ## Phase D: prompt 修正（C4）
 
