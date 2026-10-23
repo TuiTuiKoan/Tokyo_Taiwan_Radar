@@ -66,6 +66,7 @@
 - [x] **ai-harness 分支已 rebase**（2026-10-23，使用者核准）：3 個 commit 有衝突（`validate-merge-deploy.agent.md`、`plan-critic.agent.md`、`AGENTS.md`），各自保留 main 的新敘述並加上我們的 `tier` 與「批評全文必須存檔」；生成物重新生成；結果領先 origin/main 11、落後 0；`sync --check` exit 0；`scripts` 全部測試 967 passed（含 main 的測試）；詳見 notes.md §24
 - [x] **V-M-D 推送完成**（2026-10-23，使用者從主工作目錄執行）：origin/main 就是 `97db47f2`；Vercel Production deployment `7270206104` success；詳見 notes.md §25。`docs/specs/active/ai-harness/` 現在在 GitHub 上
 - [x] 下一步候選（使用者決定；2026-10-23 補勾：除每週配額基準外都已完成，配額基準由 Phase 1 的「記錄每週配額」那項追蹤）：標記設計（notes.md §19.4）、`scraper-zero-output` spec、`feature-kickoff` 的互動驗證、Phase 2b 的每週配額基準（最早 2026-10-30）、從不同 worktree 派出 session 的小試驗、`Notification` hook（agent view 試驗 worktree 已於 2026-10-23 退役，見 notes.md §33）
+- [ ] session 自動命名小試驗（#426）：用 `SessionStart` hook 依 worktree／branch 給暫時名稱；規劃見 [spike-session-title.md](./spike-session-title.md)（尚未執行；hook 與套用腳本在使用者層，settings 由使用者套用）
 - [ ] Orca 安裝並釘版本、設定 worktree 建立後的安裝命令、不使用 Delete
 - [ ] 驗證（NOT TESTED，通過前不得稱相容）：Orca 內 `claude` 的 `/hooks` 與 push ask 生效；`/list-agents` 可見其他 worktree
 
