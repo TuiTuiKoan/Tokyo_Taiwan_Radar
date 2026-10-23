@@ -108,9 +108,9 @@
 - [x] `scraper-zero-output` spec 已由那個 session（`d9658c7d`）自己建立並 commit（`366cf0ac`，本機、未 push；在 `ttr-scraper-zero-output-worktree`，該 worktree 落後 origin/main 55 個 commit，推送前要同步）。**內容是它自己的範圍，不是我的草稿**：只涵蓋已知故障的修復與收尾（#375–#378、#394、#395、#404、#424）；prtimes 與 #381 其餘來源的判斷**不在這個 spec 內**，仍是 #367、#381 兩個 issue（主題「來源健康」）。我的草稿不再使用（notes.md §29）
 - [x] 看板對照表已重新決定（使用者 2026-10-23 選 B）：`spec:scraper-zero-output` 對應「爬蟲管線」；#376、#377（單一來源故障）用覆寫保持「來源健康」；#424 推導為「爬蟲管線」並已套用；稽核嚴格模式 exit 0（notes.md §30）
 - [ ] #424（Daily Scraper 每天因 `enrich_location.py` 的 `NameError` 失敗）：**已有 owner**：`scraper-zero-output` 的 spec 在 Phase B 列了「修好 #424，讓 Daily Scraper 回到 success」，標籤已貼；我先前建議的主題「止血」作廢，主題由對照表決定（上一項）
-- [x] 查詢 session 的腳本已完成（`ai-harness·handoff` 72ddde89，`071e246f`，本機、未 push）：`python3 scripts/session_map.py [--days N] [--repo 字串]`，唯讀，列出 session 樹、標題、ID 前 8 碼、VS Code／CLI、最後活動、所在 worktree 與 branch；它讀 transcript 中每則訊息記錄的 `cwd` 與 `gitBranch`，所以我先前提醒的「`claude agents --json` 的 `cwd` 不可靠」已被它的設計涵蓋，不需要再轉告（notes.md §29.2）
+- [x] 查詢 session 的腳本已完成（Refs #426、#328）（`ai-harness·handoff` 72ddde89，`071e246f`，本機、未 push）：`python3 scripts/session_map.py [--days N] [--repo 字串]`，唯讀，列出 session 樹、標題、ID 前 8 碼、VS Code／CLI、最後活動、所在 worktree 與 branch；它讀 transcript 中每則訊息記錄的 `cwd` 與 `gitBranch`，所以我先前提醒的「`claude agents --json` 的 `cwd` 不可靠」已被它的設計涵蓋，不需要再轉告（notes.md §29.2）
 - [x] 同一個 worktree 有兩個 session 在寫：2026-10-23 查證目前無衝突，只有潛在風險（`72ddde89`、`5efbe508` 皆閒置約 3 小時，工作樹乾淨，其 commit 已在 main）；使用者決定不另開 worktree，只要不同時讓兩個 session 動手；之後若要再用 `72ddde89`，再開新 worktree（notes.md §27.6）
-- [ ] 在互動 session 實際用 `/feature-kickoff` 跑一次完整流程（需要一個真的要啟動的功能；`/feature-kickoff` 的行為目前只有腳本有測試，prompt 本身 NOT TESTED）
+- [x] 在互動 session 實際跑過 `/feature-kickoff ai-harness worktree`（2026-10-23）：腳本與 prompt 流程可用，產出見 proposal.md「涵蓋的 issue」；觀察見 notes.md §35。原項目：在互動 session 實際用 `/feature-kickoff` 跑一次完整流程（需要一個真的要啟動的功能；`/feature-kickoff` 的行為目前只有腳本有測試，prompt 本身 NOT TESTED）
 - [ ] 第 3 段（同功能內 agent teams 做實作）暫緩，實作型切分尚未驗證
 - [x] 同步改窄 `validate-merge-deploy.agent.md` 與 `campaign-closer.agent.md` 的「通知其他 session」描述（2026-10-23 完成，兩檔改為只通知需行動者、無受影響者不發；`sync --check` exit 0；原因：規則已在 `git.instructions.md` 改為只通知受影響者，notes.md §25.1）
 - [x] 第二次 rebase 完成（2026-10-23，使用者核准）：領先 origin/main 9（加紀錄為 10）、落後 0，沒有衝突；閘門全過（notes.md §31）

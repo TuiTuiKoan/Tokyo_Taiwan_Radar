@@ -50,6 +50,21 @@ ai-portability 結案後的下一個 campaign。分五個 phase：Phase 0 盤點
 | D7 | 退役 `tokyo-taiwan-radar-agents-repo` worktree，由本 campaign 取代。**已達成（2026-10-23）：該 worktree 已不存在，無需退役** |
 | D8 | **已裁決採用（2026-10-23）**（只在 Phase 3b 生效；3a 試點不需要）：`harness.lock` 是來源版本紀錄，完整釘選需涵蓋 checkout、adapter、plugin 安裝與載入版本、Codex 安裝結果；plugin 缺失時選「只警告」或「阻擋寫入操作」。採用 lock 加「只警告」，3b 之前不搬 hooks。見 plan §3 Phase 3 |
 
+## 涵蓋的 issue（`/feature-kickoff ai-harness worktree`，2026-10-23）
+
+| Issue | 一句話需求 | 對應任務 | 狀態 |
+| --- | --- | --- | --- |
+| [#426](https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/issues/426) | session 可辨識：命名、父子、所在 worktree | tasks.md「查詢 session 的腳本」「規則上線後回看」 | 範圍內；剩 statusline 顯示 dir／branch（使用者層）與兩週回看 |
+| [#328](https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/issues/328) | worktree 集中到同一父目錄、清理本機 branch、狀態腳本 | 新任務（見下）；`session_map.py` 已涵蓋 session × worktree，但沒有 ahead/behind、dirty、open issue 數 | 範圍內；**需決定**：路徑集中依賴 pr-flow-tiering D2 裁決，尚未確認 |
+| [#346](https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/issues/346) | pre-push 在遠端 SHA 不在本機時 fail-open | 新任務（見下）；`.githooks/pre-push` 目前沒有 `cat-file` 或 `merge-base` 檢查（已查證） | 範圍內；獨立、與其他任務不共檔 |
+| [#420](https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/issues/420) | 驗證 Codex 明確委派 tester subagent | 新任務（見下）；前提「合併到 main」已成立 | 範圍內；只需驗證，不改檔 |
+
+排除的 issue：
+
+- [#351](https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/issues/351)（後台與 UI 的 4 項小項）：關鍵字 `worktree` 只因內文提到退役 publication worktree 而命中；內容是 web 後台與 i18n，與 harness 無關。**不建議貼 `spec:ai-harness`。**
+
+提議的新任務（需使用者確認後才寫進 `tasks.md`）：#346 修 pre-push 的 fail-open 並補測試；#420 以 `codex exec --json` 驗證委派；#328 的狀態腳本是否併入 `session_map.py`（#426 已建議合併）。
+
 ## References
 
 - [docs/CLAUDE_CODE_MIGRATION_RUNBOOK.md](../../../CLAUDE_CODE_MIGRATION_RUNBOOK.md)
