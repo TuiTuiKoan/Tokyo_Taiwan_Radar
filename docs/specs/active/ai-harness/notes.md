@@ -418,3 +418,253 @@ spike 發現的 Phase 1 程式碼問題與測試缺口已列在 tasks.md，未�
 - `is_generated` 改為整行比對後，若有人把 marker 單獨一行貼進手寫檔（例如文件中的 fenced code block），仍會被當成 generated。這比子字串比對窄很多，但不是零。
 - 這些修正以 spike 的讀碼推論為起點，除 A、D、#7、#8、#13 在 spike 核對時已重現外，其餘缺口是以測試鎖定行為，不是缺陷證明。
 - 尚未 commit，等使用者核准。
+
+## 14. Phase 1 修正第二批的規劃（2026-10-23，尚未動手）
+
+起點：`6bfc2fa8`。使用者要求規劃「沒處理的」三類：測試維護項、symlink、第二次報告其餘低嚴重度缺口。以下先核對現況，再列做法。
+
+### 14.1 現況核對
+
+| 項目 | 核對結果 |
+|---|---|
+| 生成目錄內的 symlink | 目前 5 個生成目錄都是 0 個 |
+| `rglob` 對 symlink | 本機 Python 3.14.3：會列出指向檔案的 symlink，不進入指向目錄的 symlink。CI 用 Python 3.12，**行為是否相同未驗證**（本機是否有 3.12 也未確認） |
+| 第二次報告 #11（idempotence 與 `.codex`） | 已被現有測試涵蓋：`GENERATED_DIRS` 含 `.codex/agents`，`test_generation_is_idempotent` 寫入後立刻 `--check` 回 0。不需處理 |
+| 第二次報告 #12（欄位順序） | 已在 `test_wrapper_frontmatter_fields_have_each_projected_key_once_in_order` 涵蓋 |
+| 第二次報告 #10 | 非 UTF-8、README 已涵蓋；**子目錄**未涵蓋 → R6 |
+| 第二次報告 #14 | 資訊項，與已有的 Haiku 實測一致，不處理 |
+| git hooks 與 CI | `.githooks/pre-commit`、`pre-push` 沒有呼叫 `sync_ai_adapters.py` 或 pytest；`.github/workflows/` 也沒有。CI 的 Python 是 3.12。這是 parked 的 ai-portability-followups ①，也是 plan 的 Phase 3b 條件，**不在本批**，但它決定這些測試實際會不會被執行 |
+
+### 14.2 項目與做法
+
+| # | 項目 | 做法 | 驗證 |
+|---|---|---|---|
+| R1 | handoffs 全被略過仍輸出孤立標題（F／#9） | `agent_outputs` 只在至少有一個有效項目時才加標題；兩個輸出共用同一份 `handoff_lines` | 先寫紅測試：全部項目缺 `label`／`agent` 時，Claude wrapper 與 Codex `developer_instructions` 都不含「完成後建議的下一步」 |
+| R2 | symlink（G） | 先在 3.12 與 3.14 重現實際行為。建議政策：**生成目錄內或預期輸出路徑上的 symlink 一律當作衝突，拒絕寫入、不跟隨**，行為與 Python 版本無關 | 紅測試：預期輸出路徑是指向外部檔案（內容含 marker）的 symlink，寫入必須拒絕且外部檔案不變；指向目錄的 symlink 不被掃描也不被刪除 |
+| R3 | `conftest` 的 `copytree` 對缺少目錄丟錯（T10） | 只複製存在的來源目錄 | 在沒有 `.codex` 的樹上能建立 `tmp_repo` |
+| R4 | `len(sources) * 2` 寫死（T11） | 改為比對 `.claude/agents/*.md`、`.codex/agents/*.toml` 與來源三組名稱集合相等 | mutation check：暫時加第三種輸出，舊斷言會誤報、新斷言不會 |
+| R5 | `MODEL_ID_PREFIXES` 冗餘（T12） | 刪除它與其斷言；別名白名單只在一處（`{opus, sonnet, haiku}`）；測試檔另有「來源不得寫 `model:`」的測試守住 ID 問題 | 加入別名 `fable` 時只需改一處 |
+| R6 | 子目錄未涵蓋（#10） | 補測試：`.codex/agents/sub/` 下手寫 `.md`、`.toml` 不被動；子目錄內帶 marker 的殘留檔被 `--check` 報告為 stale | mutation check：暫時讓 `generated_files` 不掃子目錄，測試必須失敗 |
+
+### 14.3 順序與提交
+
+1. R1 與 R2：先寫紅測試，確認紅，再改程式；一個 commit（`fix(ai)`）。
+2. R3 到 R6 都是測試維護：每項先做 mutation check 證明新斷言真的會失敗，再提交；一個 commit（`test(ai)`）。
+3. 每步後跑 `python3 -m pytest scripts/tests scripts/claude/tests -q` 與 `sync --check`；全部通過才請使用者核准 commit。
+
+### 14.4 需要使用者決定
+
+- R2 的政策：拒絕（建議）、忽略，或跟隨 symlink。
+- 是否把 CI／hooks 接線（parked ①）一起排進這一批，還是維持為 Phase 3b 的前置條件另做。
+
+### 14.5 限制
+
+- R2 在 Python 3.12 的行為未驗證；若本機沒有 3.12，只能以文件與 3.14 的實測推論，結論標 NOT TESTED。
+- 這批都是低嚴重度項目，沒有已知的資料損失風險；做與不做的差別是測試的可信度與維護成本。
+
+## 15. 修正第二批：R1、R2 完成與決定（2026-10-23）
+
+使用者回覆「其他依據建議」：R2 的 symlink 政策採拒絕（建議）；CI 與 hooks 接線維持獨立任務，不混進這批。執行者：Claude Code（Opus 5.5）。起點 `6bfc2fa8`。
+
+| 項目 | 先紅 | 修改 | 結果 |
+|---|---|---|---|
+| R1 孤立 handoff 標題 | `test_no_handoff_heading_when_no_item_is_usable` 紅 | `agent_outputs` 先收集有效項目，至少一項才輸出標題；Claude wrapper 與 Codex 檔共用 | 綠；既有 agent 的輸出沒有變化 |
+| R2 symlink | 紅 3 項：預期輸出路徑是 symlink 時被寫穿、`--check` 不報、帶 marker 的 symlink 檔被刪 | 預期輸出路徑上的 symlink 視為衝突；`--check` 報 `symlink <path>`；`generated_files` 改用 `os.walk(followlinks=False)`，不回傳 symlink、不進入 symlink 目錄 | 綠 |
+
+驗證：全部測試 537 passed；用 `uv run --python 3.12 --with pytest` 在 **Python 3.12.15（CI 版本）**重跑也是 537 passed（本機預設是 3.14.3）；重新生成 175 個檔案，生成物無差異；`--check` exit 0。
+附帶發現：Python 3.12 與 3.14 的 `rglob` 對「指向目錄的 symlink」行為一致（不進入），所以先前 spike 的擔憂（行為隨版本改變）在這個情境沒有發生；改用 `os.walk` 是為了讓行為不依賴 Python 版本，不是修一個已發生的錯誤。
+
+R3 到 R6 尚未做。未 commit。
+
+## 16. 評估：issue 統合與平行作業（2026-10-23，尚未決定）
+
+使用者的問題：我有很多 issue、很多平行 session，能否每次啟動一個功能修改，就統合相關 issue 需求、建立 agent teams 平行作業，不用看那麼多 chat session 或 terminal。標示：**文件描述**（官方文件，本機未驗證）、**本機實測**、**NOT TESTED**。
+
+### 16.1 現況（本機實測）
+
+- `gh` 已登入；開放 issue 76 個，其中 47 個已有 `spec:<slug>` 標籤，涵蓋 13 個 spec（`llm-cost-reset` 11、`evaluation-framework` 11、`people-ground-truth` 6、`japan-scope-gate` 5、`ai-portability-followups` 5 等）；29 個沒有 spec 標籤，多數是 scraper 來源問題（例如 #367、#375、#376、#377）。`spec:ai-harness` 已有 1 個（#420）。
+- 所以「issue 對應 feature」的分組機制**已經存在**（`spec:<slug>` 標籤對應 `docs/specs/active/<slug>/`）；缺的是啟動時把它們彙整進 proposal／tasks 的步驟。
+
+### 16.2 官方文件對「不用看很多 terminal」的描述（文件描述）
+
+| 機制 | 說明 | 與本 repo 規則的關係 |
+|---|---|---|
+| Agent view（`claude agents`，研究預覽） | 一個畫面列出所有背景 session 與狀態（Needs input、Working、Ready for review、Completed…），可 peek 回覆、attach；完成或需要輸入時發終端通知；`--json` 可給腳本 | **最直接解決「很多 terminal」**。但：派出的 session 預設會自己搬進 `.claude/worktrees/<name>/`（`worktree-<name>` 分支），與 repo 的 `ttr-<slug>-worktree` 命名衝突；文件說「已在 linked worktree 內則跳過隔離」，所以從我們用 git 建的 worktree 派出就不會另建。文件還說 session 完成後會 commit、push 分支並可能開 draft PR（不會推 main）——與「push 由使用者執行」「commit 經核准」衝突，**對 linked worktree 是否同樣會做，NOT TESTED** |
+| Agent teams（實驗） | lead 加 teammate，共用 task list 與 mailbox | **不隔離 worktree**，teammate 共用 lead 的目錄，必須切分檔案；一個 session 一個 team，不能 resume；token 隨人數線性增加。所以只適合「同一個 spec、同一個 worktree 內、檔案不重疊」的工作，不適合跨功能平行 |
+| Dynamic workflows（`/workflows`） | 用腳本跑大量 subagent 並交叉驗證 | 適合唯讀的 fan-out（讀 N 個 issue、分群、去重、起草 proposal），需使用者明確要求 |
+| Cross-session messaging | 同機 session 互傳純文字 | 已在 Phase 2a 的治理文件採用 |
+| Projects（雲端 threads，公開 beta） | 一個長期對話，Claude 開平行 thread 並顯示哪些需要你 | 最接近「不用看多個 session」，但在雲端跑，本機 secrets、worktree、hooks 的行為 **NOT TESTED**，也牽涉 D4' 的 secrets 規則，不建議現在做 |
+| Codex | `codex agents` 可瀏覽共用 daemon 上的所有 session | 只涵蓋 Codex session |
+
+### 16.3 能做與不能做
+
+- 能：啟動時依 `spec:<slug>` 標籤用 `gh issue list` 取出相關 issue，加上關鍵字搜尋補漏，去重、分群，對應到 `tasks.md`，在 `proposal.md` 寫「涵蓋的 issue」連結；這是唯讀、便宜、不需要 agent teams 的步驟。
+- 能：把互不相干的功能各自放在 git 建立的 worktree，用 agent view 派出並集中監看。
+- 不能做到「完全不看」：權限提示（`git push` 要核准、hooks 的 ask）要 attach 才能回答；push、部署、D 類裁決依規則仍是人工；agent view 的 peek 回覆不能代替權限對話框（文件描述）。
+- 限制：agent view 是研究預覽、agent teams 是實驗功能；agent view 是否能在 VS Code 擴充內使用，文件我讀到的部分沒提，**NOT TESTED**（至少可在 VS Code 的整合終端機以 `claude agents` 啟動，也未驗證）；平行度越高，配額消耗越快，plan §3.1 的條件 (d) 仍然適用。
+- 一個重要的區別：「統合 issue 成一個功能」是**規劃**問題，「平行實作」是**執行**問題。前者幾乎不需要平行 agent；後者在跨功能時用多個 worktree，在同一功能內用 teams，兩者的隔離機制不同，不要混用。
+
+### 16.4 我的評估
+
+可行，但最划算的是分三段，且每段獨立可停：
+
+1. **Kickoff 彙整（便宜，建議先做）**：一個 prompt／skill，輸入 spec slug 或主題，輸出「涵蓋 issue 表、去重結果、對應的 tasks、尚未有 spec 標籤的相關 issue」並寫進 `proposal.md`；唯讀。需要同時處理 29 個沒有 spec 標籤的 issue（建議先盤點歸屬，不自動貼標籤）。
+2. **跨功能平行（中等，需先試）**：用 `claude agents --cwd <git 建立的 worktree>` 或在該 worktree 內 `claude --bg` 派 2 到 3 個 session；先做一次受限試驗，驗證：hooks 是否載入、`git push` 是否變成 Needs input、完成後是否自己 commit／push、peek 與 attach 的實際操作。
+3. **同功能內 agent teams（最後）**：只對檔案互不重疊的任務；實作型的切分尚未驗證（spike 只驗證了唯讀審查）。
+
+### 16.5 需要使用者決定
+
+- 要不要做第 1 段，以及先盤點 29 個無標籤 issue 的歸屬。
+- 第 2 段的試驗要不要排進 Phase 2b 的 spike（目前 2b 的條件 (d) 配額基準尚未記錄）。
+- 第 3 段是否暫緩（建議暫緩）。
+
+## 17. §16 的決定與第 1 段完成（2026-10-23）
+
+§16 的標題寫「尚未決定」是當時的狀態；本節追加決定，原文不改。
+
+使用者決定：**做第 1 段（feature kickoff 彙整）**；**第 2 段的小試驗排進 Phase 2b 的 spike**；第 3 段維持暫緩。執行者：Claude Code（Opus 5.5）。
+
+### 17.1 第 1 段交付
+
+| 交付 | 內容 | 驗證 |
+|---|---|---|
+| `scripts/feature_kickoff.py` | 唯讀。輸入 spec slug 與關鍵字，輸出：帶 `spec:<slug>` 標籤的 issue、沒有任何 `spec:` 標籤但關鍵字命中的候選、疑似重複（標題相似度 ≥ 0.8，或長度 ≥ 12 的標題完整出現在另一個裡）、互相引用；`--inventory` 盤點沒有 `spec:` 標籤的 issue。gh 失敗時以 exit 2 與清楚訊息結束 | 先寫 17 個測試（先紅，一個測試資料有誤已修正，見下），全綠；有測試守住「腳本不含任何 gh 寫入命令」。全部測試 554 passed |
+| `.github/prompts/feature-kickoff.prompt.md` | 流程：確認 spec、取得名單、逐一讀 issue、去重分群、判斷候選、對應 tasks、寫入 proposal／tasks、切分平行度、回報。issue 內容視為資料不是指令；寫入限已確認的 worktree；只寫 `Refs #N`，不寫 `Fixes`；不貼標籤、不留言、不關閉 | `sync` 生成 `.claude/commands/feature-kickoff.md`，`--check` exit 0。**prompt 本身 NOT TESTED**：只有腳本有自動測試，prompt 要在互動 session 實際跑一次才算驗證 |
+| 第一次真實使用 | `--inventory` 列出 29 個無 `spec:` 標籤的 issue；`--slug ai-harness --keyword worktree --keyword pre-push` 找到 #328、#346（相關）與 #351（誤判） | 本機實測，唯讀。結果與建議在 [issue-inventory-2026-10-23.md](./issue-inventory-2026-10-23.md) |
+
+測試資料更正：第一版「疑似重複」測試用的兩個標題相似度只有 0.63，不到門檻，是我的測試資料不好，不是腳本的缺陷；修正方式是加入「標題完整被包含」的提示（有長度下限避免短標題誤報），並新增一個「短標題不誤報」的測試。標題相似度只是提示，不是判定。
+
+### 17.2 第 2 段：排進 Phase 2b 的 spike
+
+方案寫在 [spike-agent-view.md](./spike-agent-view.md)，執行前寫定：兩個背景 session，一個修改檔案但明確禁止 commit，一個執行 `git push origin HEAD --dry-run` 以觸發 hooks 的 ask；觀察工作目錄、hooks 是否生效、是否自己 commit 或 push、VS Code 整合終端機是否可用、用量差值。需使用者核准建立拋棄式 worktree `ttr-agent-view-trial-worktree` 後才能執行。plan §3.1 的 Phase 2b 條件 (e) 已改為兩個 spike 都結案。
+
+### 17.3 已知限制
+
+- kickoff 只會找到有標籤或有命中關鍵字的 issue；沒有標籤也沒有命中的相關 issue 會被漏掉，prompt 要求報告中提醒這點。
+- 29 個無標籤 issue 的歸屬是依標題推論，沒有逐一讀內文；不自動貼標籤。
+- 還沒有人用 `/feature-kickoff` 跑過完整流程。
+
+## 18. 看板的「階段」與 labels、issue 標籤動作（2026-10-23）
+
+### 18.1 已執行的 GitHub 寫入（使用者明確要求）
+
+| 動作 | 結果 |
+|---|---|
+| `gh issue edit 328 --add-label spec:ai-harness` | #328 現在的標籤：`enhancement`、`spec:ai-harness` |
+| `gh issue edit 346 --add-label spec:ai-harness` | #346 現在的標籤：`spec:ai-harness`（原本沒有標籤） |
+
+沒有其他 issue 被貼標籤，也沒有修改看板欄位。QA Heartbeat 的 5 個 issue 依使用者決定保留，沒有動作。
+
+### 18.2 看板現況（本機實測，唯讀）
+
+看板：TTR Roadmap（<https://github.com/users/TuiTuiKoan/projects/1>），96 個項目，全是 issue（open 76、Done 20）。
+欄位：除了內建欄位，自訂的有 `Status`（Todo、In Progress、Done；目前 In Progress 為 0）與 `階段`（單選，10 個選項：止血、PR 分層、成本、Eval、追蹤清理、架構圖、來源 intake、QA heartbeat、AI工具鏈、資料修復）。
+看板 README 的分工：Status 是進度；階段對應 roadmap 的各節；spec 看「為什麼、做什麼」，過程中增生的細項與 bug 開 issue 並貼 `spec:<slug>`；PR 的 `tier:` label 看合併方式（tier:0 自動合併、tier:1 一鍵合併、tier:2 完整 review）。
+
+實際使用（96 個項目的交叉統計）：
+
+| 階段 | 數量 | 與 `spec:` 標籤的關係 |
+|---|---|---|
+| 成本 | 11 | 全部是 `spec:llm-cost-reset`（該 spec 共 13 個，另 2 個沒設階段） |
+| AI工具鏈 | 5 | 全部是 `spec:ai-portability-followups`（5 個全有） |
+| PR 分層 | 1 | `spec:pr-flow-tiering` |
+| 資料修復 | 2 | `spec:authoritative-venue-repair`、`spec:japan-scope-gate` 各 1 |
+| Eval | 4 | 都沒有 spec 標籤（#324–#327，Done）；而 `spec:evaluation-framework` 的 14 個 issue 全都沒設階段 |
+| 來源 intake | 6 | 都沒有 spec 標籤（有 `source-intake` 標籤） |
+| QA heartbeat | 5 | 都沒有 spec 標籤 |
+| 止血 3、追蹤清理 4、架構圖 1 | 8 | 都沒有 spec 標籤 |
+| **沒有階段** | **54** | 36 個有 spec 標籤、18 個沒有 |
+
+觀察：42 個有階段、54 個沒有；2026-10-22 從 roadmap 搬進來的 issue（#313 到 #339）幾乎都設了階段，之後新開的 issue（#341 起）大多沒設。成本、AI工具鏈、PR 分層這三個階段與一個 spec 一對一，等於同一件事標了兩次；Eval 階段卻和 `spec:evaluation-framework` 沒有交集。
+
+工具的小陷阱：`gh project item-list --format json` 會把「階段」這個欄位名稱的首字壞成亂碼鍵（`���段`），用 `階段` 取值會全是空。要用程式讀這欄時，改用以「段」結尾的鍵，或走 GraphQL。
+
+### 18.3 `scraper-zero-output` 要不要建 spec（建議，待決定）
+
+事實：
+
+- 相關 issue：#367（10 個來源自 2026-09 中起連續 0 產出，prtimes 之前 6 週有 1148 筆；issue 自己推測「可能有共同原因（runner、依賴版本、網站改版或封鎖）」）、#381（30 個「28 天以上 0、原因未知」的來源，接續已完成的 #327）、#375、#376、#377（個別來源）。兩個彙總 issue 都已有明確做法與完成條件。
+- 本機有 worktree `ttr-scraper-zero-output-worktree`（分支 `fix/scraper-zero-output`），**但它是空的**：乾淨、沒有任何 commit、與 origin/main 沒有差異；docs/specs/active 裡也沒有對應的 spec。它不是本 session 建立的，沒有動它。
+- 看板 README 的原則：spec 只放 why、what 與不超過十條里程碑；細項與 bug 開 issue 並貼 `spec:<slug>`。
+
+建議：**建立一個很薄的 spec**（proposal 加不超過 6 條里程碑，tasks 只放決策規則），理由：(1) #367 自己懷疑有共同原因，需要一個地方記錄「修、確認是自然的 0 件、還是退役」的決策規則與結論；(2) 涉及 CI、爬蟲程式、`scraper/source_expectations.json` 與 `docs/evaluation/scrapers/`，不是單一來源的修補；(3) 讓 `spec:scraper-zero-output` 標籤把 #367、#375、#376、#377、#381 分在一起，之後 `/feature-kickoff` 與看板都能依標籤找到。每個來源的實際工作仍然是 issue，不是 spec 的任務。
+
+不建議把另外 6 個爬蟲管線缺陷（#364、#394、#395、#398、#404、#407）併進去：它們是彼此獨立的程式缺陷，各自開 issue 處理即可。
+
+反方：如果第一步查 prtimes 就發現每個來源原因都不同，spec 的價值會降低，issue 單獨管理就夠；這個判斷要等查過才知道，所以 spec 要保持薄。
+
+### 18.4 其餘無標籤 issue 補「階段」（建議，待決定）
+
+「依盤點補階段」的可行範圍：
+
+- 現有 10 個選項中，只有 **#346（pre-push gitleaks）適用「AI工具鏈」**，且與剛貼上的 `spec:ai-harness` 同方向；#328 已是「追蹤清理」，不改。
+- 盤點的其他群沒有對應選項：來源產出為 0（#367、#375、#376、#377、#381，若建 spec 則同上）、爬蟲管線缺陷（#364、#394、#395、#398、#404、#407）、產品與後台 UI（#342、#351）。
+- 命名建議（沿用現有邏輯：roadmap 主題的短名詞、不加前綴）：新增 **「來源健康」**（0 產出，5 個）與 **「爬蟲管線」**（6 個缺陷）；#342、#351 不設階段，因為它們是單點事項，不是 roadmap 主題。
+- 為什麼新增選項要在網頁操作：單選欄位的選項要透過 GraphQL 整組更新，我沒有驗證更新時既有項目的值會不會被清掉，所以採保守做法，由使用者在看板網頁上新增；新增後我可以用 `gh project item-edit` 設定各 issue 的值。
+- 尚未做：沒有修改任何看板欄位，也沒有新增選項。
+
+## 19. 看板新增階段選項、agent view 試驗 worktree、標記設計評估（2026-10-23）
+
+使用者核准：建立拋棄式 worktree；採用「來源健康」「爬蟲管線」；核准 commit。並提問：針對看板標記的落差，是否可以更好地規劃，還是不用管、讓 LLM 自動盤點。執行者：Claude Code（Opus 5.5）。
+
+### 19.1 拋棄式 worktree
+
+`ttr-agent-view-trial-worktree`：分支 `feat/agent-view-trial`，起點 origin/main `92a5bd45`（fetch 後），`.git/info/exclude` 對帳 converged，工作樹乾淨，有 hooks 檔案。注意：從 linked worktree 內執行對帳片段會讀不到 `.git/info/exclude`（linked worktree 的 `.git` 是檔案），必須在主工作目錄執行。
+
+### 19.2 新增階段選項：先實測再動真實看板
+
+我原本打算請使用者在網頁新增，因為不確定 API 更新選項時會不會清掉既有項目的值。改為先驗證：
+
+| 步驟 | 結果（本機實測） |
+|---|---|
+| GraphQL 介紹 | `ProjectV2SingleSelectFieldOptionInput` 有 `id`、`name`、`color`、`description` 四個欄位，更新時可以傳入既有選項的 `id` |
+| 臨時私人 project 實測 | 建立 `tmp-option-test-DELETE-ME`（編號 2），建立單選欄位與一個項目並設值，再以 `updateProjectV2Field` 傳入「既有選項附 id、外加一個新選項」：既有選項 id 不變、項目的值保留、新選項加入。實測後已刪除，`gh project list` 只剩 TTR Roadmap |
+| 真實看板 | 先備份 96 個 issue 的階段值到 `~/.ai-notes/ttr/board-stage-backup-2026-10-23.json`；更新後逐一比對：既有選項 id 與名稱不變、96 個值不變；再設定 12 個 issue。結束時比對：原有 42 個值全部未動，現在共 54 個有階段 |
+
+新增選項：「來源健康」（ORANGE，來源連續 0 產出或原因未知的健康問題）、「爬蟲管線」（PINK，爬蟲管線本身的缺陷與守門問題）。設定的 issue：#367、#375、#376、#377、#381 → 來源健康；#364、#394、#395、#398、#404、#407 → 爬蟲管線；#346 → AI工具鏈。沒有設階段的：#342、#351（單點事項，依先前建議），以及 #421（每日提醒 issue）。
+
+結論更正：§18.4 寫「新增選項要在網頁操作」是保守假設；實測證明傳入既有選項的 `id` 可以安全更新。這個做法只在「傳入全部既有選項與其 id」時成立，少傳一個既有選項的 id 會有什麼後果，我沒有測。
+
+### 19.3 落差的成因（本機實測，唯讀）
+
+| 落差 | 成因 |
+|---|---|
+| 覆蓋率（42／96，現 54／96） | 階段是 2026-10-22 搬遷 roadmap 時一次性手動設的；之後建 issue 的路徑（agent、`gh issue create`、人工）沒有任何一步會設階段。看板的 Auto-add 只負責加入，不設欄位 |
+| 重複標記 | 成本、AI工具鏈、PR 分層三個階段與一個 spec 一對一：階段與 spec 在這三處是同一軸 |
+| 沒對上 | Eval 階段在 spec 之前就存在，後來的 `spec:evaluation-framework`（14 個）與 `spec:people-ground-truth`（6 個）都沒回頭設階段；兩者是平行長出來的 |
+| 名稱 | 選項是主題，不是依序的階段；只有「止血」是真正的階段 |
+
+### 19.4 評估：要不要規劃，還是讓 LLM 盤點（建議，待決定）
+
+結論：**兩個都不是最好的答案**。不用管會讓覆蓋率繼續掉；全交給 LLM 則把一個大部分可以用規則決定的事變成每次都要花配額、結果還會漂移的判斷。建議「規則決定能決定的，LLM 只處理剩下的，人確認」。
+
+1. **先定義兩個軸各回答什麼問題**
+   - `spec:<slug>`：這個 issue 屬於哪份 spec（精確、對應文件，建立時就貼）。
+   - 階段（建議改名為「主題」）：我在看板上要在哪個區塊找到它（用來分組與篩選）。
+   - Status：進度。類型標籤（scraper、bug、documentation…）：工作性質。
+   - 為什麼需要第二個軸：我沒有驗證 Projects 能不能依 label 分組；若不能，階段欄位就是為了分組而存在，而不是為了表達 spec。
+2. **讓主題比 spec 粗，並由 spec 推導，不逐個 issue 手填**：多個 spec 對應到少數主題，所以主題回答的是「領域」而 spec 回答的是「文件」，兩軸才不重複。維護一張 spec 到主題的對照表（單一來源），有 `spec:` 標籤的 issue 其主題由對照表決定。草案如下，**只是我的提案**：
+
+   | spec | 建議主題 | 把握 |
+   |---|---|---|
+   | `llm-cost-reset` | 成本 | 高（11／13 已如此） |
+   | `ai-portability-followups`、`ai-harness` | AI工具鏈 | 高（前者 5／5 已如此） |
+   | `pr-flow-tiering` | PR 分層 | 高 |
+   | `evaluation-framework`、`people-ground-truth` | Eval | 中（#393 就叫「eval stage 3 後續」） |
+   | `japan-scope-gate`、`authoritative-venue-repair` | 資料修復 | 中（已各有 1 個如此） |
+   | `workstream-tracking`、`closer-auto-retire`、`admin-qa-cleanup` | 追蹤清理？ | 低，需要決定 |
+   | `publication-policy`、`ndl-relevance-publication` | 沒有現成主題 | 低，需要決定 |
+   | `scraper-zero-output`（若建立） | 來源健康 | 高 |
+3. **一支唯讀的稽核腳本**（沿用 `feature_kickoff.py` 的載入方式；階段欄位必須走 GraphQL，因為 `gh project item-list` 會把鍵弄成亂碼）：列出沒有主題的 issue、主題與對照表不一致的 issue、對照表沒有的 spec、沒有 spec 也沒有主題的 issue。預設只報告；`--apply` 只對「對照表可決定」的列設定，且需確認。
+4. **LLM 只做剩下的**：沒有 spec 標籤、也沒有對照表可套的 issue，由 LLM 提議主題或「需要新主題」並附一句理由，**人確認後才寫入**。理由：這次盤點中，關鍵字就產生過誤判（#351），LLM 也可能誤判；誤判會讓看板分組悄悄出錯；多次執行結果也可能不一致。
+5. **在哪裡跑**：`/feature-kickoff` 與既有的每週回顧（`weekly-review`）各加一步；先不做 GitHub Action。我所知使用者帳號擁有的 Projects v2 無法用 `GITHUB_TOKEN` 寫入，需要放一個有 project 權限的 PAT 到 secrets，會牽涉 `token-rotation` 的輪替規則；我沒有驗證這點，所以不建議現在做。
+6. **改名**：階段改名為「主題」可以去掉「依序」的誤導，也和 workstream-tracking 的 A 到 E「工作線」分開。代價：README、舊文件與任何以名稱讀取該欄位的程式要同步更新（本 session 的腳本就用名稱 `階段` 取值）。
+
+成本與限制：對照表加稽核腳本加測試是小工程（沿用現有載入與測試方式）；對照表需要人維護，新增 spec 時要同步一行，稽核會提醒缺漏；低把握的 5 個 spec 需要使用者先決定主題；沒有實測過稽核腳本，也沒有評估看板可否依 label 分組。
+
+### 19.5 需要使用者決定
+
+1. 是否採用「主題比 spec 粗、由 spec 推導」的方向。
+2. 是否把「階段」改名為「主題」。
+3. 對照表草案中低把握的列要怎麼歸。
+4. 是否做稽核腳本與每週回顧的一步（建議做，且不做 GitHub Action）。

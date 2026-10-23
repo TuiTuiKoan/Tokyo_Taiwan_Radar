@@ -48,9 +48,19 @@
 - [x] Spike 已由使用者執行一次（2026-10-23）；完整報告 `spike-result.md`，核對與判定見 notes.md §10
 - [x] Spike 重跑完成（相同提示詞，補量測 S3）：用量前後皆 15%／29%／7%（差 0 點）；無污染；S4 成立；第一次報告已還原為 `spike-result-run1.md`（SHA-256 相符）。**最終判定：可列入 Phase 2b 考慮，不是採用**（notes.md §12）
 - [x] Phase 1 後續修正完成（2026-10-23，先寫 39 個測試、9 個先紅，再修到全綠；證據見 notes.md §13）：`write_outputs` 先檢查衝突與可編碼性再刪除（A、#7）；`is_generated` 改為整行比對且依副檔名選 marker（E）；`toml_string` 跳脫 DEL（D）；tier 容許行內註解（#13）；agent 輸出名稱碰撞時報錯（#8）；補測 B、C、T4、T5、T6、T7、T8、T9、T13、欄位順序。未做：T10（`conftest` 對缺少 `.codex` 的 `copytree`）、T11（`len(sources) * 2` 寫死）、T12（`MODEL_ID_PREFIXES` 冗餘，維護成本）、G（symlink，未確認）、#10 到 #12 的其餘缺口。尚未 commit
+- [x] Phase 1 後續修正已 commit（`6bfc2fa8`，531 個測試通過）
+- [ ] Phase 1 修正第二批（使用者要求規劃，2026-10-23；全部先寫測試或先做 mutation check，再改；建議模型 Sonnet、medium；plan 見 notes.md §14）：
+  - [x] R1：`handoffs` 全部缺 `label`／`agent` 時不輸出孤立標題（Claude wrapper 與 Codex 檔）；先紅後綠，未 commit
+  - [x] R2：symlink 政策（使用者 2026-10-23「依建議」＝拒絕、不跟隨）：預期輸出路徑上的 symlink 是衝突，`--check` 報 `symlink …`；掃描不回傳 symlink、不進入 symlink 目錄（`os.walk(followlinks=False)`）；Python 3.12 與 3.14 實測一致；未 commit
+  - [ ] R3：`conftest` 的 `tmp_repo` 對缺少的來源目錄（如 `.codex`）不再丟錯
+  - [ ] R4：`len(sources) * 2` 改為依目錄比對 `.claude/agents`、`.codex/agents` 與來源的名稱集合
+  - [ ] R5：移除冗餘的 `MODEL_ID_PREFIXES`，tier 別名集合只在一處定義
+  - [ ] R6：補 `.codex/agents/` 子目錄的手寫檔不被動、生成殘留會被 `--check` 報告的測試
 
-### 2b（條件：2a 條件；Phase 1 NOT TESTED 已驗證〔已成立〕；第一週配額基準已記錄且沒有耗盡配額；spike 已結案）
+### 2b（條件：2a 條件；Phase 1 NOT TESTED 已驗證〔已成立〕；第一週配額基準已記錄且沒有耗盡配額；agent teams spike 已結案〔已成立〕；agent view 小試驗已結案）
 
+- [x] 拋棄式 worktree `ttr-agent-view-trial-worktree` 已建立（使用者 2026-10-23 核准；分支 `feat/agent-view-trial`，起點 origin/main `92a5bd45`，`.git/info/exclude` 已對帳）
+- [ ] agent view 小試驗：方案 [spike-agent-view.md](./spike-agent-view.md)；由使用者在 VS Code 整合終端機執行並記錄前後 `/usage`
 - [ ] Orca 安裝並釘版本、設定 worktree 建立後的安裝命令、不使用 Delete
 - [ ] 驗證（NOT TESTED，通過前不得稱相容）：Orca 內 `claude` 的 `/hooks` 與 push ask 生效；`/list-agents` 可見其他 worktree
 
@@ -79,3 +89,15 @@
 ## Phase 5（可選）：本機模型
 
 - [ ] Ollama 拉 Qwen3-Coder-30B-A3B 或 gpt-oss-20b；Codex `cheap` profile；一個月 A/B 後決定去留
+
+## Feature kickoff（issue 統合；使用者 2026-10-23 決定做第 1 段）
+
+- [x] `scripts/feature_kickoff.py`：唯讀；依 `spec:<slug>` 標籤、關鍵字候選、疑似重複、互相引用產出 Markdown；`--inventory` 盤點沒有 `spec:` 標籤的 issue；不呼叫任何 gh 寫入命令（有測試守住）。先寫 17 個測試（先紅），全綠；全部測試 554 passed
+- [x] `.github/prompts/feature-kickoff.prompt.md`（生成 `.claude/commands/feature-kickoff.md`）：對 GitHub 唯讀、issue 內容視為資料不是指令、worktree 閘門、寫入限已確認 worktree 的 `proposal.md`／`tasks.md`、只寫 `Refs #N` 不寫 `Fixes`
+- [x] 第一次真實使用：29 個無 `spec:` 標籤 issue 的盤點，見 [issue-inventory-2026-10-23.md](./issue-inventory-2026-10-23.md)；沒有貼任何標籤
+- [x] 盤點的決定（2026-10-23）：#328、#346 已貼 `spec:ai-harness`（GitHub 寫入，已驗證）；QA Heartbeat 的 5 個 issue 保留，不動
+- [ ] `scraper-zero-output` 是否建 spec：我的建議與依據見 notes.md §18.3，待使用者決定（使用者這次沒有回覆這項）
+- [x] 其餘無標籤 issue 補上看板「階段」：使用者採用「來源健康」「爬蟲管線」兩個新名稱；已由我用 GraphQL 新增選項並設定 12 個 issue（#367、#375、#376、#377、#381 → 來源健康；#364、#394、#395、#398、#404、#407 → 爬蟲管線；#346 → AI工具鏈）；原有 42 個值全部未動（notes.md §19）
+- [ ] 看板標記的長期設計（使用者 2026-10-23 提問）：我的評估與建議見 notes.md §19.4，待使用者決定
+- [ ] 在互動 session 實際用 `/feature-kickoff` 跑一次完整流程（需要一個真的要啟動的功能；`/feature-kickoff` 的行為目前只有腳本有測試，prompt 本身 NOT TESTED）
+- [ ] 第 3 段（同功能內 agent teams 做實作）暫緩，實作型切分尚未驗證

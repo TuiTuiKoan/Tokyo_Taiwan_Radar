@@ -180,7 +180,8 @@ Layer 2  專案層（TTR repo）
 
 **2b（正式平行開發；准入見 §3.1）**
 6. Orca：安裝並釘版本；Repository settings 的「Auto-run commands on worktree create」填 `pnpm install --frozen-lockfile`（web）；每個 agent 的啟動 hooks 保持預設；**不使用** Orca 的 Delete。
-7. 驗證：在 Orca 開的 worktree 內跑 `claude`，確認 `/hooks` 列出兩組 PreToolUse、`git push` 觸發 ask；`/list-agents` 看得到另一個 worktree 的 session。這些都是 NOT TESTED，通過前不得稱為相容。
+7. **agent view 小試驗**（使用者 2026-10-23 決定排入；方案與成功、停止條件見 [spike-agent-view.md](./spike-agent-view.md)）：驗證從 git 建立的 worktree 派出的背景 session 是否維持本 repo 的 worktree 與 commit／push 規則。
+8. 驗證：在 Orca 開的 worktree 內跑 `claude`，確認 `/hooks` 列出兩組 PreToolUse、`git push` 觸發 ask；`/list-agents` 看得到另一個 worktree 的 session。這些都是 NOT TESTED，通過前不得稱為相容。
 
 ### Phase 3 — 抽出可攜 harness（新 repo + Claude plugin + Codex install）
 商業對齊：弱對齊（主要價值是開發成本與維護效率，不直接改善活動資料）。複雜度 high、已證明價值 low、預期價值 medium，因此**第一個交付刻意縮小**（N1）。
@@ -245,7 +246,7 @@ Layer 2  專案層（TTR repo）
 | 進入 | 必要條件（全部成立才 go） |
 |---|---|
 | Phase 2a（housekeeping 與一個 spike） | (a) Phase 1 commit 存在（`361d17c1`，已成立）。(b) D4' 已裁決（2026-10-23，已成立）。 |
-| Phase 2b（正式平行開發，即日常同時跑多個 agent session） | 2a 的條件，加上：(c) Phase 1 的 NOT TESTED 項目已驗證，或使用者明確接受留作未驗證（**已成立，2026-10-23，見 notes.md §8**）。(d) 第一週配額基準已記錄，且沒有因平行 session 在重置前耗盡配額；若耗盡即 no-go，降低平行度後重評。(e) spike 已依停止條件結案並記入 notes.md。 |
+| Phase 2b（正式平行開發，即日常同時跑多個 agent session） | 2a 的條件，加上：(c) Phase 1 的 NOT TESTED 項目已驗證，或使用者明確接受留作未驗證（**已成立，2026-10-23，見 notes.md §8**）。(d) 第一週配額基準已記錄，且沒有因平行 session 在重置前耗盡配額；若耗盡即 no-go，降低平行度後重評。(e) 兩個 spike 都已依停止條件結案並記入 notes.md：agent teams（已完成）與 agent view 小試驗（[spike-agent-view.md](./spike-agent-view.md)，待執行）。 |
 | Phase 3a（試點） | Phase 2b 的條件，加上：至少兩週配額紀錄可比較。 |
 | Phase 3b（擴大與防線搬遷） | 3a 有明確復用收益；D8 已裁決；ai-portability-followups ① 的 CI 接線完成。 |
 | Phase 4 | 不依賴 Phase 3。條件：先逐檔量測 `/context` 的 Memory files。 |
