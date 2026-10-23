@@ -177,25 +177,111 @@ def _cleanup_old_records(sb) -> dict:
     return result
 
 
+# ─── A1 / A4 input: human field_corrections only (#373) ─────────────────────
+
+def _fetch_human_corrections(
+    sb, columns: str, start_iso: str, end_iso: str | None = None,
+) -> tuple[list[dict], int | None]:
+    """Human-written field_corrections in the window, plus the script-written count.
+
+    Only the admin UI sets corrected_by. Annotator locks, qa_auto_fix, the
+    publication-policy empty sentinel and one-off scripts leave it null; rows
+    with only a report_id come from qa_auto_fix settling auto-QA reports. Same
+    rule as eval_scraper_quality.is_human_correction. Script rows are counted,
+    not ranked: in 2026-09 all 698 rows were script-written.
+    """
+    q = (
+        sb.table("field_corrections")
+        .select(columns)
+        .gte("created_at", start_iso)
+        .not_.is_("corrected_by", "null")
+    )
+    if end_iso:
+        q = q.lt("created_at", end_iso)
+    rows = q.execute().data or []
+
+    try:
+        cq = (
+            sb.table("field_corrections")
+            .select("id", count="exact", head=True)
+            .gte("created_at", start_iso)
+            .is_("corrected_by", "null")
+        )
+        if end_iso:
+            cq = cq.lt("created_at", end_iso)
+        script = cq.execute().count or 0
+    except Exception as exc:
+        logger.warning("script-written field_corrections count failed: %s", exc)
+        script = None
+    return rows, script
+
+
+def _aggregate_recurrence(fc_rows: list[dict], source_by_event: dict[str, str]) -> dict:
+    """(source_name, field_name) pairs corrected ≥ 2 times, top 10."""
+    pair_counts: dict[tuple[str, str], int] = {}
+    for row in fc_rows:
+        source = source_by_event.get(row.get("event_id", ""), "unknown")
+        field = row.get("field_name", "")
+        if source and field:
+            pair_counts[(source, field)] = pair_counts.get((source, field), 0) + 1
+
+    recurring = {pair: cnt for pair, cnt in pair_counts.items() if cnt >= 2}
+    top = sorted(recurring.items(), key=lambda x: -x[1])[:10]
+    return {
+        "recurrence_pairs": len(recurring),
+        "top_pairs": [
+            {"source_name": src, "field_name": fld, "count": cnt}
+            for (src, fld), cnt in top
+        ],
+    }
+
+
+def _aggregate_repair_latency(
+    fc_rows: list[dict], event_created_at: dict[str, str], event_source: dict[str, str],
+) -> dict:
+    """Per source: median days from event creation to correction, slowest 5."""
+    source_latencies: dict[str, list[float]] = {}
+    for fc in fc_rows:
+        eid = fc.get("event_id")
+        if not eid or eid not in event_created_at:
+            continue
+        try:
+            ev_dt = datetime.fromisoformat(event_created_at[eid].replace("Z", "+00:00"))
+            fc_dt = datetime.fromisoformat(fc["created_at"].replace("Z", "+00:00"))
+            days = max(0.0, (fc_dt - ev_dt).total_seconds() / 86400)
+        except Exception:
+            continue
+        source_latencies.setdefault(event_source.get(eid, "unknown"), []).append(days)
+
+    rows = [
+        {"source_name": src, "n_corrections": len(lats), "median_days": round(median(lats), 1)}
+        for src, lats in source_latencies.items() if lats
+    ]
+    rows.sort(key=lambda x: -x["median_days"])
+    return {"sources": rows[:5]}
+
+
+def script_corrections_note(metric: dict) -> str:
+    """One line saying how many script-written corrections the metric left out."""
+    n = metric.get("script_corrections")
+    if n is None:
+        return "只計人工修正（`corrected_by` 有值）；腳本寫入筆數取得失敗。"
+    return f"只計人工修正（`corrected_by` 有值）；腳本寫入 {n} 筆不計入，那是 annotator 鎖定、qa_auto_fix 與出版政策的正常運作（#373）。"
+
+
 # ─── A1: Recurrence rate (same source×field corrected ≥2 times in 90d) ──────
 
 def _count_recurrence(sb) -> dict:
-    """A1 — (source_name, field_name) pairs corrected ≥ 2 times in last 90 days."""
+    """A1 — (source_name, field_name) pairs corrected by a human ≥ 2 times in last 90 days."""
     cutoff = (datetime.now(tz=UTC) - timedelta(days=90)).isoformat()
     try:
-        fc_rows = (
-            sb.table("field_corrections")
-            .select("event_id,field_name,created_at")
-            .gte("created_at", cutoff)
-            .execute()
-            .data or []
-        )
+        fc_rows, script = _fetch_human_corrections(sb, "event_id,field_name,created_at", cutoff)
     except Exception as exc:
         logger.warning("_count_recurrence: field_corrections fetch failed: %s", exc)
-        return {"recurrence_pairs": -1, "top_pairs": []}
+        return {"recurrence_pairs": -1, "top_pairs": [], "script_corrections": None}
 
     if not fc_rows:
-        return {"recurrence_pairs": 0, "top_pairs": []}
+        return {"recurrence_pairs": 0, "top_pairs": [], "script_corrections": script}
 
     # Fetch source_name for each event_id (batch)
     event_ids = list({r["event_id"] for r in fc_rows if r.get("event_id")})
@@ -215,25 +301,7 @@ def _count_recurrence(sb) -> dict:
         except Exception as exc:
             logger.warning("_count_recurrence: events batch failed: %s", exc)
 
-    # Count (source_name, field_name) occurrences
-    pair_counts: dict[tuple[str, str], int] = {}
-    for row in fc_rows:
-        eid = row.get("event_id", "")
-        source = source_by_event.get(eid, "unknown")
-        field = row.get("field_name", "")
-        if source and field:
-            pair_counts[(source, field)] = pair_counts.get((source, field), 0) + 1
-
-    recurring = {pair: cnt for pair, cnt in pair_counts.items() if cnt >= 2}
-    top = sorted(recurring.items(), key=lambda x: -x[1])[:10]
-
-    return {
-        "recurrence_pairs": len(recurring),
-        "top_pairs": [
-            {"source_name": src, "field_name": fld, "count": cnt}
-            for (src, fld), cnt in top
-        ],
-    }
+    return {**_aggregate_recurrence(fc_rows, source_by_event), "script_corrections": script}
 
 
 # ─── A2: Protect hit trend (30/60/90 day windows) ────────────────────────────
@@ -456,22 +524,16 @@ def _first_pass_accuracy(sb) -> dict:
 # ─── A4: Repair latency (median days from event creation to field_correction) ─
 
 def _repair_latency(sb) -> dict:
-    """A4 — per source: median days from event creation to field_corrections."""
+    """A4 — per source: median days from event creation to a human field_correction."""
     cutoff = (datetime.now(tz=UTC) - timedelta(days=180)).isoformat()
     try:
-        fc_rows = (
-            sb.table("field_corrections")
-            .select("event_id,created_at")
-            .gte("created_at", cutoff)
-            .execute()
-            .data or []
-        )
+        fc_rows, script = _fetch_human_corrections(sb, "event_id,created_at", cutoff)
     except Exception as exc:
         logger.warning("_repair_latency: field_corrections fetch failed: %s", exc)
-        return {"sources": []}
+        return {"sources": [], "script_corrections": None}
 
     if not fc_rows:
-        return {"sources": []}
+        return {"sources": [], "script_corrections": script}
 
     event_ids = list({r["event_id"] for r in fc_rows if r.get("event_id")})
     event_created_at: dict[str, str] = {}
@@ -492,30 +554,7 @@ def _repair_latency(sb) -> dict:
         except Exception as exc:
             logger.warning("_repair_latency: events batch failed: %s", exc)
 
-    # Compute latency in days per source
-    source_latencies: dict[str, list[float]] = {}
-    for fc in fc_rows:
-        eid = fc.get("event_id")
-        if not eid or eid not in event_created_at:
-            continue
-        try:
-            ev_dt = datetime.fromisoformat(event_created_at[eid].replace("Z", "+00:00"))
-            fc_dt = datetime.fromisoformat(fc["created_at"].replace("Z", "+00:00"))
-            days = max(0.0, (fc_dt - ev_dt).total_seconds() / 86400)
-        except Exception:
-            continue
-        src = event_source.get(eid, "unknown")
-        source_latencies.setdefault(src, []).append(days)
-
-    rows = []
-    for src, lats in source_latencies.items():
-        if not lats:
-            continue
-        med = median(lats)
-        rows.append({"source_name": src, "n_corrections": len(lats), "median_days": round(med, 1)})
-
-    rows.sort(key=lambda x: -x["median_days"])
-    return {"sources": rows[:5]}
+    return {**_aggregate_repair_latency(fc_rows, event_created_at, event_source), "script_corrections": script}
 
 
 
@@ -688,37 +727,17 @@ def collect_monthly_health_metrics(
                 logger.warning("collect_monthly_health_metrics: events source batch failed: %s", exc)
         return out
 
-    # ── A1: recurrence (source×field corrected ≥2 within window) ─────────────
-    a1 = {"recurrence_pairs": 0, "top_pairs": []}
+    # ── A1: recurrence (source×field corrected by a human ≥2 within window) ──
+    a1 = {"recurrence_pairs": 0, "top_pairs": [], "script_corrections": None}
     try:
-        fc_rows = (
-            sb.table("field_corrections")
-            .select("event_id,field_name,created_at")
-            .gte("created_at", start_iso)
-            .lt("created_at", end_iso)
-            .execute()
-            .data or []
-        )
+        fc_rows, script = _fetch_human_corrections(sb, "event_id,field_name,created_at", start_iso, end_iso)
+        a1["script_corrections"] = script
         if fc_rows:
             source_by_event = _sources_for(list({r["event_id"] for r in fc_rows if r.get("event_id")}))
-            pair_counts: dict[tuple[str, str], int] = {}
-            for row in fc_rows:
-                source = source_by_event.get(row.get("event_id", ""), "unknown")
-                field = row.get("field_name", "")
-                if source and field:
-                    pair_counts[(source, field)] = pair_counts.get((source, field), 0) + 1
-            recurring = {p: c for p, c in pair_counts.items() if c >= 2}
-            top = sorted(recurring.items(), key=lambda x: -x[1])[:10]
-            a1 = {
-                "recurrence_pairs": len(recurring),
-                "top_pairs": [
-                    {"source_name": src, "field_name": fld, "count": cnt}
-                    for (src, fld), cnt in top
-                ],
-            }
+            a1 = {**_aggregate_recurrence(fc_rows, source_by_event), "script_corrections": script}
     except Exception as exc:
         logger.warning("collect_monthly_health_metrics: A1 recurrence failed: %s", exc)
-        a1 = {"recurrence_pairs": -1, "top_pairs": []}
+        a1 = {"recurrence_pairs": -1, "top_pairs": [], "script_corrections": None}
 
     # ── A3: first-pass accuracy (events created within window) ───────────────
     a3 = {"sources": []}
@@ -741,17 +760,11 @@ def collect_monthly_health_metrics(
     except Exception as exc:
         logger.warning("collect_monthly_health_metrics: A3 first-pass failed: %s", exc)
 
-    # ── A4: repair latency (field_corrections created within window) ─────────
-    a4 = {"sources": []}
+    # ── A4: repair latency (human field_corrections created within window) ───
+    a4 = {"sources": [], "script_corrections": None}
     try:
-        fc_rows = (
-            sb.table("field_corrections")
-            .select("event_id,created_at")
-            .gte("created_at", start_iso)
-            .lt("created_at", end_iso)
-            .execute()
-            .data or []
-        )
+        fc_rows, script = _fetch_human_corrections(sb, "event_id,created_at", start_iso, end_iso)
+        a4["script_corrections"] = script
         if fc_rows:
             event_ids = list({r["event_id"] for r in fc_rows if r.get("event_id")})
             event_created_at: dict[str, str] = {}
@@ -771,24 +784,7 @@ def collect_monthly_health_metrics(
                         event_source[r["id"]] = r.get("source_name", "unknown")
                 except Exception as exc:
                     logger.warning("collect_monthly_health_metrics: A4 events batch failed: %s", exc)
-            source_latencies: dict[str, list[float]] = {}
-            for fc in fc_rows:
-                eid = fc.get("event_id")
-                if not eid or eid not in event_created_at:
-                    continue
-                try:
-                    ev_dt = datetime.fromisoformat(event_created_at[eid].replace("Z", "+00:00"))
-                    fc_dt = datetime.fromisoformat(fc["created_at"].replace("Z", "+00:00"))
-                    days = max(0.0, (fc_dt - ev_dt).total_seconds() / 86400)
-                except Exception:
-                    continue
-                source_latencies.setdefault(event_source.get(eid, "unknown"), []).append(days)
-            rows = []
-            for src, lats in source_latencies.items():
-                if lats:
-                    rows.append({"source_name": src, "n_corrections": len(lats), "median_days": round(median(lats), 1)})
-            rows.sort(key=lambda x: -x["median_days"])
-            a4 = {"sources": rows[:5]}
+            a4 = {**_aggregate_repair_latency(fc_rows, event_created_at, event_source), "script_corrections": script}
     except Exception as exc:
         logger.warning("collect_monthly_health_metrics: A4 repair latency failed: %s", exc)
 
@@ -899,7 +895,9 @@ def build_line_message(reports: dict, corrections: dict, protect_hits: int, excl
         n = a1.get("recurrence_pairs", -1)
         top = a1.get("top_pairs", [])
         if n >= 0:
-            lines.append(f"  A1 重犯率 (90d): {n} 對 (source×field 修正 ≥2 次)")
+            script = a1.get("script_corrections")
+            script_str = f"，腳本寫入 {script} 筆不計" if script is not None else ""
+            lines.append(f"  A1 重犯率 (90d): {n} 對 (source×field 人工修正 ≥2 次{script_str})")
             if top:
                 lines.append(f"    最高: {top[0]['source_name']}/{top[0]['field_name']} ×{top[0]['count']}")
         else:
@@ -932,7 +930,7 @@ def build_line_message(reports: dict, corrections: dict, protect_hits: int, excl
                 f"中位數 {top_src['median_days']} 天 (n={top_src['n_corrections']})"
             )
         else:
-            lines.append("  A4 修復延遲: 無資料")
+            lines.append("  A4 修復延遲: 無人工修正")
 
     # Researcher 健康度（Plan v6 Phase 5'）
     if researcher is not None:
@@ -974,6 +972,7 @@ def _write_evaluation_md(
         "",
         "## A1 — 重犯率（Recurrence Rate）",
         f"過去 90 天中，同一 source × field_name 被修正 ≥ 2 次的組合數：**{a1.get('recurrence_pairs', 'n/a')}**",
+        script_corrections_note(a1),
         "",
     ]
 
@@ -1020,6 +1019,7 @@ def _write_evaluation_md(
         "",
         "## A4 — 修復延遲（Repair Latency）",
         "過去 180 天 field_corrections.created_at − events.created_at 中位數（per source）：",
+        script_corrections_note(a4),
         "",
         "| source_name | 修正次數 | 中位數（天） |",
         "|---|---|---|",
