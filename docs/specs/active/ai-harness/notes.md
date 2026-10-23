@@ -1148,3 +1148,23 @@ push 並在主工作目錄 pull 之後，才可以用相對路徑在主工作目
 - `idle_prompt`（回應後約 60 秒未輸入）沒有測。
 - 雙螢幕時通知只出現在主要螢幕（macOS 限制）；用音效與把 Script Editor 的通知樣式改成「提示」緩解，後者是使用者端設定，沒有驗證。
 - 用量差（試驗 2，22:1x 結束）：session 14%→15%（+1）、週 1%→2%（+1）、Fable 0%→0%，在 ≤ 3 點內；數字含本 session 同時段的其他活動，是上界。
+
+## 38. session 自動命名小試驗（2026-10-23，#426）
+
+規劃見 [spike-session-title.md](./spike-session-title.md)。`SessionStart` hook（使用者層：`~/.ai-notes/ttr/tools/session_title_hook.py`，由 `apply_session_title_hook.py` 寫入 `~/.claude/settings.json`，有備份、可 `--remove`）依 worktree 或 branch 輸出 `sessionTitle`；不讀對話內容；已有 `session_title` 就跳過。官方文件載明的輸出格式：`{"hookSpecificOutput":{"hookEventName":"SessionStart","sessionTitle":"…"}}`，exit 0、stdout 只放一個 JSON 物件。
+
+| # | 情境 | 結果 | 證據 |
+|---|---|---|---|
+| T1 | 終端機，不加 `-n` | 成立 | log `named session=9d0f5e20 title=ai-harness·2235`；transcript 的 `custom-title`、`agent-name` 都是 `ai-harness·2235`；使用者回報畫面名稱相同 |
+| T2 | 手動 `-n "manual-keep"` | 成立 | log `skip session=4988cbac reason=has-title title=manual-keep`；transcript 只有 `manual-keep`；使用者回報橫線右側顯示 `manual-keep` |
+| T3 | `claude --bg`（主工作目錄） | **部分成立** | log `named session=c24065f5 title=root·main·2233`；transcript 先有 `custom-title: root·main·2233`，但 `agent-name` 隨後被自動標題 `print working directory` 取代，`claude agents --json` 顯示的是自動標題。結論：`sessionTitle` 被接受，但背景 session 的顯示名稱不採用它（文件未載明；要在背景 session 命名只能用 `--name`） |
+| T4 | VS Code 面板新對話 | 成立 | session `55d7a1a7`（entrypoint `claude-vscode`）log `named title=ai-harness·2242`；transcript 的 `custom-title`、`agent-name` 一致；使用者回報面板標題 `ai-harness·2242` |
+| T5 | `claude -r` 接續 T1 | 成立 | log `22:44:38 skip session=9d0f5e20 source=resume reason=has-title`；使用者回報橫線右側仍是 `ai-harness·2235` |
+
+判定（依規劃的判定規則）：T1、T2 成立且 T4 成立 → **可作為「暫時名稱」採用**。背景 session（T3）不適用，那條路徑要用 `claude --bg -n "名稱"`。
+
+附帶觀察與限制：
+- 這個 hook 不處理 issue 編號，也不隨 session 內容或 worktree 切換更新名稱（見規劃檔「已知限制」）；`UserPromptSubmit` 的 issue 編號補強另案。
+- log 在 22:42:21 有一筆 `session=21cdee9f` 也被命名成 `ai-harness·2242`，但本機沒有任何 transcript；推測是沒有訊息就結束的空 session（VS Code 開對話時多起了一個程序），未證實。無害。
+- **未解**：本 session（`79048fdf`）的 transcript 裡，`custom-title` 反覆被改成類似每輪摘要的文字（例：`ai-harness 收尾, kickoff 實跑, 兩試驗完成…`），但 `agent-name` 一直是使用者手動取的 `ai-harness·next`。寫入者未查到（在 `~/.claude/plugins`、`cc-statusline`、`hooks` 目錄搜尋 `sessionTitle` 只在 transcript 資料檔命中）。這表示既有機制已會動態改 `custom-title`；`session_map.py` 與 VS Code 歷史清單顯示的是哪一個，尚未釐清。
+- 用量：每個測試 session 都只做一句 pwd；沒有量測用量差，也不預期有可見差距。
