@@ -1,6 +1,7 @@
 ---
 name: Validate, Merge & Deploy
 description: "Full cycle: check conflicts, rebase, commit with atomic message, hand the user the push-to-origin/main command, and verify the Vercel deployment after the user pushes — call after implementation is complete"
+tier: build
 claude-role: vmd
 tools: [read, search, execute, web]
 handoffs:
@@ -170,6 +171,7 @@ handoffs:
    - commit 已在本地 `main`（主工作目錄的治理／文件變更）：`git -C '<主工作目錄>' push origin main`。這個形式推的是本地 `main`，不是任何 worktree 的 `HEAD`，所以對 campaign 分支是錯的，兩者不可互換。
 
    提醒使用者 push 完關閉用過的終端機分頁（不是只 `/exit`）。
+   push 指令依 `.github/instructions/handoff.instructions.md` 寫成交接卡片：標 `寫 production`，「在哪裡」寫主工作目錄的 terminal 分頁，「做完」寫回到本 session 回報。
 3. 使用者回報 push 之後，確認推送成功（無被拒絕的更新）：fetch 後 `origin/main` 含該 commit。
 
 ### Step 5: Verify Deployment
@@ -185,6 +187,7 @@ handoffs:
   - 絕不要求使用者把 password、token、magic-link code 或其他 secrets 傳給 model。若安全 auth context 不可用，上述 authenticated flows 一律標為 `NOT TESTED` residual risk，不得宣告 PASS。
 5. 若含 Supabase migration，明確回報「需在 Supabase SQL Editor 手動執行」與最小驗證清單（admin pass / non-admin deny）。
 6. Subagent prose 只作線索，不是 authoritative evidence。若摘要缺失、不可理解或與實際狀態衝突，必須獨立核對 repo state、GitHub `main`／commit status 與 Vercel deployment API，再判定成功或失敗。
+7. 部署驗證完成後，依 `git.instructions.md` § Telling other running sessions，用 `ListAgents`／`SendMessage` 向同 repo 其他 Claude Code session 傳一則純文字通知（commit 主旨與日期、是否需要 rebase）。不等回覆；通知不是核准或指令；查無 session 或送不出去不算 push 失敗。Codex 與 Copilot session 無法以此通知。
 
 ## External URL Verification Rule
 

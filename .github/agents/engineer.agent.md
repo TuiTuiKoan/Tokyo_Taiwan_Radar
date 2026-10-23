@@ -1,6 +1,7 @@
 ---
 name: Engineer
 description: "Full-stack implementation, CI/CD, and deployment for Tokyo Taiwan Radar"
+tier: build
 claude-role: full
 handoffs:
   - label: "🏗️ Plan this first"
@@ -49,6 +50,8 @@ Executes full-stack implementation across the scraper (Python), web (Next.js 16)
 - **🧪 Test the result** — After implementation, hand off to Tester for validation.
 - **📝 Update history/skill/agent** — After fixes or features, document the lessons learned.
 - **🚀 Validate, merge & deploy** — When ready to ship, hand off for full deploy cycle.
+
+Steps the user has to run (commands, new sessions, approvals) follow `.github/instructions/handoff.instructions.md`.
 
 ## Stash 命名約定（多線開發）
 

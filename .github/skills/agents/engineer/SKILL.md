@@ -654,6 +654,8 @@ router.push('/admin');
 | dismiss（report status のみ変更、stay-on-page） | ❌ 不要・禁止 | Realtime と RSC re-render が競合し画面破損 |
 
 ## Python
+- **FC 存在不等於人工審過（2026-10-23 教訓）**：`_load_human_field_map()` 載入所有 `field_corrections`，writer 的 7 個 `PUBLICATION_NULL_FIELDS` 空 sentinel、backfill、簡轉繁修正都會寫入，`corrected_by` 幾乎都空。annotator relevance gate 曾因此對 ndl／hanmoto 靜默失效（2026-10-12 上線後停用數 0）。新增任何「有 FC 就跳過」的判斷時：用欄位集合精確比對、載入失敗 fail-closed，並回傳原因代碼讓 production 可查證；出版物 gate 見 `annotator._publication_gate_eligible()`。
+- **Prompt 文字以 SHA 對齊凍結版本**：把量測過的 prompt 寫回 `SYSTEM_PROMPT` 時，比對的是 taxonomy placeholder 替換**之後**的 `annotator.SYSTEM_PROMPT`（`hashlib.sha256(SYSTEM_PROMPT.encode())`），不是原始碼字串；之後再做的有意修改要在 spec notes 記下兩個 SHA 與差異。
 - When changing a function's return type (e.g. `dict` → `tuple`), immediately smoke-test before committing: `python -c "from module import fn; print(type(fn(...)))"`
 - Use `getattr(obj, 'attr', default)` when reading an attribute that may not exist on all subclasses.
 - **Pipeline parity rule:** Any post-processing step added to CI workflow (`scraper.yml`) must also be called in `main.py`'s normal (non-dry-run) flow. Otherwise manual scraper runs produce incomplete results. Current full pipeline in `main.py`: scrape → merger → annotate → `enrich_movie_titles()` → `enrich_person_names()` → IndexNow. Enrich functions are idempotent — double execution (main.py + CI) is safe (just extra DB queries). When adding a new enrichment function: (1) add to `main.py` after `annotate_pending_events()`; (2) add CLI flag + step to `scraper.yml`.

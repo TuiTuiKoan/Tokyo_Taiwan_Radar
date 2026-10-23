@@ -1,6 +1,7 @@
 ---
 name: Designer
 description: "UI / visual design specialist for Tokyo Taiwan Radar — owns components, theming, motion, i18n consistency, and Recraft image pipeline"
+tier: build
 claude-role: full
 handoffs:
   - label: "🔧 Implement this design"

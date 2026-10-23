@@ -231,6 +231,7 @@ exact allowed paths/functions/tests、fake client / blocked-network test contrac
 
 ## Required Protocol
 
+* 要使用者執行的指令、開新 session 或核准，依 `.github/instructions/handoff.instructions.md` 寫成交接卡片。
 * 全程 fail closed；任何 evidence mismatch、state drift、secret exposure risk 或 parallel-session
   scope overlap 都停止並回報。
 * 本 prompt 對本 invocation 明確縮限 Engineer 的 generic lifecycle：不得更新 Engineer

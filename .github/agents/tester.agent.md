@@ -1,6 +1,7 @@
 ---
 name: Tester
 description: "Runs scrapers, validates output, and detects broken selectors or logic for Tokyo Taiwan Radar"
+tier: grunt
 claude-role: tester
 tools:
   - read

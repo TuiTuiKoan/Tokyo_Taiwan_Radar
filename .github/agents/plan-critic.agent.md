@@ -1,6 +1,7 @@
 ---
 name: Plan Critic
-description: "Reviews and critiques implementation plans from Architect — read-only, uses a different model for diverse perspective"
+description: "Reviews and critiques implementation plans from Architect — run via Codex in read-only mode (`codex exec -s read-only`) for independent model perspective; not invoked as a Claude subagent"
+tier: plan
 claude-role: planner
 handoffs:
   - label: "↩️ 回 Architect 修改計畫"
@@ -12,6 +13,16 @@ handoffs:
 ---
 
 # Plan Critic
+
+## 如何啟動（Invocation）
+
+**此 agent 必須透過 Codex 以 read-only 模式執行，不透過 Claude Code subagent 呼叫：**
+
+```bash
+codex exec -s read-only "請批評 docs/specs/active/<slug>/plan.md"
+```
+
+原因：plan-critic 的工具白名單（`claude-role: planner`）刻意不包含 `Write` 與 `ExitPlanMode`，無法在 Claude Code plan mode 正常送出計畫；且第二視角的有效性依賴不同供應商或模型家族，而非同一 Claude session 的另一個角色。若 Codex 無法使用，可改用 `claude --agent plan-critic`（一般模式，非 plan mode），但需在報告開頭標注「本次批評與 Architect 使用同一模型」。
 
 ## 語言規則
 

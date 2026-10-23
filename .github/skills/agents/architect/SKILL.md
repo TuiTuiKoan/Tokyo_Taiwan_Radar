@@ -326,6 +326,28 @@ Architect 在「新增 enum 值」計畫**外**，遇到相關 admin route 修�
 
 Reference incident: 2026-05-25 — `qa_heartbeat` live run で 23 件が `verify_failed`（Error 23502）。`lock_empty` モードが `corrected_value=None` を渡していた。`_fc_value()` helper 追加後に解消。
 
+## FC 存在 ≠ 人工審過 Guard（2026-10-23 教訓，ndl-relevance-publication）
+
+計畫若用「`field_corrections` 有任何列」當「人工已審，跳過自動判斷」的條件，必須先查**誰會寫 FC**。
+writer（`PUBLICATION_NULL_FIELDS` 的 7 個空 sentinel）、backfill、簡轉繁修正都會寫 FC，
+`corrected_by` 幾乎都是空（全表 2381 列只有 20 列有值），不能用來區分人工。
+
+- 事故：annotator 的 Taiwan relevance gate（2026-10-12 上線）在 `human_protected` 非空時直接跳過；
+  ndl／hanmoto 每筆寫入時就帶 7 個 sentinel，gate 對出版物**一次都沒生效**，ndl 停用數為 0，沒有任何錯誤或日誌。
+- 規則：gate 類「跳過」條件要列出所有 FC 寫入者，用欄位集合精確比對（例：恰好 7 個空 sentinel 且 `annotated_at` 為空），
+  載入失敗時 fail-closed（`fc_loaded=False` 不進 gate）；並在計畫中要求以 production 查詢證明 gate 實際有作用（停用數、原因代碼），
+  不能只看單元測試。
+
+## LLM 分類 prompt 修正 Guard（2026-10-23 教訓，ndl-relevance-publication）
+
+- **點名限制會觸發該標籤**：cand5 在 prompt 加「taiwan_japan 只在…才用」的專門規則，P_dev 302 筆的 taiwan_japan 從 36 升到 99。
+  拿掉專門規則、也從範例清單移除後降到 8。要壓低某個標籤，先試「不提它」，不要加點名的否定句。
+- **gpt-4o-mini 不照「格式不構成理由」做**：明列「寫真集、旅遊書、雜誌不加 books_media」後仍有 33 筆。
+  可確定的規則（記錄型別＋分類組合）改寫成程式後處理（`_drop_format_only_books_media`），不要一直加 prompt 輪次。
+- **白名單會吃掉自創 slug**：要求「必須有主題分類」時，模型會自創 `travel`、`architecture` 等，被白名單濾掉後反而變空分類。
+  prompt 要同時給允許清單的對照（travel → tourism…）。
+- 門檻要能對照現況：絕對門檻（N ≤ 2／40）達不到時，用 A／B 盲測「現行 vs 新版」判斷是否出貨，剩餘錯誤型態另開 issue。
+
 ## Transient Failure Triage Guard（暫時性故障快速排除）
 
 當使用者報「production 後台 / 客戶端寫入突然全部失效」且最近 24h 有 Vercel 部署，**在深入結構性分析（migration / RLS / GRANT）之前**先要求使用者執行 1 分鐘 DevTools 三點檢查：

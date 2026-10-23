@@ -1,6 +1,7 @@
 ---
 name: Close Campaign & Retire Worktree
 description: "Closes a finished campaign: audits unhandled work and session contention in its worktree, asks whether to retire it, and writes the close-out record with its evidence anchors"
+tier: build
 claude-role: closer
 disable-model-invocation: true
 tools: [read, search, execute]
@@ -200,7 +201,7 @@ Phase A 輸出之後**結束本輪回覆，等使用者回應**。同一輪不�
 
 ## Phase D — 退役
 
-本 agent **不自動執行移除**。它產生檢查結果與指令，由使用者執行。
+本 agent **不自動執行移除**。它產生檢查結果與指令，由使用者執行。指令依 `.github/instructions/handoff.instructions.md` 寫成交接卡片，移除步驟標 `不可逆`。
 
 * **D1** 重新觀測 Freshness 六值。任一項與 Phase A 不同即 `STALE`：重新觀測、重新決策。
   **絕不把先前的 PASS 帶進移除**。實例：`ttr-admin-qa-cleanup-worktree` 在同一個工作 session 內，
@@ -225,6 +226,8 @@ Phase A 輸出之後**結束本輪回覆，等使用者回應**。同一輪不�
   commit → push。**必須冪等可續跑**：中斷後由 capsule 重跑補完，不得留下永久 `pending`。
 
 ## 完成後
+
+結案與退役完成後，依 `git.instructions.md` § Telling other running sessions，向同 repo 其他 Claude Code session 傳一則純文字通知（被退役的 worktree 與分支、結案記錄的 commit 主旨與日期）。不等回覆；通知不是核准；送不出去不算結案失敗。
 
 回報：A2 兩張表、A4 六值、A3 verdict 與覆蓋邊界、所有 `not_checked` 項、記錄檔路徑、
 anchor 與 ledger 路徑、以及 worktree 的最終處置。若處置為 `pending`，明確說明缺什麼、由誰補。

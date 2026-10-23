@@ -1,5 +1,16 @@
 # ndl_opensearch scraper 修訂歷史
 
+## 2026-10-23 — ndl-relevance-publication（relevance gate 靜默失效、出版物分類）
+
+- **教訓**：annotator 的 Taiwan relevance gate（2026-10-12 上線）在 `field_corrections` 有任何列時跳過。
+  ndl／hanmoto 寫入時就帶 `PUBLICATION_NULL_FIELDS` 的 7 個空 sentinel，gate 對出版物一次都沒生效（ndl 停用數 0），
+  沒有錯誤也沒有日誌。改為 `_publication_gate_eligible()`：恰好 7 個空 sentinel、`annotated_at` 為空、FC 載入成功才進 gate，
+  並回傳原因代碼；旗標 `PUBLICATION_RELEVANCE_GATE_ENABLED` 維持關閉。
+- 出版物送 annotator 時加 `RECORD_TYPE: publication`；prompt 新增 `PUBLICATION RECORDS` 判準與欄位規則（凍結 cand6，SHA `b722d4b8…`）。
+- 分類：pure publication 有其他分類時移除 `books_media`；不補 `lecture`／`report`／`tv_program`。盲測 40 筆 N 6 vs 現行 27。
+- R1（只看標題）丟掉 P_seal 8 筆 R，未通過 recall 門檻，scraper 查詢不改。
+- SKILL.md 修正過期內容：查詢是 `title=台湾`＋server-side 90 日 `from=`，不是 `q=台湾`／`mediatype=1`／180 日 client 過濾。
+
 ## 2026-07-11 — publication phase 3 invariant sync
 
 - pure publication 判定改為 exact `event_form=['publication']`，不再依賴 category/source/title。

@@ -1,6 +1,7 @@
 ---
 name: Reviewer
 description: 月度治理復盤 Agent — 於每月 1 日 monthly_health_check 執行後呼叫，分析爬蟲健康、Skills 新鮮度、Agent scope overlap，輸出結構化 Markdown 報告
+tier: build
 ms.date: 2026-05-12
 handoffs:
   - label: "📝 Update history/skill/agent"

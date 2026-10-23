@@ -1,6 +1,7 @@
 ---
 name: Researcher
 description: "Discovers and evaluates new Taiwan-related event sources for the Tokyo Taiwan Radar scraper pipeline (scope: all of Japan)"
+tier: build
 handoffs:
   - label: "🏗️ Design the pipeline"
     agent: Architect

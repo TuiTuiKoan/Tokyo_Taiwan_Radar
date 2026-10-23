@@ -1,6 +1,7 @@
 ---
 name: Scraper Expert
 description: "Builds, debugs, and validates scrapers for Tokyo Taiwan Radar — dispatches to per-source subagents (scope: all of Japan)"
+tier: build
 agents:
   - TCC Scraper
   - Peatix Scraper
@@ -29,6 +30,7 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 1. Read `.github/skills/scraper-expert/SKILL.md` — apply all rules before starting.
 2. Run the Worktree 確認閘門 below before editing any scraper.
 3. If a per-source skill exists (`.github/skills/sources/<source_name>/SKILL.md`), read it too.
+4. Steps the user has to run (commands, new sessions, approvals) follow `.github/instructions/handoff.instructions.md`.
 
 ## Worktree 確認閘門
 

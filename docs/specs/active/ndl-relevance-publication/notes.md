@@ -24,6 +24,40 @@
 | 10-13 之後新進 ndl | 24 筆，空分類 2 筆 |
 | hanmoto pure publication（頂層） | 78 筆：有效 40、因併入 ndl 而停用 38；全數帶 7 個空 sentinel（F9 重查） |
 
+### Phase 0 Step 0 重查（2026-10-22，Engineer，live DB 唯讀 SELECT）
+
+`git fetch origin` 後 `origin/main` ＝ `b78510bb`（規劃起點），沒有新 commit；worktree HEAD 在其上多一個
+只勾 tasks 的 commit，base 相同。
+
+| 項目 | 規劃快照 | 重查 | 判定 |
+|------|---------|------|------|
+| events 總列數 | 3318 | 3327 | 自然增長 |
+| 有效頂層活動 | 2070 | 2078 | 自然增長 |
+| ndl 頂層（有效／停用） | 499／0 | **505／0** | 預期增長（+6，24 小時內新進 6 筆） |
+| ndl `event_form=['publication']` | 499 | 505 | 全數 pure |
+| ndl 單一 `["senses"]` | 66 | **66** | 不變 |
+| 全站有效頂層單一 `["senses"]` | 121 | 121 | 不變 |
+| ndl 空分類 | 2 | 2 | 不變 |
+| 全站有效頂層空分類 | 96 | 94 | 小幅變動（並行 session 處理） |
+| ndl annotation_status | annotated 497、reviewed 2 | annotated 503、reviewed 2 | +6 |
+| ndl 標題含台灣字樣／不含 | 460／39 | 466／39 | +6 都含台灣字樣 |
+| ndl `category_corrections` | 0 | 0 | 不變 |
+| hanmoto pure（有效／停用） | 78（40／38） | 78（40／38） | 不變 |
+
+三個必須比對的數字（ndl 有效頂層、`["senses"]` 單標、ndl 停用）：只有 ndl 筆數由 499 增為 505，
+其餘不變，沒有非預期漂移。
+
+**F9 更正（不改設計）**：F9 與 proposal 2.3 寫「ndl 與 hanmoto 沒有 `annotated_at` 為空的既有記錄」，重查發現各有 1 筆：
+
+| 來源 | id（前 8 碼） | `annotation_status` | FC 數 | 為何仍不會進 gate |
+|------|--------------|---------------------|-------|-------------------|
+| hanmoto | `3187dc1b` | `error` | 0 | 條件 6 不成立（FC 不是恰好 7 個空 sentinel） |
+| ndl_opensearch | `5a51bd60` | `reviewed` | 15 | 條件 5（reviewed）與條件 6 都不成立 |
+
+proposal 2.3 本來就要求六個條件全部成立，所以結論不變；但「條件 4 不會誤中既有出版物」要讀成
+「條件 4 誤中的記錄會被條件 5、6 擋下」。C2 測試把這兩筆的形狀
+（`annotated_at` 為 None 且 `reviewed`、`annotated_at` 為 None 且無 FC）列為負向案例。
+
 ## 與交接提示的出入
 
 - 交接提示寫「ndl 約占全部事件的 27%」。實測為 499／2070＝24%（有效頂層）或
@@ -213,9 +247,176 @@ relevance gate 更早分出，日後 rebase 本來就會衝突；本 spec 會再
 | P2 非出版物對照 | 與其他驗收重疊 | 限定為差異筆數＋有差異的列逐筆看，不擴充 | proposal 2.5 |
 | P2 eval_annotator | 只保留介面改動 | 明寫只多收 `record_type` 並轉給共用函式，不另寫 helper | proposal 2.1 第 4 點；tasks C1 |
 
+## 標籤定義（定稿，2026-10-22）
+
+> 狀態：**定稿**（2026-10-22，使用者回覆 L1／L2／L3 照建議）。標註期間不改（proposal 1.2 第 4 點）。
+
+### 判斷對象與依據
+
+- 判斷的是**作品本身**（一本書、一篇論文、一篇雜誌文章）：**台灣是不是這件作品的主題**。
+  不看它「像不像活動」、文章好不好、是否有趣；論文與雜誌文章都在收錄範圍內（已決定）。
+- 依據是盲標表上看得到的內容：標題與描述前 500 字。描述是 NDL 的書目清單，常含**系列名、
+  特集名、刊名**——這些是判斷的重點，不是證據：它們出現台灣字樣不代表作品談台灣。
+- 看不出來時，**不要點進連結去查**（會讓不同列的判斷依據不一致）；歸 `B`。
+
+### 三個標籤
+
+| 標籤 | 意義 | 量測時的處理 |
+|------|------|-------------|
+| `R` | 台灣（或台灣的人物、作品、地點、組織）是作品的主題，或主要主題之一 | 應保留 |
+| `N` | 台灣只出現在系列名、特集名、刊名，或只是順帶一提；作品本身談別的題目 | 應丟 |
+| `B` | 邊界：以下情況之一，或在 R 與 N 之間猶豫 | **計為應保留**（D1）；丟掉算 recall 損失 |
+
+### 判定規則
+
+1. **標題與摘要直接指向台灣的人、事、物、地**（台灣的藝術家、作家、政策、產業、歷史、
+   語言、旅遊、社群）→ `R`。台日關係、台灣的對外關係，只要台灣是被分析的對象 → `R`。
+2. **台灣字樣只在系列名／特集名／刊名**，而標題與摘要談的是別的國家或別的題目 → `N`。
+   例：特集「台湾有事を起こさせないために」底下談朝鮮半島或日中關係的文章。
+3. **多國比較或國名清單**（例：中国・韓国・台湾・フィリピン）→ `B`。D1：台灣是其中一國、
+   有被實際處理，算相關。若摘要明示台灣只是名單上的一個名字、沒有任何台灣內容 → `N`。
+4. **台灣特集裡、但本文談別的題目**，且從表上看不出本文與台灣有關 → `B`。
+   能看出本文明確談台灣 → `R`；能看出明確不談台灣 → `N`。
+5. **地緣政治分析**（美中、日中、區域安保）：台灣（海峽、安全、地位）是被分析的對象 → `R`；
+   台灣只是背景提到一句 → `N`；兩者之間 → `B`。
+6. **只有「台灣出身」這個屬性**（作者或人物是台灣人，但作品談別的）：算 `B`，不算 `R`。
+7. 猶豫時一律標 `B`，不要硬選 `R` 或 `N`（`B` 計為保留，所以猶豫標 `B` 不會製造 recall 損失，
+   但會增加之後裁決與 N 移除率的不確定性——這是有意識的取捨）。
+
+### 例子（Architect 依 F1、F2 的暫定讀法，使用者可推翻）
+
+| 暫定標籤 | 記錄 | 理由 |
+|---------|------|------|
+| R | [李奥森](https://tokyotaiwanradar.com/ja/events/6da3d4d5-0199-4c45-be36-a5b4413b7394) | 台灣藝術家專訪 |
+| R | [頼依欣（台中市立美術館館長）](https://tokyotaiwanradar.com/ja/events/ab964e18-a3e3-467d-8426-b7012648f8d9) | 台灣的美術館與人物 |
+| R | [金色のからす](https://tokyotaiwanradar.com/ja/events/18a240fc-a903-4241-9ccb-62bca4e3da84) | 台灣現代詩人譯詩集 |
+| R | [一歩踏み出す勇気](https://tokyotaiwanradar.com/ja/events/c412b960-5db0-45ec-9dfc-6afb4ca333c1) | 台灣高校生赴日留學報告 |
+| N | [朝鮮半島有事に備えよ](https://tokyotaiwanradar.com/ja/events/62e3aa08-4e0c-40ed-92fc-167d433fd9b0) | 談朝鮮半島，台灣只在特集名 |
+| N | [外国企業の投資額…：韓国](https://tokyotaiwanradar.com/ja/events/94ceddfe-1005-4cec-bdb0-55970ccf6c05) | 只談韓國 |
+| N | [日本企業の実行投資額…：マレーシア](https://tokyotaiwanradar.com/ja/events/1a132f06-27fe-43ba-b463-0ed85524fdbe) | 只談馬來西亞 |
+| N | [民族抹殺した朝鮮支配](https://tokyotaiwanradar.com/ja/events/7f2003f1-e064-4c6c-b339-27c54795bc1d) | 談朝鮮統治 |
+| N 或 B | [米中関係の本質](https://tokyotaiwanradar.com/ja/events/5459f6ff-4816-4ab5-a696-cf1bb92d0a68) | 規則 5：要看摘要裡台灣是否被分析；notes F2 暫列不相關 |
+| B | [アジア主要国における化学物質登録制度の比較研究：中国・韓国・台湾・フィリピン](https://tokyotaiwanradar.com/ja/events/3650a120-9249-4c3c-948a-23eded453073) | 規則 3：多國比較 |
+| B | [半導体関連で外資投資が急伸：マレーシア、韓国、台湾](https://tokyotaiwanradar.com/ja/events/bb2ddb0b-0ad8-4f05-81ca-3a775bee5b6e) | 規則 3：多國比較（系列名同為這三國） |
+
+這些例子**不進標註樣本的答案**，只是校準用；它們同時可能出現在盲標表裡，標註時仍照表上
+內容獨立判斷，不要回頭查這張表。
+
+### 標註與裁決流程（重述 proposal 1.2）
+
+1. 盲標表欄位：`event_id`、`url`、`title`、`description_500`、`label`；`label` 只填 `R`／`N`／`B`。
+   表內沒有任何模型判定、理由或候選規則輸出。
+2. 標完一批後才揭盲。只有「使用者標籤與模型判定不一致」的列需要裁決；裁決時保留原始盲標
+   （`blind_label`），另記 `final_label` 與一句理由。
+3. 指標同時以 `final_label` 與 `blind_label` 計算；結論不同時以較保守者為準。
+
+### 使用者已確認的三個點（2026-10-22，全部照建議）
+
+| # | 問題 | Architect 建議（Engineer 同意） |
+|---|------|------|
+| L1 | 規則 5：地緣政治文章台灣只是「重要背景」時算 `N` 還是 `B` | 算 `B`。這類文章在台灣語境下常被使用者視為相關，`N` 會讓 recall 風險落在最有價值的一群；代價是 N 移除率的分母變大 |
+| L2 | 規則 6：台灣出身的作者／人物但作品談別的，算 `B` 還是 `R` | 算 `B`。proposal 1.2 的 `R` 含「台灣的人物」，但那是指作品以該人物為對象，不是作者的屬性 |
+| L3 | 看不出來時只憑盲標表判斷，不點進連結 | 同意。否則 90 列的判斷依據不一致，裁決時也無法重現 |
+
+## 快照紀錄（2026-10-22，Phase C，`snapshot` 唯讀）
+
+| 項目 | 值 |
+|------|----|
+| 快照時間 | 2026-10-22T08:21:46Z（UTC） |
+| 快照 SHA-256（排序後 event id 以換行相連） | `0cb812da20cefa01d73dd623752ecd29a53500077f99394778f0f18b8555588a` |
+| seed | `p5-ndl-2026-10` |
+| ndl 頂層 | 505（`count='exact'` 與讀取筆數一致） |
+| hanmoto 純出版物 | 78（停用 38）（`count='exact'` 與讀取筆數一致） |
+| S1（標題無台灣字樣） | n=39：P_dev 23、P_seal 16 |
+| S2（標題含台灣＋≥3 國名清單） | n=11：P_dev 7、P_seal 4 |
+| S3（其餘） | n=455：P_dev 273、P_seal 182 |
+| P_dev／P_seal 合計 | 303／202 |
+| 開發集盲標表 | 70 列＝S1 dev 23＋S2 dev 7＋S3 dev 隨機 40 |
+
+工作檔在 repo 外：`~/.ai-notes/ttr/p5-eval/snapshot.json`、`blind_dev.csv`（不提交）。
+
+與規劃的出入（不影響設計）：
+- S1 的 39 筆與基準相符。S2 只有 11 筆，不是規劃時估的「約 40 筆」：當時的估計含兩國並列與
+  「國名＋台灣」之外的各式多國標題；現行判定式要求標題內連續 ≥3 個國名。另有 6 筆
+  「兩國並列」標題落在 S3，會由 S3 隨機 40 筆與日後的 A 區涵蓋。
+- 開發集因此是 70 列，不是規劃的約 90 列。
+- 描述欄多為短書目（樣本 154 字），開發集中 39 筆有系列名／刊名欄位，全部在 500 字內可見。
+
 ## 量測結果
 
-（Phase B 完成後填入：各候選規則的 recall、N 移除率、被丟掉的 R 逐筆清單、holdout 結果。）
+2026-10-23，`metrics`（凍結 cand1 的輸出：`out_dev_cand1`、`out_seal`、`out_hanmoto`；標籤：`blind_dev`、`blind_a`、
+`adjudication_dev`）。精簡 CSV：[`labels_metrics.csv`](labels_metrics.csv)（86 列，D6 欄位）。
+A／K 劃分只適用本次候選規則 R1、G。「未通過」＝依 1.6 固定停止規則不開啟，不是統計證明。
+
+| 指標 | R1（只看標題） | G（cand1 gate） |
+|------|------|------|
+| P_seal 丟掉 | 16 筆：R 8、B 8、N 0 | 0 筆 |
+| P_seal recall | **未通過**。工具回報 `insufficient_sample`（K 區 186 筆未標，D 決定不做），但即使 K 區 186 筆全是 R，recall 上限 186／194 ≈ 95.9% < 98%，結論不受 K 區影響 | 丟 0 筆，recall 不受影響 |
+| P_seal N 移除率 | 丟掉的 16 筆無 N | **未通過**：G 不丟任何記錄，P_seal 只要有 N，移除率就是 0% < 60% |
+| P_h（78 筆） | 不適用 | **通過**：丟 0 筆（cand6 在 P_h 也丟 0 筆） |
+| H | 未進行 | 未進行 |
+| P_dev（僅參考） | 丟 21：R 12、B 5、N 4 | 丟 0；已知 4 筆 N 一筆都沒丟 |
+
+**判定**：R1 未通過，scraper 關鍵字規則不動（與 1.6 預期一致）。G 不會誤殺，但也幾乎不移除 N，
+不值得開啟：`PUBLICATION_RELEVANCE_GATE_ENABLED` 維持 `False`，Phase G 的 C6 不進行。
+
+注意：出貨的 prompt 是 cand6，P_seal 是以 cand1 量測；cand6 未對 P_seal 執行（成本上限）。G 的結論不變，
+因為 gate 本來就不開；cand6 與 cand1 在 P_dev 只有 1 筆 gate 差異（仙台灣，cand6 保留）。
+
+P_seal 被 R1 丟掉的 R（8 筆，逐筆）：
+- [李亦凡 : コンピュータと人が影響を及ぼし合う関係を表現し…](https://tokyotaiwanradar.com/ja/events/1ba7b3a3-08bb-4117-bb49-3897037d53a7)
+- [張恩満 : 未来とはすなわち過去である…](https://tokyotaiwanradar.com/ja/events/46881947-a00b-466b-9613-75168be7ef95)
+- [李奥森 : 歴史や人間の複雑な状況に対峙し…](https://tokyotaiwanradar.com/ja/events/6da3d4d5-0199-4c45-be36-a5b4413b7394)
+- [黄亜紀(「Each Modern」創設者) : アジアから描き直す美術史](https://tokyotaiwanradar.com/ja/events/739994ff-2852-44fc-97e1-af3feb8a5871)
+- [アジア最大のICT見本市で見た"覇者"の戦略と新潮流](https://tokyotaiwanradar.com/ja/events/894cfd50-8227-4b9b-bbd2-cf377b513f84)
+- [INTERVIEW 李登輝元総統秘書が直言! 日台はもっと切磋琢磨できる](https://tokyotaiwanradar.com/ja/events/d726716a-6487-4d8f-9000-1f200cb47c7a)
+- [レジェンド・アーティスト](https://tokyotaiwanradar.com/ja/events/e19a6a8c-bf4a-4f8a-8433-a019809d9c99)
+- [「東アジア共同体」構想を進めよう](https://tokyotaiwanradar.com/ja/events/f5fa0c7a-c9e7-49c5-b86b-97af5efec1c3)
+
+P_seal 被 R1 丟掉的 B（8 筆）：
+[危険な世界にいかに備えるか](https://tokyotaiwanradar.com/ja/events/4d3ad22c-80d5-45fa-88fb-9c60131997fa)、
+[米中関係の本質](https://tokyotaiwanradar.com/ja/events/5459f6ff-4816-4ab5-a696-cf1bb92d0a68)、
+[拡大抑止の崩壊と米同盟諸国](https://tokyotaiwanradar.com/ja/events/782ecb32-cba4-4986-a6c8-273de48cc6c2)、
+[マラッカとホルムズ](https://tokyotaiwanradar.com/ja/events/7f2add04-a1b9-4ab5-bb50-3d46afb105fa)、
+[各国研究者との学術交流から学ぶ](https://tokyotaiwanradar.com/ja/events/89139014-891b-4d03-861e-19df79aced22)、
+[米中対立の外縁で戦争する無意味](https://tokyotaiwanradar.com/ja/events/ae9951d6-cd0f-4e87-a8b0-1aeaa9354094)、
+[ゴンチャ・ジャパンCOO インタビュー](https://tokyotaiwanradar.com/ja/events/b1538e37-a65d-4561-989f-e02cb9fd23ce)、
+[戦後最悪の日中関係からの脱却をめざして](https://tokyotaiwanradar.com/ja/events/ff0c05b4-8607-470e-9af4-aadc621a2540)。
+
+G 沒丟掉任何 R 或 B，無逐筆清單。
+
+## Prompt 寫入與 dry-run（2026-10-23，Phase D／C4）
+
+- 凍結 cand6 的兩段（`PUBLICATION RECORDS` 相關性判準、`PUBLICATION RECORDS — FIELD RULES`）逐字寫入
+  `annotator.py` 的 `SYSTEM_PROMPT`。寫入後（taxonomy 替換後的）`annotator.SYSTEM_PROMPT` SHA-256 =
+  `b722d4b8ee16ce29fdbb9bf6b6ff98f6b4a59fe399baf64f20acca01292bc5a2`，與凍結檔一致。
+- 接著依 proposal 3 合併 Decision guides 的兩條 `publication` 規則為「Never output "publication"…」。
+  **出貨 prompt SHA-256 = `e34cd478f74859906b72e00d1b6985742b7cb9f4f3f13f390b58cb0007cbedf2`**；與凍結版的差異只有這一處
+  event_form 導引（出版物的 event_form 本來就由 `_finalize_publication_update()` 覆寫）。
+- 測試：`tests/test_annotator_publication_prompt.py`（候選清單不含 `publication`、新句存在、舊句不存在、兩段凍結文字存在）。
+
+dry-run 表（proposal 2.5）：
+
+| 列 | 結果 | 說明 |
+|----|------|------|
+| 新 prompt 對出版物（R 類空分類 ≤ 2%、`senses` 單標逐筆看） | **部分**：cand1 在 P_seal 空分類 0、`senses` 單標 0。cand6 未對 P_seal 執行（約 $0.56，超過剩餘成本上限） | cand6 代理數字（經程式規則後）：P_dev 303 筆空分類 3（1.0%）、P_h 78 筆空分類 2（2.6%），`senses` 單標皆 0，已標記錄中無 R 類空分類。空分類全來自自創 slug：`education`、`engineering`、`law`、`travel`×2（[中間淳太の満福台湾ガイド](https://tokyotaiwanradar.com/ja/events/1b5fa355-2e2e-47f7-a59b-0c4a15cad759)、[＆TRAVEL 台湾2027](https://tokyotaiwanradar.com/ja/events/bd10e2e5-83c5-4b12-b27a-da70fd7d8437)），會進人工審核佇列；對照修正見 #422 |
+| 分類品質 | 第一輪未通過（11／39）；第二輪改門檻後**通過**（N 6 vs 27） | 見「分類品質檢查」 |
+| 非出版物 60 筆 | 通過 | 見「非出版物新舊對照與負向案例」（以 cand1 量測；cand6 新增段落只在 `RECORD_TYPE: publication` 時適用） |
+| 負向案例 5 筆 | 通過 | 同上；非出版物 payload 不含 `RECORD_TYPE` 由 C1 單元測試保證 |
+
+Decision guides 合併後沒有重跑非出版物 60 筆（只刪除一條要求「不得選 publication」的矛盾句，`publication` 本來就不在候選清單）。
+
+### Rebase 到 origin/main（2026-10-23，Phase E）
+
+- 本分支 22 個 commit rebase 到 `origin/main`（落後 89 個）。唯一衝突在 C1：上游 OpenAI 成本重整（#391）把
+  `_annotate_one` 的 client 型別改為 `LLMClient`；解法為保留上游型別、加上本分支的 `record_type` 參數。
+  備份分支 `backup/ndl-relevance-pre-rebase-1023`（push 後可刪）。
+- 上游「Taiwan location gate 輸出 scope decision」改了 SYSTEM_PROMPT 的 LOCATION GATE 段與 JSON schema。
+  **rebase 後出貨 prompt SHA-256 = `77ac1e6c47db75516ff5fc4c07d3ad7d26fd5d5215cc5960233186ba51c7b58c`**。
+  與凍結 cand6 的差異只有：上游 scope_decision 規則（EXCLUSION、SCOPE 兩行、schema 兩個欄位）＋本分支的
+  publication 導引合併。cand6 的兩段出版物文字逐字未變。
+- 出版物沒有地址，`_build_scope_finding()` 的 region 不會是 TAIWAN／OTHER_FOREIGN，不會進 scope 審核佇列。
+- 驗證：`pytest scraper/tests` 1531 passed、1 skipped；`check_enum_parity` OK；`sync_ai_adapters --check` OK。
 
 ## 處置批次
 
@@ -293,3 +494,249 @@ docs/specs/active/ndl-relevance-publication/notes.md「Plan Critic 評審處置�
 輸出：一句總評（🟢 可交 Engineer／🟡 小修後可交／🔴 需重做），再列 P0／P1／P2。
 不要重複第一輪已處置且沒有新問題的項目。
 ```
+
+## 開發集盲標回收（2026-10-22，Phase C ①）
+
+使用者完成 `blind_dev.csv` 70 列盲標，回收時僅有 69 列（編輯時不慎刪除一列），使用者補判該列為 B：
+`68f08388`（S2「アジア主要国における化学物質登録制度の比較研究 : 中国・韓国・台湾・フィリピンを中心に」，
+多國比較→B，符合標籤定義）。補列內容由快照重建，未經模型欄位。
+
+| 標籤 | 筆數 |
+|------|------|
+| R（應保留） | 55 |
+| B（邊界，計為應保留） | 10 |
+| N（應丟） | 5 |
+| 合計 | 70 |
+
+N 僅 5 筆：開發集的負例很少，候選 prompt 的 N 移除率在開發階段只能粗看，正式判定靠封存集。
+原始 69 列存檔備份在 `~/.ai-notes/ttr/p5-eval/blind_dev.user_69rows.csv`（不提交）。
+
+## Prompt 開發紀錄（2026-10-22，Phase C ②，只用 P_dev）
+
+模型 gpt-4o-mini；每輪對 P_dev 全部 303 筆執行，與正式流程相同的 feedback prompt。候選檔在
+`~/.ai-notes/ttr/p5-eval/prompts/`，輸出在 `out_dev_cand*.jsonl`（皆不提交）。指標只用開發集
+70 列盲標，**僅供參考，不能用來判定通過**（proposal 1.6）。prompt 內的例子一律自編，不引用開發集
+的真實標題或系列名：開發集與封存集逐筆切分，同一系列的文章兩邊都有，引用會灌水封存集。
+
+| 輪 | 候選（SHA-256 前 12 碼） | 改了什麼 | R＋B 保留 | N 丟掉 | 保留記錄空分類 | 花費 |
+|----|------|------|------|------|------|------|
+| 基準 | cand0 `cc755186b3b4` | 現行 SYSTEM_PROMPT（含 C1 的 RECORD_TYPE 說明） | 58／65 | 2／5 | 0 | $0.80 |
+| 1 | cand1 `cec390cd7a4e` | gate 加出版物判準＋`PUBLICATION RECORDS — FIELD RULES` | 65／65 | 0／5 | 0 | $0.83 |
+| 2 | cand2 `e8a8879ef2b0` | 判準改為三步驟（自身標題 → 系列脈絡 → 不明保留） | 65／65 | 0／5 | 0 | $0.83 |
+| 3 | cand3 `32af023d1ecd` | `taiwan_relevance` 加 `own_title`／`basis` 欄位強制先分類 | 63／65 | 0／5 | **11 筆輸出整個壞掉** | $0.85 |
+| 4 | cand4 `addeacdbb01e` | cand2＋prompt 結尾 FINAL CHECK | 64／65 | 0／5 | 0 | $0.85 |
+
+觀察：
+- 基準 prompt 以「不是活動」「沒有台灣文化元素」為由丟掉 R（例：台湾夜市大全、台中垃圾焚燒 BOT）。
+  cand1 起修好，分類也不再空白。
+- 5 筆 N 全部是「台灣只出現在系列名」：多國並列系列中這篇講別國（`: マレーシア`、`: 韓国`、朝鮮、
+  日本國防產業），以及台灣飲料系列中的新光合纖（該筆待揭盲裁決，可能應為 B）。四輪都沒有讓
+  gpt-4o-mini 把系列名與作品內容分開；它的 selection_reason 直接把系列名當成內容。
+- cand3 改輸出欄位後，11 筆只回 `taiwan_relevance` 的欄位，標題、分類等全部遺失：出版物不改輸出 schema。
+- 開發集外（未標註）各輪 gate 都只穩定丟掉 `仙台湾`（NDL 關鍵字誤中，正確丟掉）。
+
+## 凍結（2026-10-22，Phase C ③）
+
+使用者選定凍結 cand1（開發集 R＋B 65／65 保留、保留記錄 0 空分類；N 0／5）。
+
+- 凍結檔：`~/.ai-notes/ttr/p5-eval/prompts/frozen_cand1.txt`（唯讀，與 `cand1.txt` 相同內容）
+- **凍結 SHA-256：`cec390cd7a4e981990394e0e04ae517eef3912d41d0777360fc7efe7652c9a64`**
+- 之後 `run --split seal|hanmoto|holdout` 必須帶這個 `--frozen-sha`。C4 寫入 `SYSTEM_PROMPT` 後，
+  `annotator.SYSTEM_PROMPT` 的 SHA-256 必須等於此值。
+- 預期（開發集僅供參考）：G 的 recall 可能過門檻，但 N 移除率很可能低於 60%，依固定停止規則不開 gate；
+  分類修正（問題 2）不受影響，照常進 C4。此預期不影響封存集的判定方式。
+
+## 全量執行（2026-10-22，Phase C ④）
+
+凍結 prompt（`cec390cd…`）以 `--frozen-sha` 執行：P_seal 202 筆 $0.552、P_h 78 筆 $0.228；P_dev 沿用
+cand1 開發輪的輸出（同一 SHA）。R1 不呼叫模型，由 `metrics` 依標題計算。
+
+| 集合 | 筆數 | R1 丟掉 | G 丟掉 | G 保留記錄空分類 |
+|------|------|------|------|------|
+| P_seal | 202 | 16（即 S1 封存部分） | **0** | 0 |
+| P_h | 78 | — | **0** | 0 |
+
+- A 區＝16 筆，全部來自 R1；盲標表 `~/.ai-notes/ttr/p5-eval/blind_a.csv`（不提交）。
+- G 在封存集與 hanmoto 都沒有丟任何記錄：G 的 recall 與 P_h 條件必然成立，N 移除率只要封存集
+  有任一 N 就是 0%，依停止規則不開 gate。
+- 量測腳本修正：`load_outputs`／`_done_ids` 原用 `str.splitlines()`，會在 JSON 字串內的 U+2029 切斷
+  記錄（封存集有 1 筆）；改以 `\n` 切分並補測試（commit「fix(scraper): read eval jsonl by newline」）。
+  磁碟上的資料本來就完整。
+
+## A 區盲標與 K 區決定（2026-10-22，Phase C ⑤⑥）
+
+使用者盲標 A 區 16 筆（全為 R1 丟掉的封存集 S1）：**R 8、B 8、N 0**。`metrics` 在 K 區未標時回報
+「樣本不足」（n＝0），以下判定不依賴 K 區：
+
+- **R1 未通過（可證）**：丟掉的 R＋B＝16。即使 K 區 186 筆全為 R，recall 上限＝186／202≈92.1% < 98%。
+  被丟掉的多為台灣特集內、標題無台灣字樣的人物專訪與安全保障文章，符合 proposal 1.6 的預期。
+  scraper 關鍵字規則不動（proposal 1.7）。
+- **G 不開 gate（產品判斷）**：凍結 prompt 在 P_seal 與 P_h 丟掉 0 筆；開發集 N 也是 0／5 丟掉。
+  G 的 N 移除率只可能是 0%（封存集有任何 N）或「不適用」（完全沒有 N），都達不到上線目的
+  （≥ 60%）。
+- **偏離計畫**：proposal ⑥ 的 K 區 60 筆**不標**（使用者 2026-10-22 決定）。理由：K 區結果只會把 G 從
+  「樣本不足」改成「未通過」或「不適用」，不改變不開 gate 的結論，也不影響 R1 的判定。
+  因此本次不產生 recall 的點估計與下界，只記錄 R1 的上限。⑦ 加抽一併不做。
+- P_h：G 丟 0 筆，條件（丟掉的 R＋B ≤ 1）成立，但因 G 不開而無實質意義。
+- 後續影響：Phase G 的 C6（開 gate 旗標）不進行；`PUBLICATION_RELEVANCE_GATE_ENABLED` 維持 False。
+  C1／C2 的程式碼與分類修正（C4）照常上線。
+
+## 非出版物新舊對照與負向案例（2026-10-22，Phase C）
+
+樣本：最近標註、有效、頂層、`event_form` 不含 publication 的 60 筆＋負向 5 筆（mixed form 1、出版記念／
+刊行記念類 4）。花費：新 $0.196＋舊 $0.189。腳本為 scratchpad 一次性唯讀腳本（不提交，只 SELECT）。
+
+**偏離計畫**：proposal 2.5 寫「現行 prompt 的分類結果直接用 DB 裡已有的值」。實跑後發現 DB 值是經過
+後處理的結果（關鍵字補分類、`report` 偵測、人工修正），與模型原始輸出無法直接比對：凍結 prompt 對 DB
+的分類差異 37／60、event_form 差異 12／60，多為 DB 多出 `report`／`history`／`lecture`。因此改為以現行
+prompt（cand0）對**同一批 id** 各跑一次，比對兩者的原始輸出。這不是 proposal 刪掉的「舊 prompt 跑兩次」
+自我差異基準。
+
+| 比較（舊 cand0 → 新 cand1，同批 65 筆） | 差異筆數 |
+|------|------|
+| category | 13 |
+| event_form | 5 |
+| gate 判定（is_relevant=false 且 confidence ≥ 0.8） | 2 |
+
+逐筆判讀（engineer）：差異都在合理替代選項之間來回，方向不一致，沒有出版物規則外溢到活動的跡象（沒有
+因此新增 `books_media`、沒有空分類、沒有 `RECORD_TYPE`）。判為非退步；較明顯的幾筆：
+- 改善：「台湾巨匠傑作選2026」exhibition→movie；gguide 節目的無效 slug `broadcast`→`tv_program`；
+  台湾華語講座 study_abroad→workshop；負向案例「台湾に1か月住んでみた」出版記念イベント，舊 prompt
+  gate 會丟、新 prompt 保留。
+- 同一場羊毛フェルト工作坊（eslite／peatix 兩筆重複）舊 prompt 丟 1 筆、新 prompt 丟 2 筆：屬模型
+  不穩定，非 prompt 修改造成（新段落只對 `RECORD_TYPE: publication` 生效）。
+- 兩版都會輸出無效 slug（例：category `performance`、`music`、`screening_with_talk`，event_form
+  `interview`），屬既有行為，由正式流程的白名單過濾，不在本計畫範圍。
+
+負向 5 筆：`record_type_for()` 全為 None、payload 區塊前沒有 `RECORD_TYPE` 行；新 prompt 沒有對任何一筆
+輸出 `publication` event_form（mixed form 那筆輸出 `["lecture"]`）。全數符合。
+
+## 揭盲裁決（2026-10-22）
+
+不一致只有開發集 5 筆（使用者標 N、凍結 prompt 保留）；A 區 16 筆 G 全保留，與 R／B 一致。使用者裁決
+（`~/.ai-notes/ttr/p5-eval/adjudication_dev.csv`，保留 `blind_label`）：
+
+| event | blind | final | 理由 |
+|------|------|------|------|
+| [10fcb5ab](https://tokyotaiwanradar.com/ja/events/10fcb5ab-90a1-4cbf-a03a-398bee20fabd) 新光合成繊維 | N | **B** | 台灣企業，台灣飲料系列內，依 L2 |
+| [1a132f06](https://tokyotaiwanradar.com/ja/events/1a132f06-27fe-43ba-b463-0ed85524fdbe) …: マレーシア | N | N | 多國系列中講馬來西亞 |
+| [7f2003f1](https://tokyotaiwanradar.com/ja/events/7f2003f1-e064-4c6c-b339-27c54795bc1d) 民族抹殺した朝鮮支配 | N | N | 講朝鮮，台灣只在系列名 |
+| [94ceddfe](https://tokyotaiwanradar.com/ja/events/94ceddfe-1005-4cec-bdb0-55970ccf6c05) …: 韓国 | N | N | 多國系列中講韓國 |
+| [ccb2e6e1](https://tokyotaiwanradar.com/ja/events/ccb2e6e1-8e6c-4d78-8a07-02220423f3b4) 防衛産業をどう再建するか | N | N | 講日本防衛產業 |
+
+裁決後 R1 與 G 的結論不變。final N 的 4 筆是 Phase F 處置清單的候選（仍需逐批核准）。
+
+## 分類品質檢查（2026-10-23）
+
+樣本：P_seal 保留記錄 20 筆、P_h 保留記錄 20 筆（`order_key(SEED+"category-check")`），
+檔案 `~/.ai-notes/ttr/p5-eval/category_check.csv`。使用者填 39 筆（#37 未填）：
+**Y 28、N 11**（P_seal N 6、P_h N 5）。門檻是 N ≤ 2，**未通過**。
+
+| # | event | 模型分類 | 使用者意見 |
+|---|------|------|------|
+| 5 | [8fc460e3](https://tokyotaiwanradar.com/ja/events/8fc460e3-adc7-4627-8aa9-be895fbb6d7c) 台湾と中国の新しい関係を | geopolitics taiwan_japan | 講中台，與台日無關 |
+| 6 | [5dd278e4](https://tokyotaiwanradar.com/ja/events/5dd278e4-caab-420e-b164-20e1c3ebc204) 台湾 | books_media | 應為 tourism |
+| 9 | [bf20ecb1](https://tokyotaiwanradar.com/ja/events/bf20ecb1-74d2-4dc8-98d9-f68a2abc853e) 台湾に渡った歌舞伎役者たち | history books_media | 不是 books_media，應有 performing_arts |
+| 10 | [fd3e32dc](https://tokyotaiwanradar.com/ja/events/fd3e32dc-03c3-4dba-8482-82bcd07e78aa) 台湾妖怪探索珍道中 | books_media | 應為 folklore |
+| 16 | [038d4cef](https://tokyotaiwanradar.com/ja/events/038d4cef-dd1f-4a70-84f9-8404419070a1) 台湾飲料事情 | business taiwan_japan | 不是 taiwan_japan，應加 tea_alcohol |
+| 17 | [880214e4](https://tokyotaiwanradar.com/ja/events/880214e4-3bc2-46e2-9689-be9af95be509) 台湾の悪質ネット広告対策がすごい! | geopolitics academic | 應為 books_media、tech |
+| 21 | [ddec8c24](https://tokyotaiwanradar.com/ja/events/ddec8c24-3dd7-4d6e-a26d-8a2962aa84ac) 熱烈台湾ファン語辞典 | books_media travel | 應為 taiwan_mandarin |
+| 25 | [1da205f6](https://tokyotaiwanradar.com/ja/events/1da205f6-1064-45ca-bec0-fb5d42e08a17) 続　台湾は台湾 | books_media history | 應為 senses |
+| 26 | [d1f877cc](https://tokyotaiwanradar.com/ja/events/d1f877cc-8421-4637-a178-7c7b54961349) 台湾夜市大全 | books_media taiwan_japan | 應為 folklore、urban、tourism |
+| 29 | [09295b17](https://tokyotaiwanradar.com/ja/events/09295b17-0d36-44c6-9779-f6065c8c6e05) 台湾白魚…SATOYAMAイニシアティブ | geopolitics academic | 應為 nature、urban |
+| 40 | [36f57e45](https://tokyotaiwanradar.com/ja/events/36f57e45-c26d-41c0-b8c1-9194aca5556e) やんばると台湾 | books_media academic | 應為 taiwan_japan |
+
+錯誤型態：
+
+- **`books_media` 被當成萬用標籤**：40 筆中 15 筆有 `books_media`。N 的 11 筆有 7 筆涉及它，
+  其中 2 筆（#6、#10）只有 `books_media`、沒有主題分類。另有 7 筆判 Y 但註明「books_media
+  不相關」（#11、22、33、34、35、36、39）。根源在凍結 prompt 的 FIELD RULES 寫了「Books may
+  additionally get books_media」。
+- **`taiwan_japan` 過度使用**：#5、#16、#26。
+- **漏掉次要主題**（多數判 Y）：geopolitics（#1）、taiwan_mandarin（#8）、human_rights（#14）、
+  tech（#15）、herbal／healthcare（#27、#30）、lifestyle_food（#31）。
+- 無效 slug `travel` 出現 1 次（#21），正式流程的白名單會濾掉。
+
+與正式 DB 現行分類對照（同 40 筆，2026-10-23 唯讀 SELECT）：現行值有 `["senses"]` 單標 6 筆、
+含 `lecture` 9 筆、只有 `["books_media"]` 9 筆；凍結 prompt 的輸出對應為 0、0、2 筆。新 prompt 未達
+門檻，但比現況明顯好。
+
+使用者提出 `books_media` 對書目記錄的新定義：只用在以媒體生態、出版環境、媒體與出版產業、
+假新聞、後真相、媒體研究為主題的作品。使用者決定在本案修正 prompt（成本上限 6 → 6.50 美元），
+並另開 [#406](https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/issues/406) 處理網站的「所有新書」入口。
+cand5 以後的措辭參考了 P_seal／P_h 的分類錯誤，P_seal 的分類結果因此不再是獨立驗證；第二輪分類檢查
+改用 P_dev 與 P_h 未檢查過的記錄。
+
+## 分類修正輪次（2026-10-23，只用 P_dev）
+
+| 候選 | 相對 cand1 的改動 | SHA-256 前 12 碼 | 保留記錄 302 筆中：books_media／taiwan_japan／白名單後空分類／無效 slug | gate 變動 | 花費 |
+|------|------|------|------|------|------|
+| cand1 | — | `cec390cd7a4e` | 57／36／1／7 | — | — |
+| cand5 | books_media 新定義、taiwan_japan 專用規則、不得空分類 | `856554b6b1c2` | 34／**99**／4／8 | 0 | $0.836 |
+
+cand5 退步：點名 `taiwan_japan` 的限制規則反而觸發它（中台關係、美中會談都被標上）；`books_media`
+仍留在寫真集、書評、雜誌、旅遊書；「必須有主題分類」讓模型自創 `travel`、`sports`、`education`、
+`technology`、`architecture` 等 slug，白名單濾掉後變空。70 筆已標記錄的相關性判定與 cand1 完全相同。
+
+cand6：拿掉 taiwan_japan 專用規則，也從主題範例清單移除 `taiwan_japan`；明訂只能用允許清單的 slug
+並給對應（travel → tourism 等）；`books_media` 改為「作品在講媒體或出版」，列出不構成理由的格式
+（書、旅遊書、寫真集、教科書、辭典、雜誌、報紙、專欄、書評），不確定時不加。SHA-256 前 12 碼
+`b722d4b8ee16`。使用者同意成本上限再提高到 7.50 美元（執行前累計 $6.153）；cand6 未通過數字檢查
+（taiwan_japan ≤ 36、books_media 明顯低於 57、白名單後空分類 ≤ 1、gate 不變）就停下，不再加輪。
+
+cand6 結果（P_dev，$0.836）：books_media 33、taiwan_japan **8**、白名單後空分類 3、無效 slug 10；
+70 筆已標記錄判定不變；gate 變動 1 筆：[仙台湾沿岸海岸防災林](https://tokyotaiwanradar.com/ja/events/2cbef058-b4eb-4468-95b7-7e6a3bc040aa)
+（仙台灣，與台灣無關）cand1 正確丟掉、cand6 保留。**未通過**數字檢查（空分類、gate），依規則停下。
+剩下的 books_media 正是 prompt 明列「不構成理由」的格式（寫真集、書評、旅遊書、雜誌），gpt-4o-mini 不照做；
+人工修正回饋區塊不含 books_media，排除為成因。
+
+使用者決定（2026-10-23）：
+- 出貨 **cand6＋程式規則**。凍結 `prompts/frozen_cand6.txt`，SHA-256
+  `b722d4b8ee16ce29fdbb9bf6b6ff98f6b4a59fe399baf64f20acca01292bc5a2`；對 P_h 執行（$0.230，累計 $7.219）。
+- 程式規則（`annotator.py`，只作用於純出版物）：
+  1. `_drop_format_only_books_media`：還有其他分類時移除 `books_media`；只剩它時保留，避免進空分類審核佇列。
+     真正講媒體研究、又有其他主題分類的書會失去這個標籤，已接受。
+  2. `_inject_keyword_categories(..., record_type)`：出版物不補 `lecture`／`report`／`tv_program`，
+     `history`／`geopolitics` 照補。cand6 的 P_dev 保留記錄中原本會被補 report 18、lecture 12 筆。
+- 第二輪門檻改為「比現況好」：同 40 筆盲測 A／B（正式 DB 現行分類 vs cand6＋程式規則），使用者各判 Y／N；
+  新版 N 明顯少於現行就出貨，剩下的錯誤型態開 issue。第一輪 11／39 仍記為未達 ≤ 2。
+
+第二輪檢查表（`~/.ai-notes/ttr/p5-eval/`）：`category_check2.html`（閱讀）、`category_check2.csv`（填 `ok_A`／`ok_B`）、
+`category_check2_key.csv`（揭盲用，A 是 new 或 old）。樣本：cand6 在 P_dev 的保留記錄隨機 20
+（`order_key(SEED+"category-check-2-dev")`）＋ P_h 未在第一輪出現的保留記錄隨機 20；40 筆中 9 筆 A=B。
+P_dev 已用於 cand5／cand6 的開發，這 20 筆不是獨立驗證；P_h 的 20 筆沒有在開發時看過。
+
+### 第二輪結果（2026-10-23，揭盲）：**通過**（新版 N 明顯少於現行）
+
+| 集合 | 新版 N | 現行 N | 新 Y／舊 N | 新 N／舊 Y | 兩者皆 N | 符號檢定（雙尾） |
+|------|------|------|------|------|------|------|
+| P_dev 20 | 2 | 16 | 14 | 0 | 2 | p ≈ 1.2×10⁻⁴ |
+| P_h 20 | 4 | 11 | 8 | 1 | 3 | p ≈ 0.039 |
+| 合計 40 | **6** | **27** | 22 | 1 | 5 | p ≈ 5.7×10⁻⁶ |
+
+已含裁決（#25 新版 N→Y，見下）。裁決前為新版 N 7、P_h p ≈ 0.070。P_dev 非獨立；P_h 單獨在 0.05 下顯著。
+
+現行分類被判 N 的主因：`books_media` 當萬用標籤（11 筆只有它或以它為主）、出版物帶 `lecture`／`report`（8 筆）、
+`senses` 當補位（4 筆）。這些在新版都消失。
+
+新版仍為 N 的 6 筆（剩下的錯誤型態，另開 issue；#25 已裁決為 Y，保留在表中供對照）：
+
+| # | 記錄 | 新版 | 使用者意見 | 型態 |
+|---|------|------|------|------|
+| 16 | [台湾ハイテクが抱えるインフラの制約](https://tokyotaiwanradar.com/ja/events/5ebaa745-d174-438c-95ae-99dbebb87cdd) | geopolitics academic | tech geopolitics | 漏 tech；期刊文章多加 academic |
+| 19 | [2025年の台湾 好景気のなか深まる不安](https://tokyotaiwanradar.com/ja/events/15d0cf60-f2cf-4fd6-a326-2578a76fe312) | geopolitics academic | geopolitics | 期刊文章多加 academic |
+| 22 | [奇天烈老画家と軟弱娘の台湾妖怪探索珍道中](https://tokyotaiwanradar.com/ja/events/eebeba83-1d24-4f78-aaad-912335ff67d5) | art | folklore | 漏 folklore |
+| 24 | [台湾で待ち合わせ 気ままに食べたい中年旅](https://tokyotaiwanradar.com/ja/events/c4167080-278e-4700-989c-8da22618301c) | literature | tourism | 旅遊書漏 tourism |
+| 25 | [台湾有事、日本の決断](https://tokyotaiwanradar.com/ja/events/b437abd9-3512-4d34-a4f4-58d4fc59acbd)（hanmoto） | geopolitics history | geopolitics | ~~多加 history~~ 裁決改 Y |
+| 35 | [最新版 台湾 旅人地図帳](https://tokyotaiwanradar.com/ja/events/4cd09525-2661-451d-b053-0c12b939d5d5) | history | tourism | 旅遊書漏 tourism、誤標 history |
+| 39 | [旅して学ぶ台湾](https://tokyotaiwanradar.com/ja/events/f1095b88-5b13-4973-9f9f-dada6c3c53ea) | history geopolitics academic | （現行 tourism study_abroad 為 Y，建議再加 history） | 旅遊書漏 tourism；唯一新版退步的一筆 |
+
+判為 Y 但附建議的：#2、#12、#18 建議加 geopolitics，#8 建議加 art（漏次要主題）。
+
+同一本書兩筆判定不同：#15（ndl，[d6d80433](https://tokyotaiwanradar.com/ja/events/d6d80433-5be8-466c-8a99-4f3e2ae2c2b8)）新版 geopolitics history academic 判 Y，
+#25（hanmoto）新版 geopolitics history 判 N。使用者裁決（2026-10-23）：#25 新版改 Y，與 #15 一致；
+理由是 `academic` 常有曖昧性，期刊文章乍看難判斷是否具學術性。盲標原值保留在 `category_check2.csv`。
+#16、#19 的 N 判定不變（使用者未改判；#16 另漏 tech），但其中的 academic 可能同屬邊界情況。
+
+剩下的錯誤型態已開 issue [#422](https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/issues/422)。
+

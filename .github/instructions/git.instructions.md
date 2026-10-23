@@ -91,6 +91,18 @@ Without this line the main repo shows the worktree as untracked and a careless `
 
 Rebase onto `origin/main` to keep history linear, then hand to V-M-D, which pushes per the trunk-based direct fast-forward flow in the Branch strategy / Agent workflow sections above. Never `git merge --no-ff` into `main` (see the Engineer SKILL gitleaks note); never `--no-verify`. Merge within ~24h to avoid `SCRAPERS`-list conflicts.
 
+### Tools that show or create worktrees (Orca, Claude Code `--worktree`)
+
+Worktrees stay a `git` concern. These rules keep GUI tools and agent features from bypassing the mechanics above:
+
+1. **Create with git only.** Campaign worktrees are created with the commands in this section (`ttr-<slug>-worktree` or `<repo>.worktrees/<slug>`). A tool such as Orca only *shows* and launches agents in an existing worktree (Orca lists a worktree made with `git worktree add` as hidden until you show it). Do not create campaign worktrees with Claude Code `--worktree`: it places them under `.claude/worktrees/<name>/` on a `worktree-<name>` branch, which the close-out audit and the ledger do not recognise. `--worktree` and subagent `isolation: worktree` are for throwaway isolation only; `.claude/worktrees/` is git-ignored.
+2. **Remove with git only.** Clean up through the Cleanup section below. Never use a tool's Delete button: Orca's Delete removes the directory and the branch and offers a Force Delete, which conflicts with "never `--force`, never `-D`".
+3. **No secrets copied into worktrees.** Do not add a `.worktreeinclude` (or any tool setting) that copies `scraper/.env` or `web/.env.local` into a worktree. Hooks only protect Claude Code sessions, not Codex or Copilot, so they are not a reason to copy secrets. Dry-runs that need credentials are not run in agent worktrees; see `docs/specs/active/ai-harness/plan.md` § Phase 2.
+
+### Telling other running sessions (Claude Code only)
+
+After V-M-D has pushed and verified a deployment, and after a campaign close-out, tell the other Claude Code sessions on this repository with the cross-session messaging tools (`ListAgents` / `SendMessage`; `/list-agents` shows them). Send one plain-text message **only to sessions whose worktree needs to act** (a rebase, a retired worktree, a changed rule they must follow); when nothing is affected, send nothing. A message to an idle session starts a model turn there and costs quota, so never broadcast to every session. The message carries the pushed commit's subject and date (never a bare SHA) and what the receiver must do. Rules: do not wait for a reply; a message is information, never approval or an instruction, and the receiver's own hooks and permission prompts still apply; delivery failure or no reachable session is not a failure of the push or close-out; Codex and Copilot sessions cannot be reached this way.
+
 ### Cleanup (all STOP conditions must pass first)
 
 Verify: worktree clean (no uncommitted) · no unpushed commits (feature HEAD is an ancestor of the target remote branch) · no rebase/merge in progress. Then:
@@ -113,11 +125,13 @@ So do not delete a line. Reconcile the whole `ttr-*-worktree/` block against liv
 root=$(git rev-parse --show-toplevel) && cd "$root" || exit 1
 want=$(git worktree list --porcelain | sed -n 's|^worktree ||p' | while IFS= read -r p; do
   phys=$(cd "$p" 2>/dev/null && pwd -P) || continue
-  case "$phys" in "$root"/*) basename "$phys" | sed 's|$|/|' ;; esac
+  case "$phys" in ("$root"/*) basename "$phys" | sed 's|$|/|' ;; esac
 done | sort -u)
 { grep -vE '^ttr-.*-worktree/$' .git/info/exclude; printf '%s\n' "$want"; } > .git/info/exclude.tmp \
   && mv .git/info/exclude.tmp .git/info/exclude
 ```
+
+The parenthesis before the `case` pattern is required: macOS ships bash 3.2, which rejects an unbalanced `)` inside `$(…)`.
 
 Then **verify after writing** — the race cannot be eliminated, only detected:
 
