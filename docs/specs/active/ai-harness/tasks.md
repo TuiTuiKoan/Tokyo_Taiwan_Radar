@@ -52,10 +52,10 @@
 - [ ] Phase 1 修正第二批（使用者要求規劃，2026-10-23；全部先寫測試或先做 mutation check，再改；建議模型 Sonnet、medium；plan 見 notes.md §14）：
   - [x] R1：`handoffs` 全部缺 `label`／`agent` 時不輸出孤立標題（Claude wrapper 與 Codex 檔）；先紅後綠，未 commit
   - [x] R2：symlink 政策（使用者 2026-10-23「依建議」＝拒絕、不跟隨）：預期輸出路徑上的 symlink 是衝突，`--check` 報 `symlink …`；掃描不回傳 symlink、不進入 symlink 目錄（`os.walk(followlinks=False)`）；Python 3.12 與 3.14 實測一致；未 commit
-  - [ ] R3：`conftest` 的 `tmp_repo` 對缺少的來源目錄（如 `.codex`）不再丟錯
-  - [ ] R4：`len(sources) * 2` 改為依目錄比對 `.claude/agents`、`.codex/agents` 與來源的名稱集合
-  - [ ] R5：移除冗餘的 `MODEL_ID_PREFIXES`，tier 別名集合只在一處定義
-  - [ ] R6：補 `.codex/agents/` 子目錄的手寫檔不被動、生成殘留會被 `--check` 報告的測試
+  - [x] R3：`conftest` 抽出 `copy_repo_inputs`，缺少的來源目錄略過；測試直接呼叫並做 mutation check（還原舊行為會紅）（2026-10-23）
+  - [x] R4：改為比對來源、`.claude/agents`、`.codex/agents` 的名稱集合；以刪除一個 codex 檔驗證會紅（未做『加第三種輸出』的 mutation，名稱集合與輸出對磁碟的比對已涵蓋）（2026-10-23）
+  - [x] R5：移除 `MODEL_ID_PREFIXES`，別名白名單只剩一處（2026-10-23）
+  - [x] R6：新增子目錄測試；mutation check（只掃頂層）會紅（2026-10-23）
 
 ### 2b（條件：2a 條件；Phase 1 NOT TESTED 已驗證〔已成立〕；第一週配額基準已記錄且沒有耗盡配額；agent teams spike 已結案〔已成立〕；agent view 小試驗已結案）
 

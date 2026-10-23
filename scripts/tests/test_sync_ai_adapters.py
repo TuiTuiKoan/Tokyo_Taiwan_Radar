@@ -33,7 +33,6 @@ EXPECTED_TIERS = {
     "peatix-scraper": "grunt",
     "tcc-scraper": "grunt",
 }
-MODEL_ID_PREFIXES = ("claude-", "gpt-", "gemini-")
 EDIT_TOOLS = {"Edit", "Write", "NotebookEdit"}
 AGENT_COUNT = 15
 
@@ -220,7 +219,6 @@ def test_tier_table_holds_aliases_not_model_ids(sync):
     assert set(sync.TIERS) == {"plan", "build", "grunt"}
     for tier in sync.TIERS.values():
         assert tier["model"] in {"opus", "sonnet", "haiku"}
-        assert not tier["model"].startswith(MODEL_ID_PREFIXES)
         assert tier["effort"] in {"low", "medium", "high"}
 
 
@@ -333,9 +331,9 @@ def test_wrapper_count_matches_agent_sources(sync, root):
     names = [agent_name(sync, path) for path in sources]
     on_disk = sorted((root / ".claude" / "agents").glob("*.md"))
     codex_on_disk = sorted((root / ".codex" / "agents").glob("*.toml"))
-    assert len(sources) * 2 == len(outputs)
-    assert len(sources) == len(on_disk) == len(codex_on_disk) == AGENT_COUNT
     assert len(set(names)) == len(names)
+    assert len(sources) == AGENT_COUNT
+    assert set(names) == {path.stem for path in on_disk} == {path.stem for path in codex_on_disk}
     assert {path.as_posix() for path in outputs} == {
         path.relative_to(root).as_posix() for path in [*on_disk, *codex_on_disk]
     }
