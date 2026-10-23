@@ -1168,3 +1168,22 @@ push 並在主工作目錄 pull 之後，才可以用相對路徑在主工作目
 - log 在 22:42:21 有一筆 `session=21cdee9f` 也被命名成 `ai-harness·2242`，但本機沒有任何 transcript；推測是沒有訊息就結束的空 session（VS Code 開對話時多起了一個程序），未證實。無害。
 - **未解**：本 session（`79048fdf`）的 transcript 裡，`custom-title` 反覆被改成類似每輪摘要的文字（例：`ai-harness 收尾, kickoff 實跑, 兩試驗完成…`），但 `agent-name` 一直是使用者手動取的 `ai-harness·next`。寫入者未查到（在 `~/.claude/plugins`、`cc-statusline`、`hooks` 目錄搜尋 `sessionTitle` 只在 transcript 資料檔命中）。這表示既有機制已會動態改 `custom-title`；`session_map.py` 與 VS Code 歷史清單顯示的是哪一個，尚未釐清。
 - 用量：每個測試 session 都只做一句 pwd；沒有量測用量差，也不預期有可見差距。
+
+## 39. 誰在改 `custom-title`：cc-statusline 的 summary-updater（2026-10-23，#426）
+
+§38 的未解點已查明。寫入者是使用者層的 **cc-statusline plugin**（`~/.claude/plugins/cache/cc-statusline/cc-statusline/1.0.0/hooks/summary-updater.js`，`UserPromptSubmit` hook；plugin 的 README 也載明這個行為，標題「Auto session rename for `/resume` picker」）。行為（讀原始碼，行號為該檔）：
+
+- 第 34 到 66 行：每次送出 prompt，只要 `~/.claude/cc-statusline/summary-<id>.txt` 存在，就取摘要第一行（超過 40 字截成 39 字加 `…`），若與 transcript 尾端最後一筆 `custom-title` 不同，就**追加**一筆 `{"type":"custom-title","customTitle":<摘要>}`。
+- 它**不檢查**現有的 `custom-title` 是不是使用者用 `-n`／`/rename` 取的，或是 `SessionStart` hook 設的，一律覆蓋。
+- 摘要檔由同一個 hook 在每 10 則 prompt（`summaryInterval`，預設 10）時用 `additionalContext` 要求模型改寫，所以 session 約在第 10 個 prompt 之後才會有摘要檔、才開始被改名。`~/.claude/cc-statusline-rows.json` 沒有「只關掉改名」的選項（`summary` 是顯示開關，原始碼的改名段沒有讀它）。
+
+對命名的影響（推論，標 NOT TESTED）：
+1. `custom-title` 是「最後一筆為準」（plugin 說明如此），所以 session 超過約 10 個 prompt 後，`/resume` 清單與依名稱的 `claude -r <名稱>` 看到的會是摘要，**不是** `-n`／`/rename`／我們的 `SessionStart` hook 設的名稱。
+2. `agent-name`（輸入框橫線右側、`claude agents` 清單）不受影響，仍是原名。本 session 就是這個狀態：橫線右側 `ai-harness·next`，`/resume` 與 transcript 的 `custom-title` 是摘要。
+3. §38 的 T1、T2、T4、T5 都只做一句 pwd，沒有到第 10 個 prompt，所以名稱還沒被蓋；若 session 長到被蓋，原名仍在 `agent-name`。
+4. 這可能也是使用者先前「用名稱找不到 session」的原因之一，但**沒有證據**：本機沒有任何 transcript 含 `chat-worktree-spec` 這個字串（見 §38 之前的搜尋），所以那個名稱沒有被寫進 transcript 過，不是被蓋掉。
+
+可選的處理（需使用者決定，目前都沒有做）：
+- A：不動 plugin，接受「前 10 個 prompt 是我們的名稱，之後 `/resume` 看摘要，輸入框與 agent view 仍看原名」。
+- B：修改 plugin 快取中的 `summary-updater.js`，讓標題變成 `<原名>｜<摘要>`（截到 40 字）；缺點是 plugin 更新會覆蓋，且是第三方碼。
+- C：向 plugin 作者提 issue／PR，加上「已有手動或 hook 設定的名稱就不覆蓋」的選項。
