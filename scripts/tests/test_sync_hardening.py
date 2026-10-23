@@ -292,3 +292,76 @@ def test_duplicate_output_names_are_rejected_without_touching_files(tmp_repo, ru
     assert result.returncode != 0
     assert "duplicate" in result.stderr
     assert digest(tmp_repo) == before
+
+
+# --- finding F / #9: no orphan heading when no handoff item is usable ----------------
+
+
+def test_no_handoff_heading_when_no_item_is_usable(sync, tmp_repo):
+    (tmp_repo / ENGINEER).write_text(
+        '---\nname: Engineer\ndescription: "x"\ntier: build\nclaude-role: full\n'
+        'handoffs:\n  - prompt: "only a prompt, no label and no agent"\n---\nbody\n',
+        encoding="utf-8",
+    )
+    outputs = sync.agent_outputs(tmp_repo)
+    assert "完成後建議的下一步" not in outputs[Path(".claude/agents/engineer.md")]
+    assert "完成後建議的下一步" not in outputs[Path(".codex/agents/engineer.toml")]
+
+
+def test_the_heading_is_kept_when_an_item_is_usable(sync, root):
+    outputs = sync.agent_outputs(root)
+    assert "完成後建議的下一步" in outputs[Path(".claude/agents/tester.md")]
+    assert "完成後建議的下一步" in outputs[Path(".codex/agents/tester.toml")]
+
+
+# --- finding G: symlinks are never followed, written through, or deleted -------------
+
+
+@pytest.fixture
+def outside(tmp_path):
+    """A directory outside the repository copy that a symlink can point at."""
+    folder = tmp_path / "outside"
+    folder.mkdir()
+    return folder
+
+
+def test_a_symlink_at_an_expected_path_is_a_conflict_not_written_through(tmp_repo, run_sync, sync, outside):
+    target = outside / "real.toml"
+    target.write_text(f'{sync.TOML_MARKER}\nname = "outside"\n', encoding="utf-8")
+    link = tmp_repo / ".codex" / "agents" / "tester.toml"
+    link.unlink()
+    link.symlink_to(target)
+    result = run_sync(tmp_repo)
+    assert result.returncode != 0
+    assert "refusing to overwrite non-generated file: .codex/agents/tester.toml" in result.stderr
+    assert link.is_symlink()
+    assert target.read_text(encoding="utf-8") == f'{sync.TOML_MARKER}\nname = "outside"\n'
+
+
+def test_check_reports_a_symlink_at_an_expected_path(tmp_repo, run_sync, outside):
+    link = tmp_repo / ".codex" / "agents" / "tester.toml"
+    content = link.read_text(encoding="utf-8")
+    link.unlink()
+    target = outside / "same.toml"
+    target.write_text(content, encoding="utf-8")
+    link.symlink_to(target)
+    result = run_sync(tmp_repo, "--check")
+    assert result.returncode == 1
+    assert "symlink .codex/agents/tester.toml" in result.stdout
+
+
+def test_a_symlinked_file_with_a_marker_is_left_in_place(tmp_repo, run_sync, sync, outside):
+    target = outside / "note.md"
+    target.write_text(f"# note\n{sync.MARKER}\n", encoding="utf-8")
+    link = tmp_repo / ".claude" / "agents" / "linked-note.md"
+    link.symlink_to(target)
+    assert run_sync(tmp_repo).returncode == 0
+    assert link.is_symlink() and target.exists()
+
+
+def test_a_symlinked_directory_is_not_traversed(tmp_repo, run_sync, sync, outside):
+    (outside / "inner.md").write_text(f"# inner\n{sync.MARKER}\n", encoding="utf-8")
+    link = tmp_repo / ".claude" / "skills" / "linked-dir"
+    link.symlink_to(outside, target_is_directory=True)
+    assert run_sync(tmp_repo).returncode == 0
+    assert link.is_symlink() and (outside / "inner.md").exists()

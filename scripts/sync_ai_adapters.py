@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -351,10 +352,9 @@ def agent_outputs(root: Path) -> dict[Path, str]:
             "",
             f"你是 {original_name} agent。開始前完整讀取並遵循 `{source}`；其中 Copilot 專屬工具與機制依 repo root `AGENTS.md` 的『Copilot 對照表』轉換；忽略該檔 frontmatter 的 handoffs；模型與 effort 由 frontmatter 的 `tier` 投影，主對話模型由目前工具 / 使用者選擇（見 `AGENTS.md` 模型政策）。",
         ]
-        handoff_lines: list[str] = []
+        handoff_items: list[str] = []
         handoffs = meta.get("handoffs")
-        if isinstance(handoffs, list) and handoffs:
-            handoff_lines = ["", "完成後建議的下一步："]
+        if isinstance(handoffs, list):
             for item in handoffs:
                 if not isinstance(item, dict):
                     continue
@@ -365,7 +365,8 @@ def agent_outputs(root: Path) -> dict[Path, str]:
                 target_name = name_map.get(target, kebab(target))
                 prompt = one_line(item.get("prompt"))
                 suffix = f"（建議提示：{prompt}）" if prompt else ""
-                handoff_lines.append(f"- {label}：切換到 {target_name}{suffix}")
+                handoff_items.append(f"- {label}：切換到 {target_name}{suffix}")
+        handoff_lines = ["", "完成後建議的下一步：", *handoff_items] if handoff_items else []
         lines += handoff_lines
         lines.append("")
         outputs[Path(".claude") / "agents" / f"{out_name}.md"] = "\n".join(lines)
@@ -436,6 +437,12 @@ def expected_outputs(root: Path) -> dict[Path, str]:
 
 
 def generated_files(root: Path) -> list[Path]:
+    """Generated files under the output directories.
+
+    Symlinks are never returned and symlinked directories are never entered: a link is
+    not ours to delete, and following one could reach a file outside the repository.
+    `os.walk(followlinks=False)` behaves the same on every Python version, unlike `rglob`.
+    """
     files: list[Path] = []
     for base in (
         root / ".claude" / "agents",
@@ -446,12 +453,16 @@ def generated_files(root: Path) -> list[Path]:
     ):
         if not base.exists():
             continue
-        for path in [*base.rglob("*.md"), *base.rglob("*.toml")]:
-            try:
-                if is_generated(path.read_text(encoding="utf-8"), path.suffix):
-                    files.append(path)
-            except UnicodeDecodeError:
-                continue
+        for dirpath, _dirnames, filenames in os.walk(base, followlinks=False):
+            for name in sorted(filenames):
+                path = Path(dirpath) / name
+                if path.suffix not in (".md", ".toml") or path.is_symlink():
+                    continue
+                try:
+                    if is_generated(path.read_text(encoding="utf-8"), path.suffix):
+                        files.append(path)
+                except UnicodeDecodeError:
+                    continue
     return files
 
 
@@ -461,6 +472,9 @@ def check(root: Path, expected: dict[Path, str]) -> int:
     changed: list[str] = []
     for path in sorted(expected_paths):
         full = root / path
+        if full.is_symlink():
+            changed.append(f"symlink {path.as_posix()}")
+            continue
         if not full.exists():
             changed.append(f"missing {path.as_posix()}")
             continue
@@ -482,6 +496,8 @@ def write_outputs(root: Path, expected: dict[Path, str]) -> None:
     """
     def is_hand_written(path: Path) -> bool:
         full = root / path
+        if full.is_symlink():
+            return True
         if not full.exists():
             return False
         try:
