@@ -34,6 +34,15 @@ while IFS=' ' read -r local_ref local_sha remote_ref remote_sha; do
     fi
     RANGE="${MERGE_BASE}..${local_sha}"
   else
+    # An unknown remote SHA makes the range invalid: gitleaks then scans 0 commits and
+    # still exits 0, and the regex fallback swallows the git error. Fail closed instead (#346).
+    if ! git cat-file -e "${remote_sha}^{commit}" 2>/dev/null; then
+      echo ""
+      echo "pre-push: remote SHA ${remote_sha} for ${remote_ref} is not in this clone — push blocked!"
+      echo "  The secret scan cannot build a range, so it would scan nothing. Run: git fetch origin"
+      echo "  then push again. To bypass (use with caution): git push --no-verify"
+      exit 1
+    fi
     RANGE="${remote_sha}..${local_sha}"
   fi
 
