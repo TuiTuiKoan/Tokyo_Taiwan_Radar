@@ -1187,3 +1187,27 @@ push 並在主工作目錄 pull 之後，才可以用相對路徑在主工作目
 - A：不動 plugin，接受「前 10 個 prompt 是我們的名稱，之後 `/resume` 看摘要，輸入框與 agent view 仍看原名」。
 - B：修改 plugin 快取中的 `summary-updater.js`，讓標題變成 `<原名>｜<摘要>`（截到 40 字）；缺點是 plugin 更新會覆蓋，且是第三方碼。
 - C：向 plugin 作者提 issue／PR，加上「已有手動或 hook 設定的名稱就不覆蓋」的選項。
+
+## 40. cc-statusline 的 `custom-title` 覆蓋：本機修補版（2026-10-23，#426）
+
+使用者問能否 fork plugin。plugin 是 `NYCU-Chung/cc-statusline`，MIT 授權（可修改與再散布，保留版權聲明）。決定先做「可測試的修改」再決定要不要 fork 或提 PR，所以**沒有動 GitHub、沒有動 plugin 設定、沒有改快取中的檔案**。
+
+成果在使用者層（不進 repo）：`~/.ai-notes/ttr/tools/cc-statusline-patch/`，含原版副本（`summary-updater.orig.js`，SHA-256 `6613a16e…` 與快取中的原檔相同）、修補版 `summary-updater.js`、`summary-updater.patch`（unified diff）、`LICENSE`、測試 `compose-title.test.js`。
+
+修改內容：新增純函式 `composeTitle`，只改 `custom-title` 的產生方式。
+
+- 取 transcript 尾端最後一筆 `custom-title`；若它不是我們上次寫的（記在 `~/.claude/cc-statusline/title-state-<id>.json`），就視為別人設的名稱（`-n`、`/rename`、`SessionStart` hook），成為「基底名稱」。
+- 新標題為 `<基底>｜<摘要>`，總長不超過 40 個字元（以 code point 計，中文各算 1），基底最長 24 字、摘要至少留 6 字；沒有基底時與原版完全相同（摘要截成 39 字加 `…`）。
+- 其餘行為不變：每 10 則 prompt 要求改寫摘要、只讀 transcript 尾端 256 KB、標題沒變就不追加、stdin 原樣傳回。
+
+驗證：
+- `node --test`（Node 22）10 個測試全過；對未改版本（原檔）無法跑（它會等 stdin），算紅。
+- Mutation：基底永遠為空 → 6 個測試紅；把我們自己上次的寫入也當外部 → 2 個紅；還原後 10 個全綠。
+- 端到端：假的 HOME 與 transcript，跑 3 次 hook：`ai-harness·2235` 後追加 `ai-harness·2235｜ai-harness 收尾, kickoff …`；第二次摘要沒變不重複追加；模擬使用者 `/rename` 後，新標題改以 `renamed-by-user｜…`；state 檔內容正確；stdin 原樣輸出。
+
+未涵蓋與限制（NOT TESTED）：
+- 沒有在真實 Claude Code session 與 `/resume` 清單裡驗證（尚未安裝到 plugin 快取）。
+- 已被原版 plugin 改成純摘要的舊 session，第一次執行會把舊摘要當成基底，產生 `舊摘要｜新摘要`（只有摘要與當前摘要完全相同時才會避免）；新 session 不受影響。
+- 補丁放在快取目錄會在 plugin 更新時被覆蓋。
+
+處理方式（待使用者決定）：D 把修補版放進快取（最快，會被更新覆蓋）；E 向上游提 PR（最乾淨）；F fork 並把 marketplace 換成 fork（需要建公開 repo 與改 plugin 設定，使用者動手）。
