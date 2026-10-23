@@ -1051,3 +1051,17 @@ push 並在主工作目錄 pull 之後，才可以用相對路徑在主工作目
 **會改變每個 agent session 行為的檔案**（推到 main 後，其他 session 下次 rebase 或 pull 才會看到）：`AGENTS.md`、`.github/copilot-instructions.md`、`.github/instructions/git.instructions.md`、新增的 `.github/instructions/handoff.instructions.md`（要求每個要使用者動手的步驟寫成交接卡片：在哪裡、絕對路徑、預期結果、失敗時怎麼辦、風險標記）、4 個 agent 定義（campaign-closer、engineer、scraper-expert、validate-merge-deploy）、3 個 prompt（admin-qa-cleanup、authoritative-venue-repair、weekly-review）。
 
 未涵蓋：`.githooks/pre-push` 的輸出要使用者推送時才看得到；Vercel deployment 要推送後才能以 exact-SHA 查。
+
+## 32. 第二次推送與部署驗證（2026-10-23）
+
+使用者從主工作目錄推送後，以下是唯讀查證。執行者：Claude Code（Sonnet 5.5）。
+
+| 查證 | 結果 |
+|---|---|
+| origin/main 頂端 | `547db87e`（docs(specs): record the second rebase, the public repo and the pushed feature branch）；與本分支 HEAD 相同，領先 0、落後 0 |
+| Vercel deployment（exact SHA） | id `7273776814`，環境 Production，建立於 2026-10-23T08:30:58Z（本 session 以 `deployments?sha=<SHA>` 重查，確認存在） |
+| 其他檢查 | Secret Scan success；PR Tier skipped（直接推送，符合預期）；`https://tokyotaiwanradar.com/ja` 回 200（以上三項沿用父 session 的查證，本 session 未重跑） |
+| 這批推送的 `web/` 檔案 | 沒有，未做 app-level smoke |
+| 遠端 `origin/feat/ai-harness` | 仍在，頂端 `071e246f`（rebase 前的舊 commit，與 main 已分叉）；hooks 擋 `--force` 與 `--delete`，待使用者在 GitHub 網頁刪除 |
+
+這次紀錄（本節與 tasks.md 的勾選）只改本機、未 push，隨下一次有實質變更的推送一起上去（見 §25.2：不為紀錄單獨推送）。
