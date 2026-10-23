@@ -60,7 +60,10 @@
 ### 2b（條件：2a 條件；Phase 1 NOT TESTED 已驗證〔已成立〕；第一週配額基準已記錄且沒有耗盡配額；agent teams spike 已結案〔已成立〕；agent view 小試驗已結案）
 
 - [x] 拋棄式 worktree `ttr-agent-view-trial-worktree` 已建立（使用者 2026-10-23 核准；分支 `feat/agent-view-trial`，起點 origin/main `92a5bd45`，`.git/info/exclude` 已對帳）
-- [ ] agent view 小試驗：方案 [spike-agent-view.md](./spike-agent-view.md)；由使用者在 VS Code 整合終端機執行並記錄前後 `/usage`
+- [x] agent view 小試驗完成（重跑，2026-10-23）：S1 到 S4 成立；用量前後 5%／31%／8% 到 7%／31%／8%；B 選 No 後未執行 push；沒有自己 commit 或 push；VS Code 沒有通知。證據與限制見 notes.md §22；試驗 session 已停止並移除、試驗檔已清除
+- [x] S5 已由使用者明確確認成立（2026-10-23）；agent view 小試驗的判定為「可列入 Phase 2b 正式使用，不是採用」
+- [ ] 後續小試驗（NOT TESTED）：從不同 worktree 派出 session 是否都能出現在同一個 agent view 的清單；`Notification` hook 能否補上 VS Code 沒有通知的缺口
+- [ ] **ai-harness 分支需要 rebase**（2026-10-23 發現）：分支領先 origin/main 10 個 commit、落後 128 個；兩邊都改過 12 個檔案，包含 `scripts/sync_ai_adapters.py`、`AGENTS.md`、`git.instructions.md` 與多個 agent 檔；main 已把 push 的 ask 規則縮窄（`0df5d775`），與我們分支上測試的舊規則 `Bash(git push:*)` 不同。rebase 時生成物（`.claude/agents`、`.codex`）要重新生成而不是逐行合併；屬 V-M-D 之前的步驟，需要使用者核准時機
 - [ ] Orca 安裝並釘版本、設定 worktree 建立後的安裝命令、不使用 Delete
 - [ ] 驗證（NOT TESTED，通過前不得稱相容）：Orca 內 `claude` 的 `/hooks` 與 push ask 生效；`/list-agents` 可見其他 worktree
 

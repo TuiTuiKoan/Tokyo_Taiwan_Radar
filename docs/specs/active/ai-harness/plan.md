@@ -54,7 +54,7 @@ rev.1 原檔：`~/.ai-notes/ttr/ai-harness-plan-rev1.md`（SHA-256 `5f492d901f28
 
 ### 1.1 不需要先準備本機硬體與開源模型基礎設施
 
-- 「省成本」在你的情況是**省訂閱配額**，不是省 API 美元：Claude 是 Pro 訂閱，Codex 走 ChatGPT 登入。
+- 「省成本」在你的情況是**省訂閱配額**，不是省 API 美元：Claude 是訂閱（rev.1 撰寫時為 Pro；2026-10-23 `claude auth status` 顯示 `max`），Codex 走 ChatGPT 登入。
 - 任何 gateway／router（claude-code-router、LiteLLM、OpenRouter、Opper）都要用 API key 計費。Claude Code 文件明言：gateway credential 生效時「訂閱登入不送出、訂閱額度不適用」，而且 Anthropic 不支援經 gateway 把 Claude Code 導到非 Claude 模型。對 Pro 使用者這條路是**加錢**而不是省錢，且會破壞 hooks 以外的功能假設（Explore subagent 的特殊模型規則、prompt cache、Remote Control 等）。
 - 真正的省配額手段都在訂閱內、都不需要新硬體：主對話 `opusplan` 或降 effort、subagent 走 `haiku`／`sonnet`、Codex 作第二個配額池、本機模型只接「零風險小任務」。
 - 本機模型是**可選的第五階段**，M1 Max 32 GB 已足夠跑 MoE 類 coder 模型（例：Qwen3-Coder-30B-A3B，Q4 約 18–19 GB；gpt-oss-20b 約 13 GB），不必買機器。它們的角色限定為摘要、翻譯、commit 訊息、簡單重構，**不**用於任何要過 hooks／權限閘門的 production 動作（AGENTS.md 模型政策已有此條）。
@@ -246,7 +246,7 @@ Layer 2  專案層（TTR repo）
 | 進入 | 必要條件（全部成立才 go） |
 |---|---|
 | Phase 2a（housekeeping 與一個 spike） | (a) Phase 1 commit 存在（`361d17c1`，已成立）。(b) D4' 已裁決（2026-10-23，已成立）。 |
-| Phase 2b（正式平行開發，即日常同時跑多個 agent session） | 2a 的條件，加上：(c) Phase 1 的 NOT TESTED 項目已驗證，或使用者明確接受留作未驗證（**已成立，2026-10-23，見 notes.md §8**）。(d) 第一週配額基準已記錄，且沒有因平行 session 在重置前耗盡配額；若耗盡即 no-go，降低平行度後重評。(e) 兩個 spike 都已依停止條件結案並記入 notes.md：agent teams（已完成）與 agent view 小試驗（[spike-agent-view.md](./spike-agent-view.md)，待執行）。 |
+| Phase 2b（正式平行開發，即日常同時跑多個 agent session） | 2a 的條件，加上：(c) Phase 1 的 NOT TESTED 項目已驗證，或使用者明確接受留作未驗證（**已成立，2026-10-23，見 notes.md §8**）。(d) 第一週配額基準已記錄，且沒有因平行 session 在重置前耗盡配額；若耗盡即 no-go，降低平行度後重評。(e) 兩個 spike 都已依停止條件結案並記入 notes.md：agent teams（已完成）與 agent view 小試驗（[spike-agent-view.md](./spike-agent-view.md)，S1 到 S5 全部成立（S5 使用者已確認），判定「可列入 Phase 2b 正式使用，不是採用」，見 notes.md §22）。 |
 | Phase 3a（試點） | Phase 2b 的條件，加上：至少兩週配額紀錄可比較。 |
 | Phase 3b（擴大與防線搬遷） | 3a 有明確復用收益；D8 已裁決；ai-portability-followups ① 的 CI 接線完成。 |
 | Phase 4 | 不依賴 Phase 3。條件：先逐檔量測 `/context` 的 Memory files。 |
@@ -258,7 +258,7 @@ Layer 2  專案層（TTR repo）
 
 標示：**文件描述**＝來自官方或第三方文件，未在本機驗證；**靜態核對**＝讀程式碼確認；**本機實測**＝在本機執行並有紀錄；**NOT TESTED**＝尚未驗證。未標示者視為文件描述。
 
-- **配額是真正的瓶頸。** Fable + xhigh 是目前最貴的組合；Orca 或 agent teams 一次 fan-out 5 個 agent 會更快撞到 Pro 限制。平行度上升必須伴隨 Phase 1 的降級，否則適得其反。
+- **配額是真正的瓶頸。** Fable + xhigh 是目前最貴的組合；Orca 或 agent teams 一次 fan-out 5 個 agent 會更快撞到訂閱限制（rev.1 假設 Pro；方案現為 Max，上限較高，但本文的配額門檻仍以實測的 `/usage` 為準）。平行度上升必須伴隨 Phase 1 的降級，否則適得其反。
 - **Orca 迭代極快**（文件描述，來自第三方評測文章：30 天 18 個 release、Electron 常駐 400–800 MB；未在本機量測）；請釘版本、把版本記進 notes.md。
 - **Claude `--worktree` 與 repo 命名規範衝突**（文件描述：固定放 `.claude/worktrees/`、分支 `worktree-<name>`）；只給 subagent 隔離用。
 - **Codex custom agent 不能換 provider**（文件描述）；本機模型只能 session 級切換。

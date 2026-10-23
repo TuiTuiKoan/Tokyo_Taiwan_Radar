@@ -668,3 +668,109 @@ R3 到 R6 尚未做。未 commit。
 2. 是否把「階段」改名為「主題」。
 3. 對照表草案中低把握的列要怎麼歸。
 4. 是否做稽核腳本與每週回顧的一步（建議做，且不做 GitHub Action）。
+
+## 20. agent view 試驗：第一次嘗試與重置（2026-10-23）
+
+使用者回報：忘了先輸入 `/usage` 量測前置用量，想重置 agent view 但關不掉。執行者：Claude Code（Opus 5.5）。
+
+### 20.1 第一次嘗試留下的觀察（本機實測，來自 `claude agents --json`、session transcript 與 `git`）
+
+| 觀察 | 結果 |
+|---|---|
+| O1 工作目錄 | 兩個背景 session 的 `cwd` 都是 `ttr-agent-view-trial-worktree`；`.claude/worktrees/` 不存在；沒有多出新的 worktree。**成立** |
+| 提示 A（改檔案） | 在試驗 worktree 建立 `docs/_agent-view-trial.md`（內容 `trial A`），回報「未 commit」。`git status` 只有該未追蹤檔；`git log origin/main..HEAD` 為 0；遠端沒有 `feat/agent-view-trial`。**沒有自己 commit 或 push（O4 的初步證據）** |
+| 提示 B（`git push origin HEAD --dry-run`） | transcript 只有該 Bash 的 tool_use，沒有結果；session 狀態為 `waiting`。**hooks 的 ask 在背景 session 生效的證據（O2 的初步證據）**；session 自己也寫「依專案規則應會觸發核准提示」 |
+| 用量差值 | 未記錄前置用量，**無法量測** |
+| O3（peek 回覆是否能答權限）、O5（VS Code 整合終端機、通知）、O6（狀態是否相符） | 我沒有觀察到；使用者的主觀記錄未提供，維持 NOT TESTED |
+
+限制：O2、O4 是在約 6 分鐘後的瞬間狀態，不是完整生命週期；A 結束後我沒有觀察更久，所以「完成後不會自己 commit 或 push」只證明到那個時間點。
+
+### 20.2 為什麼關不掉，以及怎麼重置
+
+- agent view 的背景 session 由獨立的 supervisor 程序執行（本次是 `claude daemon run --origin transient`，由 `claude agents` 啟動）；關掉終端機分頁不會停止 session。
+- 離開 agent view：`Esc` 回到 shell（若是用 `←` 從對話進入則回到該對話）、`Ctrl+C` 按兩次、或輸入 `/exit`、`/quit`（文件描述）。離開不會停止 session。
+- 停止 session：`claude stop <id>`。**這個 `<id>` 是 8 碼短 ID（如 `ad7c5b69`），不是完整 session ID**；用完整 ID 會得到 `No job matching`，我第一次就踩到。移除：`claude rm <id>`（對話紀錄保留，可用 `claude attach`／`--resume`）。停止 supervisor 與其背景 session：`claude daemon stop --any`。
+- 本次執行：`claude stop ad7c5b69`、`claude stop 71b76964`、對兩者 `claude rm`、`claude daemon stop --any`；之後確認背景 session 為 0、daemon 為 not running、相關程序已消失。使用者其他 36 個互動 session 沒有受影響。`claude agents --json` 這類指令本身可能重新啟動一個 transient supervisor，用完要再停。
+- 清理：刪除試驗檔 `docs/_agent-view-trial.md`（內容與校驗碼前綴 `ecff734b` 已記錄）。試驗 worktree 現在乾淨、沒有 commit、遠端沒有分支。
+
+### 20.3 重跑
+
+依 [spike-agent-view.md](./spike-agent-view.md)「第一次嘗試與重跑登記」：相同提示詞與條件；**先記錄 `/usage` 再開 agent view**；判定採用重跑，第一次保留作對照。
+
+## 21. agent view 重跑的觀察（2026-10-23，進行中，使用者回報加上本機查證）
+
+重跑於 13:04:52（A）與 13:04:57（B）開始；13:07:52 查證時 A 為 idle、B 為 waiting。以下 O3 與 O6 是使用者的主觀回報，O1、O2、O4 是我的本機查證（唯讀）。
+
+| 觀察 | 結果 | 來源 |
+|---|---|---|
+| O1 工作目錄 | 兩個背景 session 的 `cwd` 都是 `ttr-agent-view-trial-worktree`；`.claude/worktrees/` 不存在。**成立** | `claude agents --json`、`ls` |
+| O2 hooks／ask 規則在背景 session 生效 | B 停在權限對話框：`Ask rule Bash(git push *HEAD *) overrides auto mode for this command`，選項 1. Yes、2. No。**成立**，並顯示背景 session 跑在 auto mode，ask 規則仍然壓過 auto mode | 使用者貼上的對話框 |
+| O3 peek 面板能否答覆權限 | **不能**：空白鍵的 peek 面板沒有選項，必須按 `→` 進入（attach）才看得到對話框。與文件描述一致 | 使用者回報 |
+| O4 沒有自己 commit 或 push | A 完成後（Completed）：`git status` 只有未追蹤的 `docs/_agent-view-trial.md`；`git log origin/main..HEAD` 為 0；遠端沒有 `feat/agent-view-trial`。**成立（至查證時刻）** | `git` |
+| O6 狀態是否相符 | 完成顯示為 `Completed`，行內有一句摘要與耗時（`18s`）；需要輸入顯示為 `Needs input`，行內寫 `approve Bash: git push origin HEAD --dry-run`，並顯示等待時間（`1m`）。與實際相符 | 使用者回報 |
+| O5 通知 | 使用者尚未回報 | — |
+| O7 用量 | 使用者尚未回報前後數字 | — |
+
+意義：背景 session 能被集中看到狀態，但**需要核准的動作一定要人進入該 session 才能回答**，peek 不能代勞。這正好印證 notes.md §16.3「不能做到完全不看」；也就是 agent view 解決的是「看哪些 session 在等我」，不是「不用回答」。
+
+### 21.1 規則的來源與一個 rebase 風險
+
+對話框裡的規則 `Bash(git push *HEAD *)` 來自試驗 worktree 的 `.claude/settings.json`（起點是 origin/main）。origin/main 在 `0df5d775`（chore(claude): narrow the push ask rules to main-like destinations）把 `Bash(git push:*)` 縮窄成六條只針對 main 類目的地的規則：`git push`、`git push origin`、`git push *main`、`git push *main *`、`git push *HEAD`、`git push *HEAD *`。我們 ai-harness 分支的 `.claude/settings.json` 還是舊的 `Bash(git push:*)`。
+
+因此 ai-harness 分支需要 rebase：領先 origin/main 10 個 commit，落後 128 個；兩邊都改過 12 個檔案：`.claude/agents/plan-critic.md`、`.claude/agents/validate-merge-deploy.md`、`.github/agents/` 下的 7 個檔案、`.github/instructions/git.instructions.md`、`AGENTS.md`、`scripts/sync_ai_adapters.py`。我沒有嘗試 rebase，也沒有評估衝突的難度；`sync_ai_adapters.py` 兩邊都改過是最需要注意的一個。生成物（`.claude/agents`、`.codex`）應該在解完衝突後重新生成，不要逐行合併。這屬於 V-M-D 之前的步驟，時機需使用者核准。
+
+## 22. agent view 試驗結果與判定（2026-10-23）
+
+使用者完成重跑並回報。核對者：Claude Code（Opus 5.5），事後唯讀查證與清理。
+
+### 22.1 用量（S4）
+
+| | session（5 小時） | 週（all models） | 週（Fable） |
+|---|---|---|---|
+| 開始前（13:04，Account & Usage 頁） | 5% | 31% | 8% |
+| 結束後（`/usage`） | 7% | 31% | 8% |
+| 差值 | +2 | 0 | 0 |
+
+最大差值 2 個百分點，在上限 3 以內，**S4 成立**。限制：解析度 1 點；百分比是帳號層累計，**本 session 在重跑期間也在工作**（13:05 到 13:10 有多次工具呼叫與寫入），所以 +2 是試驗本身的上界，不是精確值；結束後的 `/usage` 貼的是另一個 session（Fable，$0.76）的面板，該面板的花費不是兩個背景 session 的花費。**方案是 Max**（見 22.4）。
+
+### 22.2 觀察與條件
+
+| 條件 | 結果 | 證據 |
+|---|---|---|
+| S1（O1）工作目錄是試驗 worktree，沒有 `.claude/worktrees/` | **成立** | `claude agents --json` 的 `cwd`；`ls` |
+| S2（O2）背景 session 的 hooks／ask 生效，且拒絕後 push 沒有被執行 | **成立** | 對話框 `Ask rule Bash(git push *HEAD *) overrides auto mode`；使用者選 No；B 的 transcript 結果為 "The user doesn't want to proceed with this tool use. The tool use was rejected"；畫面顯示 `Interrupted · What should Claude do instead?` |
+| S3（O4）沒有未被要求的 commit 或 push | **成立**（至查證時刻：A 完成後約 5 分鐘以上） | `git status` 只有未追蹤檔；`git log origin/main..HEAD` 為 0；遠端沒有 `feat/agent-view-trial` |
+| S4 用量 | **成立** | 22.1 |
+| S5 一個畫面監看兩個 session，除權限對話框外不必 attach | **待使用者明確確認**（依回報推論成立：狀態都顯示在畫面上；需要 attach 的只有權限對話框） | 使用者回報 |
+| O3 peek 能否答覆權限 | **不能**，空白鍵的 peek 沒有選項，必須按 `→` 進入 | 使用者回報 |
+| O5 通知 | **沒有**：VS Code 整合終端機沒有特別通知，只有畫面顯示 | 使用者回報 |
+| O6 狀態相符 | 相符：`Completed`（行內有摘要與 `18s`）、`Needs input`（行內 `approve Bash: git push origin HEAD --dry-run`、`1m`） | 使用者回報 |
+
+停止條件：沒有觸發（沒有實際 push、沒有修改試驗 worktree 以外的檔案、沒有超過 15 分鐘、用量未超過 5 點）。
+
+### 22.3 判定與限制
+
+**判定（暫定，待 S5 確認）：可列入 Phase 2b 正式使用，不是採用。**
+
+這個結果能說明：從 git 建立的 linked worktree 派出的背景 session 維持該 worktree，不會另建 `.claude/worktrees/`；repo 的 ask 規則在背景 session（auto mode）仍然生效並壓過 auto mode；拒絕後動作不會執行；完成的 session 沒有自己 commit 或 push；成本很小。
+
+不能說明（仍 NOT TESTED）：
+- **無通知**：在 VS Code 整合終端機裡沒有通知，「不用一直看」並沒有達成；你仍然要定期看畫面。官方文件描述 agent view 開著時會觸發 `Notification` hook（`agent_needs_input`、`agent_completed`），可以用 hook 補上桌面通知，我沒有試過。
+- **兩個 session 在同一個 worktree**：這次兩個 session 都在同一個試驗 worktree。若兩個都會修改檔案，agent view 在 linked worktree 內不再隔離（文件描述），它們會互相覆蓋。真正的跨功能平行需要「每個功能一個 worktree、各自派出」；**同一個 agent view 能不能看到來自不同 worktree 的 session、要怎麼從不同 worktree 派出，沒有測**。官方文件說清單是全機器的（本次 `--json` 也列出 36 個互動 session），但派發位置是 agent view 開啟時的目錄。
+- **只驗證了極小的工作**：A 只是建立一個檔案；沒有驗證會修改多個檔案、跑測試、跑很久的工作，也沒有驗證非 dry-run 的 push 被拒絕後的行為。
+- **背景 session 跑在 auto mode**：它能自動執行很多命令而不問；ask 規則與 hooks 仍會擋，但這是它與互動 session 不同的地方，使用時要知道。
+- 觀察時間短（約 10 分鐘）；只跑一次。
+
+### 22.4 方案是 Max，不是 Pro
+
+`/usage` 的 Account 頁寫 `Plan: Claude max`，`claude auth status` 回 `subscriptionType: max`；2026-10-15 我查到的是 `pro`。方案何時變更不知道。影響：plan §1.1 與 §4 假設 Pro 的敘述已更新註記；配額上限比我先前推論的高，但門檻仍以實測 `/usage` 為準，不因方案變動而放寬。記憶檔 `user-ai-tooling-setup` 已更正。
+
+### 22.5 清理
+
+兩個試驗背景 session 已 `claude stop` 與 `claude rm`，`claude daemon stop --any` 已執行，沒有殘留程序；試驗檔 `docs/_agent-view-trial.md` 已刪除；試驗 worktree 乾淨、沒有 commit、遠端沒有分支。worktree 與分支本身還在，未退役。
+
+## 23. S5 確認與接下來的順序（2026-10-23）
+
+使用者確認 S5 成立，agent view 小試驗的最終判定為**可列入 Phase 2b 正式使用，不是採用**（§22.3 的限制仍然有效）。使用者並決定：ai-harness 分支要 rebase；核准 commit；並提問是否需要先 V-M-D 推送，因為 `docs/specs/active/ai-harness/` 目前不在 GitHub 上。
+
+事實：這個 spec 與全部 ai-harness 的 commit 都只在本機分支 `feat/ai-harness`（領先 origin/main 12 個 commit，落後 128 個），從未 push。GitHub 上帶 `spec:ai-harness` 標籤的 issue（#328、#346、#420）因此指向一個 main 上不存在的 spec。順序與理由見 §24。
