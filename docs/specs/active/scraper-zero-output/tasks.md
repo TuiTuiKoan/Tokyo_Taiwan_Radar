@@ -19,7 +19,7 @@ updated: 2026-10-23
 - [x] 家用排程首次執行成功（2026-10-23）
 - [x] Daily Scraper 驗證 tokyo_art_beat、bookandbeer（2026-10-23）
 - [x] 修好 #424（push 後 Daily Scraper 才會回到 success）
-- [ ] `source_expectations.json`：三個家用來源由 `broken` 改為每週 sporadic，移除 tokyo_art_beat
+- [x] `source_expectations.json`：三個家用來源與 bookandbeer 改為 sporadic，移除 tokyo_art_beat
 - [ ] 關閉 #375、#376、#377、#395，spec 歸檔
 
 ## Verification
