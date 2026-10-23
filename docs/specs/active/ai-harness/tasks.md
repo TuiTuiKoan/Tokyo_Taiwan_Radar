@@ -66,7 +66,7 @@
 - [x] **ai-harness 分支已 rebase**（2026-10-23，使用者核准）：3 個 commit 有衝突（`validate-merge-deploy.agent.md`、`plan-critic.agent.md`、`AGENTS.md`），各自保留 main 的新敘述並加上我們的 `tier` 與「批評全文必須存檔」；生成物重新生成；結果領先 origin/main 11、落後 0；`sync --check` exit 0；`scripts` 全部測試 967 passed（含 main 的測試）；詳見 notes.md §24
 - [x] **V-M-D 推送完成**（2026-10-23，使用者從主工作目錄執行）：origin/main 就是 `97db47f2`；Vercel Production deployment `7270206104` success；詳見 notes.md §25。`docs/specs/active/ai-harness/` 現在在 GitHub 上
 - [x] 下一步候選（使用者決定；2026-10-23 補勾：除每週配額基準外都已完成，配額基準由 Phase 1 的「記錄每週配額」那項追蹤）：標記設計（notes.md §19.4）、`scraper-zero-output` spec、`feature-kickoff` 的互動驗證、Phase 2b 的每週配額基準（最早 2026-10-30）、從不同 worktree 派出 session 的小試驗、`Notification` hook（agent view 試驗 worktree 已於 2026-10-23 退役，見 notes.md §33）
-- [x] session 自動命名小試驗（#426）已執行（2026-10-23，notes.md §38）：T1、T2、T4、T5 成立，T3（`--bg`）名稱寫進 transcript 但清單顯示採自動標題；判定「可作為暫時名稱採用」，hook 目前仍裝在使用者層，是否長期保留與是否寫成 repo 規則待使用者決定。規劃見 [spike-session-title.md](./spike-session-title.md)
+- [x] session 自動命名小試驗（#426）已執行（2026-10-23，notes.md §38）：T1、T2、T4、T5 成立，T3（`--bg`）名稱寫進 transcript 但清單顯示採自動標題；判定「可作為暫時名稱採用」，hook 目前仍裝在使用者層，是否長期保留與是否寫成 repo 規則待使用者決定。規劃見 [spike-session-title.md](./spike-session-title.md)。未解點已查明：cc-statusline 的 `summary-updater.js` 約第 10 個 prompt 起會用摘要覆蓋 `custom-title`（notes.md §39），處理方式 A／B／C 待使用者決定
 - [ ] Orca 安裝並釘版本、設定 worktree 建立後的安裝命令、不使用 Delete
 - [ ] 驗證（NOT TESTED，通過前不得稱相容）：Orca 內 `claude` 的 `/hooks` 與 push ask 生效；`/list-agents` 可見其他 worktree
 
