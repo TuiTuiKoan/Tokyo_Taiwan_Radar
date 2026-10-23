@@ -66,7 +66,12 @@ agent 要使用者動手時（執行指令、開新 session、看檔案、在網
   - terminal：`claude -n "japan-scope-gate·apply"`，在要工作的 worktree 根目錄啟動。
   - VS Code side chat：開新對話後，第一則輸入 `/rename japan-scope-gate·apply`。
   - 既有的舊 session 要繼續用時，先 `/rename`；不再用的舊 session 不必補名稱。
+  - `/rename` 與 `-n` 都在 transcript 寫入 `{"type":"custom-title","customTitle":…}`，並取代面板上的自動標題（2026-10-23 實測：VS Code side chat 2.1.299 用 `/rename`、CLI 2.1.309 用 `-n`）。
 - 交接卡片涉及兩個 session 時，同時寫「本 session」與「父 session」（做完回哪裡）。
+- 父子關係靠子 session 的第一則訊息記錄，不靠 hook：第一則訊息的第一行寫 `父 session：<標題> (<ID 前 8 碼>)`。
+  - terminal：`claude -n "japan-scope-gate·apply" "父 session：ai-harness·handoff (72ddde89)。<任務說明>"`。
+  - VS Code side chat：`/rename` 之後，下一則訊息的第一行寫同樣的內容。
+- transcript 每則訊息都記錄 `cwd`、`gitBranch`、`entrypoint`（`claude-vscode` 或 CLI）與時間，所在 worktree 與 branch 可直接從 transcript 讀出，不需要另外記錄。
 
 ## 4. 連結
 
