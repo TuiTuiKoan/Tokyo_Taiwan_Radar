@@ -88,7 +88,6 @@ Secrets in `scraper/.env`:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `OPENAI_API_KEY`
-- `DEEPL_API_KEY`
 
 ## Adding a new source
 

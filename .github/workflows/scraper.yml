@@ -50,7 +50,6 @@ jobs:
           OPENAI_API_KEY_ENRICH: ${{ secrets.OPENAI_API_KEY_ENRICH }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           CONTENTFUL_TOKEN: ${{ secrets.CONTENTFUL_TOKEN }}
-          DEEPL_API_KEY: ${{ secrets.DEEPL_API_KEY }}
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
           SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
           INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}

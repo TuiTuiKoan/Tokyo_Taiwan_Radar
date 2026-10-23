@@ -75,7 +75,7 @@ web/
 | Web framework | Next.js 16.2.4, React 19, TypeScript, Tailwind CSS 4 |
 | i18n | next-intl 4.9.1 — locales: `ja` (default), `zh`, `en` |
 | Auth + DB | Supabase — `@supabase/ssr` 0.10.2 |
-| Scraper | Python 3.12, Playwright 1.51, OpenAI ≥1.30, DeepL 1.21 |
+| Scraper | Python 3.12, Playwright 1.51, OpenAI ≥1.30 |
 | CI | GitHub Actions — daily 09:00 JST (`scraper.yml`) |
 | Deploy | Vercel (web), GitHub Actions (scraper) |
 

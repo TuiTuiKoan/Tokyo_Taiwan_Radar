@@ -1,6 +1,6 @@
 ---
 title: Translation Pipeline — 翻譯與標注完整流程
-description: 從爬蟲原始文本到三語前端顯示的翻譯流程，涵蓋 GPT 標注、eiga.com 片名查詢、Wikipedia 人名查詢、DeepL 回退
+description: 從爬蟲原始文本到三語前端顯示的翻譯流程，涵蓋 GPT 標注、eiga.com 片名查詢、Wikipedia 人名查詢
 ms.date: 2026-05-02
 ---
 
@@ -17,10 +17,7 @@ ms.date: 2026-05-02
 │  → DB upsert（annotation_status = 'pending'）                       │
 │                                                                      │
 ├──────────────────────────────────────────────────────────────────────┤
-│  Layer 2 — DeepL 回退（Translator，可選）                             │
-│                                                                      │
-│  translator.py → fill_translations() → 只補空欄位                    │
-│  ZH-HANT（繁體中文）/ EN-US / JA                                     │
+│  Layer 2 — （DeepL 回退，2026-10 移除，#323）                         │
 │                                                                      │
 ├──────────────────────────────────────────────────────────────────────┤
 │  Layer 3 — GPT-4o-mini 標注（Annotator，核心）                       │
@@ -115,37 +112,9 @@ migration 034 新增 `name_ja_locked BOOLEAN DEFAULT FALSE`。當爬蟲設定為
 
 ---
 
-## Layer 2 — DeepL 回退
+## Layer 2 — DeepL 回退（已移除）
 
-### 核心檔案
-
-| 檔案 | 函式 | 用途 |
-|------|------|------|
-| `translator.py` | `fill_translations(event)` | 補全空欄位 |
-
-### 語言對照
-
-| 系統語碼 | DeepL 語碼 |
-|----------|-----------|
-| `ja` | `JA` |
-| `zh` | `ZH-HANT`（繁體中文） |
-| `en` | `EN-US` |
-
-### 策略
-
-```python
-def fill_translations(event):
-    for lang in ["ja", "zh", "en"]:
-        if lang == event.original_language:
-            continue
-        # 只補空欄位，不覆寫已有值
-        if not getattr(event, f"name_{lang}"):
-            translated = _translate(source_name, event.original_language, lang)
-            if translated:
-                setattr(event, f"name_{lang}", translated)
-```
-
-**定位**：DeepL 是輔助回退，主要翻譯引擎是 GPT-4o-mini（Layer 3）。DeepL 品質較高但無法提取結構化欄位。
+`translator.py` 的 `fill_translations()` 已多時沒有呼叫者，2026-10 連同 `deepl` 套件與 workflow 的 `DEEPL_API_KEY` 一起移除（#323）。翻譯全部由 Layer 3 的 GPT 標注產生。
 
 ---
 
