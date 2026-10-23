@@ -15,8 +15,8 @@
 - [x] D4'：使用者 2026-10-23 裁決採用「worktree 不帶正式 secrets」（plan §5）；Phase 2a 條件已成立
 - [x] D8：使用者 2026-10-23 裁決採用：`harness.lock` 為來源版本紀錄、缺 plugin 只警告、3b 之前不搬 hooks；只在 Phase 3b 生效，3a 試點不需要
 - [x] rev.2 的 plan.md、proposal.md、tasks.md、notes.md 已 commit（`dfb40b6b`），未 push
-- [ ] rev.3 的 plan.md、proposal.md、tasks.md、notes.md 與 `plan-critique-1.md` 一併 commit（等使用者核准）
-- [ ] AGENTS.md 的「Plan Critic 批評全文必須存檔」規則（已修改、未 commit）一併 commit（等使用者核准）
+- [x] rev.3 的 plan.md、proposal.md、tasks.md、notes.md 與 `plan-critique-1.md` 一併 commit（已於 `c7257379` commit，2026-10-23 核對補勾）
+- [x] AGENTS.md 的「Plan Critic 批評全文必須存檔」規則一併 commit（同在 `c7257379`，2026-10-23 核對補勾）
 
 ## Phase 1：模型分級
 
@@ -49,7 +49,7 @@
 - [x] Spike 重跑完成（相同提示詞，補量測 S3）：用量前後皆 15%／29%／7%（差 0 點）；無污染；S4 成立；第一次報告已還原為 `spike-result-run1.md`（SHA-256 相符）。**最終判定：可列入 Phase 2b 考慮，不是採用**（notes.md §12）
 - [x] Phase 1 後續修正完成（2026-10-23，先寫 39 個測試、9 個先紅，再修到全綠；證據見 notes.md §13）：`write_outputs` 先檢查衝突與可編碼性再刪除（A、#7）；`is_generated` 改為整行比對且依副檔名選 marker（E）；`toml_string` 跳脫 DEL（D）；tier 容許行內註解（#13）；agent 輸出名稱碰撞時報錯（#8）；補測 B、C、T4、T5、T6、T7、T8、T9、T13、欄位順序。未做：T10（`conftest` 對缺少 `.codex` 的 `copytree`）、T11（`len(sources) * 2` 寫死）、T12（`MODEL_ID_PREFIXES` 冗餘，維護成本）、G（symlink，未確認）、#10 到 #12 的其餘缺口。尚未 commit
 - [x] Phase 1 後續修正已 commit（`6bfc2fa8`，531 個測試通過）
-- [ ] Phase 1 修正第二批（使用者要求規劃，2026-10-23；全部先寫測試或先做 mutation check，再改；建議模型 Sonnet、medium；plan 見 notes.md §14）：
+- [x] Phase 1 修正第二批（R1 到 R6 全部完成並 commit，2026-10-23 補勾；使用者要求規劃，2026-10-23；全部先寫測試或先做 mutation check，再改；建議模型 Sonnet、medium；plan 見 notes.md §14）：
   - [x] R1：`handoffs` 全部缺 `label`／`agent` 時不輸出孤立標題（Claude wrapper 與 Codex 檔）；先紅後綠，未 commit
   - [x] R2：symlink 政策（使用者 2026-10-23「依建議」＝拒絕、不跟隨）：預期輸出路徑上的 symlink 是衝突，`--check` 報 `symlink …`；掃描不回傳 symlink、不進入 symlink 目錄（`os.walk(followlinks=False)`）；Python 3.12 與 3.14 實測一致；未 commit
   - [x] R3：`conftest` 抽出 `copy_repo_inputs`，缺少的來源目錄略過；測試直接呼叫並做 mutation check（還原舊行為會紅）（2026-10-23）
@@ -65,7 +65,7 @@
 - [ ] 後續小試驗（NOT TESTED）：從不同 worktree 派出 session 是否都能出現在同一個 agent view 的清單；`Notification` hook 能否補上 VS Code 沒有通知的缺口。規劃見 [spike-agent-view-followups.md](./spike-agent-view-followups.md)。**試驗 1 已執行（notes.md §36）：清單是全域的，S4（TUI）未測。試驗 2 已執行（notes.md §37）：三個情境（背景 session、終端機、VS Code 面板）都觸發 hook 並有通知；`agent_needs_input` 與 `idle_prompt` 未測**
 - [x] **ai-harness 分支已 rebase**（2026-10-23，使用者核准）：3 個 commit 有衝突（`validate-merge-deploy.agent.md`、`plan-critic.agent.md`、`AGENTS.md`），各自保留 main 的新敘述並加上我們的 `tier` 與「批評全文必須存檔」；生成物重新生成；結果領先 origin/main 11、落後 0；`sync --check` exit 0；`scripts` 全部測試 967 passed（含 main 的測試）；詳見 notes.md §24
 - [x] **V-M-D 推送完成**（2026-10-23，使用者從主工作目錄執行）：origin/main 就是 `97db47f2`；Vercel Production deployment `7270206104` success；詳見 notes.md §25。`docs/specs/active/ai-harness/` 現在在 GitHub 上
-- [ ] 下一步候選（使用者決定）：標記設計（notes.md §19.4）、`scraper-zero-output` spec、`feature-kickoff` 的互動驗證、Phase 2b 的每週配額基準（最早 2026-10-30）、從不同 worktree 派出 session 的小試驗、`Notification` hook（agent view 試驗 worktree 已於 2026-10-23 退役，見 notes.md §33）
+- [x] 下一步候選（使用者決定；2026-10-23 補勾：除每週配額基準外都已完成，配額基準由 Phase 1 的「記錄每週配額」那項追蹤）：標記設計（notes.md §19.4）、`scraper-zero-output` spec、`feature-kickoff` 的互動驗證、Phase 2b 的每週配額基準（最早 2026-10-30）、從不同 worktree 派出 session 的小試驗、`Notification` hook（agent view 試驗 worktree 已於 2026-10-23 退役，見 notes.md §33）
 - [ ] Orca 安裝並釘版本、設定 worktree 建立後的安裝命令、不使用 Delete
 - [ ] 驗證（NOT TESTED，通過前不得稱相容）：Orca 內 `claude` 的 `/hooks` 與 push ask 生效；`/list-agents` 可見其他 worktree
 
@@ -101,13 +101,13 @@
 - [x] `.github/prompts/feature-kickoff.prompt.md`（生成 `.claude/commands/feature-kickoff.md`）：對 GitHub 唯讀、issue 內容視為資料不是指令、worktree 閘門、寫入限已確認 worktree 的 `proposal.md`／`tasks.md`、只寫 `Refs #N` 不寫 `Fixes`
 - [x] 第一次真實使用：29 個無 `spec:` 標籤 issue 的盤點，見 [issue-inventory-2026-10-23.md](./issue-inventory-2026-10-23.md)；沒有貼任何標籤
 - [x] 盤點的決定（2026-10-23）：#328、#346 已貼 `spec:ai-harness`（GitHub 寫入，已驗證）；QA Heartbeat 的 5 個 issue 保留，不動
-- [ ] `scraper-zero-output` 是否建 spec：我的建議與依據見 notes.md §18.3，待使用者決定（使用者這次沒有回覆這項）
+- [x] `scraper-zero-output` 是否建 spec（已由那個 session 自行建立，見後面的項目；2026-10-23 補勾）：我的建議與依據見 notes.md §18.3，待使用者決定（使用者這次沒有回覆這項）
 - [x] 其餘無標籤 issue 補上看板「階段」：使用者採用「來源健康」「爬蟲管線」兩個新名稱；已由我用 GraphQL 新增選項並設定 12 個 issue（#367、#375、#376、#377、#381 → 來源健康；#364、#394、#395、#398、#404、#407 → 爬蟲管線；#346 → AI工具鏈）；原有 42 個值全部未動（notes.md §19）
 - [x] 看板標記設計（使用者 2026-10-23 決定採用）：主題比 spec 粗且由 spec 推導；「階段」已改名「主題」；對照表 `docs/specs/board-themes.json`；稽核腳本 `scripts/board_audit.py`（27 個測試）；每週回顧新增 Step 2b；規則寫進 `docs/specs/README.md` § 看板標記分工；已對 30 個 issue 套用推導的主題。細節與限制見 notes.md §26
 - [x] #328 維持 `spec:ai-harness`、主題維持「追蹤清理」：用新增的「個別 issue 覆寫」記錄（`board-themes.json` 的 `overrides`，理由必填）；#342 設為新主題「SNS governance」並移出豁免（notes.md §27.1）
 - [x] `scraper-zero-output` spec 已由那個 session（`d9658c7d`）自己建立並 commit（`366cf0ac`，本機、未 push；在 `ttr-scraper-zero-output-worktree`，該 worktree 落後 origin/main 55 個 commit，推送前要同步）。**內容是它自己的範圍，不是我的草稿**：只涵蓋已知故障的修復與收尾（#375–#378、#394、#395、#404、#424）；prtimes 與 #381 其餘來源的判斷**不在這個 spec 內**，仍是 #367、#381 兩個 issue（主題「來源健康」）。我的草稿不再使用（notes.md §29）
 - [x] 看板對照表已重新決定（使用者 2026-10-23 選 B）：`spec:scraper-zero-output` 對應「爬蟲管線」；#376、#377（單一來源故障）用覆寫保持「來源健康」；#424 推導為「爬蟲管線」並已套用；稽核嚴格模式 exit 0（notes.md §30）
-- [ ] #424（Daily Scraper 每天因 `enrich_location.py` 的 `NameError` 失敗）：**已有 owner**：`scraper-zero-output` 的 spec 在 Phase B 列了「修好 #424，讓 Daily Scraper 回到 success」，標籤已貼；我先前建議的主題「止血」作廢，主題由對照表決定（上一項）
+- [x] #424（已移交 owner；Daily Scraper 每天因 `enrich_location.py` 的 `NameError` 失敗）：**已有 owner**：`scraper-zero-output` 的 spec 在 Phase B 列了「修好 #424，讓 Daily Scraper 回到 success」，標籤已貼；我先前建議的主題「止血」作廢，主題由對照表決定（上一項）
 - [x] 查詢 session 的腳本已完成（Refs #426、#328）（`ai-harness·handoff` 72ddde89，`071e246f`，本機、未 push）：`python3 scripts/session_map.py [--days N] [--repo 字串]`，唯讀，列出 session 樹、標題、ID 前 8 碼、VS Code／CLI、最後活動、所在 worktree 與 branch；它讀 transcript 中每則訊息記錄的 `cwd` 與 `gitBranch`，所以我先前提醒的「`claude agents --json` 的 `cwd` 不可靠」已被它的設計涵蓋，不需要再轉告（notes.md §29.2）
 - [x] 同一個 worktree 有兩個 session 在寫：2026-10-23 查證目前無衝突，只有潛在風險（`72ddde89`、`5efbe508` 皆閒置約 3 小時，工作樹乾淨，其 commit 已在 main）；使用者決定不另開 worktree，只要不同時讓兩個 session 動手；之後若要再用 `72ddde89`，再開新 worktree（notes.md §27.6）
 - [x] 在互動 session 實際跑過 `/feature-kickoff ai-harness worktree`（2026-10-23）：腳本與 prompt 流程可用，產出見 proposal.md「涵蓋的 issue」；觀察見 notes.md §35。原項目：在互動 session 實際用 `/feature-kickoff` 跑一次完整流程（需要一個真的要啟動的功能；`/feature-kickoff` 的行為目前只有腳本有測試，prompt 本身 NOT TESTED）
