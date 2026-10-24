@@ -1211,3 +1211,13 @@ push 並在主工作目錄 pull 之後，才可以用相對路徑在主工作目
 - 補丁放在快取目錄會在 plugin 更新時被覆蓋。
 
 處理方式（待使用者決定）：D 把修補版放進快取（最快，會被更新覆蓋）；E 向上游提 PR（最乾淨）；F fork 並把 marketplace 換成 fork（需要建公開 repo 與改 plugin 設定，使用者動手）。
+
+## 41. 修補版的安裝腳本與上游草稿（2026-10-24，#426）
+
+使用者選 E（向上游提 issue／PR）並同時做 D（安裝到快取）。
+
+- **上游現況（唯讀查證）**：`NYCU-Chung/cc-statusline` 的 `main` 頂端就是已安裝的 `ef58a823`，`hooks/summary-updater.js` 的 blob hash 相同，所以補丁可直接套用；作者近期有合併 PR，issue #3（同檔案的功能請求）得到「LGTM」；最後一次 push 是 2026-05-22；上游沒有測試目錄。
+- **E**：issue 與 PR 的英文草稿在 `~/.ai-notes/ttr/cc-statusline-upstream-draft.md`（不進 repo）。**什麼都沒有送出**：建 fork、開 issue、開 PR 都是使用者帳號下的公開動作，待使用者看過草稿後決定。
+- **D**：`~/.ai-notes/ttr/tools/cc-statusline-patch/install_title_patch.py`，支援 `--dry-run`、安裝、`--uninstall`。只動 `installed_plugins.json` 指向的 `hooks/summary-updater.js`，且目標必須與已知原檔（sha256 `6613a16e…`）或補丁版逐位元組相同，否則拒絕；安裝前備份到 `backup/`；另外為「最後標題看起來像舊摘要」的 session 預先建立 state 檔（避免出現 `舊摘要｜新摘要`），已被命名的 session 不動。
+- **驗證**：假 HOME 下測過 dry-run 不改檔、安裝、重複執行、目標被改動時拒絕（exit 1）、還原後與原檔相同、預先登記只針對舊摘要型 session、登記後的舊 session 經補丁版 hook 不產生前綴。測試中發現並修掉一個缺陷：過濾 `scratchpad` 目錄時原本比對整條路徑，改為只比對目錄名稱。對真實環境只做 `--dry-run`：會備份與安裝，預計預先登記 28 個 session、略過 2 個。
+- **未做**：尚未安裝到真實快取；未在真實 `/resume` 清單驗證。plugin 更新會覆蓋，需重跑腳本。
