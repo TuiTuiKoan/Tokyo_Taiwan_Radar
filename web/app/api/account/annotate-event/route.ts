@@ -13,6 +13,7 @@ import { TRANSLATION_LOCK_FIELDS } from "@/lib/eventIntakeClient";
 import { PURE_PUBLICATION_EVENT_FORM_GUIDANCE } from "@/lib/intakeGuidance";
 import { assertWritesAllowed } from "@/lib/maintenanceLock.server";
 import { openaiApiKey, openaiChat } from "@/lib/llm/openai.server";
+import { consumeAccountAiQuota } from "@/lib/llm/accountQuota.server";
 
 export const maxDuration = 60;
 
@@ -144,6 +145,10 @@ export async function POST(req: NextRequest) {
   const apiKey = openaiApiKey();
   if (!apiKey)
     return NextResponse.json({ error: "OPENAI_API_KEY not configured" }, { status: 500 });
+
+  // 2. Daily AI quota (#322)
+  const quotaRefused = await consumeAccountAiQuota(serviceClient, user.id, "annotate");
+  if (quotaRefused) return quotaRefused;
 
   // 3. Web search enrichment
   let webText = "";

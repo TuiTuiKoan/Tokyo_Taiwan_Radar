@@ -94,7 +94,6 @@ python update_source.py --url "https://example.com" --status researched --create
 | `main.py` | 排程器 — `SCRAPERS` 清單、`--dry-run`、`--source NAME` |
 | `database.py` | `_event_to_row()` + Supabase upsert（ON CONFLICT source_name,source_id）|
 | `merger.py` | 跨來源去重 — 相似度 > 85% + 同日期 → 合併 + deactivate |
-| `translator.py` | DeepL 翻譯補全（部分爬蟲在入 DB 前使用）|
 | `annotator.py` | GPT-4o-mini 標注 + `enrich_movie_titles()` |
 | `movie_title_lookup.py` | eiga.com 官方片名查詢（含 in-memory cache）|
 | `validate.py` | 異常偵測：缺翻譯、缺日期、selector 失效 |
@@ -133,7 +132,7 @@ scraper.scrape()
 1. 爬蟲層 → raw_title/raw_description 永不覆寫
            → cinema scrapers 呼叫 eiga.com lookup → name_zh/name_en
 
-2. DeepL 層（可選）→ 部分爬蟲呼叫 fill_translations()，只補空欄位
+2. （DeepL 層已於 2026-10 移除，#323；它早已沒有呼叫者）
 
 3. GPT-4o-mini 標注 → 所有 14 欄位 + category + dates + pricing
                      → 子事件拆分（各自有完整 ja/zh/en）
@@ -150,7 +149,6 @@ scraper.scrape()
 |----|------|---------|
 | 爬蟲 | `sources/base.py` | `Event` dataclass 定義 |
 | 爬蟲 | `movie_title_lookup.py` | `name_zh`, `name_en`（電影） |
-| DeepL | `translator.py` | `name_*`, `description_*` |
 | GPT | `annotator.py` | 全部 14 欄位 |
 | 補全 | `annotator.py` `enrich_movie_titles()` | `name_zh/en` + `description_zh/en` |
 | 前端 | `web/lib/types.ts` | `getEventName()`, `getEventDescription()` 等 fallback chain |
@@ -374,7 +372,6 @@ Job 3: notify（depends: scrape + validate, always runs）
 | `SUPABASE_SERVICE_ROLE_KEY` | ✓ | — | 服務端寫入（bypass RLS）|
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | — | ✓ | 前端讀取 |
 | `OPENAI_API_KEY` | ✓ | — | GPT 標注 |
-| `DEEPL_API_KEY` | ✓ | — | DeepL 翻譯 |
 | `LINE_CHANNEL_SECRET` | — | ✓ | Webhook 驗簽 |
 | `LINE_CHANNEL_TOKEN` | ✓ | ✓ | LINE 推播（GHA=broadcast, Vercel=reply）|
 | `LINE_USER_ID` | ✓ | — | 管理員推播 |

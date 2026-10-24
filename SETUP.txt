@@ -44,15 +44,10 @@ STEP 2 │ 建立 Supabase 專案
 ✓ 驗證：Table Editor → 應看到 events、saved_events、user_roles 三張表。
 
 ─────────────────────────────────────────
-STEP 3 │ 申請 DeepL API 金鑰
+STEP 3 │ （已取消）DeepL API 金鑰
 ─────────────────────────────────────────
 
-1. 前往 https://www.deepl.com/pro-api
-2. 點 Sign up for free（免費方案每月 50 萬字元）
-3. 登入後前往 https://www.deepl.com/account/summary
-4. 找到「Authentication Key for DeepL API」，複製金鑰
-
-✓ 驗證：金鑰格式類似 xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx
+不再需要：DeepL 已於 2026-10 移除（#323），翻譯由 OpenAI 標注產生。
 
 ─────────────────────────────────────────
 STEP 4 │ 設定環境變數
@@ -66,7 +61,6 @@ A. 爬蟲用（複製範本並填入）：
    用文字編輯器打開 scraper/.env，填入：
    SUPABASE_URL=https://你的專案ID.supabase.co
    SUPABASE_SERVICE_ROLE_KEY=eyJ...（service_role key）
-   DEEPL_API_KEY=你的DeepL金鑰
 
 B. 網站用：
    cp "/Users/flyingship/development/Tokyo Taiwan Radar/web/.env.local.example" \
@@ -134,7 +128,6 @@ STEP 7 │ 用 GitHub Actions 設定每日爬蟲
 2. 點 New repository secret，依序新增：
    - Name: SUPABASE_URL       Value: https://你的專案ID.supabase.co
    - Name: SUPABASE_SERVICE_ROLE_KEY  Value: eyJ...（service_role key）
-   - Name: DEEPL_API_KEY      Value: 你的DeepL金鑰
 
 3. 前往 GitHub repo → Actions → Daily Scraper
    點 Run workflow → Run workflow（手動測試）
@@ -179,7 +172,7 @@ STEP 9 │ 設定自己為管理員
 ─────────────────────────────────────────
 你的平台現在具備：
 ✅ 每日自動爬蟲（台灣文化中心 + Peatix）
-✅ DeepL 三語翻譯（中/英/日）
+✅ AI 三語翻譯（中/英/日）
 ✅ 活動列表篩選與搜尋
 ✅ Google + Email 登入
 ✅ 使用者收藏功能

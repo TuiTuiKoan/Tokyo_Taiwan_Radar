@@ -96,3 +96,54 @@ M1 移除 researcher（1）、discovery_accounts（2）、qa_auto_fix 備援（1
 - migration 編號：main 已有 `100_rpc_execute_lockdown.sql`（另一個 session，已替本 spec 的 099 保留編號），所以原本用 101。2026-10-23 套用到 production 後，才發現另一個 session 同時以 `101_rpc_lockdown_followup.sql` 用掉 101 並已套用；兩者內容不重疊，本檔改名為 `102_llm_usage_embeddings.sql`，production 的紀錄名稱仍是 `20261022165956 101_llm_usage_embeddings`。教訓：開 migration 前先 `git fetch` 看 main 的最新編號，套用前再看一次。
 - 修正後重跑（run 39818875798）：成功；`llm_usage` 有 100 次 gpt-4o-mini chat 與 1 次 `text-embedding-3-small` embeddings（97,943 input tokens），該次合計 $0.18。
 - `Auto-merge Dependabot` 的 skipped 是正常的：`if: github.actor == 'dependabot[bot]'`。
+
+## M5 #322 帳號 API 限流：production 試跑（2026-10-23，DO 區塊結尾 RAISE，整批 rollback）
+
+- 對既有使用者以 image 上限 2 連呼三次：`1, 2, -1`；全站上限 0 的 annotate：`-2`；未知 kind：`22023`。
+- 權限：anon `f`、authenticated `f`、service_role `t`。日本日期 `2026-10-23`。
+- 試跑後讀回：`account_usage` 仍 4 列，`extract_count` 欄位與函式都不存在。
+
+## M5 #320 OpenAI project 設定步驟（使用者執行）
+
+程式已就緒：沒有設定的 project key 一律退回 `OPENAI_API_KEY`，所以可以逐一設定、隨時開始。
+
+1. OpenAI dashboard → Projects，建立 `ttr-annotator`、`ttr-enrich`、`ttr-eval`、`ttr-web`，各發一把 API key。每個 project 的 Limits 可以順便設月上限。
+2. GitHub → Settings → Secrets and variables → Actions，新增 `OPENAI_API_KEY_ANNOTATOR`、`OPENAI_API_KEY_ENRICH`、`OPENAI_API_KEY_EVAL`。正式環境的 workflow 傳入前兩把，`eval-*` 與 `monthly_health_check` 只傳 `EVAL`；`deps-verify` 只建網站，不傳。
+3. Vercel → Project → Settings → Environment Variables，新增 `OPENAI_API_KEY_WEB`（Production 與 Preview），然後 redeploy。
+4. 本機（選用）：`scraper/.env` 可加同名的三把 key；不加就用原本的 `OPENAI_API_KEY`。
+5. 全部生效、跑過一輪後，原本的 `OPENAI_API_KEY` 只剩後備用途；確認 dashboard 上舊 project 不再有新費用，再決定是否撤銷。
+
+## M5 報表實測（2026-10-23，使用者執行，唯讀）
+
+- `daily_report --dry-run`：昨日（10-22）$0.2440，與當天兩個 CI eval（Historical Backtest 失敗那次 $0.18、Venue Pipeline Eval $0.06）相符；30 天 $0.24；出現帳本起始日註記。
+- `quota_monitor --check-budget`：`eval.annotator*` 10-17..10-23 為 $0.0000、0 次，exit 0；請求以 `limit=1000` 分頁。
+- `docs_report --mode weekly --dry-run`：預設週（10-12..10-18）在帳本之前，費用 $0.0000，並顯示「以 OpenAI dashboard 為準」與帳本起始日兩則註記。
+
+## M6 #317 enrich_poster：查明與退役（2026-10-23）
+
+- 歷史：每日步驟的摘要，9/2x 與 9/0x 寫入 0、8/1x 寫入 1。10-21 那次 79 張的原因：信心不足 36、沒有新欄位 31、回覆無法解析 12，全部被算成 `skipped(confidence)`。
+- 候選：124 筆 annotated 且有 `image_url` 的活動，guard 擋掉 44 筆（純出版品與 hanmoto 佔位圖），剩 79 筆，其中 77 筆是 `note_creators` 的部落格標題圖。
+- 修正後 dry-run（使用者執行，兩次共 158 次呼叫、$0.40，平均 785 input／55 output tokens）：
+
+| 設定 | 會寫入 | 信心不足 | 沒有新欄位 | 失敗 |
+| --- | --- | --- | --- | --- |
+| gpt-4o、detail high | 0 | 41 | 33 | 5 |
+| gpt-4o、detail low | 1 | 54 | 21 | 3 |
+
+- low 的那 1 筆是錯的：fde7c1a6（姬路台灣夜市）的正確日期 2026-09-19～21 會被覆寫成 2023-09-01～30。「失敗」是 JSON mode 下 `message.content` 為 None（模型拒答）。
+- 裁決：退役。刪除 `enrich_poster.py`、兩個測試檔與 `scraper.yml` 步驟；hanmoto 佔位圖判斷移到 `publication_rules.is_placeholder_image_url`（`_oneoff_backfill_publication_metadata.py` 仍在用）；`llm_cache.py` 保留給 #321、#360。
+
+## M7 #360、#321、#361（2026-10-23）
+
+- **#361**：`main.py` 本來就在同一次執行裡跑 annotate、`enrich_movie_titles`、`enrich_person_names`，`scraper.yml` 又各跑一次。刪掉 workflow 的三個重複 step，`annotate_outcome` 與「Fail on LLM step errors」改看 `run_scraper`；原本 movie-titles step 帶的 `TMDB_API_KEY`、`SERPAPI_KEY` 移到 `run_scraper`。`enrich_person_names` 的全量候選加上 `is_active` 與「結束不超過 30 天或沒有結束日」（`annotator._restrict_to_live_events`）；指定 `event_ids` 時不套用。dry-run 候選數要等 workflow 實際跑過才能比較，這裡沒有數字。
+- **#360**：`enrich_location.py` 的候選改成未來活動（與 `enrich_addresses` 相同的 `or_` 寫法），先用 `enrich_addresses.registry_address` 查 venue registry，命中就不呼叫模型；其餘以 `llm_cache(step='location_extract', subject_key=<event_id>)` 標記，30 天內不重送（`llm_cache.seen(..., max_age_days=30)`）。模型呼叫失敗不留標記，下次重試。issue 要求的「結果寫入 scraper_runs」沒做：每次呼叫已經是 `llm_usage` 一列，caller 為 `enrich.location`。順帶修掉型別標註用了沒 import 的 `OpenAI`，在 Python 3.12 會於 import 時 NameError（本機 3.14 不會）。
+- **#321 qa_heartbeat**：四種安全的 report type 各對應一個 handler，改為依 type 規則分類（`RULE_BY_REPORT_TYPE`，信心 0.95，審計列的 `model_used` 記為 `rule`）。只有規則不認得的 type 才呼叫模型，預設 `gpt-4o-mini`，結果以 `llm_cache(step='qa_classify', subject_key=<report id>)` 標記，已分類過的不再送；dry-run 一律不呼叫。行為差異：以前模型可以把內容不符的 report 判成 R-AMBIGUOUS 留給人看，現在改由各 handler 自己的檢查把關。
+- **#321 cinemaclair**：週時刻表 OCR 以 `sha256(圖片 URL + 排序後的片名)` 為 key 存進 `llm_cache(step='cinemaclair_ocr')`，結果放 `result.showtimes`；命中就直接用，失敗不留標記。快取無法讀取時退回重新辨識。
+- 成效要等 `llm_cost_daily` 累積一週後，看 `enrich.location`、`qa.heartbeat`、`enrich.cinemaclair_ocr` 與 annotator 的 person_names 用量。
+
+## M8 #323、#362（2026-10-23）
+
+- **#323**：`translator.py` 沒有呼叫者，連同 `deepl` 套件、六個 workflow（含 issue 沒列到的 `scrape-now.yml`）與 `.env.example` 的 `DEEPL_API_KEY` 一起移除；更新 ARCHITECTURE、TRANSLATION_PIPELINE、SETUP、SECRETS_LIFECYCLE、scraper instructions 與 skills。`scraper_runs.deepl_chars` 欄位、admin stats 頁與週報的 DeepL 列保留，用來看歷史資料。GitHub secret 由使用者決定何時刪。
+- **#362 延後**（使用者裁決）：`llm_cost_daily` 10-23 的 annotator 是 72 次、$0.14；一個月約 $4，重標注減半也省不到 $1，卻要改 prompt 並跑 golden set。同一天 eval 約 $0.9（`eval.historical` 403 次 $0.71、`eval.venues` 114 次 $0.19），另開 #429 追。
+- **CI 確認 #360 的 bug**：10-23 的 Daily Scraper（run 39893398246）只有 `enrich-location` 失敗，`NameError: name 'OpenAI' is not defined`。原因是 PR #391 移除了 `from openai import OpenAI` 卻留下型別標註；本機 Python 3.14 延遲求值標註，所以測試沒抓到。修正在本分支（M7），合併前每天的 Daily Scraper 都會是紅的。
+

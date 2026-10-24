@@ -19,10 +19,10 @@ from urllib.parse import urlparse
 from dotenv import load_dotenv
 
 from auto_qa import _all_auto_report_types, _resolve_report_disposition
-from enrich_poster import _is_placeholder_image_url
 from publication_rules import (
     PUBLICATION_NULL_FIELDS,
     is_ndl_periodical_article,
+    is_placeholder_image_url,
     is_pure_publication_record,
     normalize_event_forms,
     normalize_publisher_name,
@@ -743,7 +743,7 @@ def poster_pollution_evidence(
     for field in ("source_name", "source_id"):
         if event.get(field) != expected[field]:
             failures.append(f"{field} does not match audited signature")
-    if not _is_placeholder_image_url(event.get("image_url")):
+    if not is_placeholder_image_url(event.get("image_url")):
         failures.append("image_url is not a canonical Hanmoto placeholder")
     if event.get("location_name") != POSTER_POLLUTION_LOCATION:
         failures.append("location_name does not match poster pollution")

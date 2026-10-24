@@ -72,6 +72,11 @@ description: "GITHUB_TOKEN lifecycle management — PAT rotation, expiry monitor
 - **Workflow that uses it**: `.github/workflows/external-stats-pull.yml`
 - **Note**: e-Stat appId is not a rotating secret — no 90-day rotation required. Monitor only if leaked.
 
+### Location 6: OpenAI project keys (`OPENAI_API_KEY_*`)
+- **Where**: GitHub Actions secrets `OPENAI_API_KEY_ANNOTATOR`, `OPENAI_API_KEY_ENRICH`, `OPENAI_API_KEY_EVAL`; Vercel env `OPENAI_API_KEY_WEB`; optionally `scraper/.env`. `OPENAI_API_KEY` stays as the fallback for any key that is not set.
+- **Who reads it**: `scraper/llm_client.py` (`PROJECT_OF_GROUP`) and `web/lib/llm/usage.ts` (`openaiApiKey`).
+- **Rotation**: no expiry; when one leaks, revoke it in that OpenAI project and replace only that secret. Setup steps: `docs/specs/active/llm-cost-reset/notes.md` (M5 #320).
+
 ---
 
 ## 🔄 Token Rotation Workflow

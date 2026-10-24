@@ -17,11 +17,14 @@ import json
 import os
 import re
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
 from supabase import create_client
+
+import llm_cost
+from db_paging import fetch_all
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 
@@ -170,48 +173,45 @@ def _supabase_client():
     return create_client(url, key)
 
 
-def check_cost_anomalies(sb, today_runs: list, window_start_30d: str) -> dict:
+def check_cost_anomalies(
+    sb,
+    day_start: date,
+    day_end_exclusive: date,
+    month_start: date,
+    month_end_exclusive: date,
+) -> dict:
     """
-    Analyse cost anomalies from today's scraper_runs rows and the past 30 days.
+    OpenAI cost for a window and the month around it, from llm_cost_daily (#322).
 
-    Args:
-        sb: Supabase client
-        today_runs: rows from scraper_runs for the past 25h (already fetched)
-        window_start_30d: ISO timestamp for 30 days ago
+    Days are JST dates, end exclusive. The daily report passes yesterday and the
+    30 days ending yesterday; the weekly report passes its week and the month to
+    the week's end.
 
     Returns dict with:
-        today_cost       float
-        month_cost       float
+        today_cost       float  cost of [day_start, day_end_exclusive)
+        month_cost       float  cost of [month_start, month_end_exclusive)
         today_warn       bool  (> COST_DAILY_WARN)
         today_alert      bool  (> COST_DAILY_ALERT)
         month_warn       bool  (> COST_MONTH_WARN)  — show in report, no LINE push
         month_alert      bool  (> COST_MONTH_ALERT)
-        spike_sources    list[tuple[str, float]]  sources exceeding COST_SOURCE_SPIKE
-        top3_today       list[tuple[str, float]]
+        spike_sources    list[tuple[str, float]]  callers exceeding COST_SOURCE_SPIKE
+        top3_today       list[tuple[str, float]]  most expensive callers
+        unpriced_calls   int   calls whose model has no llm_pricing row
+        ledger_note      str | None  set when the month starts before the ledger
         any_alert        bool  (today_alert or month_alert or spike_sources)
     """
-    today_cost = sum(r.get("cost_usd") or 0.0 for r in today_runs)
-
     try:
-        month_rows = (
-            sb.table("scraper_runs")
-            .select("cost_usd")
-            .gte("ran_at", window_start_30d)
-            .execute()
-            .data
-            or []
-        )
-        month_cost = sum(r.get("cost_usd") or 0.0 for r in month_rows)
-    except Exception:
-        month_cost = 0.0
+        window = llm_cost.window_cost(sb, day_start, day_end_exclusive)
+        month = llm_cost.window_cost(sb, month_start, month_end_exclusive)
+    except Exception as exc:
+        print(f"[cost] llm_cost_daily read failed: {exc}", file=sys.stderr)
+        window = month = llm_cost.summarize([])
 
-    by_source: dict[str, float] = {}
-    for r in today_runs:
-        src = r.get("source") or "unknown"
-        by_source[src] = by_source.get(src, 0.0) + (r.get("cost_usd") or 0.0)
-
-    spike_sources = [(s, c) for s, c in by_source.items() if c > COST_SOURCE_SPIKE]
-    top3 = sorted(by_source.items(), key=lambda x: -x[1])[:3]
+    today_cost = window["total"]
+    month_cost = month["total"]
+    by_caller = window["by_caller"]
+    spike_sources = [(c, v) for c, v in by_caller.items() if v > COST_SOURCE_SPIKE]
+    top3 = list(by_caller.items())[:3]
 
     today_warn  = today_cost > COST_DAILY_WARN
     today_alert = today_cost > COST_DAILY_ALERT
@@ -220,15 +220,17 @@ def check_cost_anomalies(sb, today_runs: list, window_start_30d: str) -> dict:
     any_alert   = today_alert or month_alert or bool(spike_sources)
 
     return {
-        "today_cost":    today_cost,
-        "month_cost":    month_cost,
-        "today_warn":    today_warn,
-        "today_alert":   today_alert,
-        "month_warn":    month_warn,
-        "month_alert":   month_alert,
-        "spike_sources": spike_sources,
-        "top3_today":    top3,
-        "any_alert":     any_alert,
+        "today_cost":     today_cost,
+        "month_cost":     month_cost,
+        "today_warn":     today_warn,
+        "today_alert":    today_alert,
+        "month_warn":     month_warn,
+        "month_alert":    month_alert,
+        "spike_sources":  spike_sources,
+        "top3_today":     top3,
+        "unpriced_calls": window["unpriced_calls"] + month["unpriced_calls"],
+        "ledger_note":    llm_cost.coverage_note(month_start),
+        "any_alert":      any_alert,
     }
 
 
@@ -242,13 +244,11 @@ def check_persistent_zero_sources(sb, window_start_30d: str) -> list[tuple[str, 
     """
     META_PREFIXES = ("researcher/", "annotator", "merger", "backfill", "enrich")
     try:
-        rows = (
-            sb.table("scraper_runs")
-            .select("source,events_processed,ran_at")
+        rows = fetch_all(
+            lambda: sb.table("scraper_runs")
+            .select("id,source,events_processed,ran_at")
             .gte("ran_at", window_start_30d)
-            .execute()
-            .data
-            or []
+            .order("id")
         )
     except Exception:
         return []
@@ -284,19 +284,21 @@ def generate_report() -> tuple[str, dict]:
     git_commits = os.environ.get("GIT_COMMITS", "").strip()
 
     # ── scraper runs ────────────────────────────────────────────────────────
-    runs = (
-        sb.table("scraper_runs")
-        .select("source,events_processed,cost_usd,notes,ran_at")
+    runs = fetch_all(
+        lambda: sb.table("scraper_runs")
+        .select("source,events_processed,notes,ran_at")
         .gte("ran_at", window_start)
         .order("ran_at", desc=False)
-        .execute()
-        .data
-        or []
+        .order("id")
     )
 
     total_events = sum(r.get("events_processed") or 0 for r in runs)
-    total_cost = sum(r.get("cost_usd") or 0.0 for r in runs)
-    cost_check = check_cost_anomalies(sb, runs, window_start_30d)
+    # The report runs at 02:00 JST, so "today" is yesterday's full JST day.
+    cost_day = now_jst.date() - timedelta(days=1)
+    cost_check = check_cost_anomalies(
+        sb, cost_day, now_jst.date(), cost_day - timedelta(days=29), now_jst.date()
+    )
+    total_cost = cost_check["today_cost"]
     persistent_zeros = check_persistent_zero_sources(sb, window_start_30d)
 
     # Per-source summary (exclude meta-sources)
@@ -530,16 +532,20 @@ def generate_report() -> tuple[str, dict]:
             _cost_flag = f"  ← 🔴 ALERT（>{COST_DAILY_ALERT}）"
         elif cost_check["today_warn"]:
             _cost_flag = f"  ← ⚠ warn（>{COST_DAILY_WARN}）"
-        lines.append(f"  OpenAI 費用    ：${total_cost:.4f}{_cost_flag}")
+        lines.append(f"  OpenAI 費用（昨日）：${total_cost:.4f}{_cost_flag}")
         _month_flag = ""
         if cost_check["month_alert"]:
             _month_flag = f"  ← 🔴 ALERT（>{COST_MONTH_ALERT}）"
         elif cost_check["month_warn"]:
             _month_flag = f"  ← ⚠ warn（>{COST_MONTH_WARN}）"
         lines.append(f"  30 天累計費用  ：${cost_check['month_cost']:.2f}{_month_flag}")
+        if cost_check["unpriced_calls"]:
+            lines.append(f"  ⚠ 缺單價的呼叫：{cost_check['unpriced_calls']} 次（llm_pricing 沒有該 model，費用未計入）")
+        if cost_check["ledger_note"]:
+            lines.append(f"  ※ {cost_check['ledger_note']}")
         if cost_check["spike_sources"]:
             for src, c in cost_check["spike_sources"]:
-                lines.append(f"  🚨 單一來源 spike：{src}  ${c:.4f}（>{COST_SOURCE_SPIKE}）")
+                lines.append(f"  🚨 單一呼叫者 spike：{src}  ${c:.4f}（>{COST_SOURCE_SPIKE}）")
         if scraper_sources:
             lines.append("  來源明細：")
             for src, n in sorted(scraper_sources.items()):
@@ -576,7 +582,7 @@ def send_cost_alert_if_needed(cost_check: dict, report_date: str) -> None:
 
     today_icon = "🔴" if cost_check["today_alert"] else "⚠️"
     lines.append(
-        f"{today_icon} 今日：${cost_check['today_cost']:.4f}"
+        f"{today_icon} 昨日：${cost_check['today_cost']:.4f}"
         f"  (warn=${COST_DAILY_WARN}, alert=${COST_DAILY_ALERT})"
     )
 
@@ -593,13 +599,13 @@ def send_cost_alert_if_needed(cost_check: dict, report_date: str) -> None:
 
     if cost_check["spike_sources"]:
         lines.append("")
-        lines.append(f"🚨 Source spike（單源 >${COST_SOURCE_SPIKE}）：")
+        lines.append(f"🚨 Caller spike（單一呼叫者 >${COST_SOURCE_SPIKE}）：")
         for src, c in cost_check["spike_sources"]:
             lines.append(f"  {src}: ${c:.4f}")
 
     if cost_check["top3_today"]:
         lines.append("")
-        lines.append("Top 3 sources today:")
+        lines.append("Top 3 callers yesterday:")
         for src, c in cost_check["top3_today"]:
             if c > 0:
                 lines.append(f"  {src}: ${c:.4f}")

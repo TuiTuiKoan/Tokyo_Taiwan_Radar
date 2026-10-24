@@ -24,7 +24,7 @@ import unicodedata
 from dataclasses import dataclass
 from enum import Enum
 from functools import lru_cache
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from html import unescape
 from urllib.error import URLError
 from urllib.parse import quote_plus
@@ -4850,6 +4850,19 @@ def _load_human_field_map(sb: "Client") -> dict[str, dict[str, str]]:
     return result
 
 
+PERSON_ENRICH_ENDED_GRACE_DAYS = 30
+
+
+def _restrict_to_live_events(query, now: datetime | None = None):
+    """Active events that have not ended more than PERSON_ENRICH_ENDED_GRACE_DAYS ago (#361).
+
+    The daily full pass used to send every non-reviewed film event, hidden or long
+    over, to the model twice (zh and en) each day.
+    """
+    cutoff = ((now or datetime.now(timezone.utc)) - timedelta(days=PERSON_ENRICH_ENDED_GRACE_DAYS)).isoformat()
+    return query.eq("is_active", True).or_(f"end_date.gte.{cutoff},end_date.is.null")
+
+
 def enrich_person_names(
     *,
     event_ids: list[str] | None = None,
@@ -4902,7 +4915,7 @@ def enrich_person_names(
     if event_ids:
         query = query.in_("id", list(event_ids))
     else:
-        query = query.neq("annotation_status", "reviewed")
+        query = _restrict_to_live_events(query.neq("annotation_status", "reviewed"))
     res = query.execute()
     events = res.data or []
     logger.info(

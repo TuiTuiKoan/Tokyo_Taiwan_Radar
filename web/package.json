@@ -7,7 +7,7 @@
     "dev": "next dev",
     "test:publication": "tsx --test tests/publication-policy.test.ts tests/publication-rendering-structured-data.test.ts",
     "test:scope-reports": "tsx --test tests/report-types-scope.test.ts tests/report-actions-cas.test.ts tests/scope-report-migration.test.ts",
-    "test:llm-usage": "tsx --test tests/llm-usage.test.ts",
+    "test:llm-usage": "tsx --test tests/llm-usage.test.ts tests/account-ai-quota.test.ts",
     "test:e2e:dark-smoke": "playwright test tests/e2e/darkmode-navbar-related.smoke.spec.ts",
     "test:e2e:security-headers": "playwright test tests/e2e/security-headers.smoke.spec.ts",
     "e2e:auth-state": "tsx scripts/e2e-auth-state.ts",

@@ -42,7 +42,9 @@ description: "Complete secrets lifecycle management for Tokyo Taiwan Radar"
 
 ---
 
-### 3. DEEPL_API_KEY — **[AUDIT DEFERRED]**
+### 3. DEEPL_API_KEY — **[NO LONGER USED]**
+
+> 2026-10（#323）起程式碼不再讀取：`scraper/translator.py`、`deepl` 套件與所有 workflow 的參照都已移除。GitHub secret 與 `scraper/.env` 裡的值由使用者決定何時刪除；下表保留移除前的紀錄。
 | Property | Value |
 |----------|-------|
 | **Purpose** | Multi-language translation (fallback to OpenAI) |

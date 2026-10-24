@@ -1589,10 +1589,8 @@ cd scraper && python -m pytest tests/test_taxonomy.py -q
     - `_inject_keyword_categories` 邏輯：含 TV markers → 加 `tv_program`；同時若有 `movie` 且非「ジャンル: 映画」→ 移除錯誤的 `movie`
 - **`report` 誤判防護（劇情文本中的「報告」）**：`gguide_tv` 的劇情摘要常含「交際の報告」「上司に報告」等詞，這不是活動報導。`gguide_tv` 不可只因 generic `_REPORT_TRIGGER_RE` 命中 `報告` 就注入 `report` 或加 `【レポート】`。`report` 需以 TV genre/context（`報道`、`ドキュメンタリー`）判定為主。
 
-## DeepL Tracking
-- Add `self._deepl_chars_used: int = 0` to `BaseScraper.__init__`.
-- Increment `self._deepl_chars_used += len(text)` at every DeepL API call.
-- `main.py` reads `getattr(scraper, "_deepl_chars_used", 0)` when writing to `scraper_runs`.
+## DeepL（已移除）
+- `translator.py`、`deepl` 套件與 workflow 的 `DEEPL_API_KEY` 已於 2026-10 移除（#323）；翻譯一律由 `annotator.py` 產生，scraper 不呼叫任何翻譯 API。`scraper_runs.deepl_chars` 欄位保留歷史資料，`main.py` 仍寫 0。
 
 ## CLI Module 入口 — `load_dotenv()` 必要性
 - **任何有獨立 CLI 入口（`-m module` / `if __name__ == '__main__'`）的 Python module 必須在頂部加 `load_dotenv()`**。
@@ -2725,49 +2723,14 @@ Reference incident: yebizo event `e37db12e` で `location_name='高雄市立美�
 
 Reference incident: 2026-05-07 — commit `8029b74`：`auto_research.py` `_fetch_sample_html()` 無 try/except，`note.com/swi0881` 在 CI 逾時 → 未捕獲 `PlaywrightTimeoutError` → 整個 job exit code 1，所有後續來源全部跳過。
 
-## Vision OCR Enrichment Pipeline（enrich_poster.py）
+## Vision OCR Enrichment Pipeline（enrich_poster.py）— 2026-10-23 退役
 
-`scraper/enrich_poster.py` — GPT-4o Vision でイベントポスター画像から情報を抽出する enrichment pipeline。
+`scraper/enrich_poster.py` と `scraper.yml` の「Run Vision OCR enrichment」ステップは削除済み（#317）。
 
-### 前提条件
-
-- `events.image_url` が非 NULL（migration 057 適用済み）
-- `note_creators.py` など `_fetch_article_content()` を実装した scraper が `og:image` を `Event.image_url` にセット
-
-### 実行方法
-
-```bash
-cd scraper && source ../.venv/bin/activate
-
-# 全件処理（デフォルト最大 50 件）
-python enrich_poster.py
-
-# dry-run（DB 更新なし）
-python enrich_poster.py --dry-run
-
-# 特定イベント
-python enrich_poster.py --event-id <UUID>
-
-# 件数制限
-python enrich_poster.py --max 20
-```
-
-### 動作仕様
-
-1. **対象選択**：`image_url IS NOT NULL AND annotation_status IN ('pending', 'annotated')` のイベントを最大 N 件取得
-2. **Vision 抽出**：GPT-4o Vision で画像を解析 → JSON 出力（`start_date`, `venue`, `organizer`, `confidence` per field）
-3. **適用条件**：`confidence ≥ 0.8` のフィールドのみ適用
-4. **FC ロック**：適用したフィールドは全て `field_corrections` に upsert（re-annotation で上書きされない）
-5. **Thin Content Guard**：`raw_description < 100 字` の場合は `organizer` を非適用（date/venue のみ）— thin content 時は GPT が外部知識から organizer を hallucinate するリスク防止
-
-### 注意事項
-
-- **CI integration**：`scraper.yml` の annotator ステップ直後に自動実行（`python enrich_poster.py` ステップ）
-- **confidence threshold は固定 0.8**：閾値を下げると thin content での false positive が増加するため変更不可
-- **confidence はフィールド単位**：全体 confidence が 0.8 でも個別フィールド（venue）が 0.7 なら venue は非適用
-- **Organizer Non-Hallucination Guard 適用**：Vision 抽出の organizer 値が `raw_description` に存在しない場合は棄却（thin content guard が主要防線）
-
-Reference incident: 2026-05-07 — `note_creators.py` `_fetch_article_content()` 実装により `image_url` 取得が可能になり、Vision OCR pipeline の初回適用先が生まれた（commit `a52f5b2`）。
+- 毎日同じ約 80 枚を gpt-4o（detail high）に送り、8 月以降の書き込みはほぼ 0 件だった。当時の OpenAI 支出の約 6 割。
+- 2026-10-23 の dry-run（79 枚、high と low の 2 回、計 $0.40）：high は書き込み 0、low は 1 件だけで、それも誤り（fde7c1a6 の正しい 2026-09-19〜21 を 2023-09-01〜30 で上書きしようとした）。79 枚中 77 枚は note_creators のブログ見出し画像で、confidence はほぼ 0.0。
+- ポスター画像からの抽出が必要な場合は、ユーザー投稿用の `/api/account/extract-from-image`（アカウントごとの日次上限あり）か admin の `/api/admin/extract-from-image` を使う。
+- 画像単位の処理済みマーカーが必要な LLM ステップは `scraper/llm_cache.py`（`llm_cache` テーブル）を使う。hanmoto のプレースホルダー判定は `publication_rules.is_placeholder_image_url` に移した。
 
 ## WP REST API — `content` フィールド空の Elementor サイト
 

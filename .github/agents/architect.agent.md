@@ -429,7 +429,7 @@ Reference incidents:
 
 在審核任何 `official_url` 指向 X.com（Twitter）的事件，或設計 `image_url=null` 事件的資料補強流程時，**必須**確認：
 
-1. **`enrich_poster.py` 不處理 `image_url=null` 的事件**：X.com 連結的事件通常 `image_url=null`，自動 pipeline 跳過。需人工補強。
+1. **沒有自動海報 OCR**：`enrich_poster.py` 已於 2026-10-23 退役（#317，dry-run 79 張海報沒有任何正確寫入）。X.com 連結的事件通常 `image_url=null`，需人工補強。
 2. **Playwright → pbs.twimg.com → GPT-4o Vision 的手動流程**：
    ```python
    from playwright.sync_api import sync_playwright

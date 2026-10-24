@@ -1,8 +1,9 @@
 """
 qa_heartbeat.py — QA self-healing orchestrator.
 
-Reads pending event_reports of `auto_qa_*` types, classifies each via GPT-4o,
-and dispatches to the appropriate handler in `qa_auto_fix.HANDLER_MAP` or to
+Reads pending event_reports of `auto_qa_*` types, classifies each by its report
+type (RULE_BY_REPORT_TYPE; every safe type maps to one handler), asks the model
+only for a type the rules do not know, and dispatches to the appropriate handler in `qa_auto_fix.HANDLER_MAP` or to
 `annotator.enrich_person_names_single`. Every mutation is wrapped by
 `qa_auto_fix.unlock_and_write`, which writes a `field_corrections_audit` row
 and verifies the post-write state before confirming the report.
@@ -17,7 +18,7 @@ Safety:
 
 Usage:
     python qa_heartbeat.py --dry-run
-    python qa_heartbeat.py --limit 50 --model gpt-4o
+    python qa_heartbeat.py --limit 50 --model gpt-4o-mini
     python qa_heartbeat.py --rollback-audit-id <uuid>
     python qa_heartbeat.py --rollback-since 2026-05-24T00:00:00Z
 """
@@ -40,6 +41,8 @@ REPO_ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 load_dotenv(dotenv_path=SCRIPT_DIR / ".env")
+
+import llm_cache  # noqa: E402  (needs SCRIPT_DIR on sys.path)
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -47,10 +50,10 @@ JST = timezone(timedelta(hours=9))
 REPORTS_DIR = SCRIPT_DIR / "reports"
 REPORTS_DIR.mkdir(exist_ok=True)
 
-# Cost estimate (gpt-4o, May 2026 pricing): $5/M input, $15/M output tokens.
+# Cost estimate for the fallback classifier (gpt-4o-mini): $0.15/M input, $0.60/M output.
 # Heartbeat payloads are tiny — average ~400 input / ~80 output tokens per call.
-_GPT4O_IN_PER_M = 5.0
-_GPT4O_OUT_PER_M = 15.0
+_GPT4O_IN_PER_M = 0.15
+_GPT4O_OUT_PER_M = 0.60
 
 CIRCUIT_BREAKER_THRESHOLD = 5
 
@@ -83,6 +86,35 @@ ROUTING: dict[str, dict[str, Any]] = {
     "R-SCR-HOURS-MISS": {"handler_key": None, "min_confidence": 0.0},
     "R-UNCLASSIFIED": {"handler_key": None, "min_confidence": 0.0},
 }
+
+
+# Each safe report type already names its handler one to one, so the class follows
+# from the type and no model call is needed (#321).
+RULE_BY_REPORT_TYPE: dict[str, str] = {
+    "auto_qa_simplified_zh": "R-ANN-SC",
+    "auto_simplified_chinese": "R-ANN-SC",
+    "auto_qa_performer_ai_translation_marker": "R-ANN-AI-MARKER",
+    "auto_qa_performer_multi_value_pollution": "R-SCR-PERF-MULTI",
+    "auto_qa_location_url_is_event_url": "R-SCR-LOCURL",
+}
+RULE_CONFIDENCE = 0.95
+CACHE_STEP = "qa_classify"
+
+
+def _classify_by_rule(report: dict) -> dict | None:
+    """The class for a report whose only type has a rule, else None."""
+    types = report.get("report_types") or []
+    classes = {RULE_BY_REPORT_TYPE.get(t) for t in types}
+    if len(types) != 1 or None in classes:
+        return None
+    return {
+        "r_class": classes.pop(),
+        "confidence": RULE_CONFIDENCE,
+        "reason": f"rule: report type {types[0]}",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "source": "rule",
+    }
 
 
 def _supabase_client():
@@ -263,7 +295,7 @@ def _dispatch(
             unlock_reason=f"heartbeat_review_only:{r_class}:{conf:.2f}:{classification['reason']}",
             report_id=report.get("id"),
             r_class=r_class,
-            model_used=model,
+            model_used="rule" if classification.get("source") == "rule" else model,
             confidence=conf,
             dry_run=dry_run,
         )
@@ -443,7 +475,7 @@ def run(
     allow_line_in_dry_run: bool,
 ) -> dict:
     sb = _supabase_client()
-    client = _openai_client()
+    client = None  # built on first model call; dry-run and rule-only runs never need it
 
     pending = _fetch_pending_reports(sb, limit=limit)
     logger.info("qa_heartbeat: %d pending reports (limit=%d)", len(pending), limit)
@@ -461,10 +493,20 @@ def run(
                            report["id"][:8], report["event_id"][:8])
             continue
 
+        classification = _classify_by_rule(report)
+        if classification is None:
+            if dry_run:
+                logger.info("  dry-run: report %s needs the model; not called", report["id"][:8])
+                continue
+            if report["id"] in llm_cache.seen(sb, CACHE_STEP, [report["id"]]):
+                continue  # already classified; it stays pending for human review
+            client = client or _openai_client()
         try:
-            classification = _classify(
-                client, report, event, max_input_chars=max_input_chars, model=model,
-            )
+            if classification is None:
+                classification = _classify(
+                    client, report, event, max_input_chars=max_input_chars, model=model,
+                )
+                llm_cache.record(sb, CACHE_STEP, report["id"], classification["r_class"])
             failures = 0
         except Exception as exc:
             failures += 1
@@ -531,7 +573,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="QA Heartbeat self-healing orchestrator")
     parser.add_argument("--dry-run", action="store_true", help="No DB writes, no LINE (unless --allow-line-in-dry-run)")
     parser.add_argument("--limit", type=int, default=200, help="Max pending reports to process per run")
-    parser.add_argument("--model", default="gpt-4o", help="Classifier model")
+    parser.add_argument("--model", default="gpt-4o-mini", help="Classifier model")
     parser.add_argument("--max-input-chars", type=int, default=1200,
                         help="Truncate each long text field in payload to this many chars")
     parser.add_argument("--allow-line-in-dry-run", action="store_true",

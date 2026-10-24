@@ -41,7 +41,9 @@ except Exception:  # pragma: no cover
     create_client = None  # type: ignore[assignment]
 
 import daily_report
+import llm_cost
 import source_health
+from db_paging import fetch_all
 from monthly_health_check import a3_scope_note, collect_monthly_health_metrics, script_corrections_note
 from report_window import JST, ReportWindow, resolve_report_window
 
@@ -200,25 +202,23 @@ def collect_weekly_data(sb, window: ReportWindow) -> dict:
     start_iso = window.window_start.isoformat()
     end_iso = window.window_end_exclusive.isoformat()
 
-    runs = (
-        sb.table("scraper_runs")
-        .select("source,events_processed,cost_usd,success,deepl_chars,ran_at")
+    runs = fetch_all(
+        lambda: sb.table("scraper_runs")
+        .select("source,events_processed,success,deepl_chars,ran_at")
         .gte("ran_at", start_iso)
         .lt("ran_at", end_iso)
         .order("ran_at", desc=False)
-        .execute()
-        .data or []
+        .order("id")
     )
 
     by_source: dict[str, dict] = {}
     for r in runs:
         s = r.get("source") or "unknown"
-        d = by_source.setdefault(s, {"count": 0, "success": 0, "events": 0, "cost": 0.0})
+        d = by_source.setdefault(s, {"count": 0, "success": 0, "events": 0})
         d["count"] += 1
         if r.get("success", True):
             d["success"] += 1
         d["events"] += r.get("events_processed") or 0
-        d["cost"] += float(r.get("cost_usd") or 0.0)
 
     deepl_chars = sum(int(r.get("deepl_chars") or 0) for r in runs)
 
@@ -226,20 +226,13 @@ def collect_weekly_data(sb, window: ReportWindow) -> dict:
     mtre_start = (window.window_end_exclusive - timedelta(seconds=1)).astimezone(JST).replace(
         day=1, hour=0, minute=0, second=0, microsecond=0
     )
-    # Reuse daily_report cost math for the window-bounded figures only:
-    # today_cost / top3_today / spike_sources are all derived from ``runs``
-    # (already bounded to the weekly window).
-    cost_check = daily_report.check_cost_anomalies(sb, runs, mtre_start.isoformat())
-
-    # Principle 9: month-to-report-end cost MUST be bounded by the report window
-    # end, never "now". check_cost_anomalies' month_cost has no upper bound, so
-    # compute MTRE explicitly to keep committed markdown deterministic per key.
-    mtre_runs = (
-        sb.table("scraper_runs").select("cost_usd")
-        .gte("ran_at", mtre_start.isoformat()).lt("ran_at", end_iso)
-        .execute().data or []
+    # OpenAI cost from llm_cost_daily (#322). Principle 9: both windows end at the
+    # report window end, never "now", so committed markdown is deterministic.
+    end_day = window.window_end_exclusive.astimezone(JST).date()
+    cost_check = daily_report.check_cost_anomalies(
+        sb, window.window_start.astimezone(JST).date(), end_day, mtre_start.date(), end_day
     )
-    mtre_cost = sum(float(r.get("cost_usd") or 0.0) for r in mtre_runs)
+    mtre_cost = cost_check["month_cost"]
 
     new_events = (
         sb.table("events").select("id", count="exact", head=True)
@@ -277,6 +270,8 @@ def collect_weekly_data(sb, window: ReportWindow) -> dict:
         "month_alert": mtre_cost > daily_report.COST_MONTH_ALERT,
         "top3_sources": cost_check["top3_today"],
         "spike_sources": cost_check["spike_sources"],
+        "unpriced_calls": cost_check["unpriced_calls"],
+        "ledger_note": cost_check["ledger_note"],
         "new_events": new_events,
         "total_active": total_active,
         "pending": pending,
@@ -306,16 +301,27 @@ def collect_monthly_data(sb, window: ReportWindow) -> dict:
         .gte("created_at", start_iso).lt("created_at", end_iso)
         .execute().count or 0
     )
-    month_runs = (
-        sb.table("scraper_runs").select("cost_usd")
-        .gte("ran_at", start_iso).lt("ran_at", end_iso).execute().data or []
-    )
+    start_day = window.window_start.astimezone(JST).date()
+    month = llm_cost.window_cost(sb, start_day, window.window_end_exclusive.astimezone(JST).date())
     data["new_events"] = new_events
-    data["month_cost"] = sum(float(r.get("cost_usd") or 0.0) for r in month_runs)
+    data["month_cost"] = month["total"]
+    data["month_top_callers"] = list(month["by_caller"].items())[:5]
+    data["unpriced_calls"] = month["unpriced_calls"]
+    data["ledger_note"] = llm_cost.coverage_note(start_day)
     return data
 
 
 # ─── Markdown rendering (deterministic; stable metadata only) ─────────────────
+
+def _cost_footnotes(data: dict) -> list[str]:
+    """Cost caveats: the OpenAI dashboard is the source of truth (#320)."""
+    lines = ["> 費用取自 `llm_cost_daily`（每次 OpenAI 呼叫一列）；以 OpenAI dashboard 為準。"]
+    if data.get("ledger_note"):
+        lines.append(f"> {data['ledger_note']}")
+    if data.get("unpriced_calls"):
+        lines.append(f"> ⚠️ {data['unpriced_calls']} 次呼叫的 model 在 `llm_pricing` 沒有單價，費用未計入。")
+    return lines + [""]
+
 
 def _frontmatter(window: ReportWindow) -> str:
     return "\n".join([
@@ -383,14 +389,15 @@ def build_weekly_markdown(window: ReportWindow, data: dict) -> str:
             f"| Auto-QA pending | {data['qa_total']} 件 |",
             "",
         ]
+        lines += _cost_footnotes(data)
 
         by_source = data["by_source"]
         if by_source:
-            lines += ["## 🛰️ 來源狀態（本週窗口）", "", "| 來源 | 執行 | 成功率 | 事件 | 費用 |", "|---|---|---|---|---|"]
+            lines += ["## 🛰️ 來源狀態（本週窗口）", "", "| 來源 | 執行 | 成功率 | 事件 |", "|---|---|---|---|"]
             for src, d in sorted(by_source.items()):
                 rate = d["success"] / d["count"] if d["count"] else 0.0
                 flag = "🟢" if rate == 1.0 and d["events"] > 0 else ("🔴" if rate == 0 or d["events"] == 0 else "🟡")
-                lines.append(f"| {flag} {src} | {d['count']}x | {rate:.0%} | {d['events']} | ${d['cost']:.4f} |")
+                lines.append(f"| {flag} {src} | {d['count']}x | {rate:.0%} | {d['events']} |")
             zeros = sorted(s for s, d in by_source.items() if d["events"] == 0)
             if zeros:
                 lines += ["", f"⚠️ 本週 0 件來源（{len(zeros)}）：{', '.join(zeros)}"]
@@ -412,7 +419,7 @@ def build_weekly_markdown(window: ReportWindow, data: dict) -> str:
             lines.append("")
 
         if data["top3_sources"]:
-            lines += ["## 💰 費用 Top 來源（本週窗口）", ""]
+            lines += ["## 💰 費用 Top 呼叫者（本週窗口）", ""]
             for src, c in data["top3_sources"]:
                 if c > 0:
                     lines.append(f"- {src}: ${c:.4f}")
@@ -468,6 +475,12 @@ def build_monthly_markdown(window: ReportWindow, data: dict) -> str:
             f"| 封鎖規則命中 (exclusion_hits) | {m['exclusion_hits']} |",
             "",
         ]
+        lines += _cost_footnotes(data)
+        top = [(c, v) for c, v in data.get("month_top_callers", []) if v > 0]
+        if top:
+            lines += ["## 💰 費用 Top 呼叫者（本月窗口）", ""]
+            lines += [f"- {c}: ${v:.4f}" for c, v in top]
+            lines.append("")
         flags = m.get("integrity_flags") or []
         if flags:
             lines += ["### ⚠️ 閉環警訊", ""]
@@ -608,12 +621,8 @@ def main() -> int:
             from datetime import datetime
             now = datetime.now(tz=JST)
             mtd_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            mtd_runs = (
-                sb.table("scraper_runs").select("cost_usd")
-                .gte("ran_at", mtd_start.isoformat()).lt("ran_at", now.isoformat())
-                .execute().data or []
-            )
-            exec_mtd = f"${sum(float(r.get('cost_usd') or 0.0) for r in mtd_runs):.2f} (as of {now.strftime('%Y-%m-%d')})"
+            mtd = llm_cost.window_cost(sb, mtd_start.date(), now.date() + timedelta(days=1))
+            exec_mtd = f"${mtd['total']:.2f} (as of {now.strftime('%Y-%m-%d')})"
         except Exception:
             exec_mtd = None
 

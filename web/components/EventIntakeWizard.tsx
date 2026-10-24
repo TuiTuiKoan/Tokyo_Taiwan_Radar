@@ -303,9 +303,14 @@ export default function EventIntakeWizard({ context, locale }: Props) {
   function describePreflight(missing: string[]): string {
     return buildMissingFieldsMessage(missing, tIntake);
   }
-  function describeServerError(error: string): string {
+  function describeServerError(error: string, limit?: unknown): string {
     if (error === "translationLockFailed") return tIntake("translationLockFailed");
     if (error === "requiredFieldsMissing") return tIntake("requiredFieldsMissing");
+    if (error === "aiQuotaExceeded") {
+      return tIntake("aiQuotaExceeded", { limit: typeof limit === "number" ? limit : "" });
+    }
+    if (error === "aiSystemQuotaExceeded") return tIntake("aiSystemQuotaExceeded");
+    if (error === "aiQuotaUnavailable") return tIntake("aiQuotaUnavailable");
     return error;
   }
 
@@ -348,7 +353,7 @@ export default function EventIntakeWizard({ context, locale }: Props) {
       const data = await readJsonResponse(res);
       if (!res.ok) {
         const errKey = typeof data.error === "string" ? data.error : null;
-        throw new Error(errKey ? describeServerError(errKey) : tIntake("busyExtracting"));
+        throw new Error(errKey ? describeServerError(errKey, data.limit) : tIntake("busyExtracting"));
       }
       applyOcrFields((data.fields ?? {}) as Record<string, unknown>);
       setStep(2);
@@ -401,7 +406,7 @@ export default function EventIntakeWizard({ context, locale }: Props) {
       if (!res.ok) {
         const errKey = typeof data.error === "string" ? data.error : null;
         const detail = typeof data.detail === "string" ? data.detail : null;
-        const base = errKey ? describeServerError(errKey) : tIntake("requiredFieldsMissing");
+        const base = errKey ? describeServerError(errKey, data.limit) : tIntake("requiredFieldsMissing");
         throw new Error(detail ? `${base}（${detail}）` : base);
       }
       applyReturnedFields((data.fields ?? {}) as Record<string, unknown>);

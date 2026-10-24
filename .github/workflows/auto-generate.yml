@@ -47,6 +47,8 @@ jobs:
           SUPABASE_URL: "${{ secrets.SUPABASE_URL }}"
           SUPABASE_SERVICE_ROLE_KEY: "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
           OPENAI_API_KEY: "${{ secrets.OPENAI_API_KEY }}"
+          OPENAI_API_KEY_ANNOTATOR: "${{ secrets.OPENAI_API_KEY_ANNOTATOR }}"
+          OPENAI_API_KEY_ENRICH: "${{ secrets.OPENAI_API_KEY_ENRICH }}"
         run: |
           if [ -n "${{ github.event.inputs.source_id }}" ]; then
             FLAGS="--source-id ${{ github.event.inputs.source_id }}"

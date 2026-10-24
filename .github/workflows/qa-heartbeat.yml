@@ -32,6 +32,8 @@ jobs:
       SUPABASE_URL: "${{ secrets.SUPABASE_URL }}"
       SUPABASE_SERVICE_ROLE_KEY: "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
       OPENAI_API_KEY: "${{ secrets.OPENAI_API_KEY }}"
+      OPENAI_API_KEY_ANNOTATOR: "${{ secrets.OPENAI_API_KEY_ANNOTATOR }}"
+      OPENAI_API_KEY_ENRICH: "${{ secrets.OPENAI_API_KEY_ENRICH }}"
       LINE_CHANNEL_TOKEN: "${{ secrets.LINE_CHANNEL_TOKEN }}"
       LINE_USER_ID: "${{ secrets.LINE_USER_ID }}"
     defaults:
@@ -68,7 +70,7 @@ jobs:
         run: |
           python qa_heartbeat.py ${{ steps.mode.outputs.dry }} \
             --limit ${{ steps.mode.outputs.limit }} \
-            --model gpt-4o \
+            --model gpt-4o-mini \
             --max-input-chars 1200
 
       - name: Upload report

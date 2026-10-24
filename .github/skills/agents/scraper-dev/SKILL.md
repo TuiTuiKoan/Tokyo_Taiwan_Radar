@@ -12,7 +12,7 @@ Guides creation of a new event scraper source for Tokyo Taiwan Radar. Covers the
 
 - Python 3.12 virtual environment activated: `source venv/bin/activate` (from repo root)
 - Playwright browsers installed: `playwright install chromium`
-- `scraper/.env` populated with `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `DEEPL_API_KEY`
+- `scraper/.env` populated with `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`
 
 ## Quick Start
 
@@ -128,4 +128,4 @@ bash .github/skills/agents/scraper-dev/scripts/test-source.sh
 
 **Category `"culture"` in output** — `"culture"` is not a canonical category. Use `"senses"`, `"art"`, or another value from `CATEGORIES` in `web/lib/types.ts`.
 
-**DeepL quota exceeded** — The annotator translates; the scraper should not call DeepL. If you added translation in the scraper, remove it and let `annotator.py` handle it.
+**Translation in the scraper** — The annotator translates; a scraper never calls a translation API (DeepL was removed in 2026-10, #323). Leave `name_zh`/`name_en` empty and let `annotator.py` fill them.
