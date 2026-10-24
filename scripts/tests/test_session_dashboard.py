@@ -199,9 +199,144 @@ def test_main_writes_the_output_file_and_leaves_no_temp_files(tmp_path):
     projects.mkdir()
     out = tmp_path / "out" / "sessions.html"
     code = sd.main(
-        ["--sessions-dir", str(sessions_dir), "--projects-dir", str(projects), "--out", str(out), "--no-ps"],
+        ["--sessions-dir", str(sessions_dir), "--projects-dir", str(projects), "--out", str(out), "--no-ps", "--no-gh"],
         alive=lambda pid: True,
     )
     assert code == 0
     assert "ai-harness·next" in out.read_text(encoding="utf-8")
     assert [p.name for p in out.parent.iterdir()] == ["sessions.html"]
+
+
+# --- spec / issue / label / theme ---------------------------------------------------------------
+
+CTX = sd.Context(
+    specs={"ai-harness", "closer-auto-retire", "scraper-zero-output", "ai-portability-followups"},
+    themes={"ai-harness": "AI工具鏈", "scraper-zero-output": "爬蟲管線"},
+    overrides={"328": "追蹤清理"},
+    issue_labels={378: ["spec:scraper-zero-output", "bug"], 328: ["spec:ai-harness"], 999: ["enhancement"]},
+)
+
+
+def _row(entry_kw=None, sess=None, ctx=CTX):
+    reg = {SID_A: {**entry(**(entry_kw or {})), "alive": True}}
+    return sd.build_rows(reg, [sess] if sess else [], term_program=lambda pid: "", ctx=ctx)[0]
+
+
+def test_issue_numbers_are_found_in_names_and_summaries():
+    assert sd.issues_in("#369.371 修理規劃") == [369, 371]
+    assert sd.issues_in("fix #378 and #5 (#12345)") == [378, 12345]
+    assert sd.issues_in("no issues here") == []
+    assert sd.issues_in("#1 #2 #3 #4 #5 #6 #7") == []  # one-digit numbers are not treated as issues
+
+
+def test_spec_comes_from_the_worktree_slug_first():
+    sess = _session(SID_A, f"{ROOT_DIR}/ttr-ai-harness-worktree", branch="feat/something-else", title="#378 x")
+    row = _row(sess=sess)
+    assert (row.spec, row.spec_source) == ("ai-harness", "工作樹")
+    assert row.theme == "AI工具鏈"
+
+
+def test_spec_comes_from_the_branch_for_sessions_in_the_main_working_tree():
+    sess = _session(SID_A, ROOT_DIR, branch="feat/closer-auto-retire")
+    row = _row(sess=sess)
+    assert (row.spec, row.spec_source) == ("closer-auto-retire", "branch")
+
+
+def test_spec_comes_from_issue_labels_when_nothing_else_matches():
+    sess = _session(SID_A, ROOT_DIR, branch="main", title="#378 台湾映画祭")
+    row = _row({"name": "tokyo-taiwan-radar-ab"}, sess)
+    assert (row.spec, row.spec_source) == ("scraper-zero-output", "issue #378")
+    assert row.issues == [378]
+    assert row.labels == ["spec:scraper-zero-output", "bug"]
+    assert row.theme == "爬蟲管線"
+
+
+def test_issue_override_theme_wins_over_the_spec_theme():
+    sess = _session(SID_A, f"{ROOT_DIR}/ttr-ai-harness-worktree", title="#328 worktree 清理")
+    assert _row(sess=sess).theme == "追蹤清理"
+
+
+def test_no_information_leaves_the_columns_empty_without_crashing():
+    row = _row({"name": "plain"}, _session(SID_A, ROOT_DIR, branch="main"), ctx=sd.Context())
+    assert (row.spec, row.issues, row.labels, row.theme) == ("", [], [], "")
+
+
+def test_issue_without_spec_label_gives_no_spec_but_keeps_its_labels():
+    row = _row({"name": "#999 something"}, _session(SID_A, ROOT_DIR, branch="main"))
+    assert row.spec == "" and row.labels == ["enhancement"]
+
+
+def test_html_shows_spec_issue_label_and_theme_with_links_and_escaping():
+    ctx = sd.Context(specs={"ai-harness"}, themes={"ai-harness": "AI工具鏈"}, issue_labels={378: ["spec:ai-harness", "<b>x</b>"]})
+    sess = _session(SID_A, f"{ROOT_DIR}/ttr-ai-harness-worktree", title="#378 test")
+    reg = {SID_A: {**entry(), "alive": True}}
+    html = sd.render_html(sd.build_rows(reg, [sess], term_program=lambda pid: "", ctx=ctx), "2026-10-24 10:00")
+    assert "/tree/main/docs/specs/active/ai-harness" in html or "/tree/main/docs/specs" in html
+    assert "/issues/378" in html
+    assert "label%3Aspec%3Aai-harness" in html or "label:spec:ai-harness" in html
+    assert "AI工具鏈" in html
+    assert "<b>x</b>" not in html and "&lt;b&gt;x&lt;/b&gt;" in html
+
+
+def test_issue_label_fetch_parses_gh_output_caches_and_survives_failures(tmp_path):
+    calls = []
+
+    def fake_gh():
+        calls.append(1)
+        return json.dumps([{"number": 1, "labels": [{"name": "a"}]}, {"number": 22, "labels": []}])
+
+    cache = tmp_path / "labels.json"
+    first = sd.fetch_issue_labels(fake_gh, cache, now=1000.0)
+    assert first == {1: ["a"], 22: []}
+    again = sd.fetch_issue_labels(fake_gh, cache, now=1100.0)  # within the TTL: served from the cache
+    assert again == first and len(calls) == 1
+    later = sd.fetch_issue_labels(fake_gh, cache, now=1000.0 + sd.LABEL_TTL + 1)
+    assert later == first and len(calls) == 2
+
+    def broken():
+        raise OSError("no gh")
+
+    assert sd.fetch_issue_labels(broken, tmp_path / "none.json", now=1.0) == {}
+    assert sd.fetch_issue_labels(lambda: "not json", tmp_path / "none2.json", now=1.0) == {}
+    # a stale cache is still better than nothing when gh fails
+    assert sd.fetch_issue_labels(broken, cache, now=1000.0 + 10 * sd.LABEL_TTL) == first
+
+
+def test_load_context_reads_spec_dirs_themes_and_overrides(tmp_path):
+    (tmp_path / "docs/specs/active/alpha").mkdir(parents=True)
+    (tmp_path / "docs/specs/parked").mkdir(parents=True)
+    (tmp_path / "docs/specs/parked/beta-followups.md").write_text("x", encoding="utf-8")
+    (tmp_path / "docs/specs/board-themes.json").write_text(
+        json.dumps({"specs": {"alpha": "主題A"}, "overrides": {"5": {"theme": "T", "reason": "r"}}}), encoding="utf-8"
+    )
+    ctx = sd.load_context(tmp_path, issue_labels={})
+    assert ctx.specs == {"alpha", "beta-followups"}
+    assert ctx.themes == {"alpha": "主題A"}
+    assert ctx.overrides == {"5": "T"}
+    assert sd.load_context(tmp_path / "missing", issue_labels={}).specs == set()
+
+
+def test_spec_label_is_accepted_even_when_the_spec_directory_is_not_in_this_checkout():
+    ctx = sd.Context(specs={"ai-harness"}, themes={"scraper-zero-output": "爬蟲管線"}, issue_labels={378: ["spec:scraper-zero-output"]})
+    row = _row({"name": "#378 x"}, _session(SID_A, ROOT_DIR, branch="main"), ctx=ctx)
+    assert (row.spec, row.spec_source) == ("scraper-zero-output", "issue #378")
+    assert row.theme == "爬蟲管線"
+
+
+def test_all_distinct_spec_labels_are_listed_when_issues_disagree():
+    ctx = sd.Context(
+        specs={"a", "b"},
+        themes={"a": "主題A", "b": "主題B"},
+        issue_labels={369: ["spec:a", "spec:b"], 371: ["spec:b", "bug"]},
+    )
+    row = _row({"name": "#369.371 x"}, _session(SID_A, ROOT_DIR, branch="main"), ctx=ctx)
+    assert row.spec == "a, b"
+    assert row.theme == "主題A / 主題B"
+    assert row.spec_source == "issue #369、#371"
+
+
+def test_html_links_every_listed_spec():
+    ctx = sd.Context(specs={"a", "b"}, issue_labels={369: ["spec:a", "spec:b"]})
+    reg = {SID_A: {**entry(name="#369 x"), "alive": True}}
+    html = sd.render_html(sd.build_rows(reg, [_session(SID_A, ROOT_DIR)], term_program=lambda pid: "", ctx=ctx), "t")
+    assert "docs/specs/active/a" in html and "docs/specs/active/b" in html
