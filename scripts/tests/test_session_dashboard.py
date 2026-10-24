@@ -447,3 +447,17 @@ console.log("ok");
     )
     out = subprocess.run([node, "-e", program], capture_output=True, text=True, timeout=20, check=False)
     assert out.stdout.strip() == "ok", out.stdout + out.stderr
+
+
+def test_a_session_running_a_shell_command_counts_as_in_progress():
+    reg = dict(
+        [
+            _live(0, "idle", 1792900000000),
+            _live(1, "shell", 1792100000000),
+            _live(2, "busy", 1792200000000),
+        ]
+    )
+    rows = sd.build_rows(reg, [], term_program=lambda pid: "")
+    assert [(r.name, r.status) for r in rows] == [("s2", "處理中"), ("s1", "執行指令"), ("s0", "閒置")]
+    assert sd.STATUS_RANK["執行指令"] == sd.STATUS_RANK["處理中"]
+    assert "st-執行指令 .dot" in sd.CSS
