@@ -209,6 +209,45 @@ def infer_spec(ctx: Context, worktree: str, branch: str, issues: list[int]) -> t
     return ", ".join(found), "issue " + "、".join(f"#{n}" for n in nums)
 
 
+NAME_MAX = 24  # the cc-statusline patch keeps at most 24 characters of a name as the title prefix
+
+
+def _cut(text: str, n: int) -> str:
+    return "".join(list(text)[:n])
+
+
+def suggest_name(
+    *, spec: str, worktree: str, branch: str, issues: list[int], summary: str, current: str, name_source: str
+) -> str:
+    """`/rename <slug>·<purpose>`; a session that already has a name keeps it as the starting point."""
+    if name_source != "derived" and current:
+        return f"/rename {_cut(current, 40)}"
+    short = branch
+    for prefix in BRANCH_PREFIXES:
+        if short.startswith(prefix):
+            short = short[len(prefix):]
+            break
+    if spec:
+        slug = spec.split(", ")[0]
+    elif worktree not in (ROOT_LABEL, "?", ""):
+        slug = worktree
+    elif short and short not in ("main", "master", "HEAD"):
+        slug = short
+    else:
+        slug = "root"
+    if issues:
+        purpose = "-".join(str(n) for n in issues[:3])
+    else:
+        cleaned = re.sub(r"[\s/\\#]+", " ", summary or "").strip()
+        purpose = re.split(r",\s|，|｜", cleaned)[0].strip() or "chat"
+    if purpose.lower().startswith(slug.lower()):
+        purpose = purpose[len(slug):].lstrip(" -_·:：") or "chat"
+    room = NAME_MAX - len(slug) - 1
+    if room < 4:
+        return f"/rename {_cut(slug, NAME_MAX)}"
+    return f"/rename {slug}·{_cut(purpose, room).strip() or 'chat'}"
+
+
 @dataclass
 class Row:
     sid: str
@@ -231,6 +270,7 @@ class Row:
     issues: list[int] = field(default_factory=list)
     labels: list[str] = field(default_factory=list)
     theme: str = ""
+    rename: str = ""
 
     @property
     def short(self) -> str:
@@ -289,6 +329,10 @@ def build_rows(
             (ctx.overrides[str(n)] for n in issues if str(n) in ctx.overrides),
             " / ".join(dict.fromkeys(themes)),
         )
+        rename = suggest_name(
+            spec=spec, worktree=label, branch=branch, issues=issues, summary=summary,
+            current=(entry or {}).get("name", ""), name_source=(entry or {}).get("nameSource", ""),
+        ) if live else ""
         return Row(
             sid=sid,
             name=name,
@@ -305,6 +349,7 @@ def build_rows(
             issues=issues,
             labels=labels,
             theme=theme,
+            rename=rename,
             last_ts=last,
             started=_ms_to_iso((entry or {}).get("startedAt")),
             parent_sid=sess.parent_sid if sess else "",
@@ -341,7 +386,7 @@ CSS = """
 @media (prefers-color-scheme:dark){:root{--bg:#161618;--fg:#ececf0;--mut:#9a9aa3;--line:#33333a;--head:#212125;--link:#7aa7ff;--warn:#fbbf24}}
 body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 h1{font-size:18px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 12px}
-.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:1500px}
+.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:1800px}input.rn{font:12px ui-monospace,Menlo,monospace;width:17em;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:2px 4px}button[data-copy]{margin-left:4px;cursor:pointer}
 th,td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:var(--head);position:sticky;top:0;cursor:pointer;user-select:none;white-space:nowrap}th[aria-sort=ascending]::after{content:" ▲"}th[aria-sort=descending]::after{content:" ▼"}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:var(--end)}
 .st-處理中 .dot,.st-執行指令 .dot{background:var(--busy)}.st-閒置 .dot{background:var(--idle)}.st-等待輸入 .dot{background:var(--wait)}
@@ -400,8 +445,47 @@ if (typeof document !== "undefined") {
 }
 """
 
+COPY_JS = r"""
+function copyText(text, el) {
+  const fallback = () => {
+    try {
+      if (el) { el.select(); if (el.setSelectionRange) el.setSelectionRange(0, text.length); }
+      return Promise.resolve(!!(typeof document !== "undefined" && document.execCommand && document.execCommand("copy")));
+    } catch (e) { return Promise.resolve(false); }
+  };
+  if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text).then(() => true, fallback);
+  }
+  return fallback();
+}
+if (typeof document !== "undefined") {
+  document.addEventListener("click", (ev) => {
+    const btn = ev.target.closest && ev.target.closest("button[data-copy]");
+    if (!btn) return;
+    const input = btn.parentElement.querySelector("input");
+    copyText(input.value, input).then((ok) => {
+      const old = btn.dataset.label || btn.textContent;
+      btn.dataset.label = old;
+      btn.textContent = ok ? "已複製" : "請手動複製";
+      setTimeout(() => { btn.textContent = old; }, 1500);
+    });
+  });
+}
+"""
+
+def reload_script(refresh: int) -> str:
+    """A JS timer instead of <meta refresh>: it skips the reload while an input has focus,
+    so a half-edited /rename suggestion is not wiped."""
+    if not refresh:
+        return ""
+    return (
+        "setInterval(function(){var a=document.activeElement;"
+        "if(!(a&&a.tagName==='INPUT'))location.reload();}," + str(int(refresh) * 1000) + ");"
+    )
+
+
 COLUMNS = [
-    ("狀態", "status"), ("名稱", "text"), ("標題 / 摘要", "text"), ("PID", "pid"), ("位置", "text"),
+    ("狀態", "status"), ("名稱", "text"), ("重新命名", "text"), ("標題 / 摘要", "text"), ("PID", "pid"), ("位置", "text"),
     ("工作樹", "text"), ("Branch", "text"), ("Spec", "text"), ("Issue / Label", "text"), ("主題", "text"),
     ("父 session", "text"), ("最後活動", "time"), ("開始", "time"),
 ]
@@ -409,7 +493,7 @@ COLUMNS = [
 
 def render_html(rows: list[Row], generated_at: str, refresh: int = 0, repo_url: str = REPO_URL, parked: set[str] | None = None) -> str:
     e = html.escape
-    meta = f'<meta http-equiv="refresh" content="{int(refresh)}">' if refresh else ""
+    reload_js = reload_script(refresh)
     if not rows:
         body = '<p class="mut">沒有符合條件的 session。</p>'
     else:
@@ -444,6 +528,12 @@ def render_html(rows: list[Row], generated_at: str, refresh: int = 0, repo_url: 
             cells = [
                 (f'<span class="dot"></span>{e(r.status)}', STATUS_RANK.get(r.status, 2)),
                 (f'{e(r.name)}{badge}<br><span class="mut">{e(r.short)}</span>', r.name),
+                (
+                    f'<input class="rn" value="{e(r.rename, quote=True)}" size="28" aria-label="/rename 指令">'
+                    '<button type="button" data-copy>複製</button>'
+                    if r.rename else "",
+                    r.rename,
+                ),
                 (f'<span class="mut">{e(r.summary)}</span>', r.summary),
                 (e("" if r.pid is None else str(r.pid)), "" if r.pid is None else r.pid),
                 (e(r.where), r.where),
@@ -466,10 +556,10 @@ def render_html(rows: list[Row], generated_at: str, refresh: int = 0, repo_url: 
     return (
         "<!doctype html><html lang=\"zh-Hant\"><head><meta charset=\"utf-8\">"
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        f"{meta}<title>Session 一覽</title><style>{CSS}</style></head><body>"
-        f'<h1>Session 一覽</h1><p class="sub">產生於 {e(generated_at)} · {len(rows)} 個 · 預設「等待輸入、處理中」置頂 · 點欄位標題排序 · '
+        f"<title>Session 一覽</title><style>{CSS}</style></head><body>"
+        f'<h1>Session 一覽</h1><p class="sub">產生於 {e(generated_at)} · {len(rows)} 個 · 預設「等待輸入、處理中」置頂 · 點欄位標題排序 · 「重新命名」把指令貼到該 session 的輸入框執行（/rename 只能在那個 session 裡下） · '
         "雲端 session 與 VS Code side chat 的區別在本機資料中查不到</p>"
-        f"{body}<script>{SORT_JS}</script></body></html>"
+        f"{body}<script>{SORT_JS}{COPY_JS}{reload_js}</script></body></html>"
     )
 
 

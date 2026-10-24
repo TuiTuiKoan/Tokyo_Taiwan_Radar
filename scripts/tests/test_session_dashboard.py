@@ -176,7 +176,8 @@ def test_html_has_refresh_pid_worktree_link_and_parent_anchor():
         _session(SID_B, f"{ROOT_DIR}/ttr-ai-harness-worktree", parent=SID_A[:8]),
     ]
     html = sd.render_html(sd.build_rows(reg, sess, term_program=lambda pid: ""), generated_at="2026-10-23 22:00", refresh=15)
-    assert '<meta http-equiv="refresh" content="15">' in html
+    assert "location.reload()" in html and "15000" in html
+    assert 'http-equiv="refresh"' not in html
     assert ">111<" in html and ">222<" in html
     assert "vscode://file/Users/u/Development/3-TTR/Tokyo%20Taiwan%20Radar/ttr-ai-harness-worktree" in html
     assert f'id="s-{SID_A[:8]}"' in html
@@ -461,3 +462,129 @@ def test_a_session_running_a_shell_command_counts_as_in_progress():
     assert [(r.name, r.status) for r in rows] == [("s2", "處理中"), ("s1", "執行指令"), ("s0", "閒置")]
     assert sd.STATUS_RANK["執行指令"] == sd.STATUS_RANK["處理中"]
     assert "st-執行指令 .dot" in sd.CSS
+
+
+# --- /rename suggestion column ---------------------------------------------------------------------
+
+
+def _unnamed(sess=None, ctx=CTX, **kw):
+    return _row({"nameSource": "derived", "name": "tokyo-taiwan-radar-ab", **kw}, sess, ctx=ctx)
+
+
+def test_suggestion_uses_spec_and_issue_numbers():
+    sess = _session(SID_A, ROOT_DIR, branch="main", title="#369.371 修理規劃")
+    ctx = sd.Context(specs={"source-health"}, issue_labels={369: ["spec:source-health"]})
+    assert _unnamed(sess, ctx=ctx).rename == "/rename source-health·369-371"
+
+
+def test_suggestion_falls_back_to_worktree_then_branch_then_root():
+    wt = _session(SID_A, f"{ROOT_DIR}/ttr-japan-scope-gate-worktree", branch="feat/x", ai="修 RPC")
+    assert _unnamed(wt, ctx=sd.Context()).rename == "/rename japan-scope-gate·修 RPC"
+    br = _session(SID_A, ROOT_DIR, branch="fix/event-detail-404", ai="")
+    assert _unnamed(br, ctx=sd.Context()).rename == "/rename event-detail-404·chat"
+    rt = _session(SID_A, ROOT_DIR, branch="main", ai="分類標籤命名與精準度")
+    assert _unnamed(rt, ctx=sd.Context()).rename == "/rename root·分類標籤命名與精準度"
+
+
+def test_suggestion_is_at_most_24_code_points_and_single_line():
+    sess = _session(SID_A, ROOT_DIR, branch="main", ai="很長很長的標題\n含有換行 和 / 斜線 " * 5)
+    text = _unnamed(sess, ctx=sd.Context()).rename
+    name = text.removeprefix("/rename ")
+    assert len(name) <= 24 and "\n" not in name and "/" not in name
+
+
+def test_named_sessions_keep_their_current_name_as_the_suggestion():
+    row = _row({"nameSource": "user", "name": "my-name"}, _session(SID_A, ROOT_DIR, branch="main"))
+    assert row.rename == "/rename my-name"
+
+
+def test_ended_sessions_have_no_suggestion():
+    ended = _session(SIDS[5], ROOT_DIR, title="old")
+    rows = sd.build_rows({}, [ended], term_program=lambda pid: "", include_ended=True)
+    assert rows[0].rename == ""
+
+
+def test_html_has_an_editable_input_and_a_copy_button_with_escaping():
+    reg = {SID_A: {**entry(nameSource="derived", name='x"><b>'), "alive": True}}
+    sess = _session(SID_A, ROOT_DIR, branch="main", ai='a"b<i>')
+    html = sd.render_html(sd.build_rows(reg, [sess], term_program=lambda pid: ""), "t")
+    assert 'data-copy' in html and "<input" in html and "複製" in html
+    assert "<b>" not in html.split("<tbody>")[1] and "<i>" not in html.split("<tbody>")[1]
+    assert "copyText" in html
+
+
+def test_copy_script_uses_the_clipboard_api_and_falls_back():
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    if not node:
+        import pytest
+
+        pytest.skip("node not available")
+    program = (
+        """
+let written = null;
+const setNav = (v) => Object.defineProperty(globalThis, "navigator", { value: v, configurable: true, writable: true });
+setNav({ clipboard: { writeText: (t) => { written = t; return Promise.resolve(); } } });
+"""
+        + sd.COPY_JS
+        + """
+copyText("/rename a").then((ok) => {
+  if (!ok || written !== "/rename a") { console.log("FAIL api", ok, written); process.exit(1); }
+  setNav({ clipboard: { writeText: () => Promise.reject(new Error("denied")) } });
+  let selected = false;
+  const fallback = { select() { selected = true; }, setSelectionRange() {} };
+  global.document = { execCommand: (c) => c === "copy" };
+  return copyText("/rename b", fallback).then((ok2) => {
+    if (!ok2 || !selected) { console.log("FAIL fallback", ok2, selected); process.exit(1); }
+    console.log("ok");
+  });
+});
+"""
+    )
+    out = subprocess.run([node, "-e", program], capture_output=True, text=True, timeout=20, check=False)
+    assert out.stdout.strip() == "ok", out.stdout + out.stderr
+
+
+def test_auto_reload_skips_the_reload_while_an_input_has_focus():
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    if not node:
+        import pytest
+
+        pytest.skip("node not available")
+    assert sd.reload_script(0) == ""
+    program = (
+        """
+let tick = null, reloads = 0, interval = null;
+global.setInterval = (fn, ms) => { tick = fn; interval = ms; };
+global.document = { activeElement: { tagName: "BODY" } };
+global.location = { reload: () => { reloads += 1; } };
+"""
+        + sd.reload_script(15)
+        + """
+tick();
+document.activeElement = { tagName: "INPUT" };
+tick();
+document.activeElement = { tagName: "BODY" };
+tick();
+console.log(interval === 15000 && reloads === 2 ? "ok" : "FAIL " + interval + " " + reloads);
+"""
+    )
+    out = subprocess.run([node, "-e", program], capture_output=True, text=True, timeout=20, check=False)
+    assert out.stdout.strip() == "ok", out.stdout + out.stderr
+
+
+def test_suggestion_drops_a_purpose_that_only_repeats_the_slug():
+    sess = _session(SID_A, f"{ROOT_DIR}/ttr-japan-scope-gate-worktree", ai="japan-scope-gate RPC 103 與 CLI v2")
+    assert _unnamed(sess, ctx=sd.Context()).rename == "/rename japan-scope-gate·RPC 103"
+
+
+def test_suggestion_has_no_purpose_when_the_slug_leaves_no_room():
+    sess = _session(SID_A, f"{ROOT_DIR}/ttr-ndl-relevance-publication-worktree", ai="NDL 相關性過濾")
+    text = _unnamed(sess, ctx=sd.Context()).rename.removeprefix("/rename ")
+    assert text == "ndl-relevance-publicatio"  # 24 code points, no dangling "·N"
+    assert "·" not in text
