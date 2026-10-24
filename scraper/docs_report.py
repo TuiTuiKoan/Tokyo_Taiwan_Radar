@@ -44,7 +44,7 @@ import daily_report
 import llm_cost
 import source_health
 from db_paging import fetch_all
-from monthly_health_check import a3_scope_note, collect_monthly_health_metrics
+from monthly_health_check import a3_scope_note, collect_monthly_health_metrics, script_corrections_note
 from report_window import JST, ReportWindow, resolve_report_window
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -496,6 +496,8 @@ def build_monthly_markdown(window: ReportWindow, data: dict) -> str:
             "",
             f"**A1 重犯率**：{a1.get('recurrence_pairs', 'n/a')} 對 (source×field 修正 ≥2 次)",
             "",
+            script_corrections_note(a1),
+            "",
         ]
         if a1.get("top_pairs"):
             lines += ["| source_name | field_name | count |", "|---|---|---|"]
@@ -521,7 +523,8 @@ def build_monthly_markdown(window: ReportWindow, data: dict) -> str:
                 lines.append(f"| {s['source_name']} | {s['total_new']} | {s['reported_within_24h']} | {s['error_rate']:.1%} |")
         else:
             lines.append("_No data_")
-        lines += ["", "**A4 修復延遲**（field_correction − event 建立，中位數天，per source）：", ""]
+        lines += ["", "**A4 修復延遲**（field_correction − event 建立，中位數天，per source）：", "",
+                  script_corrections_note(m["a4_repair_latency"]), ""]
         a4_sources = m["a4_repair_latency"].get("sources", [])
         if a4_sources:
             lines += ["| source_name | 修正次數 | 中位數（天） |", "|---|---|---|"]

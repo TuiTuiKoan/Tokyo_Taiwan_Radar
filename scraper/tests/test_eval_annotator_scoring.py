@@ -1,4 +1,4 @@
-"""Scoring v2 for the annotator golden set (#324)."""
+"""Scoring v2 for the annotator golden set (#324) and validated output (#383)."""
 
 import asyncio
 from pathlib import Path
@@ -11,6 +11,7 @@ from eval_annotator import (
     compare_fields,
     fuzzy_score,
     is_title_lookup_case,
+    normalize_annotation,
     normalize_text,
     semantic_scores_for,
     write_report,
@@ -178,3 +179,46 @@ def test_report_separates_lookup_from_annotator_summary(tmp_path: Path):
     assert "- Title lookup accuracy (not in annotator score): 0.0%" in text
     # The movie title miss is not listed as an annotator failure.
     assert "霧的如同" not in text.split("## Failures")[1]
+
+
+# ─── Validated output (#383) ─────────────────────────────────────────────────
+
+def test_normalize_applies_production_validators():
+    ann = normalize_annotation({"category": ["performance", "not_a_category"], "event_form": ["exhibition", "bogus"]})
+    assert ann["category"] == ["performing_arts"]
+    assert ann["event_form"] == ["exhibition"]
+
+
+def test_run_golden_scores_validated_category(tmp_path: Path, monkeypatch):
+    import json
+
+    import eval_annotator
+
+    case = {
+        "case_id": "c1",
+        "source_name": "peatix",
+        "input": {"raw_title": "t", "raw_description": "d"},
+        "expected": {"category": _exp(["performing_arts"]), "event_form": _exp(["performance"])},
+    }
+    cases_path = tmp_path / "cases.jsonl"
+    cases_path.write_text(json.dumps(case) + "\n")
+
+    async def fake_annotate(*_args, **_kwargs):
+        # Raw LLM output: an alias production maps, and a value it drops.
+        return {"category": ["performance"], "event_form": ["performance", "bogus"]}, None
+
+    async def no_semantic(*_args, **_kwargs):
+        raise RuntimeError("offline")
+
+    monkeypatch.setattr(eval_annotator, "annotate_one_async", fake_annotate)
+    monkeypatch.setattr(eval_annotator, "get_async_client", lambda _name: None)
+    monkeypatch.setattr(eval_annotator, "semantic_scores_for", no_semantic)
+
+    snap_path = tmp_path / "snap.json"
+    asyncio.run(eval_annotator.run_golden(
+        cases_path, tmp_path / "missing_frozen.json", tmp_path / "report.md", json_output=snap_path,
+    ))
+    snap = json.loads(snap_path.read_text())
+    assert {e["field"]: e["match"] for e in snap["entries"]} == {"category": True, "event_form": True}
+    assert snap["validator_changed"] == {"category": 1, "event_form": 1}
+    assert "category 1 筆、event_form 1 筆" in (tmp_path / "report.md").read_text()

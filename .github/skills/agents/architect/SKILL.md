@@ -157,13 +157,13 @@ Read this at the start of every session before producing any plan.
 
 1. **HEAD 對齊**：`git fetch origin` 後 `git rev-parse HEAD` == `git rev-parse origin/main`。
 2. **Baseline count 對齊**：重查計畫 baseline 的 DB count，與計畫值比對。
-3. **無預期外新 report_types**：distinct `report_type` 必須 ⊆ 計畫快照（並行 `auto_qa.py` live run 會注入 `auto_simplified_chinese`、`missing_date` 等新型別）。
+3. **無預期外新 report_types**：distinct `report_types` 必須 ⊆ 計畫快照（並行 `auto_qa.py` live run 會注入 `auto_simplified_chinese`、`missing_date` 等新型別）。
 
 ```python
-# scraper/ venv，Engineer Step 0
-r = sb.table('event_reports').select('report_type', count='exact').eq('status', 'pending').execute()
+# scraper/ venv，Engineer Step 0。report_types 是 text[]，一筆回報可帶多個型別
+r = sb.table('event_reports').select('report_types', count='exact').eq('status', 'pending').execute()
 print('pending total:', r.count)            # 必須 == 計畫 baseline
-types = sorted({row['report_type'] for row in r.data})
+types = sorted({t for row in r.data for t in (row['report_types'] or [])})
 print('report_types:', types)               # 必須 ⊆ 計畫快照
 ```
 
@@ -887,7 +887,9 @@ Reference incident: 2026-05-16 — `page.tsx` 抓取 `worksList` 但未傳給 `A
 
 ## QA Keyword Precision Guard（地名關鍵字子字串污染）
 
-在審核任何修改 `TAIWAN_VENUE_KEYWORDS`（或類似地名比對清單）的 PR 前，**必須**確認：
+原本保護的 `auto_qa_taiwan_venue` 偵測器與 `TAIWAN_VENUE_KEYWORDS` 已從 `scraper/` 移除（2026-10-22 查證，#384）。下列規則改為適用於任何新增或修改的地名子字串比對清單。
+
+在審核任何修改地名比對清單的 PR 前，**必須**確認：
 
 1. **禁用縮寫裸字串**：`'新北'` ⊂ `'新北島'`（大阪市住之江区）；`'台中'` 可能出現在日本地名中。必須使用完整行政單位名：`'新北市'`、`'台中市'` 等。
 2. **新增前 grep 日本地名**：對新關鍵字執行 `grep -r "<keyword>" scraper/` 確認無日本地名誤觸。
@@ -1248,7 +1250,7 @@ Reference incident: 2026-05-08 — `e37db12e`（yebizo）`location_name='高雄�
   WHERE annotation_status='annotated'
     AND performer IS NULL
     AND (raw_title ILIKE '%氏を迎え%' OR raw_title ILIKE '%さんを迎え%'
-         OR raw_title ILIKE '%(講師|ゲスト|スピーカー)%');
+         OR raw_title ~ '(講師|ゲスト|スピーカー)')
   LIMIT 20;
   ```
 - **結果非空 → 直接 DB 修正 + `field_corrections` 保護**（正確方式；`--id` 重標注費時且 GPT 可能再次失敗）。
@@ -1975,10 +1977,14 @@ Reference incident: 2026-05-05 19:52 + 2026-05-06 02:11 — Run Merger 連續兩
 
 在審核任何包含 `location_name` 或 `location_address` 的 annotator 修改、或任何新 scraper 的 location 欄位邏輯前，**必須**確認以下四點：
 
-1. **`location_address ≠ location_name`**：兩者相同是地址抽取失敗的標誌。SYSTEM_PROMPT 必須明示「identical 時保持 null」。`auto_qa_address_is_venue_name` 偵測器持續監控此情況。
+1. **`location_address ≠ location_name`**：兩者相同是地址抽取失敗的標誌。SYSTEM_PROMPT 必須明示「identical 時保持 null」。
 2. **子場地 → 親設施地址**：`○○S.C. 森のまち広場`、`○○ビル2階 大会議室`、`○○ホール内 スタジオA` 等複合場地名，地址 geocode 對象是**親設施**，不是子空間。annotator SYSTEM_PROMPT 的 LOCATION ADDRESS RULE 需要有 PARENT VENUE ADDRESS RULE 段落。
 3. **Scraper 端不得直接 `location_address = location_name`**：annotator 的 `_ai_or_existing()` 保護邏輯在 DB 欄位非 null 時會**保留 scraper 寫入的錯誤值**，不覆蓋。因此 scraper 若直接把 venue name 複製到 address，annotator 的規則完全無效。正確做法：scraper 使用 `_ADDR_RE`（`〒` 或 prefecture+city+street pattern）從 raw text 抽取真實地址；找不到則設 `None`。
-4. **auto_qa 偵測器**：`auto_qa_address_is_venue_name`（`location_address == location_name`）必須存在於 `auto_qa.py` 的 `QA_TYPES` 中，且由 `run()` 呼叫。
+4. **偵測**：`auto_qa_address_is_venue_name` 偵測器已不存在於 `auto_qa.py`（2026-10-22 查證，#384），不再要求補回。改以下列 SQL 檢查，2026-10-23 為 13 筆（10 筆 active）；每月自動計數需要欄位互比，PostgREST 做不到，列在 #386：
+   ```sql
+   SELECT id, source_name, location_name FROM events
+   WHERE is_active AND location_address IS NOT NULL AND location_address = location_name;
+   ```
 
 Reference incidents:
 - 2026-05-04 `878660a0 iwafu` — `流山おおたかの森S.C. 森のまち広場` scraper 直接設 `location_address = place_val`（venue name），導致 annotator 的 PARENT VENUE ADDRESS RULE 完全無效。修復：`iwafu.py` 改為 `_ADDR_RE` 抽取真實地址，找不到設 `None`。
