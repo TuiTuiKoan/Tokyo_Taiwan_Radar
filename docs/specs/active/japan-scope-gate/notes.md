@@ -73,11 +73,20 @@ updated: 2026-10-23
 
 - 22 筆詳情頁（ja）全部回 **HTTP 200**，內容是 Next.js not-found 畫面：`<title>` 為通用站名並帶 `<meta name="robots" content="noindex">`；對照用 active 事件有事件標題且無 noindex。推測是 `[id]/loading.tsx` 先送出 200 串流，之後 `page.tsx` 才呼叫 `notFound()`（未驗證）。因此 runbook 的驗收標準由「回 404」改為「not-found 內容加 noindex」。
 - 首頁（ja）不含這 22 筆。
-- sitemap（`last-modified` 06:23:36 GMT，apply 後約 2 分鐘）仍含 22 筆中的 10 筆；`web/app/sitemap.ts` 查詢有 `is_active=true`，推測是快取尚未更新。追蹤於 issue #427。
+- sitemap（`last-modified` 06:23:36 GMT，apply 後約 2 分鐘）仍含 22 筆中的 10 筆；`web/app/sitemap.ts` 查詢有 `is_active=true`。同日 17:51 JST 重抓（`x-vercel-cache: MISS`）已是 0/22，確認是快取延遲，自行恢復。
+
+### 復驗（2026-10-24 14:3x JST）
+
+apply 之後有寫入者跑過：2026-10-24 的 `scraper.yml`（run 40056871578，12:05 啟動、14:31 結束）整體 `failure`，但失敗只在最後一步 `Fail on LLM step errors`，scrape 與寫入步驟都成功；前一天（10-23，暫停之前）的 run 也是同一步失敗，不是 cleanup 造成，追蹤於 issue #403。
+
+- `--readback`：`readback=ok`。
+- Dashboard 逐列查 22 筆：`is_active=false`、`deactivated_by_pass=admin_manual`，`deactivated_at` 全部是 `2026-10-23 06:21:24.176993+00`，`updated_at` 全部是 `2026-10-23 06:21:23.759939+00`（apply 當下，之後沒有任何 writer 動過），`deactivated_reason` 全部以 `scope cleanup f9f723845233` 結尾。
+- 計數：`active` 2397、`marked` 22、`new_after_apply` 13；2384 + 13 = 2397，差額全部是 apply 之後新增的事件。
+- 公開網址：22 筆詳情頁仍是 not-found 加 `noindex`，sitemap 0/22。
+- 過程中使用者貼回一次 `active` 2397、`marked` 0。逐列查證 22 筆的 reason 都以該字串結尾、`updated_at` 沒動，資料沒有被改；那次查詢為何得 0 不明，未再追查，之後同一條 SQL 回 22。
 
 ### 待辦
 
-- 第一個完整的 `scraper.yml` run 成功結束後（2026-10-24 09:00 JST 排程，約 2.5–2.8 小時），再跑一次 `--readback`，確認沒有被蓋回去（見 `tasks.md`）。
 - 停用期間 `gh run list` 還有兩個從未開始的 queued run（Refetch Thin Events 32219879166，自 2026-08-19；web-darkmode-smoke 25906992019，自 2026-05-15），drain 檢查須排除；歸入 issue #403 追蹤。
 
 ### 對 runbook 的修正（已併入 `runbook.md`）
