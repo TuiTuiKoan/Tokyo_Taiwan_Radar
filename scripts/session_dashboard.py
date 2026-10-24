@@ -43,8 +43,8 @@ import session_map  # noqa: E402
 WORKTREE_RE = re.compile(r"^ttr-(?P<slug>.+)-worktree$")
 ROOT_NAME = "Tokyo Taiwan Radar"
 ROOT_LABEL = "root（主工作目錄）"
-STATUS_LABEL = {"busy": "處理中", "idle": "閒置", "waiting": "等待輸入"}
-STATUS_RANK = {"等待輸入": 0, "處理中": 1, "閒置": 2, "已結束": 3}
+STATUS_LABEL = {"busy": "處理中", "idle": "閒置", "waiting": "等待輸入", "shell": "執行指令"}
+STATUS_RANK = {"等待輸入": 0, "處理中": 1, "執行指令": 1, "閒置": 2, "已結束": 3}
 REPO_URL = "https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar"
 LABEL_TTL = 600
 BRANCH_PREFIXES = ("feat/", "fix/", "docs/", "chore/", "test/", "refactor/", "perf/", "hotfix/")
@@ -344,7 +344,7 @@ h1{font-size:18px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 12px}
 .wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:1500px}
 th,td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:var(--head);position:sticky;top:0;cursor:pointer;user-select:none;white-space:nowrap}th[aria-sort=ascending]::after{content:" ▲"}th[aria-sort=descending]::after{content:" ▼"}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:var(--end)}
-.st-處理中 .dot{background:var(--busy)}.st-閒置 .dot{background:var(--idle)}.st-等待輸入 .dot{background:var(--wait)}
+.st-處理中 .dot,.st-執行指令 .dot{background:var(--busy)}.st-閒置 .dot{background:var(--idle)}.st-等待輸入 .dot{background:var(--wait)}
 .mut{color:var(--mut)}.badge{font-size:11px;border:1px solid var(--warn);color:var(--warn);border-radius:8px;padding:0 6px;margin-left:6px}
 a{color:var(--link)}.chip{font-size:11px;border:1px solid var(--line);border-radius:8px;padding:0 6px;text-decoration:none;white-space:nowrap}tr:target{outline:2px solid var(--link)}.num{font-variant-numeric:tabular-nums}
 """
