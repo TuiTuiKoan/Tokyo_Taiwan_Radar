@@ -340,3 +340,110 @@ def test_html_links_every_listed_spec():
     reg = {SID_A: {**entry(name="#369 x"), "alive": True}}
     html = sd.render_html(sd.build_rows(reg, [_session(SID_A, ROOT_DIR)], term_program=lambda pid: "", ctx=ctx), "t")
     assert "docs/specs/active/a" in html and "docs/specs/active/b" in html
+
+
+# --- default order and click-to-sort -------------------------------------------------------------
+
+SIDS = [f"{c}{c}{c}{c}{c}{c}{c}{c}-1111-2222-3333-444444444444" for c in "cdefgh"]
+
+
+def _live(i, status, updated):
+    return SIDS[i], {**entry(pid=100 + i, sessionId=SIDS[i], name=f"s{i}", status=status, updatedAt=updated), "alive": True}
+
+
+def test_default_order_puts_sessions_that_need_attention_or_work_first():
+    reg = dict(
+        [
+            _live(0, "idle", 1792800000000),
+            _live(1, "busy", 1792700000000),
+            _live(2, "waiting", 1792600000000),
+            _live(3, "idle", 1792900000000),
+            _live(4, "busy", 1792750000000),
+        ]
+    )
+    rows = sd.build_rows(reg, [], term_program=lambda pid: "")
+    assert [r.name for r in rows] == ["s2", "s4", "s1", "s3", "s0"]  # waiting, busy (newest first), idle (newest first)
+
+
+def test_ended_sessions_come_last_in_the_default_order():
+    reg = dict([_live(0, "idle", 1792800000000)])
+    ended = _session(SIDS[5], ROOT_DIR, title="old", ts="2026-10-25T00:00:00Z")
+    rows = sd.build_rows(reg, [ended], term_program=lambda pid: "", include_ended=True)
+    assert [r.status for r in rows] == ["閒置", "已結束"]
+
+
+def test_cells_carry_a_sort_key_and_headers_a_type():
+    reg = dict([_live(0, "busy", 1792800000000), _live(1, "idle", 1792700000000)])
+    html = sd.render_html(sd.build_rows(reg, [], term_program=lambda pid: ""), "t")
+    assert 'data-type="pid"' in html and 'data-type="time"' in html and 'data-type="status"' in html
+    assert '<td data-sort="100"' in html or 'data-sort="100"' in html
+    assert "<script>" in html and "compareValues" in html
+    # every body row has as many sort keys as there are columns
+    header_cells = html.split("<thead>")[1].split("</thead>")[0].count("<th")
+    first_row = html.split("<tbody>")[1].split("</tr>")[0]
+    assert first_row.count("<td") == header_cells
+    assert first_row.count("data-sort=") == header_cells
+
+
+def test_sort_script_comparator_in_node():
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    if not node:
+        import pytest
+
+        pytest.skip("node not available")
+    script = sd.SORT_JS
+    program = script + """
+const eq = (a, b) => { if (JSON.stringify(a) !== JSON.stringify(b)) { console.log("FAIL", JSON.stringify(a), JSON.stringify(b)); process.exit(1); } };
+eq(compareValues("9", "10", "pid"), -1);            // numbers, not strings
+eq(compareValues("10", "9", "pid"), 1);
+eq(compareValues("", "5", "pid") > 0, true);        // empty values go last when ascending
+eq(compareValues("a", "B", "text") < 0, true);      // case-insensitive text
+eq(compareValues("2", "10", "status"), -1);         // status uses its numeric rank
+eq(compareValues("2026-10-24T01:00", "2026-10-23T23:00", "time") > 0, true);
+eq(compareValues("x", "x", "text"), 0);
+console.log("ok");
+"""
+    out = subprocess.run([node, "-e", program], capture_output=True, text=True, timeout=20, check=False)
+    assert out.stdout.strip() == "ok", out.stdout + out.stderr
+
+
+def test_sort_script_click_wiring_with_a_fake_dom():
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    if not node:
+        import pytest
+
+        pytest.skip("node not available")
+    program = (
+        """
+const store = {};
+global.sessionStorage = { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; } };
+const mkRow = (name, pid) => ({ name, cells: [{ dataset: { sort: name } }, { dataset: { sort: String(pid) } }] });
+const rows = [mkRow("b", 20), mkRow("a", 3), mkRow("c", ""), mkRow("d", 100)];
+const body = { rows, tBodies: null, appendChild(r) { const i = this.rows.indexOf(r); if (i >= 0) this.rows.splice(i, 1); this.rows.push(r); } };
+const listeners = [];
+const mkHead = (type) => { const attrs = { "aria-sort": "none" }; return { dataset: { type }, getAttribute: (k) => attrs[k], setAttribute: (k, v) => { attrs[k] = v; }, addEventListener: (ev, fn) => listeners.push(fn) }; };
+const heads = [mkHead("text"), mkHead("pid")];
+global.document = { querySelector: () => ({ tHead: { rows: [{ cells: heads }] }, tBodies: [body] }) };
+"""
+        + sd.SORT_JS
+        + """
+const order = () => body.rows.map((r) => r.name).join("");
+listeners[1]();                       // pid ascending, empty value last
+if (order() !== "abdc") { console.log("FAIL asc", order()); process.exit(1); }
+listeners[1]();                       // pid descending, empty value still last
+if (order() !== "dbac") { console.log("FAIL desc", order()); process.exit(1); }
+listeners[0]();                       // text ascending
+if (order() !== "abcd") { console.log("FAIL text", order()); process.exit(1); }
+if (heads[0].getAttribute("aria-sort") !== "ascending" || heads[1].getAttribute("aria-sort") !== "none") { console.log("FAIL aria"); process.exit(1); }
+if (!store["session-dashboard-sort"]) { console.log("FAIL store"); process.exit(1); }
+console.log("ok");
+"""
+    )
+    out = subprocess.run([node, "-e", program], capture_output=True, text=True, timeout=20, check=False)
+    assert out.stdout.strip() == "ok", out.stdout + out.stderr

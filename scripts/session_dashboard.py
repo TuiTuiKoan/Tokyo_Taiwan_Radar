@@ -44,6 +44,7 @@ WORKTREE_RE = re.compile(r"^ttr-(?P<slug>.+)-worktree$")
 ROOT_NAME = "Tokyo Taiwan Radar"
 ROOT_LABEL = "root（主工作目錄）"
 STATUS_LABEL = {"busy": "處理中", "idle": "閒置", "waiting": "等待輸入"}
+STATUS_RANK = {"等待輸入": 0, "處理中": 1, "閒置": 2, "已結束": 3}
 REPO_URL = "https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar"
 LABEL_TTL = 600
 BRANCH_PREFIXES = ("feat/", "fix/", "docs/", "chore/", "test/", "refactor/", "perf/", "hotfix/")
@@ -235,6 +236,17 @@ class Row:
     def short(self) -> str:
         return self.sid[:8]
 
+    @property
+    def last_epoch(self) -> float | None:
+        return _epoch(self.last_ts)
+
+
+def _epoch(ts: str) -> float | None:
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
 
 def _ms_to_iso(ms: object) -> str:
     try:
@@ -313,8 +325,7 @@ def build_rows(
     shorts = {r.short for r in rows}
     for r in rows:
         r.parent_listed = bool(r.parent_sid) and r.parent_sid in shorts
-    rows.sort(key=lambda r: r.last_ts, reverse=True)
-    rows.sort(key=lambda r: (r.worktree != ROOT_LABEL, r.worktree))
+    rows.sort(key=lambda r: (STATUS_RANK.get(r.status, 2), -(r.last_epoch or 0)))
     return rows
 
 
@@ -330,13 +341,70 @@ CSS = """
 @media (prefers-color-scheme:dark){:root{--bg:#161618;--fg:#ececf0;--mut:#9a9aa3;--line:#33333a;--head:#212125;--link:#7aa7ff;--warn:#fbbf24}}
 body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 h1{font-size:18px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 12px}
-.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:1300px}
-th,td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:var(--head);position:sticky;top:0}
+.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:1500px}
+th,td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:var(--head);position:sticky;top:0;cursor:pointer;user-select:none;white-space:nowrap}th[aria-sort=ascending]::after{content:" ▲"}th[aria-sort=descending]::after{content:" ▼"}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:var(--end)}
 .st-處理中 .dot{background:var(--busy)}.st-閒置 .dot{background:var(--idle)}.st-等待輸入 .dot{background:var(--wait)}
 .mut{color:var(--mut)}.badge{font-size:11px;border:1px solid var(--warn);color:var(--warn);border-radius:8px;padding:0 6px;margin-left:6px}
 a{color:var(--link)}.chip{font-size:11px;border:1px solid var(--line);border-radius:8px;padding:0 6px;text-decoration:none;white-space:nowrap}tr:target{outline:2px solid var(--link)}.num{font-variant-numeric:tabular-nums}
 """
+
+
+SORT_JS = r"""
+function compareValues(a, b, type) {
+  if (type === "pid" || type === "status" || type === "time") {
+    const num = (v) => {
+      if (v === "") return NaN;
+      const n = Number(v);
+      return Number.isNaN(n) ? Date.parse(v) : n;
+    };
+    const x = num(a), y = num(b);
+    if (Number.isNaN(x) && Number.isNaN(y)) return 0;
+    if (Number.isNaN(x)) return 1;
+    if (Number.isNaN(y)) return -1;
+    return x < y ? -1 : x > y ? 1 : 0;
+  }
+  return a.toLowerCase().localeCompare(b.toLowerCase(), "zh-Hant");
+}
+if (typeof document !== "undefined") {
+  (function () {
+    const table = document.querySelector("table");
+    if (!table) return;
+    const heads = Array.from(table.tHead.rows[0].cells);
+    const body = table.tBodies[0];
+    const KEY = "session-dashboard-sort";
+    function apply(col, dir) {
+      const type = heads[col].dataset.type || "text";
+      const rows = Array.from(body.rows).map((row, i) => ({ row, i, v: row.cells[col].dataset.sort || "" }));
+      rows.sort((p, q) => {
+        if (p.v === "" && q.v === "") return p.i - q.i;
+        if (p.v === "") return 1;
+        if (q.v === "") return -1;
+        return dir * compareValues(p.v, q.v, type) || p.i - q.i;
+      });
+      rows.forEach((r) => body.appendChild(r.row));
+      heads.forEach((h, i) => h.setAttribute("aria-sort", i === col ? (dir === 1 ? "ascending" : "descending") : "none"));
+    }
+    heads.forEach((th, col) => {
+      th.addEventListener("click", () => {
+        const dir = th.getAttribute("aria-sort") === "ascending" ? -1 : 1;
+        apply(col, dir);
+        try { sessionStorage.setItem(KEY, JSON.stringify([col, dir])); } catch (e) {}
+      });
+    });
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(KEY) || "null");
+      if (saved && heads[saved[0]]) apply(saved[0], saved[1]);
+    } catch (e) {}
+  })();
+}
+"""
+
+COLUMNS = [
+    ("狀態", "status"), ("名稱", "text"), ("標題 / 摘要", "text"), ("PID", "pid"), ("位置", "text"),
+    ("工作樹", "text"), ("Branch", "text"), ("Spec", "text"), ("Issue / Label", "text"), ("主題", "text"),
+    ("父 session", "text"), ("最後活動", "time"), ("開始", "time"),
+]
 
 
 def render_html(rows: list[Row], generated_at: str, refresh: int = 0, repo_url: str = REPO_URL, parked: set[str] | None = None) -> str:
@@ -345,10 +413,8 @@ def render_html(rows: list[Row], generated_at: str, refresh: int = 0, repo_url: 
     if not rows:
         body = '<p class="mut">沒有符合條件的 session。</p>'
     else:
-        out = [
-            '<div class="wrap"><table><thead><tr><th>狀態</th><th>名稱</th><th>標題 / 摘要</th><th>PID</th>'
-            "<th>位置</th><th>工作樹</th><th>Branch</th><th>Spec</th><th>Issue / Label</th><th>主題</th><th>父 session</th><th>最後活動</th><th>開始</th></tr></thead><tbody>"
-        ]
+        head = "".join(f'<th data-type="{t}" aria-sort="none">{e(n)}</th>' for n, t in COLUMNS)
+        out = [f'<div class="wrap"><table><thead><tr>{head}</tr></thead><tbody>']
         for r in rows:
             wt = e(r.worktree)
             if r.worktree_path:
@@ -374,25 +440,36 @@ def render_html(rows: list[Row], generated_at: str, refresh: int = 0, repo_url: 
                 f'<a class="chip" href="{e(repo_url + "/issues?q=" + urllib.parse.quote("label:" + lb, safe=""), quote=True)}">{e(lb)}</a>'
                 for lb in r.labels
             ]
-            issue_cell = " ".join(chips)
-            pid = "" if r.pid is None else str(r.pid)
-            out.append(
-                f'<tr id="s-{e(r.short)}" class="st-{e(r.status)}">'
-                f'<td><span class="dot"></span>{e(r.status)}</td>'
-                f"<td>{e(r.name)}{badge}<br><span class=\"mut\">{e(r.short)}</span></td>"
-                f'<td class="mut">{e(r.summary)}</td><td class="num">{e(pid)}</td>'
-                f"<td>{e(r.where)}</td><td>{wt}</td><td>{e(r.branch)}</td><td>{spec}</td><td>{issue_cell}</td><td>{e(r.theme)}</td><td>{parent}</td>"
-                f'<td class="num">{e(_local(r.last_ts))}</td><td class="num">{e(_local(r.started))}</td></tr>'
+            last, started = r.last_epoch, _epoch(r.started)
+            cells = [
+                (f'<span class="dot"></span>{e(r.status)}', STATUS_RANK.get(r.status, 2)),
+                (f'{e(r.name)}{badge}<br><span class="mut">{e(r.short)}</span>', r.name),
+                (f'<span class="mut">{e(r.summary)}</span>', r.summary),
+                (e("" if r.pid is None else str(r.pid)), "" if r.pid is None else r.pid),
+                (e(r.where), r.where),
+                (wt, r.worktree),
+                (e(r.branch), r.branch),
+                (spec, r.spec),
+                (" ".join(chips), r.issues[0] if r.issues else ""),
+                (e(r.theme), r.theme),
+                (parent, r.parent_title or r.parent_sid),
+                (e(_local(r.last_ts)), "" if last is None else int(last)),
+                (e(_local(r.started)), "" if started is None else int(started)),
+            ]
+            tds = "".join(
+                f'<td data-sort="{e(str(key), quote=True)}"{" class=num" if COLUMNS[i][1] in ("pid", "time") else ""}>{content}</td>'
+                for i, (content, key) in enumerate(cells)
             )
+            out.append(f'<tr id="s-{e(r.short)}" class="st-{e(r.status)}">{tds}</tr>')
         out.append("</tbody></table></div>")
         body = "".join(out)
     return (
         "<!doctype html><html lang=\"zh-Hant\"><head><meta charset=\"utf-8\">"
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         f"{meta}<title>Session 一覽</title><style>{CSS}</style></head><body>"
-        f'<h1>Session 一覽</h1><p class="sub">產生於 {e(generated_at)} · {len(rows)} 個 · '
+        f'<h1>Session 一覽</h1><p class="sub">產生於 {e(generated_at)} · {len(rows)} 個 · 預設「等待輸入、處理中」置頂 · 點欄位標題排序 · '
         "雲端 session 與 VS Code side chat 的區別在本機資料中查不到</p>"
-        f"{body}</body></html>"
+        f"{body}<script>{SORT_JS}</script></body></html>"
     )
 
 
