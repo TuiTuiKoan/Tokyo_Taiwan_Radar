@@ -1240,3 +1240,21 @@ push 並在主工作目錄 pull 之後，才可以用相對路徑在主工作目
 **驗證**：`scripts/tests/test_session_dashboard.py` 15 個測試（先紅：模組不存在）；`scripts` 全部測試通過。Mutation：不 escape → 1 個紅；把已死的 pid 當存活 → 1 個紅；忽略 transcript 的 cwd 只用啟動目錄 → 2 個紅。對真實資料跑一次：43 個 session，位置為 VS Code 面板 38、VS Code 終端機 5，主工作目錄 25 個、`ai-harness` 5 個，其餘各 1 個。
 
 **限制**：(1) 工作樹來自 transcript 最後一則有 `cwd` 的訊息，剛開還沒有訊息的 session 退回啟動目錄；(2) 登記檔的 `status` 只有 busy／idle／waiting 這類，我沒有查到更多值；(3) 沒有在瀏覽器裡做視覺驗證（只驗證 HTML 內容與結構），版面是否好用待使用者回饋；(4) `ps` 讀環境變數可能在其他使用者的程序上失敗，失敗時位置顯示「終端機（未知）」。
+
+## 43. 一覽頁加上 spec、issue、label、主題（2026-10-24，#426）
+
+使用者要看每個 session 各自在處理哪個 worktree、spec、label。`scripts/session_dashboard.py` 新增三欄：**Spec**、**Issue / Label**、**主題**（工作樹欄原本就有）。
+
+**推斷規則（依序，不猜測）**
+1. 工作樹名稱（`ttr-<slug>-worktree`）若是已知 spec（`docs/specs/active/*`、`parked/*.md`）→ 依「工作樹」。
+2. branch 去掉 `feat/`、`fix/` 等前綴後等於已知 spec → 依「branch」。
+3. session 名稱或標題裡的 `#369`、`#369.371` 形式的 issue 編號 → 該 issue 的所有 `spec:<slug>` label，**全部列出**（不挑第一個；issue 彼此矛盾時如實呈現），依「issue #N」。這一步接受本機沒有 spec 目錄的 slug（例如 `scraper-zero-output` 的 spec 在別的分支上）。
+4. 都沒有 → 空白。
+
+**Issue / Label**：偵測到的 issue 連到 GitHub，其所有 label 以小標籤連到該 label 的 issue 搜尋。**主題**：先看 `docs/specs/board-themes.json` 的 issue 覆寫，再看 spec 對應的主題（多個 spec 時用 ` / ` 連起來）。
+
+**資料取得**：一次 `gh issue list --state all --limit 500 --json number,labels`，結果快取 10 分鐘在 `~/.ai-notes/ttr/issue-labels-cache.json`；`gh` 失敗時退回過期的快取，沒有快取就略過這幾欄；`--no-gh` 可完全不呼叫。issue 搜尋超過 500 筆以外的舊 issue 查不到 label。
+
+**驗證**：測試 28 個（含這次新增 13 個），`scripts` 全部測試 1044 passed。Mutation：工作樹優先規則關掉 → 1 個紅；issue 覆寫主題關掉 → 1 個紅；快取 TTL 關掉 → 1 個紅；只接受本機有的 spec → 1 個紅；只取第一個 spec → 2 個紅。第一次真實執行抓到兩個問題並已修：(1) 本機沒有 spec 目錄的 label 被丟掉；(2) 一個 issue 帶多個 `spec:` label 時只顯示第一個。重跑後 43 個 session 中 18 個有 spec 與主題。
+
+**限制**：(1) 沒有命名也沒有 issue 編號的 session（主工作目錄的多數 session）仍是空白，無法推斷；(2) `#375–#377` 這種範圍只抓兩端的編號；(3) 看到的 label 是 GitHub 上實際貼的（例如 #369、#371 目前貼的是 `spec:evaluation-framework`），不代表那是正確的歸屬；(4) 版面未在瀏覽器裡驗證。
