@@ -1221,3 +1221,22 @@ push 並在主工作目錄 pull 之後，才可以用相對路徑在主工作目
 - **D**：`~/.ai-notes/ttr/tools/cc-statusline-patch/install_title_patch.py`，支援 `--dry-run`、安裝、`--uninstall`。只動 `installed_plugins.json` 指向的 `hooks/summary-updater.js`，且目標必須與已知原檔（sha256 `6613a16e…`）或補丁版逐位元組相同，否則拒絕；安裝前備份到 `backup/`；另外為「最後標題看起來像舊摘要」的 session 預先建立 state 檔（避免出現 `舊摘要｜新摘要`），已被命名的 session 不動。
 - **驗證**：假 HOME 下測過 dry-run 不改檔、安裝、重複執行、目標被改動時拒絕（exit 1）、還原後與原檔相同、預先登記只針對舊摘要型 session、登記後的舊 session 經補丁版 hook 不產生前綴。測試中發現並修掉一個缺陷：過濾 `scratchpad` 目錄時原本比對整條路徑，改為只比對目錄名稱。對真實環境只做 `--dry-run`：會備份與安裝，預計預先登記 28 個 session、略過 2 個。
 - **未做**：尚未安裝到真實快取；未在真實 `/resume` 清單驗證。plugin 更新會覆蓋，需重跑腳本。
+
+## 42. 本機 session 一覽頁 `scripts/session_dashboard.py`（2026-10-24，#426）
+
+使用者要一個比 terminal 更好的「所有 session 對照表」：父子、工作樹、位置（VS Code 面板、VS Code 終端機、cloud）、PID、可讀名稱。使用者選**本機 HTML**（不用 Artifact：Artifact 只是靜態快照，讀不到本機行程，還要把路徑與 session 名稱上傳）。
+
+**資料來源（全部本機、唯讀）**
+- `~/.claude/sessions/<pid>.json`：Claude Code 自己維護的即時登記檔，有 `pid`、`sessionId`、`name`、`nameSource`（`user`、`derived` 等；`derived` 表示沒人命名）、`status`、`kind`、`entrypoint`。讀它**不會**像 `claude agents --json` 那樣啟動背景服務（那個指令在這個環境有副作用，見 §36 清理時 `daemon stop --any` 終止了來源不明的背景 session）。
+- transcript（沿用 `session_map.py`）：實際所在的目錄與 branch、標題或摘要、`父 session：…` 行。
+- `ps eww -p <pid>`：只對 CLI session 查 `TERM_PROGRAM`，判斷是不是 VS Code 終端機。
+
+**位置判斷**：`entrypoint=claude-vscode` → VS Code 面板；CLI 且 `TERM_PROGRAM=vscode` → VS Code 終端機；`Apple_Terminal` → Terminal.app；`iTerm.app` → iTerm；`kind` 不是 `interactive` → 背景。
+
+**本機資料查不到的**：(1) cloud session；(2) VS Code side chat 與一般面板的差別（同一個 entry point、同一組啟動參數）。頁面頂端有註明，不假裝有。超連結只做到：工作樹連 `vscode://file/<路徑>` 開資料夾、父 session 連到頁面內的該列；沒有「跳到某個特定面板或終端機分頁」的 URL。
+
+**輸出**：預設 `~/.ai-notes/ttr/sessions.html`（不進 repo，含本機路徑）。`--watch N` 每 N 秒重新產生並讓頁面自動重新整理，`--include-ended` 列出已結束的 session，`--open` 用預設瀏覽器開，`--repo ""` 列全部專案。寫入用暫存檔加 `os.replace`，不留殘檔。名稱、標題等一律 HTML escape。
+
+**驗證**：`scripts/tests/test_session_dashboard.py` 15 個測試（先紅：模組不存在）；`scripts` 全部測試通過。Mutation：不 escape → 1 個紅；把已死的 pid 當存活 → 1 個紅；忽略 transcript 的 cwd 只用啟動目錄 → 2 個紅。對真實資料跑一次：43 個 session，位置為 VS Code 面板 38、VS Code 終端機 5，主工作目錄 25 個、`ai-harness` 5 個，其餘各 1 個。
+
+**限制**：(1) 工作樹來自 transcript 最後一則有 `cwd` 的訊息，剛開還沒有訊息的 session 退回啟動目錄；(2) 登記檔的 `status` 只有 busy／idle／waiting 這類，我沒有查到更多值；(3) 沒有在瀏覽器裡做視覺驗證（只驗證 HTML 內容與結構），版面是否好用待使用者回饋；(4) `ps` 讀環境變數可能在其他使用者的程序上失敗，失敗時位置顯示「終端機（未知）」。
