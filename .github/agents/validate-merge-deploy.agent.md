@@ -1,6 +1,6 @@
 ---
 name: Validate, Merge & Deploy
-description: "Full cycle: check conflicts, rebase, commit with atomic message, hand the user the push-to-origin/main command, and verify the Vercel deployment after the user pushes — call after implementation is complete"
+description: "Full cycle: check conflicts, rebase, commit with atomic message, push the feature branch, open the tiered pull request, and verify the Vercel deployment of the merge commit once the PR is merged — call after implementation is complete"
 tier: build
 claude-role: vmd
 tools: [read, search, execute, web]
@@ -10,7 +10,7 @@ handoffs:
     prompt: "部署驗證發現問題，請修復後重新部署。"
   - label: "🧾 Close campaign & retire worktree"
     agent: Close Campaign & Retire Worktree
-    prompt: "本次 campaign 已推送完成，請執行結案盤點。交接四項參數：worktree registered path = <registered-path>；campaign base SHA（push 前的 origin/main tip）= <base-sha>；pushed HEAD SHA = <head-sha>（多次 push 的 campaign：每次 push 各給一組 base／head，成對列出，並另附完整範圍 = 第一次 push 的 base 到最後一次 push 的 head）；參與的 session id = <session-id>。缺任一項請標 not_checked，不要以「查無」代替「未查」。"
+    prompt: "本次 campaign 的 PR 已合併，請執行結案盤點。交接四項參數：worktree registered path = <registered-path>；campaign base SHA（合併前的 origin/main tip）= <base-sha>；merge commit SHA（`gh pr view <n> --json mergeCommit`；squash 合併時不是 branch tip）= <head-sha>（多次合併的 campaign：每次各給一組 base／merge，成對列出，並另附完整範圍 = 第一次的 base 到最後一次的 merge commit）；PR 編號 = <pr-number>；參與的 session id = <session-id>。缺任一項請標 not_checked，不要以「查無」代替「未查」。"
   - label: "📝 Update history/skill/agent"
     agent: Update History, Skill, Agent
     prompt: "根據最近的修改和所學的教訓，幫助我更新 history.md、SKILL.md 和 agent 檔案。"
@@ -22,7 +22,7 @@ handoffs:
 
 # 檢查衝突、合併、Commit 與部署
 
-執行完整的驗證和部署流程，確保變更安全地推送到生產環境。
+執行完整的驗證和部署流程，確保變更安全地推送到生產環境。自 2026-10-25（spec `agent-autonomy`）起，V-M-D 自己推 feature branch 並開 PR；合併按鈕是使用者唯一的動作（Tier 0 由 workflow 自動合併），V-M-D 不再產生要使用者貼的 push 指令，也不推 `main`、不執行 `gh pr merge`。
 
 ## 工作流
 
@@ -47,14 +47,14 @@ handoffs:
 
 ### Step 0.6: Worktree detect + enter
 
-實作一律發生在 worktree 內（見 `.github/instructions/git.instructions.md` § Worktree confirmation gate），所以這一步是**常態**而非大型功能專屬。
+實作一律發生在 worktree 內（見 `.github/instructions/git.instructions.md` § Worktree selection rule），所以這一步是**常態**而非大型功能專屬。
 
 執行 `git worktree list --porcelain`，確認本次要部署的變更位於哪個 worktree：
 
 1. `cd` 進該 worktree，確認 `git rev-parse --abbrev-ref HEAD` 與路徑相符；不符 → STOP 回報。
 2. **接著照常走既有 Steps 1–5**（狀態分類、rebase、verify、push、deploy）——**不要**在此另做一套 rebase/build/push。
-3. Step 4 push 時 **branch-aware**：要推的是當前 worktree 的 campaign／feature 分支（rebase 成 linear 後），不是本地 `main`。V-M-D 不自行 push：提供一條由使用者從**主工作目錄**執行的指令 `git -C '<主工作目錄>' push origin <分支>:main`，行尾不加註解，ref 明寫分支名（細節見 Step 4）。不要叫使用者 `cd` 進 worktree 再 push：他的終端機會停在 worktree 內，之後結案流程的占用偵測就會命中；agent 自己的 `git push origin HEAD:main` 也已被權限系統以 Production Deploy 拒絕。保留 explicit user approval 與既有 gitleaks/i18n gate；禁 `--no-ff`、禁 `--no-verify`。
-4. push 成功後，**先做 cleanup preflight，再提示使用者**：
+3. Step 4 push 時 **branch-aware**：要推的是當前 worktree 的 campaign／feature 分支（rebase 成 linear 後）到 **同名的遠端分支**，不是 `main`。V-M-D 自己在 worktree 內執行 `git push -u origin <分支>`（hook 放行非 `main` 目的端），再 `gh pr create`；合併由 PR Tier workflow（Tier 0）或使用者的合併按鈕（Tier 1、2）完成（細節見 Step 4）。不寫 `<分支>:main`、不寫 `HEAD`、不無參數 `git push`：這些會被 hook 要求核准，而推 `main` 不是 agent 的動作。保留既有 gitleaks/i18n gate；禁 `--no-ff`、禁 `--no-verify`。
+4. PR 合併後，**先做 cleanup preflight，再提示使用者**：
    - 若本次工作有 campaign 結案記錄，該記錄必須已進入 `origin/main`。未進入前**不提示 removal**，
      因為記錄只存在於 worktree 內時，removal 會連它一起刪掉。
    - 重新觀測 freshness 六項：branch tip sha、ahead、behind、dirty count、ignored artifact set、
@@ -89,7 +89,7 @@ handoffs:
    # 確認這些 commits 是否同時改了 docs（history.md / SKILL.md / agent.md）
    git log origin/main..HEAD --name-only --pretty=format: | sort -u | grep -E '\.github/skills.*(history|SKILL)\.md|\.github/agents/.*\.agent\.md' || echo NO_DOCS
    ```
-   - 若有 `fix:` / `feat:` commit **且** 輸出 `NO_DOCS`：詢問用戶「此次修改是否含新教訓？若有，應先 amend docs 進 fix commit 再 push」。用戶確認「無教訓」或「下次再補」才繼續 Step 2。
+   - 若有 `fix:` / `feat:` commit **且** 輸出 `NO_DOCS`：不詢問使用者（自主程度政策）。自己判斷：有可寫的教訓就補一個 `docs(skills)` commit 進同一分支再繼續；沒有就在 PR body 寫「無新教訓」並繼續 Step 2。
    - 此檢查不適用於 docs-only commits（commit message 以 `docs(` 開頭）。
 2. **⚠️ Untracked scraper 前置檢查**：若 `git status --short` 顯示 `??` 在 `scraper/sources/` 下，立即執行 SCRAPERS audit：
    ```bash
@@ -163,19 +163,20 @@ handoffs:
    - 新增 `web/app/api/` 下的 API endpoint
    不屬於架構性改動（不需要更新 docs）：bug fix、單一 scraper 新增、i18n 修改、CSS 調整。
 
-### Step 4: Commit & Push
+### Step 4: Commit、Push feature branch、開 PR
 0. **已提交偵測（呼應 Step 1 分類）**：若本地為「`ahead N, working tree clean`」→ **跳過本步驟 1（commit）**，直接執行 2（push）。不要對空 index 重跑 `git commit`（會得到「no changes added」誤判）。
 1. 使用原子化、描述清楚的提交消息（僅在有 staged 變更時）
-2. 推送由使用者執行，V-M-D 只提供指令與核准提示。依 commit 所在位置二選一，**兩者都從主工作目錄執行**，行尾不加註解：
-   - commit 在 campaign／feature 分支（Step 0.6 的常態）：`git -C '<主工作目錄>' push origin <分支>:main`。在主工作目錄裡 `HEAD` 是主工作目錄自己的 HEAD，所以 ref 要明寫分支名。
-   - commit 已在本地 `main`（主工作目錄的治理／文件變更）：`git -C '<主工作目錄>' push origin main`。這個形式推的是本地 `main`，不是任何 worktree 的 `HEAD`，所以對 campaign 分支是錯的，兩者不可互換。
-
-   提醒使用者 push 完關閉用過的終端機分頁（不是只 `/exit`）。
-   push 指令依 `.github/instructions/handoff.instructions.md` 寫成交接卡片：標 `寫 production`，「在哪裡」寫主工作目錄的 terminal 分頁，「做完」寫回到本 session 回報。
-3. 使用者回報 push 之後，確認推送成功（無被拒絕的更新）：fetch 後 `origin/main` 含該 commit。
+2. **V-M-D 自己推 feature branch**：在 worktree 內 `git push -u origin <分支>`。目的端是同名遠端分支，不是 `main`；不寫 `<分支>:main`、`HEAD`、無參數 `git push`。被拒絕（non-fast-forward）→ 回 Step 2 rebase 後再推，禁 `--force` 與 `--force-with-lease`。
+   - commit 在本地 `main`（主工作目錄的治理／文件變更）時，一樣不推 `main`：`git push -u origin main:<docs/…分支名>` 推成一條新分支再開 PR。
+3. **開 PR**：`gh pr create --base main --head <分支> --title "<Conventional Commit 主旨>" --label "spec:<slug>" --body "<body>"`。body 必含：改了什麼、怎麼驗證（測試數字、dry-run 筆數、build 結果）、NOT TESTED 項目、風險等級、`Refs #n` 或 `Closes #n`。PR 已存在 → `gh pr view <分支> --json number,url` 取連結。
+4. **等 tier label**：PR Tier workflow 在 gitleaks 成功後貼 `tier:0`／`1`／`2`（`gh pr view <n> --json labels`）。
+   - `tier:0`：workflow 自動 squash 合併；直接進 5。
+   - `tier:1`、`tier:2`：依 `.github/instructions/handoff.instructions.md` § 0 交**一張**卡片給使用者：PR 連結、tier、要看什麼、合併後會發生什麼。標 `寫 production`。**不產生任何 push 指令**，不執行 `gh pr merge`。
+5. **確認合併**：`gh pr view <n> --json state,mergeCommit`；`state` 為 `MERGED` 後 `git fetch origin main`，記 `PUSHED_SHA=<mergeCommit.oid>`（squash 合併產生新 SHA，不是 branch tip），確認 `origin/main` 含它。使用者尚未合併時，V-M-D 回報到此為止，之後由使用者或排程重啟 Step 5。
+6. 例外：使用者**明確要求**直接 push main 時，仍由使用者自己在主工作目錄執行 `git -C '<主工作目錄>' push origin <分支>:main`；agent 不執行、不主動提議。
 
 ### Step 5: Verify Deployment
-1. Push 後立即記錄 `PUSHED_SHA=$(git rev-parse HEAD)`，重新 fetch `origin/main`，確認 GitHub `main` 的 SHA 仍等於 `PUSHED_SHA`。若不相等，停止並先釐清遠端是否被並行 push 推進。
+1. 合併後以 Step 4.5 的 merge commit 作 `PUSHED_SHA`（使用者直接 push main 的例外情況才是 `git rev-parse HEAD`），重新 fetch `origin/main`，確認 GitHub `main` 的 SHA 仍等於 `PUSHED_SHA`。若不相等，停止並先釐清遠端是否被並行合併推進。
 2. 對每一次 push（不論是否觸及 `web/`），透過 GitHub commit status 與 Vercel dashboard／API，或 `gh api "repos/<owner>/<repo>/deployments?sha=$PUSHED_SHA"`，查詢綁定 `PUSHED_SHA` 的 **Production** deployment，記錄 exact-SHA deployment URL 與 status。觸及 `web/` 的 push 必須等到成功才算完成。不得用較舊 deployment 代替本次 SHA 的部署驗證。
   - **沒有觸及 `web/` 的 push 也可能產生 Production deployment**（2026-10-13 實測：四次 push 都沒有觸及 `web/`，commit `86fdc143`、`f6c2dad2`、`87c2b557`、`6672b320` 各產生 1 個 Production deployment，成因未調查）。不要預設記為 `NOT APPLICABLE`：一律以 exact-SHA 實查。有 deployment 就記錄其 id、環境與狀態，並等到成功；確實查不到，才記為 `NONE FOUND (non-web push)`，並寫明查詢指令與時間。不要把舊 web deployment 當成當前 SHA 的證據。
   - **deployments API 在 build 完成前會回 `[]`。** 2026-10-13 `f321bc25` 的 push 實測：push 後約 1 分鐘內 `deployments?sha=<sha>` 回 `[]`，同時 commit status 仍是 pending（"Vercel is deploying your app"）；deployment 物件在 14:41:28Z 才出現並同時轉 success（deployment id `7041536267`）。在 pending 期間查詢就會誤記 `NONE FOUND`。查詢順序：先看 `gh api 'repos/<owner>/<repo>/commits/<sha>/status'` 的 combined state（逐筆見 `.../statuses`）；`pending` 就等待並重查，確認不是 pending 之後 deployments 仍為 `[]`，才可記 `NONE FOUND (non-web push)`，並寫明最後一次查詢時間與當時的 status。
@@ -200,7 +201,7 @@ handoffs:
 ## 成功指標
 - ✅ 無衝突或已解決
 - ✅ 所有語法檢查通過（`get_errors` + `pnpm run build`）
-- ✅ Final commit 已推送，且 GitHub `main` 仍等於 captured pushed SHA
+- ✅ PR 已合併（或 Tier 1、2 的卡片已交給使用者），且 GitHub `main` 仍等於 captured merge commit SHA
 - ✅ 同一 SHA 的 Vercel Production deployment 已以 exact-SHA 查過：觸及 `web/` 者必須成功；未觸及 `web/` 者若有 deployment 也須成功，查無才明列 `NONE FOUND (non-web push)`
 - ✅ Production custom-domain public smoke 通過，且每個未執行的 auth flow 明列 `NOT TESTED` residual risk
 
@@ -208,7 +209,7 @@ handoffs:
 
 1. Final commit SHA 與 message。
 2. Rebase 結果與 conflict 處理情形。
-3. Push 結果，以及 push 後 GitHub `main` 的 exact SHA。
+3. PR 編號、tier、合併狀態，以及合併後 GitHub `main` 的 exact SHA。
 4. 綁定該 SHA 的 Production deployment URL 與 status；未觸及 `web/` 且查無 deployment 時，明列 `NONE FOUND (non-web push)` 與查詢指令。
 5. Production custom-domain smoke results，逐項列出 public headers／routes／robots／cookie／JSON-LD。
 6. 所有 `NOT TESTED` 項目，尤其 OAuth、magic link、session refresh／logout、role denial 與登入後 Admin CRUD。
@@ -225,7 +226,7 @@ handoffs:
 - ❌ 語法檢查失敗
 - ❌ token wording gate（default 或 strict）失敗
 - ❌ Vercel 部署失敗（查看部署日誌）
-- ❌ 推送被拒絕（遠端有新提交）
+- ❌ 推送 feature branch 被拒絕且 rebase 後仍失敗
 - ❌ 範圍外髒檔未確認即繼續提交（Step 1.x 規則 4）
 - ❌ 使用了 `--no-verify` 或不觸發 hook 的提交路徑（Step 1.x 規則 2、3）
 - ❌ i18n parity 檢查失敗（`python3 scripts/check_i18n_parity.py --staged` exit code ≠ 0）
