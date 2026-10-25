@@ -840,3 +840,37 @@ def test_a_single_file_archive_spec_is_not_resolved(tmp_path, state_dir, env):
     result = spec_audit(repo, state_dir, env, SLUG)
 
     assert_unresolved(result)
+
+
+# --- struck-out tasks and label-only issues (#445) ---------------------------
+
+
+def test_struck_out_tasks_are_listed_but_not_counted(tmp_path, state_dir, env):
+    repo = build_spec_repo(tmp_path, env, ["active/demo"])
+    tasks = repo / "docs" / "specs" / "active" / "demo" / "tasks.md"
+    tasks.write_text(
+        "- [ ] real one\n- [ ] ~~dropped~~ - decided not to do\n- [ ] ~~later~~ - deferred\n"
+    )
+
+    result = spec_audit(repo, state_dir, env, "demo")
+
+    assert result.field("spec_tasks") == "1", result.out
+    assert result.field("struck_out") == "2", result.out
+    assert result.field("unhandled_total") == "1", result.out
+
+
+def test_label_query_is_listed_apart_from_the_literal_slug_search(
+    clean, state_dir, stub_gh
+):
+    stubbed, log = stub_gh('[{"number": 4}, {"number": 9}]')
+
+    result = audit(
+        clean, state_dir, stubbed,
+        "--range", f"{clean.base}..{clean.first}",
+        skip_issues=False,
+    )
+
+    assert result.field("open_issues_by_label") == "2", result.out
+    assert result.line("open_issues_label_numbers").split("=")[1].split() == ["4", "9"]
+    assert result.line("open_issues_slug_numbers").split("=")[1].split() == ["4", "9"]
+    assert result.field("open_issues_label_only") == "0", result.out
