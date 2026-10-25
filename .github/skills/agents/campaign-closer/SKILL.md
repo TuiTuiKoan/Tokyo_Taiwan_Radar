@@ -385,6 +385,22 @@ exclude 未變）。處理方式是拆成幾條簡單指令，演算法不變：
    session 新增或移除了 worktree：目標清單重新推導，不貼上先前產生的 `printf` 清單。計數只偵測數量變化，偵測不到
    「一個移除、一個新增」，所以不取代對帳後的 `comm -23`／`comm -13` 驗證。
 
+**退役腳本／runbook 範本必須照做（#444）。** closer 產生的退役腳本曾用 `git worktree list --porcelain | grep -F "$M/"`
+取目標清單，以登記字串比對。以舊路徑或小寫父目錄登記的 worktree 因此被判在 root 之外，整塊對帳移除了它們的
+`ttr-*-worktree/` 行，主工作樹 `git status` 出現 `??`（2026-10-25，3 個），平行 session 的 `git add -A` 可能掃進去。
+範本的目標清單一律這樣推導（`ROOT` 是主工作樹的物理路徑）：
+
+```bash
+ROOT=$( cd "$M" && /bin/pwd -P )
+git -C "$M" worktree list --porcelain | sed -n 's/^worktree //p' | while IFS= read -r p; do
+  PHYS=$( cd "$p" 2>/dev/null && /bin/pwd -P ) || continue   # 路徑已不存在：沒有 exclude 行要保留
+  case "$PHYS" in "$ROOT"/*) printf '%s/\n' "$(basename "$PHYS")";; esac
+done
+```
+
+範本的「後驗證」必須包含：`git -C "$M" status --short | grep -E '^\?\? ttr-.*-worktree/'` 沒有輸出。
+有輸出就是 exclude 少了 live worktree 的行，補回後才算完成，不得回報成功。
+
 ### 在 Bash 工具裡解析路徑：包子 shell，不要裸 `cd`
 
 Bash 工具的 shell 狀態跨呼叫保留，裸 `cd` 改的是之後每一次呼叫的 cwd。2026-10-14 退役 D3 對帳時，為確認各 live
