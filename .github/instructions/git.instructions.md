@@ -6,59 +6,53 @@ applyTo: ".github/**"
 
 ## Branch strategy
 
-Tokyo Taiwan Radar is **trunk-based**: `main` is the single integration branch. Most changes are committed and pushed directly to `main` after the Validate/Merge/Deploy (V-M-D) validation cycle. Short-lived branches are an **isolation option**, not a mandatory gate.
+Tokyo Taiwan Radar is **trunk-based**: `main` is the single integration branch. Since 2026-10-25 (spec `agent-autonomy`) changes are committed on a short-lived branch inside a worktree and reach `main` through a pull request classified by the PR Tier workflow (`docs/specs/active/pr-flow-tiering/`): Tier 0 merges itself after gitleaks, Tier 1 and Tier 2 wait for the user's merge button. A direct push to `main` remains possible for the user only; agents never run it.
 
 | Branch | Purpose |
 |--------|---------|
-| `main` | Production trunk — Vercel deploys from here; daily scraper CI runs here; validated changes push straight here |
-| `feat/<topic>` | Optional short-lived isolation for a large / multi-session or parallel-churn-prone feature (e.g. `feat/source-connpass`); rebased onto `origin/main` and fast-forward merged back |
-| `fix/<topic>` | Optional short-lived isolation for a bug fix (e.g. `fix/tcc-date-extraction`) |
-| `chore/<topic>` | Optional short-lived isolation for non-functional changes (deps, config, CI tweaks) |
+| `main` | Production trunk — Vercel deploys from here; daily scraper CI runs here; reached through tiered pull requests (user-only direct push remains possible) |
+| `feat/<topic>` | Short-lived isolation for a feature or spec (e.g. `feat/source-connpass`); rebased onto `origin/main`, pushed by the agent, merged through a PR |
+| `fix/<topic>` | Short-lived isolation for a bug fix (e.g. `fix/tcc-date-extraction`); heartbeat fixes use `fix/issue-<n>` |
+| `chore/<topic>` | Short-lived isolation for non-functional changes (deps, config, CI tweaks) |
 
 ## Agent workflow
 
-**Default — trunk-based, direct fast-forward:**
+**Default — feature branch in a worktree, tiered pull request (since 2026-10-25):**
 
-1. Confirm the worktree with the user (see the worktree confirmation gate below), then commit atomically with a descriptive message (see commit message conventions).
-2. Run the V-M-D validation cycle (conflict check → rebase → build/lint → token/i18n gates).
-3. After **explicit user approval**, `git push origin main` (fast-forward). There is no pull-request gate.
+1. Choose the worktree yourself (see the worktree selection rule below) and commit atomically with a descriptive message (see commit message conventions).
+2. Run the V-M-D validation cycle (conflict check → rebase onto `origin/main` → build/lint → token/i18n gates). Keep history linear; merge within ~24h to avoid `SCRAPERS`-list conflicts.
+3. `git push -u origin <branch>` from the worktree (the PreToolUse hook allows pushes whose destination is not `main`), then `gh pr create` with what changed, how it was verified, NOT TESTED items and `Refs`/`Closes #n`. The PR Tier workflow labels the PR: Tier 0 merges itself after gitleaks; Tier 1 and Tier 2 wait for the user's merge button. Agents never push to `main`, never run `gh pr merge`, and never propose a push-to-main command.
 
-**Isolation exception — short-lived branch / worktree:**
-
-Use for large / multi-session features, parallel-session-churn-prone work, or shared-list edits (e.g. the `SCRAPERS` list). See the worktree section below for mechanics.
-
-1. Develop on `feat/<topic>` (in a worktree when the work spans sessions).
-2. Rebase onto `origin/main` to keep history linear.
-3. Fast-forward merge into `main` via V-M-D (`git push origin HEAD:main`). Merge within ~24h to avoid `SCRAPERS`-list conflicts.
+**User-only path — direct push to main:** the user may still run `git -C '<repo root>' push origin <branch>:main` in their own terminal. Agents do not propose it unless the user asks for it.
 
 **Review & safety:**
 
-- "Review" happens via the **Architect agent handoff before implementation** and **V-M-D validation before push** — not a GitHub pull-request review gate.
+- "Review" happens via the **Architect agent handoff before implementation**, **V-M-D validation before push**, and the **PR Tier gate before merge** (Tier 2 is the only full human review; Tier 1 is a one-click check; Tier 0 has none).
 - Never `git merge --no-ff` into `main`: a two-parent merge makes the remote secret hook rescan full-reachable history and can flag an allowlisted blob that a linear fast-forward push passes. Never `--no-verify`.
-- `main` is guarded only by these agent gates plus local hooks; treat a direct push as privileged — always get user approval first.
+- `main` is guarded by these agent gates, local hooks and the PR Tier workflow; a direct push is privileged and belongs to the user.
 
-## Worktree confirmation gate
+## Worktree selection rule
 
 > Applies to **every agent that modifies functional code** — Architect, Engineer, Tester, Scraper Expert, Designer, Researcher, V-M-D, and any future agent that writes to `scraper/`, `web/`, `supabase/` or `scripts/`.
 
-**The gate** — before starting any implementation work, ask the user which worktree to use and wait for an explicit answer. Never infer it, and never skip the question because the change looks small.
+**The rule** (since 2026-10-25, spec `agent-autonomy`; it replaces the former "ask the user which worktree" gate) — before starting any implementation work, the agent chooses the worktree itself and states path and branch in its first progress message. It does not ask. Order of preference: (1) the worktree of the spec the task belongs to (`ttr-<slug>-worktree`); (2) an existing worktree the user named in this conversation; (3) a new worktree created per the state matrix below. The user can override at any time. Never skip the worktree because the change looks small.
 
 **The main working directory is governance-only** — the repo root (`Tokyo Taiwan Radar`, branch `main`) is reserved for planning, auditing, documentation, spec maintenance and status reconciliation. Do not implement features there, whatever the size of the change.
 
 **Why** — parallel sessions (other VS Code windows, V-M-D, cron) run `git stash` / `git clean` in the main working directory and silently discard uncommitted WIP as unrelated work before a deploy. On 2026-08-08 a four-day batch of agent lessons (11 files, +550/−134) was found still sitting uncommitted there.
 
-**Running the gate:**
+**Running the rule:**
 
-1. Run `git worktree list --porcelain` and present the current worktrees to the user together with your recommendation.
-2. User names an existing worktree → `cd` into it, then verify the path and branch match.
-3. User asks for a new one → create it per the state matrix below and add the `.git/info/exclude` line.
-4. User explicitly chooses the main working directory → comply, but state the stash-trampling risk first.
+1. Run `git worktree list --porcelain` and pick per the order of preference above.
+2. Existing worktree → `cd` into it, verify the path and branch match, and check with `python3 scripts/session_map.py` that no other live session is writing there; if one is, prefer a new worktree.
+3. New worktree → create it per the state matrix below, add the `.git/info/exclude` line, then `git branch --unset-upstream` so a bare `git push` can never target `main`.
+4. Report the choice in one sentence. Only if the user explicitly insists on the main working directory → comply, but state the stash-trampling risk first.
 
 ## Isolated worktree for large / multi-session features
 
 > **Single source of truth** for worktree mechanics. The Architect / Engineer / V-M-D agents reference this section for the "how"; they own the "when".
 
-**When** — every implementation task runs in a worktree confirmed with the user through the gate above. A feature that earns a `docs/specs/active/<slug>/` entry (multi-session, multi-file, or a new module) gets its own dedicated worktree; a smaller change goes to whichever existing worktree the user names. The main working directory is never an option for implementation. Spec-to-worktree coupling applies **prospectively** to specs created / re-activated after this rule; existing specs are grandfathered.
+**When** — every implementation task runs in a worktree chosen by the agent through the rule above. A feature that earns a `docs/specs/active/<slug>/` entry (multi-session, multi-file, or a new module) gets its own dedicated worktree; a smaller change goes to whichever existing worktree the user names. The main working directory is never an option for implementation. Spec-to-worktree coupling applies **prospectively** to specs created / re-activated after this rule; existing specs are grandfathered.
 
 **Why** — parallel sessions (other VS Code windows, V-M-D, cron) run `git stash` / `git clean` and can silently destroy uncommitted WIP in the main working dir. A linked worktree has its own working dir they cannot touch.
 
@@ -89,7 +83,7 @@ Without this line the main repo shows the worktree as untracked and a careless `
 
 ### Merge back
 
-Rebase onto `origin/main` to keep history linear, then hand to V-M-D, which pushes per the trunk-based direct fast-forward flow in the Branch strategy / Agent workflow sections above. Never `git merge --no-ff` into `main` (see the Engineer SKILL gitleaks note); never `--no-verify`. Merge within ~24h to avoid `SCRAPERS`-list conflicts.
+Rebase onto `origin/main` to keep history linear, then hand to V-M-D, which pushes the branch and opens the pull request per the Agent workflow section above. Never `git merge --no-ff` into `main` (see the Engineer SKILL gitleaks note); never `--no-verify`. Merge within ~24h to avoid `SCRAPERS`-list conflicts.
 
 ### Tools that show or create worktrees (Orca, Claude Code `--worktree`)
 

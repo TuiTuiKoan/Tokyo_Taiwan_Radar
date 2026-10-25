@@ -2,14 +2,47 @@
 
 本檔供 Codex / Claude Code 使用。專案總規則的權威來源是 `.github/copilot-instructions.md`；開始任何工作前，必須先完整讀取該檔，不要以本摘要取代原文。
 
-最關鍵的 6 點摘要：
+最關鍵的 7 點摘要：
 
 1. 回覆語言預設使用繁體中文。
 2. 列出活動時不可只列 event id，必須提供 `https://tokyotaiwanradar.com/ja/events/<event_id>` 格式的可點擊連結；若使用者指定 locale，替換 `ja`。
 3. 專案地理範圍是全日本；不要只因活動不在東京就排除。
-4. 主工作樹只供治理與盤點；實作前必須先向使用者確認要用哪個 worktree，並依 `.github/instructions/git.instructions.md` 建立或切換。
+4. 主工作樹只供治理與盤點；實作一律在 worktree。agent 依 `.github/instructions/git.instructions.md` 的 worktree selection rule 自選或自建並在第一則回報裡說明，不詢問。
 5. 不得提交 secrets；任何 `.env`、token、API key 僅能留在本機或平台 secrets。
 6. 進度看 TTR Roadmap 看板；spec 只放設計與里程碑；過程中增生的細項、評審意見與 bug 一律開 issue，貼 `spec:<slug>` label，不需使用者提醒（見下方「進度追蹤」）。
+7. 自主程度：細節採建議值不詢問；只在人類關卡停下；推送走 feature branch 加 PR，agent 不推 `main`、不合併 PR（見下方「自主程度與人類關卡」）。
+
+## 自主程度與人類關卡（Autonomy policy）
+
+使用者不是軟體專業，仰賴預設建議；他的工作只有兩件：**驗證結果**（PR、網站、資料）與**覆核不精準的輸入**（開 issue、PR 留言、改 label）。其餘由 agent 自己決定並留下紀錄。設計與試做紀錄見 `docs/specs/active/agent-autonomy/`。
+
+| 類型 | agent 怎麼做 |
+| --- | --- |
+| 設計細節、slug、worktree、模型與 effort、試做參數、小範圍取捨 | 採建議值（通常是「最小範圍試做，觀察幾天再擴大」），把決定與一句理由寫進 spec 的 proposal 或 issue，不問 |
+| 規劃完成後交 Codex 評審或實作 | 自己執行 `codex exec`（下表），不問；啟動失敗就自己執行並註明「未委派」 |
+| 建 worktree、推 feature branch、開 PR、建 issue 與 label | 自己做，回報裡一句話說明 |
+| 下表的人類關卡 | 停下，依 `.github/instructions/handoff.instructions.md` 交一張卡片 |
+
+人類關卡（窮舉；不在表上的不問）：
+
+| 關卡 | 說明 |
+| --- | --- |
+| 合併到 `main` | Tier 1、Tier 2 的 PR 由使用者按合併；agent 不推 `main`、不執行 `gh pr merge`。Tier 0 由 workflow 自動合併 |
+| production 資料寫入 | Supabase 非 dry-run 寫入、migration apply、annotator live、`qa_auto_fix` live |
+| 權限與防線 | `.claude/settings.json`、`scripts/claude/`、hooks、GitHub repo 設定、rulesets、secrets、workflow 權限；做成 patch 交使用者套用 |
+| 不可逆動作 | 刪遠端 branch、移除含未推 commit 的 worktree、刪資料 |
+| 花錢或新增外部服務 | 新帳號、API key、提高排程頻率到可能耗盡配額 |
+| 需要人類判斷的輸入 | annotation 人工標記、ground truth、活動範圍判斷、分類定義 |
+| 對外發布 | SNS 貼文、公開公告 |
+
+Codex 交接的指令（Claude 自己執行，不交給使用者）：
+
+| 用途 | 指令 |
+| --- | --- |
+| 評審計畫（全文必須存檔，見「角色工具限制」） | `codex exec -p plan -s read-only -o docs/specs/active/<slug>/plan-critique-N.md "<提示>"` |
+| 實作里程碑 | `codex exec --full-auto -C "<worktree 絕對路徑>" "<提示：讀 AGENTS.md 與該 spec，實作某里程碑，不 commit、不 push>"`。Codex 沒有 hooks，只能在 worktree 內的 sandbox 跑；跑完由 Claude 自己測試、commit、推 branch、開 PR |
+
+推送規則：在 worktree 內 `git push -u origin <branch>`（hook 放行非 `main` 目的端），再 `gh pr create`（body 含改了什麼、怎麼驗證、NOT TESTED、`Refs`／`Closes #n`，label `spec:<slug>`）。PR Tier workflow 貼 `tier:N`：Tier 0 自動合併；Tier 1、2 交一張卡片給使用者，卡片只含 PR 連結、tier、要看什麼。使用者仍可自己直接 push `main`，agent 不提議。
 
 ## 路徑規則表
 
@@ -61,7 +94,7 @@ Claude Code 可直接叫用 `.claude/agents` 下的 subagent wrapper。Codex 沒
 | Scraper Expert | `scraper-expert` | `.github/agents/scraper-expert.agent.md` | 建置、除錯與驗證 scraper，並分派來源 subagent。 |
 | Tester | `tester` | `.github/agents/tester.agent.md` | 執行 scraper / web 驗證並回報 pass/fail 與風險。 |
 | Update History, Skill, Agent | `update-history-skill-agent` | `.github/agents/update-history-agent.agent.md` | 依最近修改更新 history、skill 與 agent 文件。 |
-| Validate, Merge & Deploy | `validate-merge-deploy` | `.github/agents/validate-merge-deploy.agent.md` | 檢查衝突、rebase、commit，提供由使用者執行的 push 指令，使用者 push 後驗證部署；V-M-D 不自行 push。 |
+| Validate, Merge & Deploy | `validate-merge-deploy` | `.github/agents/validate-merge-deploy.agent.md` | 檢查衝突、rebase、commit，推 feature branch 並開 PR；PR 合併後以 merge commit 驗證部署。不推 `main`、不合併 PR。 |
 | Peatix Scraper | `peatix-scraper` | `.github/agents/subagents/scraper-peatix.agent.md` | Peatix 來源 scraper subagent。 |
 | TCC Scraper | `tcc-scraper` | `.github/agents/subagents/scraper-tcc.agent.md` | Taiwan Cultural Center 來源 scraper subagent。 |
 

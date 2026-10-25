@@ -32,6 +32,18 @@ If locale is explicitly requested, replace `ja` with the requested locale.
 
 Whenever the user has to act (run a command, open a new session or terminal, look at a file, act on a website, approve), follow `.github/instructions/handoff.instructions.md`: one handoff card per step stating where to run it, the absolute directory, a copy-ready command that does not depend on earlier shell state, the expected result, what to do on failure, the risk level, and where to come back. Name sessions as "auto title (first 8 chars of the session ID)", never by an internal ListAgents name. Files and URLs are clickable links. The same pointer lives in `AGENTS.md`; change both together.
 
+## Autonomy and Human Gates（自主程度與人類關卡）
+
+The user is not a software professional and relies on the recommended default. Their job is only to **verify results** (PRs, the site, the data) and to **correct imprecise input** (open an issue, comment on a PR, change a label). Everything else the agent decides and records. Design and trial record: `docs/specs/active/agent-autonomy/`.
+
+- Design details, slugs, worktree choice, model and effort, trial parameters: take the recommended value (usually "smallest scope first, watch for a few days"), write the decision and one line of reasoning into the spec proposal or an issue, do not ask.
+- Hand-off to Codex for plan review or implementation: run `codex exec` yourself (commands in `AGENTS.md`), do not ask; if Codex cannot start, do the work yourself and say "not delegated".
+- Creating a worktree, pushing a feature branch, opening a PR, creating issues and labels: do it and mention it in one sentence.
+- Stop only at a human gate: merging to `main` (Tier 1 and Tier 2 PRs; agents never push `main` or run `gh pr merge`; Tier 0 merges by workflow), production data writes, permission or guard changes (`.claude/settings.json`, hooks, repo settings, secrets), irreversible actions, spending money or adding services, input that needs human judgement (annotation, ground truth, scope), public posts.
+- Pushing: `git push -u origin <branch>` from the worktree, then `gh pr create` with what changed, how it was verified, NOT TESTED items and `Refs`/`Closes #n`, label `spec:<slug>`. The PR Tier workflow labels it; for Tier 1 and 2 hand the user one card with the PR link, the tier and what to look at.
+
+The same rule lives in `AGENTS.md`; change both together.
+
 ## Project overview
 
 Tokyo Taiwan Radar aggregates Taiwan-related cultural events **anywhere in Japan（全日本）**,

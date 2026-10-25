@@ -9,6 +9,12 @@ agent 要使用者動手時（執行指令、開新 session、看檔案、在網
 
 追蹤：#425（交接卡片）、#426（session 辨識）。
 
+## 0. 什麼時候才需要交接
+
+依 `AGENTS.md`「自主程度與人類關卡」，只有人類關卡才交接：PR 合併（Tier 1、Tier 2）、production 資料寫入、權限與防線變更、不可逆動作、花錢或新服務、需要人工判斷的輸入、對外發布。選 worktree、推 feature branch、開 PR、啟動 Codex、建 issue 與 label 都由 agent 自己做，在回報裡一句話說明即可，不寫成卡片。
+
+PR 合併的卡片只需四項：PR 連結、`tier:N`、要看什麼（例如「比對 dry-run 筆數」「打開 Vercel preview 看活動頁」）、合併後會發生什麼（Vercel 部署、下一次 Daily Scraper）。
+
 ## 1. 交接卡片
 
 每一個要使用者動手的步驟寫成一張卡片。一張卡片只做一件事；多步驟就寫多張，標「第 N 步／共 M 步」。

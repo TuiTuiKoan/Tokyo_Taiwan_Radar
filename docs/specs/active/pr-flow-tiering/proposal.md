@@ -53,7 +53,7 @@ tags: [tooling, infra, governance]
 
 ### 三個待決點（需使用者裁決）
 
-- **D1 是否放棄「trunk-based、無 PR 閘門」的規範文字。** `git.instructions.md` 的 Branch strategy、V-M-D 的 Step 4、campaign closer 的 base/head 四參數交接都以直接 push main 為前提。改成以 PR 為單位是治理改寫。建議：Phase E 試行兩週後再裁決，試行期間兩種流程並存。
+- **D1 是否放棄「trunk-based、無 PR 閘門」的規範文字。** `git.instructions.md` 的 Branch strategy、V-M-D 的 Step 4、campaign closer 的 base/head 四參數交接都以直接 push main 為前提。改成以 PR 為單位是治理改寫。建議：Phase E 試行兩週後再裁決，試行期間兩種流程並存。**2026-10-25 更新**：使用者指示推送全面自動化，D1 由 `docs/specs/active/agent-autonomy/` 承接：PR 流程成為預設，直接 push main 只留給使用者；Phase E 的量測照常記錄，不再是改寫治理文字的前提。
 - **D2 worktree 路徑慣例。** 現行是 repo 根目錄下的 `ttr-<slug>-worktree`，手動維護 `.git/info/exclude`。Claude Code 原生用 `.claude/worktrees/<name>`，工具自己管生命週期。建議改用原生路徑，ledger 對帳改讀 `git worktree list --porcelain`。
 - **D3 Tier 0 的範圍。** 自動合併等於放棄這些路徑的事前 review。建議只放上表列出的路徑；`.github/workflows/**`、`scripts/claude/**`、`.claude/**` 永遠不得進 Tier 0。
 
