@@ -14,7 +14,9 @@
 --
 -- Idempotent: re-running changes nothing once applied.
 -- Admin must run in Supabase Dashboard → SQL Editor.
--- APPLY STATUS: NOT YET APPLIED.
+-- APPLY STATUS: APPLIED in production (Dashboard SQL Editor), confirmed 2026-10-25.
+--   read-back: sources_active 0, doorkeeper_active 0, doorkeeper_retired 5,
+--   research_pending 0.
 -- ============================================================
 
 BEGIN;

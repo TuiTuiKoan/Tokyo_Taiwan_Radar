@@ -17,7 +17,7 @@ updated: 2026-10-23
 | `events` trigger | 只有 `events_updated_at BEFORE UPDATE … set_updated_at()` | `updated_at` 嚴格相等等於「自 capture 後沒有任何 UPDATE」；apply 自己的 UPDATE 也會刷新 `updated_at`，rollback 無法還原它 |
 | 寫入 `events` 的 public 函式 | 只有 `confirm_scope_report(uuid,text,text)`（migration 098） | DB 側沒有其他 writer |
 | `events` 表權限 | `service_role` 有 UPDATE；`anon`、`authenticated` 也有全部表權限（含 `TRUNCATE`），靠 RLS 擋 | `LOCK TABLE` 需要的權限具備 |
-| migration 097 | `sources.connpass`、`sources.doorkeeper` 仍是 `is_active=true` | **097 尚未套用**，`database.instructions.md` 的「not yet applied」正確。097 與本工作無關，由使用者另行決定 |
+| migration 097 | `sources.connpass`、`sources.doorkeeper` 仍是 `is_active=true` | 當時 097 尚未套用。097 與本工作無關，使用者已於 2026-10-25 另行套用並讀回確認（`sources_active` 0、`doorkeeper_active` 0、`doorkeeper_retired` 5、`research_pending` 0），`database.instructions.md` 與 migration 檔頭已更新 |
 
 ### 22 筆的 `updated_at`
 
