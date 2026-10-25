@@ -18,8 +18,7 @@
 
 ## Phase C: 擴大
 
-- [ ] Codex cloud 第二池（使用者在 ChatGPT 連 GitHub 後）：以 `codex` label 觸發，完成 1 張
-- [ ] 合併後驗證迴路：下一次 scraper 執行後自動在 issue 留言產出數，0 產出就重開；Tier 1 LINE 推播
+- [ ] 合併後驗證迴路：下一次 scraper 執行後自動在 issue 留言產出數，0 產出就重開；Tier 1 LINE 推播；heartbeat 分類段改用 Haiku（grunt tier）
 - [ ] `pr-flow-tiering` Phase F 其餘文字（campaign closer 交接參數）與「要求 PR」ruleset，由使用者裁決
 
 ## Verification

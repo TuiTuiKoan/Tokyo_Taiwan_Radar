@@ -19,7 +19,8 @@
 | 類型 | agent 怎麼做 |
 | --- | --- |
 | 設計細節、slug、worktree、模型與 effort、試做參數、小範圍取捨 | 採建議值（通常是「最小範圍試做，觀察幾天再擴大」），把決定與一句理由寫進 spec 的 proposal 或 issue，不問 |
-| 規劃完成後交 Codex 評審或實作 | 自己執行 `codex exec`（下表），不問；啟動失敗就自己執行並註明「未委派」 |
+| 規劃完成後交 Codex Plan Critic 評審 | 自己執行 `codex exec`（下表），不問；啟動失敗就以 Claude 的 plan-critic 自己評審並註明「同一模型家族」 |
+| 規劃與實作該用哪個模型 | 一律由 Claude 的 agent 執行，不交 Codex 實作。subagent 依 `tier` 投影（plan→Opus high、build→Sonnet medium、grunt→Haiku low）；主對話依「模型政策」的執行前模型評估選最便宜夠用的等級，不問 |
 | 建 worktree、推 feature branch、開 PR、建 issue 與 label | 自己做，回報裡一句話說明 |
 | 下表的人類關卡 | 停下，依 `.github/instructions/handoff.instructions.md` 交一張卡片 |
 
@@ -35,12 +36,13 @@
 | 需要人類判斷的輸入 | annotation 人工標記、ground truth、活動範圍判斷、分類定義 |
 | 對外發布 | SNS 貼文、公開公告 |
 
-Codex 交接的指令（Claude 自己執行，不交給使用者）：
+Codex 的唯一用途是 Plan Critic（不同模型家族的評審視角）。指令由 Claude 自己執行，不交給使用者，全文必須存檔（見「角色工具限制」）：
 
-| 用途 | 指令 |
-| --- | --- |
-| 評審計畫（全文必須存檔，見「角色工具限制」） | `codex exec -p plan -s read-only -o docs/specs/active/<slug>/plan-critique-N.md "<提示>"` |
-| 實作里程碑 | `codex exec --full-auto -C "<worktree 絕對路徑>" "<提示：讀 AGENTS.md 與該 spec，實作某里程碑，不 commit、不 push>"`。Codex 沒有 hooks，只能在 worktree 內的 sandbox 跑；跑完由 Claude 自己測試、commit、推 branch、開 PR |
+```bash
+codex exec -p plan -s read-only -o docs/specs/active/<slug>/plan-critique-N.md "<提示>"
+```
+
+規劃（architect）、實作（engineer、scraper-expert、designer）、驗證（tester）、推送（validate-merge-deploy）都由 Claude 的 agent 執行，模型等級依 tier 與成本決定，不用 Codex 實作。
 
 推送規則：在 worktree 內 `git push -u origin <branch>`（hook 放行非 `main` 目的端），再 `gh pr create`（body 含改了什麼、怎麼驗證、NOT TESTED、`Refs`／`Closes #n`，label `spec:<slug>`）。PR Tier workflow 貼 `tier:N`：Tier 0 自動合併；Tier 1、2 交一張卡片給使用者，卡片只含 PR 連結、tier、要看什麼。使用者仍可自己直接 push `main`，agent 不提議。
 
