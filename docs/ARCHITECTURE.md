@@ -176,6 +176,8 @@ scraper.scrape()
 | `external_stats_taiwan_visitors` | 055 | JNTO 訪日台灣人月別統計 |
 | `external_stats_resident_taiwanese` | 055 | MOJ 在留台灣人都道府縣別統計 |
 | `external_stats_population` | 055 | e-Stat 都道府縣別總人口（年更）|
+| `field_corrections` | 038b | 防止 GPT 覆蓋人工修正的欄位鎖（`corrected_value TEXT NOT NULL`）|
+| `field_corrections_audit` | 075 | QA 自修復的 before/after 變更紀錄（JSONB）|
 
 ### 重要 migration 演進
 
@@ -188,6 +190,28 @@ scraper.scrape()
 | 017 | `reviewed` annotation status |
 | 018 | `official_url` + `scraped_at` |
 | 055 | `external_stats_*` 三張外部統計表（JNTO / MOJ / e-Stat）|
+| 075 | `field_corrections_audit` — QA 自修復的 audit trail（JSONB before/after）|
+
+### QA 自修復 Pipeline
+
+```text
+auto_qa.py
+  → event_reports（status='pending', report_types[]）
+
+qa_heartbeat.py（每日 04:00 UTC，qa-heartbeat.yml）
+  → 依 report type 的規則分類（RULE_BY_REPORT_TYPE）；規則不認得的才問模型（_classify）
+  → 依 qa_auto_fix.HANDLER_MAP 派給 deterministic handler
+  → unlock_and_write()
+    → 更新 events
+    → field_corrections 重新上鎖
+    → field_corrections_audit 寫入 before/after
+    → event_reports.status = 'confirmed'
+  → --rollback-audit-id / --rollback-since 可從 audit 還原
+```
+
+R-class（`qa_heartbeat.R_CLASSES`）：`R-ANN-SC`、`R-ANN-AI-MARKER`、`R-SCR-PERF-MULTI`、`R-ANN-PERF-PHON`、`R-ENRICH-MISS`、`R-AMBIGUOUS`、`R-SCR-ADDR-MISS`、`R-SCR-HOURS-MISS`、`R-SCR-LOCURL`、`R-UNCLASSIFIED`。有 handler 的類別以 `HANDLER_MAP` 為準。
+
+關鍵檔案：`scraper/qa_heartbeat.py`、`scraper/qa_auto_fix.py`、`.github/workflows/qa-heartbeat.yml`、`supabase/migrations/075_field_corrections_audit.sql`。
 
 ---
 
