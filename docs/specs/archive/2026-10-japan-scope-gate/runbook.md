@@ -1,7 +1,7 @@
 ---
 title: Japan Scope Gate Phase 6c Runbook
 description: Operator steps to pause writers, apply the reviewed cleanup, read back and resume
-status: active
+status: archived
 updated: 2026-10-25
 ---
 
