@@ -8,11 +8,11 @@
 
 ## Phase A: 政策與文件（本 PR，Tier 2）
 
-- [ ] `AGENTS.md`、`copilot-instructions.md`、`git.instructions.md`、`handoff.instructions.md`、V-M-D agent 檔改寫；`sync_ai_adapters.py` 重生成；`pytest scripts/claude/tests scripts/tests` 全綠；以 agent 推 branch＋`gh pr create` 交付（第一個新流程實例），使用者合併
+- [x] `AGENTS.md`、`copilot-instructions.md`、`git.instructions.md`、`handoff.instructions.md`、V-M-D agent 檔改寫；`sync_ai_adapters.py` 重生成；`pytest scripts/claude/tests scripts/tests` 全綠；以 agent 推 branch＋`gh pr create` 交付（第一個新流程實例），使用者合併（PR #454，merge commit `4d162dc9`，2026-10-25；notes §1）
 
 ## Phase B: Heartbeat 試做（合併後 7 天）
 
-- [ ] 建 `auto-fix`、`needs-human` label；建立每 8 小時的排程雲端 agent，提示詞取自 `heartbeat-prompt.md`；第一次執行只分類，證據記 `notes.md`
+- [x] 建 `auto-fix`、`needs-human` label；建立每 8 小時的排程雲端 agent（`trig_01CEwNUKeAdxVu9UVLWav7tG`），提示詞取自 `heartbeat-prompt.md`；第一次執行只分類（5 張子 issue、1 張 needs-human；notes §3、§4）
 - [ ] 第一張 heartbeat PR 經 Tier 1 一鍵合併；下一次 Daily Scraper 執行後該來源有產出
 - [ ] 7 天盤點：PR 數、被關閉或 revert 數、配額影響、使用者人工步驟數；go／no-go 寫進 `notes.md`，no-go 就停用排程
 
@@ -24,4 +24,4 @@
 ## Verification
 
 - [ ] `python3 -m pytest scripts/claude/tests scripts/tests -q` 全綠；`python3 scripts/sync_ai_adapters.py --check` 通過
-- [ ] 本 PR 的合併由使用者在 GitHub 完成，V-M-D 以 merge commit SHA 驗證部署
+- [x] 本 PR 的合併由使用者在 GitHub 完成，V-M-D 以 merge commit SHA 驗證部署（`4d162dc9`，Vercel success，deployment 7309725516）
