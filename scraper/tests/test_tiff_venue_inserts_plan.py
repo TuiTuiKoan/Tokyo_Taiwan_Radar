@@ -353,3 +353,37 @@ def test_all_2026_taiwan_films_resolve_after_inserts(monkeypatch, tmp_path):
         "丸の内ピカデリー",
         "ヒューマントラストシネマ有楽町",
     ]
+
+
+def test_apply_stops_with_zero_writes_when_an_alias_appears_after_capture(
+    monkeypatch,
+    tmp_path,
+):
+    client = _client()
+    manifest = _preview(client, _plan())
+    client.tables["venues"][0]["aliases"] = ["human_yurakucho", "Marunouchi Piccadilly"]
+    before = deepcopy(client.tables["venues"])
+
+    with pytest.raises(RuntimeError, match="partial or third state"):
+        _apply(client, manifest, monkeypatch, tmp_path, "alias-drift.jsonl")
+
+    assert client.tables["venues"] == before
+
+
+def test_apply_noop_then_rollback_restores_the_original_venues(monkeypatch, tmp_path):
+    client = _client()
+    manifest = _preview(client, _plan())
+
+    assert _apply(client, manifest, monkeypatch, tmp_path, "first.jsonl")["mutation_count"] == 4
+    assert _apply(client, manifest, monkeypatch, tmp_path, "second.jsonl")["status"] == "noop"
+    result = repair.rollback_manifest(
+        client,
+        manifest,
+        project_ref=PROJECT_REF,
+        journal_path=repair.ROOT / "tmp" / "tiff-venue-inserts" / "rollback.jsonl",
+        repo_sha_verifier=lambda _sha: True,
+    )
+
+    assert result["status"] == "completed"
+    assert result["mutation_count"] == 4
+    assert client.tables["venues"] == _live_venues()

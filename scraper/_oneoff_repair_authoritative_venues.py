@@ -1796,6 +1796,22 @@ def _fetch_venue_by_name(sb: Any, canonical_name_ja: str) -> list[dict[str, Any]
     return sorted((deepcopy(row) for row in rows), key=row_sort_key)
 
 
+def _fetch_venue_key_holder_ids(sb: Any, row: dict[str, Any]) -> list[str]:
+    """IDs of venues whose canonical name or aliases hold any key of ``row``."""
+    keys = [str(row.get("canonical_name_ja") or "").strip()]
+    keys.extend(str(alias or "").strip() for alias in row.get("aliases") or [])
+    holders: set[str] = set()
+    for key in (key for key in keys if key):
+        by_canonical = (
+            sb.table("venues").select("id").eq("canonical_name_ja", key).execute().data or []
+        )
+        by_alias = (
+            sb.table("venues").select("id").contains("aliases", [key]).execute().data or []
+        )
+        holders.update(str(found.get("id")) for found in [*by_canonical, *by_alias])
+    return sorted(holders)
+
+
 def _fetch_venue_references(sb: Any, venue_id: str) -> list[str]:
     rows = (
         sb.table("events")
@@ -1956,13 +1972,18 @@ def classify_action_state(
             "field_corrections": empty_fc_image(),
             "venue_references": references,
         }
-        if by_id is None and not by_name and state_image_matches(
-            action, action["before"], observed, after=False
+        key_holders = _fetch_venue_key_holder_ids(sb, after_venue)
+        if (
+            by_id is None
+            and not by_name
+            and not key_holders
+            and state_image_matches(action, action["before"], observed, after=False)
         ):
             return "before", observed
         if (
             by_id == after_venue
             and by_name == [after_venue]
+            and key_holders == [str(after_venue["id"])]
             and state_image_matches(action, action["after"], observed, after=True)
         ):
             return "after", observed
