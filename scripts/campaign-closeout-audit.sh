@@ -379,9 +379,13 @@ elif [ -z "$SPEC_DIR" ]; then
 else
   TASKS_FILE="$SPEC_DIR/tasks.md"
   if [ -f "$TASKS_FILE" ]; then
-    n=$( grep -cE '^[[:space:]]*[-*] \[ \]' "$TASKS_FILE" 2>/dev/null )
+    n=$( grep -E '^[[:space:]]*[-*] \[ \]' "$TASKS_FILE" 2>/dev/null | grep -cvE '^[[:space:]]*[-*] \[ \] ~~' )
     n=$( count_or_zero "$n" )
+    # `- [ ] ~~text~~ - reason` is a task decided not to do / deferred: listed, not counted.
+    struck=$( grep -cE '^[[:space:]]*[-*] \[ \] ~~' "$TASKS_FILE" 2>/dev/null )
+    struck=$( count_or_zero "$struck" )
     echo "spec_tasks=$n  (${SPEC_DIR#"$WT"/}/tasks.md)"
+    echo "struck_out=$struck  (unchecked lines starting with ~~; not in unhandled_total)"
     UNHANDLED_TOTAL=$(( UNHANDLED_TOTAL + n ))
   else
     echo "spec_tasks=0  (spec directory ${SPEC_DIR#"$WT"/} exists but has no tasks.md)"
@@ -826,11 +830,38 @@ elif ! command -v gh >/dev/null 2>&1 || ! gh auth status >/dev/null 2>&1; then
   NOT_CHECKED=$(( NOT_CHECKED + 1 ))
   add_undet "issues_not_checked"
 else
+  # Two separate queries, each with its numbers; a person decides ownership.
+  # The label query runs first so the literal-slug query stays the last gh call.
+  label_nums=""
+  if lissues=$( cd "$WT" && gh issue list --state open --label "spec:$SLUG" --limit 100 --json number 2>/dev/null ); then
+    label_nums=$( printf '%s' "$lissues" | grep -oE '"number": *[0-9]+' | grep -oE '[0-9]+' )
+    ln=$( printf '%s' "$label_nums" | grep -c . )
+    ln=$( count_or_zero "$ln" )
+  else
+    ln="not_checked"
+  fi
   if issues=$( cd "$WT" && gh issue list --state open --search "$SLUG -label:$ISSUE_EXCLUDE_LABEL" --limit 100 --json number 2>/dev/null ); then
     n=$( printf '%s' "$issues" | grep -o '"number"' | grep -c . )
     n=$( count_or_zero "$n" )
+    slug_nums=$( printf '%s' "$issues" | grep -oE '"number": *[0-9]+' | grep -oE '[0-9]+' )
     echo "open_issues=$n  (open issues matching '$SLUG', excluding label:$ISSUE_EXCLUDE_LABEL)"
+    echo "open_issues_slug_numbers=$(printf '%s' "$slug_nums" | tr '\n' ' ')"
     UNHANDLED_TOTAL=$(( UNHANDLED_TOTAL + n ))
+    if [ "$ln" = "not_checked" ]; then
+      echo "open_issues_by_label=not_checked  (reason: gh label query failed)"
+      NOT_CHECKED=$(( NOT_CHECKED + 1 ))
+      add_undet "issues_not_checked"
+    else
+      echo "open_issues_by_label=$ln  (open issues labelled spec:$SLUG)"
+      echo "open_issues_label_numbers=$(printf '%s' "$label_nums" | tr '\n' ' ')"
+      # Labelled issues the literal search missed still count as unhandled.
+      extra=0
+      for num in $label_nums; do
+        printf '%s\n' "$slug_nums" | grep -qx "$num" || extra=$(( extra + 1 ))
+      done
+      echo "open_issues_label_only=$extra  (labelled but not found by the literal slug search; added to unhandled_total)"
+      UNHANDLED_TOTAL=$(( UNHANDLED_TOTAL + extra ))
+    fi
   else
     echo "open_issues=not_checked  (reason: gh query failed)"
     NOT_CHECKED=$(( NOT_CHECKED + 1 ))
