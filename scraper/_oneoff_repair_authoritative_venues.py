@@ -776,6 +776,35 @@ def _require_unique_venue_name(
     return deepcopy(matches[0])
 
 
+def new_venue_row(
+    seed: dict[str, Any],
+    venue_id: str,
+    *,
+    captured_at: str,
+) -> dict[str, Any]:
+    """Return the complete venues row an insert action writes for one seed."""
+    return {
+        "id": venue_id,
+        "canonical_name_ja": seed.get("canonical_name_ja"),
+        "canonical_name_zh": seed.get("canonical_name_zh"),
+        "canonical_name_en": seed.get("canonical_name_en"),
+        "address": seed.get("address"),
+        "prefecture": seed.get("prefecture"),
+        "city": seed.get("city"),
+        "latitude": None,
+        "longitude": None,
+        "aliases": deepcopy(seed.get("aliases") or []),
+        "notes": None,
+        "created_at": captured_at,
+        "updated_at": captured_at,
+        "is_authoritative": bool(seed.get("is_authoritative")),
+        "is_multi_venue": bool(seed.get("is_multi_venue")),
+        "homepage": seed.get("homepage"),
+        "prefectures": deepcopy(seed.get("prefectures")),
+        "business_hours": seed.get("business_hours"),
+    }
+
+
 def _build_frozen_new_venues(
     snapshot: dict[str, Any],
     live_venues: list[dict[str, Any]],
@@ -804,27 +833,7 @@ def _build_frozen_new_venues(
         raise RuntimeError("STOP/INCONCLUSIVE: TIFF venue desired-state seeds are incomplete")
     rows: dict[str, dict[str, Any]] = {}
     for name, venue_id in zip(NEW_TIFF_VENUE_NAMES, ids, strict=True):
-        seed = seeds[name]
-        row = {
-            "id": venue_id,
-            "canonical_name_ja": seed.get("canonical_name_ja"),
-            "canonical_name_zh": seed.get("canonical_name_zh"),
-            "canonical_name_en": seed.get("canonical_name_en"),
-            "address": seed.get("address"),
-            "prefecture": seed.get("prefecture"),
-            "city": seed.get("city"),
-            "latitude": None,
-            "longitude": None,
-            "aliases": deepcopy(seed.get("aliases") or []),
-            "notes": None,
-            "created_at": captured_at,
-            "updated_at": captured_at,
-            "is_authoritative": bool(seed.get("is_authoritative")),
-            "is_multi_venue": bool(seed.get("is_multi_venue")),
-            "homepage": seed.get("homepage"),
-            "prefectures": deepcopy(seed.get("prefectures")),
-            "business_hours": seed.get("business_hours"),
-        }
+        row = new_venue_row(seeds[name], venue_id, captured_at=captured_at)
         by_id = [live for live in live_venues if live.get("id") == venue_id]
         by_name = [live for live in live_venues if live.get("canonical_name_ja") == name]
         matches = {str(live.get("id")): live for live in [*by_id, *by_name]}

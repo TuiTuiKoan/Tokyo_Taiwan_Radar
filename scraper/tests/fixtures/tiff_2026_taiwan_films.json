@@ -1,0 +1,141 @@
+[
+ {
+  "film_identifier": "39001CMP01",
+  "title_ja": "妖怪、化物をひろう",
+  "made_in_en": "Taiwan/Japan",
+  "acts": [
+   {
+    "venue_id": 48
+   },
+   {
+    "venue_id": 50
+   },
+   {
+    "venue_id": 46
+   }
+  ]
+ },
+ {
+  "film_identifier": "39001CMP05",
+  "title_ja": "腹喜（フーシー)　四つの饗宴奇譚",
+  "made_in_en": "Hong Kong/Taiwan/Japan/Saudi Arabia/Qatar",
+  "acts": [
+   {
+    "venue_id": 48
+   },
+   {
+    "venue_id": 46
+   },
+   {
+    "venue_id": 8
+   }
+  ]
+ },
+ {
+  "film_identifier": "39004GLS02",
+  "title_ja": "記憶ゼロ",
+  "made_in_en": "Taiwan/Japan",
+  "acts": [
+   {
+    "venue_id": 50
+   },
+   {
+    "venue_id": 48
+   }
+  ]
+ },
+ {
+  "film_identifier": "39004GLS09",
+  "title_ja": "陽だまりの歌が聴こえる",
+  "made_in_en": "Taiwan",
+  "acts": [
+   {
+    "venue_id": 50
+   },
+   {
+    "venue_id": 50
+   }
+  ]
+ },
+ {
+  "film_identifier": "39005WFC13",
+  "title_ja": "虹と踊る",
+  "made_in_en": "Taiwan",
+  "acts": [
+   {
+    "venue_id": 48
+   },
+   {
+    "venue_id": 9
+   }
+  ]
+ },
+ {
+  "film_identifier": "39005WFC14",
+  "title_ja": "名人からの贈り物",
+  "made_in_en": "Taiwan",
+  "acts": [
+   {
+    "venue_id": 3
+   },
+   {
+    "venue_id": 56
+   },
+   {
+    "venue_id": 56
+   }
+  ]
+ },
+ {
+  "film_identifier": "39005WFC15",
+  "title_ja": "いつまでも幸せに",
+  "made_in_en": "Taiwan",
+  "acts": [
+   {
+    "venue_id": 46
+   },
+   {
+    "venue_id": 3
+   },
+   {
+    "venue_id": 3
+   }
+  ]
+ },
+ {
+  "film_identifier": "39005WFC16",
+  "title_ja": "有用な人",
+  "made_in_en": "Taiwan",
+  "acts": [
+   {
+    "venue_id": 8
+   },
+   {
+    "venue_id": 3
+   }
+  ]
+ },
+ {
+  "film_identifier": "39005WFC17",
+  "title_ja": "良き隣人たち レストア版",
+  "made_in_en": "Taiwan",
+  "acts": [
+   {
+    "venue_id": 8
+   },
+   {
+    "venue_id": 9
+   }
+  ]
+ },
+ {
+  "film_identifier": "39032AIC01",
+  "title_ja": "ふたりの家路",
+  "made_in_en": "Taiwan",
+  "acts": [
+   {
+    "venue_id": 10
+   }
+  ]
+ }
+]

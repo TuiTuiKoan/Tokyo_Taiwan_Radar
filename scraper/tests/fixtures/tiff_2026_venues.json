@@ -1,0 +1,491 @@
+[
+ {
+  "id": 1,
+  "type": "area",
+  "code_name": null,
+  "name_ja": "日比谷",
+  "name_en": "Hibiya",
+  "parent_id": null,
+  "full_name_ja": "日比谷",
+  "full_name_en": "Hibiya",
+  "order": 1,
+  "children": [
+   {
+    "id": 2,
+    "type": "cinema",
+    "code_name": null,
+    "name_ja": "TOHOシネマズ 日比谷 スクリーン12、13 (東京宝塚ビル地下)",
+    "name_en": "Tokyo Takarazuka Theater",
+    "parent_id": 1,
+    "full_name_ja": "日比谷/TOHOシネマズ 日比谷 スクリーン12、13 (東京宝塚ビル地下)",
+    "full_name_en": "Hibiya/Tokyo Takarazuka Theater",
+    "order": 1,
+    "children": [
+     {
+      "id": 3,
+      "type": "screen",
+      "code_name": "CH12",
+      "name_ja": "TOHOシネマズ 日比谷 スクリーン12 (車椅子スペースあり)",
+      "name_en": "TOHO Cinemas Hibiya SCREEN12 (Wheelchair area exists.)",
+      "parent_id": 2,
+      "full_name_ja": "日比谷/TOHOシネマズ 日比谷 スクリーン12、13 (東京宝塚ビル地下)/TOHOシネマズ 日比谷 スクリーン12 (車椅子スペースあり)",
+      "full_name_en": "Hibiya/Tokyo Takarazuka Theater/TOHO Cinemas Hibiya SCREEN12 (Wheelchair area exists.)",
+      "order": 1,
+      "children": []
+     },
+     {
+      "id": 41,
+      "type": "screen",
+      "code_name": "CH13",
+      "name_ja": "TOHOシネマズ 日比谷 スクリーン13 (車椅子スペースあり)",
+      "name_en": "TOHO Cinemas Hibiya SCREEN13 (Wheelchair area exists.)",
+      "parent_id": 2,
+      "full_name_ja": "日比谷/TOHOシネマズ 日比谷 スクリーン12、13 (東京宝塚ビル地下)/TOHOシネマズ 日比谷 スクリーン13 (車椅子スペースあり)",
+      "full_name_en": "Hibiya/Tokyo Takarazuka Theater/TOHO Cinemas Hibiya SCREEN13 (Wheelchair area exists.)",
+      "order": 2,
+      "children": []
+     }
+    ]
+   },
+   {
+    "id": 7,
+    "type": "cinema",
+    "code_name": null,
+    "name_ja": "TOHOシネマズ シャンテ",
+    "name_en": "TOHO Cinemas Chanter",
+    "parent_id": 1,
+    "full_name_ja": "日比谷/TOHOシネマズ シャンテ",
+    "full_name_en": "Hibiya/TOHO Cinemas Chanter",
+    "order": 2,
+    "children": [
+     {
+      "id": 8,
+      "type": "screen",
+      "code_name": "CC1",
+      "name_ja": "TOHOシネマズ シャンテ スクリーン１ (車椅子スペースあり)",
+      "name_en": "TOHO Cinemas Chanter SCREEN 1 (Wheelchair area exists.)",
+      "parent_id": 7,
+      "full_name_ja": "日比谷/TOHOシネマズ シャンテ/TOHOシネマズ シャンテ スクリーン１ (車椅子スペースあり)",
+      "full_name_en": "Hibiya/TOHO Cinemas Chanter/TOHO Cinemas Chanter SCREEN 1 (Wheelchair area exists.)",
+      "order": 1,
+      "children": []
+     },
+     {
+      "id": 9,
+      "type": "screen",
+      "code_name": "CC2",
+      "name_ja": "TOHOシネマズ シャンテ スクリーン２ (車椅子スペースあり)",
+      "name_en": "TOHO Cinemas Chanter SCREEN 2 (Wheelchair area exists.)",
+      "parent_id": 7,
+      "full_name_ja": "日比谷/TOHOシネマズ シャンテ/TOHOシネマズ シャンテ スクリーン２ (車椅子スペースあり)",
+      "full_name_en": "Hibiya/TOHO Cinemas Chanter/TOHO Cinemas Chanter SCREEN 2 (Wheelchair area exists.)",
+      "order": 2,
+      "children": []
+     },
+     {
+      "id": 10,
+      "type": "screen",
+      "code_name": "CC3",
+      "name_ja": "TOHOシネマズ シャンテ スクリーン３ (車椅子スペースあり)",
+      "name_en": "TOHO Cinemas Chanter SCREEN 3 (Wheelchair area exists.)",
+      "parent_id": 7,
+      "full_name_ja": "日比谷/TOHOシネマズ シャンテ/TOHOシネマズ シャンテ スクリーン３ (車椅子スペースあり)",
+      "full_name_en": "Hibiya/TOHO Cinemas Chanter/TOHO Cinemas Chanter SCREEN 3 (Wheelchair area exists.)",
+      "order": 3,
+      "children": []
+     }
+    ]
+   },
+   {
+    "id": 11,
+    "type": "cinema",
+    "code_name": null,
+    "name_ja": "東京ミッドタウン日比谷 日比谷ステップ広場",
+    "name_en": "Tokyo Midtown Hibiya, Hibiya Step Square",
+    "parent_id": 1,
+    "full_name_ja": "日比谷/東京ミッドタウン日比谷 日比谷ステップ広場",
+    "full_name_en": "Hibiya/Tokyo Midtown Hibiya, Hibiya Step Square",
+    "order": 3,
+    "children": [
+     {
+      "id": 12,
+      "type": "screen",
+      "code_name": "TMH",
+      "name_ja": "東京ミッドタウン日比谷 日比谷ステップ広場",
+      "name_en": "Tokyo Midtown Hibiya, Hibiya Step Square",
+      "parent_id": 11,
+      "full_name_ja": "日比谷/東京ミッドタウン日比谷 日比谷ステップ広場/東京ミッドタウン日比谷 日比谷ステップ広場",
+      "full_name_en": "Hibiya/Tokyo Midtown Hibiya, Hibiya Step Square/Tokyo Midtown Hibiya, Hibiya Step Square",
+      "order": 1,
+      "children": []
+     }
+    ]
+   },
+   {
+    "id": 13,
+    "type": "cinema",
+    "code_name": null,
+    "name_ja": "東京ミッドタウン日比谷 ホール HALL1",
+    "name_en": "Tokyo Midtown Hibiya HALL HALL1",
+    "parent_id": 1,
+    "full_name_ja": "日比谷/東京ミッドタウン日比谷 ホール HALL1",
+    "full_name_en": "Hibiya/Tokyo Midtown Hibiya HALL HALL1",
+    "order": 4,
+    "children": [
+     {
+      "id": 14,
+      "type": "screen",
+      "code_name": "MHH",
+      "name_ja": "東京ミッドタウン日比谷 ホール HALL1",
+      "name_en": "Tokyo Midtown Hibiya HALL HALL1",
+      "parent_id": 13,
+      "full_name_ja": "日比谷/東京ミッドタウン日比谷 ホール HALL1/東京ミッドタウン日比谷 ホール HALL1",
+      "full_name_en": "Hibiya/Tokyo Midtown Hibiya HALL HALL1/Tokyo Midtown Hibiya HALL HALL1",
+      "order": 1,
+      "children": []
+     }
+    ]
+   },
+   {
+    "id": 15,
+    "type": "cinema",
+    "code_name": null,
+    "name_ja": "東京ミッドタウン日比谷 LEXUS MEETS... レクサス ミーツ",
+    "name_en": "LEXUS MEETS... Tokyo Midtown Hibiya",
+    "parent_id": 1,
+    "full_name_ja": "日比谷/東京ミッドタウン日比谷 LEXUS MEETS... レクサス ミーツ",
+    "full_name_en": "Hibiya/LEXUS MEETS... Tokyo Midtown Hibiya",
+    "order": 5,
+    "children": [
+     {
+      "id": 16,
+      "type": "screen",
+      "code_name": "LXM",
+      "name_ja": "東京ミッドタウン日比谷 LEXUS MEETS... レクサス ミーツ",
+      "name_en": "LEXUS MEETS... Tokyo Midtown Hibiya",
+      "parent_id": 15,
+      "full_name_ja": "日比谷/東京ミッドタウン日比谷 LEXUS MEETS... レクサス ミーツ/東京ミッドタウン日比谷 LEXUS MEETS... レクサス ミーツ",
+      "full_name_en": "Hibiya/LEXUS MEETS... Tokyo Midtown Hibiya/LEXUS MEETS... Tokyo Midtown Hibiya",
+      "order": 1,
+      "children": []
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 42,
+  "type": "area",
+  "code_name": null,
+  "name_ja": "有楽町",
+  "name_en": "Yurakucho",
+  "parent_id": null,
+  "full_name_ja": "有楽町",
+  "full_name_en": "Yurakucho",
+  "order": 2,
+  "children": [
+   {
+    "id": 43,
+    "type": "cinema",
+    "code_name": null,
+    "name_ja": "角川シネマ有楽町",
+    "name_en": "Kadokawa Cinema Yurakucho",
+    "parent_id": 42,
+    "full_name_ja": "有楽町/角川シネマ有楽町",
+    "full_name_en": "Yurakucho/Kadokawa Cinema Yurakucho",
+    "order": 1,
+    "children": [
+     {
+      "id": 44,
+      "type": "screen",
+      "code_name": "KCY",
+      "name_ja": "角川シネマ有楽町 (車椅子スペースあり)",
+      "name_en": "Kadokawa Cinema Yurakucho (Wheelchair area exists.)",
+      "parent_id": 43,
+      "full_name_ja": "有楽町/角川シネマ有楽町/角川シネマ有楽町 (車椅子スペースあり)",
+      "full_name_en": "Yurakucho/Kadokawa Cinema Yurakucho/Kadokawa Cinema Yurakucho (Wheelchair area exists.)",
+      "order": 1,
+      "children": []
+     }
+    ]
+   },
+   {
+    "id": 45,
+    "type": "cinema",
+    "code_name": null,
+    "name_ja": "ヒューマントラストシネマ有楽町",
+    "name_en": "Humantrust Cinema Yurakucho",
+    "parent_id": 42,
+    "full_name_ja": "有楽町/ヒューマントラストシネマ有楽町",
+    "full_name_en": "Yurakucho/Humantrust Cinema Yurakucho",
+    "order": 2,
+    "children": [
+     {
+      "id": 46,
+      "type": "screen",
+      "code_name": "HCY",
+      "name_ja": "ヒューマントラストシネマ有楽町 シアター１ (車椅子スペースあり)",
+      "name_en": "Humantrust Cinema Yurakucho Theater 1 (Wheelchair area exists.)",
+      "parent_id": 45,
+      "full_name_ja": "有楽町/ヒューマントラストシネマ有楽町/ヒューマントラストシネマ有楽町 シアター１ (車椅子スペースあり)",
+      "full_name_en": "Yurakucho/Humantrust Cinema Yurakucho/Humantrust Cinema Yurakucho Theater 1 (Wheelchair area exists.)",
+      "order": 1,
+      "children": []
+     }
+    ]
+   },
+   {
+    "id": 47,
+    "type": "cinema",
+    "code_name": null,
+    "name_ja": "ヒューリックホール東京",
+    "name_en": "Hulic Hall Tokyo",
+    "parent_id": 42,
+    "full_name_ja": "有楽町/ヒューリックホール東京",
+    "full_name_en": "Yurakucho/Hulic Hall Tokyo",
+    "order": 3,
+    "children": [
+     {
+      "id": 48,
+      "type": "screen",
+      "code_name": "HH",
+      "name_ja": "ヒューリックホール東京 (車椅子スペースあり)",
+      "name_en": "Hulic Hall Tokyo (Wheelchair area exists.)",
+      "parent_id": 47,
+      "full_name_ja": "有楽町/ヒューリックホール東京/ヒューリックホール東京 (車椅子スペースあり)",
+      "full_name_en": "Yurakucho/Hulic Hall Tokyo/Hulic Hall Tokyo (Wheelchair area exists.)",
+      "order": 1,
+      "children": []
+     }
+    ]
+   },
+   {
+    "id": 49,
+    "type": "cinema",
+    "code_name": null,
+    "name_ja": "丸の内ピカデリー",
+    "name_en": "Marunouchi Piccadilly",
+    "parent_id": 42,
+    "full_name_ja": "有楽町/丸の内ピカデリー",
+    "full_name_en": "Yurakucho/Marunouchi Piccadilly",
+    "order": 4,
+    "children": [
+     {
+      "id": 50,
+      "type": "screen",
+      "code_name": "MP",
+      "name_ja": "丸の内ピカデリー2 (車椅子スペースあり)",
+      "name_en": "Marunouchi Piccadilly 2 (Wheelchair area exists.)",
+      "parent_id": 49,
+      "full_name_ja": "有楽町/丸の内ピカデリー/丸の内ピカデリー2 (車椅子スペースあり)",
+      "full_name_en": "Yurakucho/Marunouchi Piccadilly/Marunouchi Piccadilly 2 (Wheelchair area exists.)",
+      "order": 1,
+      "children": []
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 51,
+  "type": "area",
+  "code_name": null,
+  "name_ja": "丸の内",
+  "name_en": "Marunouchi",
+  "parent_id": null,
+  "full_name_ja": "丸の内",
+  "full_name_en": "Marunouchi",
+  "order": 3,
+  "children": [
+   {
+    "id": 52,
+    "type": "cinema",
+    "code_name": null,
+    "name_ja": "三菱ビル 1F　M+サクセス",
+    "name_en": "Mitsubishi Bldg. 1F M+ Success",
+    "parent_id": 51,
+    "full_name_ja": "丸の内/三菱ビル 1F　M+サクセス",
+    "full_name_en": "Marunouchi/Mitsubishi Bldg. 1F M+ Success",
+    "order": 1,
+    "children": [
+     {
+      "id": 53,
+      "type": "screen",
+      "code_name": "MPS",
+      "name_ja": "三菱ビル 1F　M+サクセス",
+      "name_en": "Mitsubishi Bldg. 1F M+ Success",
+      "parent_id": 52,
+      "full_name_ja": "丸の内/三菱ビル 1F　M+サクセス/三菱ビル 1F　M+サクセス",
+      "full_name_en": "Marunouchi/Mitsubishi Bldg. 1F M+ Success/Mitsubishi Bldg. 1F M+ Success",
+      "order": 1,
+      "children": []
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 54,
+  "type": "area",
+  "code_name": null,
+  "name_ja": "銀座",
+  "name_en": "Ginza",
+  "parent_id": null,
+  "full_name_ja": "銀座",
+  "full_name_en": "Ginza",
+  "order": 4,
+  "children": [
+   {
+    "id": 55,
+    "type": "cinema",
+    "code_name": null,
+    "name_ja": "シネスイッチ銀座",
+    "name_en": "Cine Switch Ginza",
+    "parent_id": 54,
+    "full_name_ja": "銀座/シネスイッチ銀座",
+    "full_name_en": "Ginza/Cine Switch Ginza",
+    "order": 1,
+    "children": [
+     {
+      "id": 56,
+      "type": "screen",
+      "code_name": "SG1",
+      "name_ja": "シネスイッチ銀座１",
+      "name_en": "Cine Switch Ginza 1",
+      "parent_id": 55,
+      "full_name_ja": "銀座/シネスイッチ銀座/シネスイッチ銀座１",
+      "full_name_en": "Ginza/Cine Switch Ginza/Cine Switch Ginza 1",
+      "order": 1,
+      "children": []
+     },
+     {
+      "id": 57,
+      "type": "screen",
+      "code_name": "SG2",
+      "name_ja": "シネスイッチ銀座２",
+      "name_en": "Cine Switch Ginza 2",
+      "parent_id": 55,
+      "full_name_ja": "銀座/シネスイッチ銀座/シネスイッチ銀座２",
+      "full_name_en": "Ginza/Cine Switch Ginza/Cine Switch Ginza 2",
+      "order": 2,
+      "children": []
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 58,
+  "type": "area",
+  "code_name": null,
+  "name_ja": "京橋",
+  "name_en": "Kyobashi",
+  "parent_id": null,
+  "full_name_ja": "京橋",
+  "full_name_en": "Kyobashi",
+  "order": 5,
+  "children": [
+   {
+    "id": 59,
+    "type": "cinema",
+    "code_name": null,
+    "name_ja": "国立映画アーカイブ",
+    "name_en": "National Film Archive of Japan",
+    "parent_id": 58,
+    "full_name_ja": "京橋/国立映画アーカイブ",
+    "full_name_en": "Kyobashi/National Film Archive of Japan",
+    "order": 1,
+    "children": [
+     {
+      "id": 60,
+      "type": "screen",
+      "code_name": "NFA",
+      "name_ja": "国立映画アーカイブ",
+      "name_en": "National Film Archive of Japan B1 Theatre",
+      "parent_id": 59,
+      "full_name_ja": "京橋/国立映画アーカイブ/国立映画アーカイブ",
+      "full_name_en": "Kyobashi/National Film Archive of Japan/National Film Archive of Japan B1 Theatre",
+      "order": 1,
+      "children": []
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 61,
+  "type": "area",
+  "code_name": null,
+  "name_ja": "飯田橋",
+  "name_en": "Iidabashi",
+  "parent_id": null,
+  "full_name_ja": "飯田橋",
+  "full_name_en": "Iidabashi",
+  "order": 6,
+  "children": [
+   {
+    "id": 62,
+    "type": "cinema",
+    "code_name": null,
+    "name_ja": "東京日仏学院（アンスティチュ・フランセ） エスパス・イマージュ",
+    "name_en": "Institut français de Tokyo Espace Image",
+    "parent_id": 61,
+    "full_name_ja": "飯田橋/東京日仏学院（アンスティチュ・フランセ） エスパス・イマージュ",
+    "full_name_en": "Iidabashi/Institut français de Tokyo Espace Image",
+    "order": 1,
+    "children": [
+     {
+      "id": 63,
+      "type": "screen",
+      "code_name": "IFT",
+      "name_ja": "東京日仏学院 エスパス・イマージュ",
+      "name_en": "Institut français de Tokyo Espace Image",
+      "parent_id": 62,
+      "full_name_ja": "飯田橋/東京日仏学院（アンスティチュ・フランセ） エスパス・イマージュ/東京日仏学院 エスパス・イマージュ",
+      "full_name_en": "Iidabashi/Institut français de Tokyo Espace Image/Institut français de Tokyo Espace Image",
+      "order": 1,
+      "children": []
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 64,
+  "type": "area",
+  "code_name": null,
+  "name_ja": "六本木",
+  "name_en": "Roppongi",
+  "parent_id": null,
+  "full_name_ja": "六本木",
+  "full_name_en": "Roppongi",
+  "order": 7,
+  "children": [
+   {
+    "id": 65,
+    "type": "cinema",
+    "code_name": null,
+    "name_ja": "TOHOシネマズ 六本木ヒルズ",
+    "name_en": "TOHO CINEMAS Roppongi Hills",
+    "parent_id": 64,
+    "full_name_ja": "六本木/TOHOシネマズ 六本木ヒルズ",
+    "full_name_en": "Roppongi/TOHO CINEMAS Roppongi Hills",
+    "order": 1,
+    "children": [
+     {
+      "id": 66,
+      "type": "screen",
+      "code_name": "TCR",
+      "name_ja": "TOHOシネマズ 六本木ヒルズ",
+      "name_en": "TOHO CINEMAS Roppongi Hills",
+      "parent_id": 65,
+      "full_name_ja": "六本木/TOHOシネマズ 六本木ヒルズ/TOHOシネマズ 六本木ヒルズ",
+      "full_name_en": "Roppongi/TOHO CINEMAS Roppongi Hills/TOHO CINEMAS Roppongi Hills",
+      "order": 1,
+      "children": []
+     }
+    ]
+   }
+  ]
+ }
+]
