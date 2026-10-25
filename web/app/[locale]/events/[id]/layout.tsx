@@ -1,10 +1,9 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { notFound, permanentRedirect } from "next/navigation";
-import type { Locale } from "@/lib/types";
 
 interface LayoutProps {
   children: React.ReactNode;
-  params: Promise<{ locale: Locale; id: string }>;
+  params: Promise<{ locale: string; id: string }>;
 }
 
 /**
