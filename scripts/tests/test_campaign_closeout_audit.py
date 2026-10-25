@@ -639,7 +639,7 @@ def stub_gh(tmp_path: Path, env: dict[str, str]):
     [("[]", "0"), ('[{"number": 4}, {"number": 9}]', "2")],
     ids=["no-issues", "two-issues"],
 )
-def test_open_issue_search_excludes_the_daily_review_label(
+def test_open_issue_search_excludes_daily_review_and_deferred_work_labels(
     clean, state_dir, stub_gh, payload, expected
 ):
     stubbed, log = stub_gh(payload)
@@ -652,10 +652,10 @@ def test_open_issue_search_excludes_the_daily_review_label(
 
     assert log.exists(), "the stub gh was never called"
     sent = log.read_text().splitlines()
-    assert sent[sent.index("--search") + 1] == f"{SLUG} -label:daily-review"
+    assert sent[sent.index("--search") + 1] == f"{SLUG} -label:daily-review -label:deferred-work"
     assert sent[sent.index("--state") + 1] == "open"
     assert result.field("open_issues") == expected
-    assert "excluding label:daily-review" in result.line("open_issues")
+    assert "excluding label:daily-review, label:deferred-work" in result.line("open_issues")
 
 
 # --- spec directory resolution (source 0, read by sources 1 and 2) ----------

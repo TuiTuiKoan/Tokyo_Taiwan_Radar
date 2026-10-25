@@ -9,6 +9,15 @@ ms.date: 2026-08-12
 
 ---
 
+## 2026-10-25 — 來源 5 排除 `deferred-work` label
+
+出處：#344（heartbeat）。**症狀**：`AGENTS.md` 要求剩餘待辦開 issue，這些 issue 讓每次結案都判 `HOLD:unhandled_work`。
+**修法**：`scripts/campaign-closeout-audit.sh` 新增 `ISSUE_DEFERRED_LABEL="deferred-work"`，來源 5 搜尋多排除此 label；
+測試 `test_open_issue_search_excludes_daily_review_and_deferred_work_labels` 更新；SKILL 補述用法。label 由使用者貼。
+**NOT TESTED**：真實 `gh` 搜尋語法（雲端無憑證）；`gh` 的 `-label:` 可重複，與既有 `daily-review` 同型。
+
+---
+
 ## 2026-10-22 — authoritative-venue-repair 結案：push 日期、平行 session 開 issue 造成 HOLD、裸 `cd` 重犯
 
 出處：#344；結案記錄 `docs/evaluation/campaigns/2026-10-22-authoritative-venue-repair.md`。
