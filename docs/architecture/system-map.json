@@ -1,7 +1,7 @@
 {
   "$schema": "./system-map.schema.json",
   "version": "1.0.0",
-  "updated": "2026-05-26",
+  "updated": "2026-10-25",
   "agents": [
     {
       "id": "architect",
@@ -278,6 +278,21 @@
       "from": "event_reports",
       "to": "admin_reports",
       "label": "admin review"
+    },
+    {
+      "from": "event_reports",
+      "to": "qa_heartbeat",
+      "label": "pending reports dispatch"
+    },
+    {
+      "from": "qa_heartbeat",
+      "to": "field_corrections",
+      "label": "re-lock after fix"
+    },
+    {
+      "from": "qa_heartbeat",
+      "to": "field_corrections_audit",
+      "label": "before/after audit"
     }
   ],
   "actions": [
@@ -393,6 +408,12 @@
       "id": "qa-auto-fix-cron",
       "label": "QA auto-fix scheduled run",
       "description": "Daily run of automatic QA fixes derived from triage findings.",
+      "category": "qa"
+    },
+    {
+      "id": "qa-self-healing",
+      "label": "QA self-healing",
+      "description": "qa_heartbeat.py classifies pending event_reports (R-class rules, model only for unknown types), dispatches to qa_auto_fix.HANDLER_MAP deterministic fixes, writes changes plus an audit trail, and re-locks field_corrections.",
       "category": "qa"
     }
   ],
@@ -1046,6 +1067,51 @@
       "annotations": [
         "Companion to auto-qa-scan; closes the auto-correction loop.",
         "Only fix types whitelisted in qa_auto_fix.py are applied automatically."
+      ]
+    },
+    {
+      "id": "qa-self-healing",
+      "actionId": "qa-self-healing",
+      "title": "QA self-healing (qa_heartbeat)",
+      "steps": [
+        {
+          "from": "scraper/auto_qa.py",
+          "to": "db:event_reports",
+          "channel": "Supabase insert",
+          "payloadNote": "status=pending, report_types[]",
+          "evidenceRef": "scraper/auto_qa.py"
+        },
+        {
+          "from": "github-actions-cron",
+          "to": ".github/workflows/qa-heartbeat.yml",
+          "channel": "cron",
+          "payloadNote": "0 4 * * * (UTC) = 13:00 JST",
+          "evidenceRef": ".github/workflows/qa-heartbeat.yml"
+        },
+        {
+          "from": ".github/workflows/qa-heartbeat.yml",
+          "to": "scraper/qa_heartbeat.py",
+          "channel": "Python CLI",
+          "payloadNote": "classify pending reports into R-class, dispatch to HANDLER_MAP",
+          "evidenceRef": "scraper/qa_heartbeat.py"
+        },
+        {
+          "from": "scraper/qa_heartbeat.py",
+          "to": "scraper/qa_auto_fix.py",
+          "channel": "Python call",
+          "payloadNote": "unlock_and_write(): update events, re-lock field_corrections",
+          "evidenceRef": "scraper/qa_auto_fix.py"
+        },
+        {
+          "from": "scraper/qa_auto_fix.py",
+          "to": "db:field_corrections_audit",
+          "channel": "Supabase upsert",
+          "payloadNote": "before/after JSONB; enables --rollback-audit-id",
+          "evidenceRef": "supabase/migrations/075_field_corrections_audit.sql"
+        }
+      ],
+      "annotations": [
+        "Companion to auto-qa-scan and qa-auto-fix-cron."
       ]
     }
   ]
