@@ -45,6 +45,12 @@ SKIP_ISSUES=0
 # subject matches them. They are not work, and they are excluded from source 5.
 ISSUE_EXCLUDE_LABEL="daily-review"
 
+# Issues the user has already ruled to be the tracking place for a closed or
+# paused spec's Deferred work carry this label (AGENTS.md requires leftover work
+# to become issues, so every close-out would otherwise HOLD on them). They are
+# excluded from source 5 too.
+ISSUE_DEFERRED_LABEL="deferred-work"
+
 # The two marker words counted by source 4, assembled from halves on purpose.
 # The audit counts them on ADDED lines, so a script that spelled them out would
 # flag any campaign that merely edited it. The words are named in the heading
@@ -812,7 +818,7 @@ else
 fi
 
 # 5. open GitHub issues naming the slug, minus the auto-generated daily reminders
-#    (ISSUE_EXCLUDE_LABEL, defined with the other settings above).
+#    and the deferred-work trackers (ISSUE_EXCLUDE_LABEL, ISSUE_DEFERRED_LABEL, defined with the other settings above).
 if [ "$SKIP_ISSUES" -eq 1 ]; then
   echo "open_issues=not_checked  (reason: --skip-issues)"
   NOT_CHECKED=$(( NOT_CHECKED + 1 ))
@@ -826,10 +832,10 @@ elif ! command -v gh >/dev/null 2>&1 || ! gh auth status >/dev/null 2>&1; then
   NOT_CHECKED=$(( NOT_CHECKED + 1 ))
   add_undet "issues_not_checked"
 else
-  if issues=$( cd "$WT" && gh issue list --state open --search "$SLUG -label:$ISSUE_EXCLUDE_LABEL" --limit 100 --json number 2>/dev/null ); then
+  if issues=$( cd "$WT" && gh issue list --state open --search "$SLUG -label:$ISSUE_EXCLUDE_LABEL -label:$ISSUE_DEFERRED_LABEL" --limit 100 --json number 2>/dev/null ); then
     n=$( printf '%s' "$issues" | grep -o '"number"' | grep -c . )
     n=$( count_or_zero "$n" )
-    echo "open_issues=$n  (open issues matching '$SLUG', excluding label:$ISSUE_EXCLUDE_LABEL)"
+    echo "open_issues=$n  (open issues matching '$SLUG', excluding label:$ISSUE_EXCLUDE_LABEL, label:$ISSUE_DEFERRED_LABEL)"
     UNHANDLED_TOTAL=$(( UNHANDLED_TOTAL + n ))
   else
     echo "open_issues=not_checked  (reason: gh query failed)"

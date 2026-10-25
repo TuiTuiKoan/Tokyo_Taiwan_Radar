@@ -173,6 +173,10 @@ Phase A（06:36Z）是 `UNDETERMINED`；平行 session 推 `f632ef51` 時開了�
 * **記錄已提交後才出現的 issue**，在 D5 回填時於記錄尾端追加 `### Update after the close-out (<日期>)`，
   不改寫已提交的段落。
 * 協調 session 自己在稽核途中開 issue，同樣會觸發這個流程；開之前先想好它會不會讓 campaign 回到 HOLD。
+* **`deferred-work` label（2026-10-25 起）**：使用者裁定為 Deferred work 追蹤位置的 issue，由使用者貼 `deferred-work`
+  label，腳本搜尋因此是 `<slug> -label:daily-review -label:deferred-work`，輸出行註明
+  `excluding label:daily-review, label:deferred-work`。agent 不自行貼這個 label；已知限制同 `daily-review`：
+  真的待辦被貼上就會漏掉。
 * 腳本是否要排除「已裁定為延後追蹤位置」的 issue（例如另設 label，或從記錄的 Deferred work 讀取 issue 號），
   尚未決定，見 #344。在決定之前，每次都由使用者人工裁定。
 
