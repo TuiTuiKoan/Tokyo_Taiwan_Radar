@@ -2,6 +2,7 @@ import createMiddleware from "next-intl/middleware";
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest, type NextFetchEvent } from "next/server";
 import { LOCALES } from "@/i18n/locales";
+import { EVENT_DETAIL_PATH, decideEventDetail, fetchEventStub } from "@/lib/eventDetailGate";
 
 const intlMiddleware = createMiddleware({
   locales: LOCALES,
@@ -121,6 +122,35 @@ export async function proxy(request: NextRequest, event: NextFetchEvent) {
       country,
     });
     event.waitUntil(logPromise);
+  }
+
+  // 1c. Event detail pages: answer 404 / 308 here. `[locale]/loading.tsx` streams a
+  // 200 skeleton before page.tsx runs, so notFound() there cannot set the status.
+  // Fails open (lookup error → page.tsx decides) and runs before the auth refresh.
+  const detail = EVENT_DETAIL_PATH.exec(request.nextUrl.pathname);
+  if (detail) {
+    const [, locale, eventId] = detail;
+    const stub = await fetchEventStub(eventId.toLowerCase(), {
+      url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+      serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    });
+    if (stub !== undefined) {
+      const decision = decideEventDetail(stub);
+      if (decision.kind === "redirect") {
+        const target = request.nextUrl.clone();
+        target.pathname = `/${locale}/events/${decision.targetId}`;
+        const redirect = NextResponse.redirect(target, 308);
+        redirect.headers.set("x-locale", detectedLocale);
+        return redirect;
+      }
+      if (decision.kind === "not-found") {
+        const gone = request.nextUrl.clone();
+        gone.pathname = `/${locale}/events/${eventId}/gone`;
+        const rewrite = NextResponse.rewrite(gone, { status: 404 });
+        rewrite.headers.set("x-locale", detectedLocale);
+        return rewrite;
+      }
+    }
   }
 
   // 2. Refresh Supabase auth session
