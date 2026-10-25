@@ -19,7 +19,9 @@
 2. **分類**：列出沒有 `spec:`、`auto-fix`、`needs-human`、`daily-review`、`source-intake` label 的 open issue。逐張判斷：
    - 單一爬蟲來源故障（0 產出、selector 改版、日期解析錯、把公告當活動），且修法落在 `scraper/sources/<source>.py` 與其 skill、tests → 貼 `auto-fix`，留言一句你打算怎麼修。
    - 多來源總表（例如「30 個來源 0 產出」）→ 拆成每來源一張子 issue，標題 `<source_name>：<症狀>`，內文引用母 issue，貼 `auto-fix` 與 `scraper`；一次最多 5 張；在母 issue 留言列出子 issue。
+   - 建子 issue 前先查重：`gh issue list --state all --limit 200 --search "<source_name> in:title"`（含帶 `spec:` label 與已關閉的）。已有 open issue 就不建，改在母 issue 留言指向它；來源已退役或已關閉處理完的也不建。
    - 其他 → 貼 `needs-human`，留言寫明缺什麼（重現方式、範圍判斷、需要人決定的事）。
+   **本次若在這一步貼了任何新 label 或建了子 issue，就到此結束，不進第 3 步**；下一次執行再修。這讓分類與修復交替進行，第一次執行只會分類。
 3. **取件**：open 的 `auto-fix` issue 中最舊、且沒有 open PR 引用它的一張。沒有就結束，回報「無待修」。
 4. **修**：
    - `git fetch origin && git switch -c fix/issue-<n> origin/main`
