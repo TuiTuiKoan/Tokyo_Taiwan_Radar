@@ -748,12 +748,13 @@ Reference incident: 2026-05-05 — commit `5a29c13` 修 EventCard.tsx 城市徽�
 任何計畫包含 `annotator.py --backfill-*` 步驟時，**必須**在步驟清單中明確列出「backfill 後多語言欄位 QA 驗證」子步驟：
 
 - `selection_reason["ja"]`：必須含假名（平假名或片假名）；無假名表示語言污染
-- 驗證 SQL：
+- 驗證 SQL（`events.selection_reason` 是 `text`，內容為 JSON 字串，必須先轉 `jsonb`；直接用 `->>` 會得到 `42883: operator does not exist: text ->> unknown`）：
   ```sql
-  SELECT id, source_name, (selection_reason->>'ja') as ja_text
+  SELECT id, source_name, (selection_reason::jsonb->>'ja') as ja_text
   FROM events
-  WHERE selection_reason->>'ja' IS NOT NULL
-    AND selection_reason->>'ja' !~ '[ぁ-んァ-ン]'
+  WHERE selection_reason IS NOT NULL
+    AND selection_reason::jsonb->>'ja' IS NOT NULL
+    AND selection_reason::jsonb->>'ja' !~ '[ぁ-んァ-ン]'
   LIMIT 20;
   ```
 - 發現污染 → 執行翻譯修正腳本（從 zh 欄 GPT 翻譯覆寫）
