@@ -2,7 +2,7 @@
 title: Japan Scope Gate Notes
 description: Live read-only evidence collected for Phase 6b
 status: active
-updated: 2026-10-23
+updated: 2026-10-25
 ---
 
 ## 2026-10-23 live 唯讀事實（issue #399）
@@ -71,7 +71,7 @@ updated: 2026-10-23
 
 ### 公開網址檢查（agent 唯讀，2026-10-23 15:2x–15:3x JST）
 
-- 22 筆詳情頁（ja）全部回 **HTTP 200**，內容是 Next.js not-found 畫面：`<title>` 為通用站名並帶 `<meta name="robots" content="noindex">`；對照用 active 事件有事件標題且無 noindex。推測是 `[id]/loading.tsx` 先送出 200 串流，之後 `page.tsx` 才呼叫 `notFound()`（未驗證）。因此 runbook 的驗收標準由「回 404」改為「not-found 內容加 noindex」。
+- 22 筆詳情頁（ja）全部回 **HTTP 200**，內容是 Next.js not-found 畫面：`<title>` 為通用站名並帶 `<meta name="robots" content="noindex">`；對照用 active 事件有事件標題且無 noindex。原因是 `app/[locale]/loading.tsx` 先送出 200 串流，之後 `notFound()` 無法改狀態碼（PR #435 在 `events/[id]/layout.tsx` 處理也無效，因為 locale 層的 loading 在它上面）。
 - 首頁（ja）不含這 22 筆。
 - sitemap（`last-modified` 06:23:36 GMT，apply 後約 2 分鐘）仍含 22 筆中的 10 筆；`web/app/sitemap.ts` 查詢有 `is_active=true`。同日 17:51 JST 重抓（`x-vercel-cache: MISS`）已是 0/22，確認是快取延遲，自行恢復。
 
@@ -82,7 +82,7 @@ apply 之後有寫入者跑過：2026-10-24 的 `scraper.yml`（run 40056871578�
 - `--readback`：`readback=ok`。
 - Dashboard 逐列查 22 筆：`is_active=false`、`deactivated_by_pass=admin_manual`，`deactivated_at` 全部是 `2026-10-23 06:21:24.176993+00`，`updated_at` 全部是 `2026-10-23 06:21:23.759939+00`（apply 當下，之後沒有任何 writer 動過），`deactivated_reason` 全部以 `scope cleanup f9f723845233` 結尾。
 - 計數：`active` 2397、`marked` 22、`new_after_apply` 13；2384 + 13 = 2397，差額全部是 apply 之後新增的事件。
-- 公開網址：22 筆詳情頁仍是 not-found 加 `noindex`，sitemap 0/22。
+- 公開網址：22 筆詳情頁仍是 not-found 加 `noindex`（HTTP 200），sitemap 0/22。
 - 過程中使用者貼回一次 `active` 2397、`marked` 0。逐列查證 22 筆的 reason 都以該字串結尾、`updated_at` 沒動，資料沒有被改；那次查詢為何得 0 不明，未再追查，之後同一條 SQL 回 22。
 
 ### 待辦
@@ -95,3 +95,6 @@ apply 之後有寫入者跑過：2026-10-24 的 `scraper.yml`（run 40056871578�
 - `gh workflow disable／enable` 經 `xargs` 執行時不是互動終端機，不會逐項印出 ✓，要用 `gh workflow list --all` 讀回確認。
 - 維護鎖的 `--reason` 被換行拆開，reason 欄位帶了一段換行；只影響註解文字。
 
+### 公開網址 404 驗收（2026-10-25）
+
+PR #435 merge 後 22 筆仍回 200（locale 層 `loading.tsx` 在新 layout 之上）。PR #438 把 404／308 判斷移到 `web/proxy.ts`（渲染之前），commit `a05c8168` 部署後：22 筆停用事件全部 HTTP 404，不存在的 id 404，首頁上的 active 事件 200。merged 事件的 308 只在本機 mock 與單元測試驗證。教訓：只驗 `next build` 不夠，狀態碼要用 `next start` 或 `curl` 實測。
