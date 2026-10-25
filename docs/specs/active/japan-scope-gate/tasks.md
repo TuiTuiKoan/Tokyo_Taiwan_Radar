@@ -2,7 +2,7 @@
 title: Japan Scope Gate Tasks
 description: Wave 1 delivery checklist and approval boundaries for the Japan scope gate
 status: active
-updated: 2026-10-23
+updated: 2026-10-25
 ---
 
 ## Phase 0：阻擋式 preflight
@@ -64,7 +64,7 @@ updated: 2026-10-23
 * [x] Phase 6b：建立 transactional DB RPC（migration 103，PR #413，2026-10-23 套用）、盤點 writers 並寫成 runbook（PR #418）；設計見 `plan.md`，追蹤 issue #385
 * [x] Phase 6b：以 RPC 重新 capture immutable manifest（digest `f9f7238452330f4ccd4e2eff6af695183f57a2be9e6fe6ba3e55ed64515fb054`），並取得使用者針對該 digest 的 production apply 核准
 * [x] Phase 6c：production apply 與 read-back（2026-10-23 15:21 JST，22 筆停用，`active` 2406 → 2384，`readback=ok`），經過程見 `notes.md`
-* [x] Phase 6c 復驗（2026-10-24）：apply 後 `scraper.yml` 與 merger 跑過一輪，`--readback=ok`，22 筆 `updated_at` 仍停在 apply 當下，沒有被蓋回去；詳見 `notes.md`。公開網址 soft 404（HTTP 200）追蹤於 issue #427
+* [x] Phase 6c 復驗（2026-10-24）：apply 後 `scraper.yml` 與 merger 跑過一輪，`--readback=ok`，22 筆 `updated_at` 仍停在 apply 當下，沒有被蓋回去；詳見 `notes.md`。公開網址 soft 404（HTTP 200）已於 2026-10-25 由 PR #438（`web/proxy.ts`）修正，production 22 筆回 404，issue #427 已關閉
 
 ## Changes Log
 

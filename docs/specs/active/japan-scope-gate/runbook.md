@@ -2,7 +2,7 @@
 title: Japan Scope Gate Phase 6c Runbook
 description: Operator steps to pause writers, apply the reviewed cleanup, read back and resume
 status: active
-updated: 2026-10-23
+updated: 2026-10-25
 ---
 
 使用者親自執行本手冊的所有指令（apply 與 `gh workflow disable／enable` 的決定，2026-10-23）。agent 只做唯讀 read-back 與公開網址檢查。設計與取捨見 `plan.md`；writer 盤點由 `scripts/inventory_events_writers.py` 產生。
@@ -115,7 +115,7 @@ select count(*) filter (where is_active) as active,
 from public.events;
 ```
 
-預期 `active` = 第 2 節記下的值 − 22，`marked` = 22。接著告訴 agent「apply 完成」，agent 會用公開網址做唯讀檢查：這 22 筆的詳情頁要顯示 not-found 內容並帶 `noindex`（HTTP 狀態碼是 200，不是 404：`[id]/loading.tsx` 先串流送出 200，見 issue #427），首頁不含它們，sitemap 在快取更新後不含它們（apply 後數分鐘內仍可能含部分，見 issue #427）。這些公開頁面的現象不影響是否可以進第 5 節恢復；是否恢復只看 `--readback` 與 Dashboard SQL。
+預期 `active` = 第 2 節記下的值 − 22，`marked` = 22。接著告訴 agent「apply 完成」，agent 會用公開網址做唯讀檢查：這 22 筆的詳情頁要回 HTTP 404（PR #438 起由 `web/proxy.ts` 在渲染前判斷；在那之前是 200 加 not-found 內容與 `noindex`，原因是 `[locale]/loading.tsx` 先串流送出 200，見 issue #427），首頁不含它們，sitemap 在快取更新後不含它們（apply 後數分鐘內仍可能含部分，見 issue #427）。這些公開頁面的現象不影響是否可以進第 5 節恢復；是否恢復只看 `--readback` 與 Dashboard SQL。
 
 ## 5. 恢復
 
