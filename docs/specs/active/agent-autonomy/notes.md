@@ -43,3 +43,19 @@
 | 雲端環境 | 成功 clone repo；`gh pr list` 因「GitHub GraphQL is not available from Claude Code sessions」失敗（403），agent 自行改用環境內建的 GitHub MCP 工具（`mcp__github__*`）完成 issue 讀寫；REST（`gh api repos/...`）可用。log 顯示 `hook_started ×4`，repo 的 PreToolUse hooks 在雲端有執行 |
 | 尚未驗證 | 推 branch 與 `gh pr create`（第一次只分類，沒走到）；配額歸屬；dry-run 在雲端的網路可達性。下一次排程 09:05 UTC（18:05 JST）會取件 #459 prtimes，屆時補驗 |
 | 清理 | 建立時被附上全部 MCP 連接器（含 Supabase）→ 已清空；提示詞補查重規則後以 `update` 覆寫 |
+
+## §5 加速裁決（2026-10-25）
+
+使用者反映 81 張 open issue 速度太慢。盤點：50 張帶 `spec:` label（13 個 spec，只在使用者開 session 時推進）、5 張剛拆出的來源故障、6 張新來源申請、20 張雜項與舊文件。
+
+| 改動 | 內容 | 性質 |
+| --- | --- | --- |
+| 白名單擴大 | `scraper/enrich_*.py`、`scripts/**`（有測試）、`docs/**`、`.github/skills/**` | 不增加執行次數，agent 自決 |
+| 不再交替 | 分類完同一次執行接著修 | 同上 |
+| spec issue 可交付 | 帶 `spec:` 的 issue 貼 `auto-fix` 即交給 heartbeat；issue 留言說明有人在改同檔則跳過 | 同上 |
+| 建議關閉 | 60 天未動且已被取代的 issue 貼 `needs-human`＋「建議關閉」 | 同上 |
+| 節奏 | 每 8 小時 → 每 4 小時（UTC 1、5、9、13、17、21）；每次 1 → 2 張；同時待合併 2 → 4 張；理論上限 3 → 12 張／天 | **配額關卡，使用者 2026-10-25 裁決「照建議」** |
+| 交付的 spec issue | evaluation-framework 的 #443、#444、#445、#446、#344（只動 scripts／docs／skills）。未交付：涉及 production 寫入（#369、#371、people-ground-truth 全部、venue-repair）、annotator／main.py（#457、#404、#363）、web（#406）、hooks 與權限（ai-portability-followups）、需人判斷（#423、#422、#374）、有活躍 session 的 spec（scraper-zero-output #394 雖在範圍內，但其 session 正在跑） | 依人類關卡表 |
+| 後續 | #465：有測試的 scripts 與 enrich 改動納入 Tier 1，減少 Tier 2 點擊 | issue |
+
+停止條件新增：排程因配額限制失敗 2 次，降回每 8 小時、1 張。
