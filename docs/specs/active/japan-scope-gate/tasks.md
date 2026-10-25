@@ -60,7 +60,7 @@ updated: 2026-10-25
 * [x] Phase 5 push：發布新的 linear PR remote ref `feat/japan-scope-gate-linear`（PR #359），不 force push 舊 branch
 * [x] Phase 5 PR：PR #359 的 required checks（Vercel build、eval、gitleaks）皆 pass
 * [x] Phase 5 merge：2026-10-22 以 rebase merge 整合 main，exact merged SHA `b19a08e9`，main 歷史線性
-* [ ] Phase 5 deploy：exact-SHA Vercel Production deployment 7249765880（`b19a08e9`）已 success；三筆 runtime canary 尚未執行
+* [x] Phase 5 deploy：exact-SHA Vercel Production deployment 7249765880（`b19a08e9`）已 success；三筆 runtime canary 經使用者決定（2026-10-25）不執行：其目的已被 10-24 `scraper.yml` 在新版 code 下的完整執行與 Phase 6c 復驗覆蓋，補跑需要對 production 寫入或呼叫付費的 OpenAI
 * [x] Phase 6b：建立 transactional DB RPC（migration 103，PR #413，2026-10-23 套用）、盤點 writers 並寫成 runbook（PR #418）；設計見 `plan.md`，追蹤 issue #385
 * [x] Phase 6b：以 RPC 重新 capture immutable manifest（digest `f9f7238452330f4ccd4e2eff6af695183f57a2be9e6fe6ba3e55ed64515fb054`），並取得使用者針對該 digest 的 production apply 核准
 * [x] Phase 6c：production apply 與 read-back（2026-10-23 15:21 JST，22 筆停用，`active` 2406 → 2384，`readback=ok`），經過程見 `notes.md`
