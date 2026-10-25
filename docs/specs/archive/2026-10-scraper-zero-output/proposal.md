@@ -2,10 +2,10 @@
 slug: scraper-zero-output
 title: Scraper Zero Output
 description: Make scrapers that return 0 events fail loudly, and move the sources GitHub Actions cannot reach to a home-IP weekly run
-status: active
+status: archived
 branch: fix/scraper-zero-output
 created: 2026-10-22
-updated: 2026-10-23
+updated: 2026-10-25
 tags:
   - scraper
   - ci

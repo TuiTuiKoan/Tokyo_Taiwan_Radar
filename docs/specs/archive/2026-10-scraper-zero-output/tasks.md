@@ -1,8 +1,8 @@
 ---
 title: Scraper Zero Output Tasks
 description: Milestones for the scraper zero-output fix
-status: active
-updated: 2026-10-23
+status: archived
+updated: 2026-10-25
 ---
 
 本檔只放里程碑。細項與 bug 開 issue，貼 `spec:scraper-zero-output` label。
@@ -20,10 +20,10 @@ updated: 2026-10-23
 - [x] Daily Scraper 驗證 tokyo_art_beat、bookandbeer（2026-10-23）
 - [x] 修好 #424（push 後 Daily Scraper 才會回到 success）
 - [x] `source_expectations.json`：三個家用來源與 bookandbeer 改為 sporadic，移除 tokyo_art_beat
-- [ ] 關閉 #375、#376、#377、#395，spec 歸檔
+- [x] 關閉 #375、#376、#377、#395，spec 歸檔
 
 ## Verification
 
 - [x] `pytest scraper/tests`：1270 passed、1 skipped
 - [x] `python3 scripts/sync_ai_adapters.py --check` 無漂移
-- [ ] 一次完整 success 的 Daily Scraper
+- [x] 一次完整 success 的 Daily Scraper（run 40067900799，2026-10-24）
