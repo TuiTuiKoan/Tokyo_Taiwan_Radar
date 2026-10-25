@@ -6,10 +6,13 @@
 
 ## Snapshot 基準
 
-* 觀測日期：**2026-10-22**（同日先退役 9 個 `agents/*` external worktree，再建立本次對帳用的
-  `agents/ledger-topology-reconcile`，兩者皆已反映）
-* `origin/main`：`167e2a33`（docs(specs): record the third U-B4 check for pr-flow-tiering）
-* 註冊拓撲：1 main + 12 linked（共 13；計數只描述本次快照）
+* 觀測日期：**2026-10-25**（含本次對帳用的 `agents/ledger-topology-reconcile`）
+* `origin/main`：`fc3416d6`（docs(specs): record the event detail 404 fix in japan-scope-gate）；對帳途中前進到
+  `e6c65f91`（docs(evaluation): close out the scraper-zero-output campaign），期間新建的
+  `ttr-tiff-venue-inserts-worktree` 已補入
+* 註冊拓撲：1 main + 15 linked（共 16；計數只描述本次快照）
+* 進度入口已改為 GitHub Project **TTR Roadmap** 看板（`AGENTS.md`「進度追蹤」，2026-10-22 起）；本檔只記
+  worktree 與 spec 的拓撲、退役證據與治理缺口，各工作線的細項以看板 issue 為準
 * repo 實體根目錄已由 `/Users/flyingship/Development/Tokyo Taiwan Radar` 搬到
   `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar`（`pwd -P`）；舊路徑現為 symlink
 * 下次更新時請一併更新本區塊，否則勾選狀態會腐化
@@ -65,36 +68,46 @@ git status --short -- .github/prompts/
 ## Worktree 註冊路徑拓撲
 
 Git 的 registered path 與檔案系統 physical path 是兩種不同證據。下表保留 Git
-`--porcelain` 的完整註冊字串；basename 只在其他摘要表中作顯示用途。2026-10-22 觀測。
+`--porcelain` 的完整註冊字串；basename 只在其他摘要表中作顯示用途。2026-10-25 觀測。
 
 | Path class | Registered path | Physical path (`pwd -P`) | Branch |
 |---|---|---|---|
-| canonical main | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar` | `main` |
-| canonical child | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-ai-harness-worktree` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-ai-harness-worktree` | `feat/ai-harness` |
-| canonical child | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-ci-runner-pin-worktree` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-ci-runner-pin-worktree` | `fix/ci-runner-pin` |
-| canonical child | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-closer-auto-retire-worktree` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-closer-auto-retire-worktree` | `feat/closer-auto-retire` |
-| canonical child | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-pause-enrich-poster-worktree` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-pause-enrich-poster-worktree` | `fix/pause-enrich-poster` |
-| canonical child | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-pr-flow-tiering-worktree` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-pr-flow-tiering-worktree` | `feat/pr-flow-tiering` |
-| external（root 外） | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar.worktrees/ledger-topology-reconcile` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar.worktrees/ledger-topology-reconcile` | `agents/ledger-topology-reconcile` |
+| canonical main | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar` | 同左 | `main` |
+| canonical child | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-ai-harness-worktree` | 同左 | `feat/ai-harness` |
+| canonical child | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-closer-auto-retire-worktree` | 同左 | `feat/closer-auto-retire` |
+| canonical child | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-evaluation-framework-worktree` | 同左 | `fix/eval-annotator-validated` |
+| canonical child | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-event-detail-404-worktree` | 同左 | `fix/event-detail-404` |
+| canonical child | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-guard-detections-worktree` | 同左 | `feat/guard-detections` |
+| canonical child | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-ndl-relevance-publication-worktree` | 同左 | `feat/ndl-relevance-publication` |
+| canonical child | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-people-ground-truth-worktree` | 同左 | `feat/people-ground-truth` |
+| canonical child | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-pr-flow-tiering-worktree` | 同左 | `feat/pr-flow-tiering` |
+| canonical child | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-scraper-zero-output-worktree` | 同左 | `fix/scraper-zero-output` |
+| canonical child | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-tiff-venue-inserts-worktree` | 同左 | `feat/tiff-venue-inserts` |
+| canonical child | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-venue-data-cleanup-worktree` | 同左 | `feat/venue-data-cleanup` |
+| external（root 外） | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar.worktrees/ledger-topology-reconcile` | 同左 | `agents/ledger-topology-reconcile` |
 | symlink-alias 註冊（root 內） | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-admin-qa-cleanup-worktree` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-admin-qa-cleanup-worktree` | `feat/admin-qa-cleanup` |
-| symlink-alias 註冊（root 內） | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-authoritative-venue-repair-worktree` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-authoritative-venue-repair-worktree` | `feat/authoritative-venue-repair` |
-| symlink-alias 註冊（root 內） | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-evaluation-framework-worktree` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-evaluation-framework-worktree` | `feat/evaluation-framework` |
-| symlink-alias 註冊（root 內） | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-japan-scope-gate-worktree` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-japan-scope-gate-worktree` | `feat/japan-scope-gate` |
+| symlink-alias 註冊（root 內） | `/Users/flyingship/Development/Tokyo Taiwan Radar/ttr-japan-scope-gate-worktree` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-japan-scope-gate-worktree` | `docs/scope-gate-404-acceptance` |
 | symlink-alias 註冊（root 內，小寫 `development`） | `/Users/flyingship/development/Tokyo Taiwan Radar/ttr-publication-policy-worktree` | `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar/ttr-publication-policy-worktree` | `feat/publication-policy` |
 
-`agents/ledger-topology-reconcile` 是本次對帳的專屬 worktree，自 `origin/main` `167e2a33` 建立，
-以實體路徑註冊（不再新增舊 symlink 路徑的註冊）；本對帳 push 後依例退役。
+「同左」表示 registered path 與 `pwd -P` 逐字相同。`ttr-evaluation-framework-worktree` 與 `ttr-japan-scope-gate-worktree`
+的目錄名沿用舊工作線，branch 已換成其他 session 的新工作（分別是 `fix/eval-annotator-validated`、
+`docs/scope-gate-404-acceptance`）；目錄名不能拿來推斷 branch 或 spec。
+
+`agents/ledger-topology-reconcile` 是本次對帳的專屬 worktree，自 `origin/main` `fc3416d6` 建立，
+以實體路徑註冊；本對帳 push 後依例退役。`3-TTR/Tokyo Taiwan Radar.worktrees/` 在本次建立前已不存在
+（見 G5），由本次 `git worktree add` 重新建立。
 
 repo 根目錄已搬到 `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar`。
 `/Users/flyingship/Development/Tokyo Taiwan Radar` 與
 `/Users/flyingship/Development/Tokyo Taiwan Radar.worktrees` 現為 symlink（2026-09-10 建立，
 指向 `3-TTR/` 下的實體目錄）；小寫 `/Users/flyingship/development/...` 因 macOS 檔案系統不分大小寫，
 解析到同一個 symlink（`Development`／`development` 兩條 symlink 皆為 device `16777231`、
-inode `625519038`；實體目錄 inode `553836739`）。2026-10-22 仍以搬移前舊路徑註冊的 linked worktree
-剩 5 個（上表 `symlink-alias` 列，全部在 root 內），`pwd -P` 全部落在 `3-TTR/` 下；它們是
-**同一套實體 repo 的 lexical alias**，不是第二套目錄。其餘 6 個 linked worktree 以新路徑註冊。
-2026-10-20 表列的 12 個舊路徑註冊中，7 個 `agents/*` 已於 2026-10-22 退役；同日另 2 個以新路徑註冊的
-`agents/*` 一併退役（見下方結案紀錄）。
+inode `625519038`；實體目錄 inode `553836739`）。2026-10-25 仍以搬移前舊路徑註冊的 linked worktree
+剩 3 個（上表 `symlink-alias` 列，全部在 root 內），`pwd -P` 全部落在 `3-TTR/` 下；它們是
+**同一套實體 repo 的 lexical alias**，不是第二套目錄。其餘 12 個 linked worktree 以新路徑註冊。
+2026-10-22 表列的 5 個舊路徑註冊中，`ttr-authoritative-venue-repair-worktree` 已退役，
+`ttr-evaluation-framework-worktree` 現改以實體路徑註冊（由其他 session 重新建立或 repair，經過未查證；
+`feat/evaluation-framework` 本機 branch 已不存在）。
 
 此狀態下 canonical classifier 以字串前綴判定，舊路徑註冊者會被列為 `external`；
 上表依 `pwd -P` 的 containment 重新分類，並標明註冊字串是否為 alias。
@@ -132,7 +145,24 @@ exclude 重建、殘留檢查）以 `docs/evaluation/campaigns/2026-10-14-*.md` 
 `ttr-authoritative-venue-repair-worktree`（`feat/authoritative-venue-repair`）於 2026-10-22 退役：`3f7c00f6`
 rebase 為 `10770777` 經 Gate 1 推上 main，production 階段暫停，以非強制 `git worktree remove` + `git branch -d`
 移除。證據見 `docs/evaluation/campaigns/2026-10-22-authoritative-venue-repair.md`；spec 歸檔為
-`docs/specs/archive/2026-10-authoritative-venue-repair/`。上方拓撲表是退役前的快照。
+`docs/specs/archive/2026-10-authoritative-venue-repair/`。
+
+### 2026-10-22～25 退役與消失的 worktree
+
+| Worktree | Branch | 結果 | 證據 |
+|---|---|---|---|
+| `ttr-ci-runner-pin-worktree` | `fix/ci-runner-pin` | 其他 session 退役；branch 已不存在 | 交付 `488fd7b5`（fix(ci): pin Playwright workflows to ubuntu-24.04），之後由 `864b10cd` 解除固定 |
+| `ttr-pause-enrich-poster-worktree` | `fix/pause-enrich-poster` | 其他 session 退役；branch 已不存在 | 交付 `c67c1a2b`（fix(ci): pause the daily Vision OCR poster enrichment） |
+| `ttr-unpin-ubuntu-runner-worktree` | `feat/unpin-ubuntu-runner` | 2026-10-25 本 session 非強制移除＋`git branch -d`（tip `cdeaca98`，`origin/main` 祖先） | 交付 `864b10cd`（fix(ci): unpin Playwright workflows from ubuntu-24.04 and bump scraper playwright） |
+| `ttr-tracking-cleanup-worktree` | `feat/remove-specs-kanban` | 2026-10-25 本 session 非強制移除；`branch -d` 因非祖先被拒，經 patch-id 確認與 `c34b0f9f` 相同後由使用者 `git branch -D` | `c34b0f9f`（feat(web): remove the admin spec kanban and keep the architecture map） |
+| `ttr-llm-cost-reset-worktree` | detached | 其他 session 於 2026-10-25 退役 | 本機仍留 `feat/llm-cost-reset`（tip `dd0f6866`，非 `origin/main` 祖先，`git cherry` 有 `+`；可能經 PR #391／#430 squash 合併，**未查證**）；spec 仍在 `active/llm-cost-reset` |
+| person-name-eval campaign worktree | — | 2026-10-23 退役 | `docs/evaluation/campaigns/2026-10-23-person-name-eval.md` |
+| `Tokyo Taiwan Radar.worktrees/agents-vscode-performance-issues`（未註冊） | — | 目錄已不存在，刪除者不明 | #352（2026-10-25 以觀測結果關閉），見 G5 |
+
+本 session 另有 4 個在 scratchpad 的 detached 臨時 worktree（D5 回填、tester／closer 教訓、eval 拆分），
+用完即以非強制 `git worktree remove` 移除，不在 repo root 內，未進過本表。
+2026-10-25 對帳 `.git/info/exclude`：移除 `ttr-llm-cost-reset-worktree/`、`ttr-tracking-cleanup-worktree/`、
+`ttr-unpin-ubuntu-runner-worktree/` 三行過期條目，其餘 13 行對應 13 個 live 巢狀 worktree，`comm` 雙向皆空。
 
 ### 2026-10-22 `agents/*` external worktree 合併結案紀錄
 
@@ -157,7 +187,7 @@ cherry-pick／bisect 進行中、無 `locked`、無 stash 引用、`lsof +D` 無
 | `vscode-session-recovery-guide` | `agents/vscode-session-recovery-guide` | `30391675`（2026-09-06 docs(weekly_review): 2026-09-06 weekly review） | 新路徑 |
 | `web-based-financial-workshop-slides` | `agents/web-based-financial-workshop-slides` | `1b22c7b8`（2026-09-22 perf(slides): drop the unused mermaid bundle from the workshop deck） | 新路徑 |
 
-未註冊的同層目錄 `agents-vscode-performance-issues` 不在本次範圍，仍列於 G5 待判定。
+未註冊的同層目錄 `agents-vscode-performance-issues` 不在當時範圍；2026-10-25 已確認消失（#352，見 G5）。
 
 ---
 
@@ -174,7 +204,7 @@ cherry-pick／bisect 進行中、無 `locked`、無 stash 引用、`lsof +D` 無
       **`HOLD:unhandled_work`**（branch tip `4de6d08c` 已是 `origin/main` 祖先，ahead 0、dirty 0，A3 `SOLE_OWNER`）。
       阻擋是 spec `tasks.md` 52 項未勾選：2026-08 只出貨 T-A0 唯讀工具（`4de6d08c`），P0／T-A1／Phase D／Phase S
       未開始。解除條件：決定 A 線續做（保留 worktree）或停做（回填已完成項、其餘移 Deferred、spec 改
-      `parked`／`archive`，再重跑 Phase A）
+      `parked`／`archive`，再重跑 Phase A）。**2026-10-22 使用者決定續做**，worktree 保留，代表卡 #349
 - [ ] 重數 predecessor `tasks.md`（2026-08-06 觀測為 60 完成／39 未完成）
 - [ ] 查證 Lane R 是否正式取代已退休的 T-P；證據不足時標為 blocker
 - [ ] Final docs-only archive 批准後才移動 predecessor spec
@@ -208,6 +238,11 @@ Eslite identity migration、PN-3a.0（`b4cb383f`）、F-1（`831871e0`）。
 `~/.ai-notes` 下找不到副本，視為全機唯一副本，必須先匯出到 worktree 外；另有 ignored `scraper/.env`，需使用者
 確認是否為主工作樹副本。
 
+**2026-10-22 使用者決定 B 線續做**，worktree 保留，代表卡 #350。2026-10-25 已把 `tmp/publication-policy/`
+備份到本機 `~/ttr-wip-archive/20261025-publication-policy-tmp/`（52 個檔案，實際沒有子目錄；先前寫 53 有誤），
+逐檔 SHA-256 與來源一致，清單另存 `~/ttr-wip-archive/20261025-publication-policy-tmp.sha256`。`scraper/.env`
+仍待使用者確認。
+
 ---
 
 ## 工作線 C：organizer 缺漏
@@ -236,6 +271,7 @@ Eslite identity migration、PN-3a.0（`b4cb383f`）、F-1（`831871e0`）。
 
 前三項已於 `ttr-publication-policy-worktree` 交付（`ab3bbfde`，8 檔 `+191/−6`），
 含兩個純函式 seam（`getOrganizerSectionTitleKey`／`getOrganizerFieldLabelKeys`）與測試。
+4 項無歸屬小項於 2026-10-22 開成 #351（不貼 spec label），進度以該 issue 為準。
 
 ---
 
@@ -256,61 +292,63 @@ Eslite identity migration、PN-3a.0（`b4cb383f`）、F-1（`831871e0`）。
 
 ## 未納入編號的工作線
 
-需決定是否納入 A–E 或另立編號。2026-10-22 觀測；ahead/behind 為 `HEAD...origin/main`，
-dirty 為 `--untracked-files=all` 的行數。
+2026-10-22 起新工作線一律以 spec＋看板 issue 追蹤，不再擴充 A–E 編號；下表只記 worktree 與其對應。
+2026-10-25 觀測；ahead/behind 為 `HEAD...origin/main`，「獨有」為 `git cherry origin/main <branch>` 的 `+` 數
+（`-` 表示內容已在上游，只是不是祖先）。所有 worktree dirty 皆為 0。
 
-| Worktree | ahead/behind | dirty | 判讀 |
-|---|---|---|---|
-| `ttr-ai-harness-worktree` | 0/38 | 4 | `feat/ai-harness`；4 行 dirty 全是未追蹤的 `docs/specs/active/ai-harness/`（plan／proposal／tasks／notes，2026-10-20 建立），**只存在於此 worktree**，移除前必須先 commit 或搬出 |
-| `ttr-ci-runner-pin-worktree` | 0/14 | 0 | `fix/ci-runner-pin`；交付 `488fd7b5`（fix(ci): pin Playwright workflows to ubuntu-24.04）已在 `origin/main`，退役候選；擁有者為其他 session |
-| `ttr-closer-auto-retire-worktree` | 0/15 | 2 | `feat/closer-auto-retire`；2026-10-22 新建、活躍編輯中；`origin/main` 尚無同名 spec |
-| `ttr-pause-enrich-poster-worktree` | 1/0 | 0 | `fix/pause-enrich-poster`；2026-10-22 新建，1 個未推送 commit；無同名 spec |
-| `ttr-pr-flow-tiering-worktree` | 1/0 | 3 | `feat/pr-flow-tiering`；活躍，spec `active/pr-flow-tiering` 已在 `origin/main` |
-| `ttr-evaluation-framework-worktree` | 0/136 | 0 | tip `0053daa0` 已是 `origin/main` 祖先；2026-10-22 Phase A **`HOLD:unhandled_work`**：worktree 交付的 close-out pilot 已全在 main，阻擋是 spec 長期未做的 P1-B／P2／P3 共 21 項（另 10 項 `- [ ] ~~…~~` 劃掉格式被計數）。spec 仍是 closer 流程與 `oneoff_campaign_anchor.py` 寫死的 owning spec，不可歸檔 |
-| `ttr-japan-scope-gate-worktree` | 11/195 | 16 | 停滯（最後 commit 2026-08-06）；11 個 commit 未進 main（`git cherry` 全為 `+`），本地與 `origin/feat/japan-scope-gate` 分岔 13/10；無 matching spec；去留待決，見 G3 |
-| `agents/ledger-topology-reconcile`（external） | 0/0 | 0 | 本次對帳專屬，指定 spec 為 `workstream-tracking`；push 後退役 |
+| Worktree | Branch | ahead/behind | 獨有 | 對應 spec／issue | 判讀 |
+|---|---|---|---|---|---|
+| `ttr-ai-harness-worktree` | `feat/ai-harness` | 20/16 | 20 | `active/ai-harness`（#426 等） | 活躍；spec 已進 `origin/main` |
+| `ttr-closer-auto-retire-worktree` | `feat/closer-auto-retire` | 0/110 | 0 | `active/closer-auto-retire`（#345 暫停中） | 退役候選；有 spec，走 closer，預期因 #345 判 HOLD |
+| `ttr-evaluation-framework-worktree` | `fix/eval-annotator-validated` | 2/16 | 0（2 個 `-`） | `active/evaluation-framework`（#383） | 退役候選；內容已在 main |
+| `ttr-event-detail-404-worktree` | `fix/event-detail-404` | 1/16 | 1 | `active/japan-scope-gate` | 有 1 個未進 main 的 commit；main 已有 `a05c8168`（answer 404 and 308 for event detail from proxy.ts），是否取代待擁有者確認 |
+| `ttr-guard-detections-worktree` | `feat/guard-detections` | 1/3 | 1 | `active/evaluation-framework`（#386） | 活躍（2026-10-25 建立） |
+| `ttr-ndl-relevance-publication-worktree` | `feat/ndl-relevance-publication` | 2/16 | 2 | `active/ndl-relevance-publication` | 活躍 |
+| `ttr-people-ground-truth-worktree` | `feat/people-ground-truth` | 1/62 | 1 | `active/people-ground-truth`（#392） | 有 1 個未進 main 的 commit |
+| `ttr-pr-flow-tiering-worktree` | `feat/pr-flow-tiering` | 0/144 | 0 | `active/pr-flow-tiering`（#316 試行中） | 退役候選；有 spec，預期因 #316 判 HOLD |
+| `ttr-scraper-zero-output-worktree` | `fix/scraper-zero-output` | 0/0 | 0 | `archive/2026-10-scraper-zero-output` | 退役候選；spec 已於 `18cbb644` 歸檔 |
+| `ttr-tiff-venue-inserts-worktree` | `feat/tiff-venue-inserts` | 0/0 | 0 | `archive/2026-10-authoritative-venue-repair` 的延續（#341） | 2026-10-25 15:05 由新 session 建立，開工中 |
+| `ttr-venue-data-cleanup-worktree` | `feat/venue-data-cleanup` | 1/16 | 1 | 無 spec（#371） | 有 1 個未進 main 的 commit |
+| `ttr-japan-scope-gate-worktree` | `docs/scope-gate-404-acceptance` | 1/3 | 0（1 個 `-`） | `active/japan-scope-gate`（#348 已關） | 內容已在 main |
+| `agents/ledger-topology-reconcile`（external） | 同左 | 0/0 | 0 | 指定 `active/workstream-tracking` | 本次對帳專屬；push 後退役 |
+
+退役候選都屬於其他 session；退役前要重新觀測，並取得使用者決定（2026-10-25 使用者只批准 unpin-ubuntu-runner、
+llm-cost-reset、tracking-cleanup 三個，其餘保留）。
 
 ---
 
 ## 三方對照：工作線 ↔ worktree ↔ spec
 
-| 工作線 | Worktree | ahead/behind | dirty | Spec |
+| 工作線 | Worktree | ahead/behind | Spec | 看板 |
 |---|---|---|---|---|
-| A（successor） | `ttr-admin-qa-cleanup-worktree`（alias 註冊） | 0/128 | 0 | `active/admin-qa-cleanup`；Phase A HOLD（52 項未勾選） |
-| A（predecessor） | 已移除 | — | — | `admin-reports-204-cleanup`（保留 active） |
-| B | `ttr-publication-policy-worktree`（alias 註冊，小寫） | 0/135 | 0 | `active/publication-policy`；Phase A HOLD（24 筆待辦） |
-| C | **無** | — | — | **無** |
-| D | publication worktree + 無歸屬 backlog | — | — | **無** |
-| E（venue repair） | 已退役（2026-10-22） | — | — | `archive/2026-10-authoritative-venue-repair`；production 階段 parked（#339、#341） |
-| 未編號 | `ttr-evaluation-framework-worktree`（alias 註冊） | 0/136 | 0 | `active/evaluation-framework`；Phase A HOLD（21 項真實待辦） |
-| 未編號 | `ttr-japan-scope-gate-worktree`（alias 註冊） | 11/195 | 16 | 無 matching spec |
-| 未編號 | `ttr-ai-harness-worktree` | 0/38 | 4 | spec 僅以未追蹤檔存在於該 worktree（`docs/specs/active/ai-harness/`），未進 `origin/main` |
-| 未編號 | `ttr-ci-runner-pin-worktree` | 0/14 | 0 | 無 matching spec（交付已在 main） |
-| 未編號 | `ttr-closer-auto-retire-worktree` | 0/15 | 2 | `origin/main` 尚無 matching spec |
-| 未編號 | `ttr-pause-enrich-poster-worktree` | 1/0 | 0 | 無 matching spec |
-| 未編號 | `ttr-pr-flow-tiering-worktree` | 1/0 | 3 | `active/pr-flow-tiering` |
-| 治理 | `agents/ledger-topology-reconcile`（external） | 0/0 | 0 | 指定 `active/workstream-tracking` |
-| —（主工作樹） | `Tokyo Taiwan Radar` | 0/0 | 0 | `active/workstream-tracking`（governance-only） |
+| A（successor） | `ttr-admin-qa-cleanup-worktree`（alias 註冊） | 0/280 | `active/admin-qa-cleanup` | #349（續做） |
+| A（predecessor） | 已移除 | — | `active/admin-reports-204-cleanup`（保留） | — |
+| B | `ttr-publication-policy-worktree`（alias 註冊，小寫） | 0/287 | `active/publication-policy` | #350（續做；tmp 快照已備份） |
+| C | **無** | — | **無** | — |
+| D | 無（4 項無歸屬） | — | **無** | #351 |
+| E（venue repair） | 已退役（2026-10-22） | — | `archive/2026-10-authoritative-venue-repair`；runbook `parked/authoritative-venue-repair-followups.md` | #339（暫停）、#341（TIFF 4 筆場館，2026-10-25 在 `ttr-tiff-venue-inserts-worktree` 開工） |
+| 其他 | 見上表 | — | 見上表 | 見上表 |
+| —（主工作樹） | `Tokyo Taiwan Radar` | 0/0 | `active/workstream-tracking`（governance-only） | — |
 
-### Spec 狀態 inventory（2026-10-22）
+### Spec 狀態 inventory（2026-10-25）
 
-實際存在的狀態目錄為 `docs/specs/active/`（19 個 spec；較 2026-10-20 新增 `pr-flow-tiering`）、`docs/specs/archive/`
-（2 個 spec 目錄：`2026-10-ai-portability`、`feedback-loop`，另有 8 個單檔 spec）與
-`docs/specs/parked/`（1 個單檔：`ai-portability-followups.md`）。目錄位置與 frontmatter
-`status` 不一致者如下：
+實際存在的狀態目錄為 `docs/specs/active/`（20 個 spec）、`docs/specs/archive/`（6 個目錄：`2026-05-tier1-data-completion`、
+`2026-05-works-entity-for-films-and-tours`、`2026-10-ai-portability`、`2026-10-authoritative-venue-repair`、
+`2026-10-scraper-zero-output`、`feedback-loop`，另有 10 個單檔 spec）與 `docs/specs/parked/`（2 個單檔：
+`ai-portability-followups.md`、`authoritative-venue-repair-followups.md`）。
+
+相對 2026-10-22：active 新增 `ai-harness`、`closer-auto-retire`、`japan-scope-gate`、`llm-cost-reset`、
+`ndl-relevance-publication`、`people-ground-truth`；`authoritative-venue-repair`、`scraper-zero-output` 與 `02ab2027`
+的四個 done spec（`japan-open-data-integration`、`report-prototype-gap-fix`、`tier1-data-completion`、
+`works-entity-for-films-and-tours`）移到 archive。目錄位置與 frontmatter `status` 不一致者：
 
 | Spec 目錄 | Frontmatter `status` |
 |---|---|
-| `active/japan-open-data-integration` | `done` |
 | `active/merger-multi-signal-pass4` | `parked` |
-| `active/report-prototype-gap-fix` | `done` |
-| `active/tier1-data-completion` | `done` |
-| `active/works-entity-for-films-and-tours` | `done` |
 | `archive/feedback-loop` | `active` |
 
-其餘 active spec 與 `archive/2026-10-ai-portability`（`archived`）相符；archive／parked 單檔
-spec 不帶 `proposal.md`，未逐一核對 frontmatter。這是雙向 inventory，不把 frontmatter
-狀態硬編成不存在的第三個實體目錄。
+另：`active/llm-cost-reset` 的 frontmatter 是 `active`，但它的 worktree 已退役、`feat/llm-cost-reset` 只剩本機 branch，
+是否歸檔由擁有者決定。其餘 active spec 與 archive 目錄的 `archived` 相符；archive／parked 單檔 spec 未逐一核對。
 
 ---
 
@@ -322,16 +360,15 @@ spec 不帶 `proposal.md`，未逐一核對 frontmatter。這是雙向 inventory
 
 ### G2: Linked worktree 缺 matching spec 目錄
 
-12 個 linked worktree 中，`ttr-admin-qa-cleanup`、`ttr-authoritative-venue-repair`、
-`ttr-evaluation-framework`、`ttr-publication-policy`、`ttr-pr-flow-tiering` 五個有同 slug 的 active spec；
-`agents/ledger-topology-reconcile` 明確指定 `workstream-tracking`。其餘 6 個需依規則生效時間與
-工作狀態分流（2026-10-22 觀測）：
+2026-10-25 觀測：15 個 linked worktree 中，除 `ttr-venue-data-cleanup-worktree`（只有 #371，無 spec）外，
+都對應到一個 active spec 或已歸檔的 spec（見「未納入編號的工作線」表）；目錄名與 spec slug 不一定相同
+（例：`ttr-guard-detections-worktree` → `evaluation-framework`、`ttr-event-detail-404-worktree` → `japan-scope-gate`）。
 
-- [ ] `ttr-japan-scope-gate-worktree` 補建 spec 或明確指定既有 spec（或依 G3 決定退役）
-- [ ] `ttr-ai-harness-worktree`：spec 已寫成 `docs/specs/active/ai-harness/`，但只以未追蹤檔存在於該 worktree，
-      需 commit 進 `origin/main`（或搬到 `~/.ai-notes/ttr/`）才算有 spec
-- [ ] `ttr-closer-auto-retire-worktree`、`ttr-pause-enrich-poster-worktree`（2026-10-22 新建）確認 spec 或指定既有 spec
-- [ ] `ttr-ci-runner-pin-worktree`：交付已在 `origin/main`，應走退役而非補 spec
+- [ ] `ttr-venue-data-cleanup-worktree`：#371 是否需要 spec，或維持 issue-only（依 `AGENTS.md`，小改動可不建 spec）
+- [x] `ttr-japan-scope-gate-worktree` 的 spec：`active/japan-scope-gate` 已進 `origin/main`（#348 已關）
+- [x] `ttr-ai-harness-worktree` 的 spec：`active/ai-harness` 已進 `origin/main`
+- [x] `ttr-closer-auto-retire-worktree` 的 spec：`active/closer-auto-retire` 已進 `origin/main`
+- [x] `ttr-ci-runner-pin-worktree`、`ttr-pause-enrich-poster-worktree`：已退役，不再待決
 
 2026-10-20 列出的 9 個 `agents/*` worktree 已於 2026-10-22 退役，`ttr-iwafu-gate-worktree` 已於 2026-10-20 退役，
 兩項不再待決。
@@ -343,11 +380,12 @@ spec 不帶 `proposal.md`，未逐一核對 frontmatter。這是雙向 inventory
 
 2026-10-22 待決停滯項（決定前必須取得使用者裁決，不得自行刪除或強制移除）：
 
-- [ ] `ttr-japan-scope-gate-worktree`（`feat/japan-scope-gate`，最後 commit 2026-08-06）：11 個 commit
-      未進 `origin/main`（`git cherry` 全為 `+`）、16 個檔案未提交（含 `scraper/annotator.py`、
-      `scraper/location_region.py`、`.github/instructions/database.instructions.md`），本地與
-      `origin/feat/japan-scope-gate` 分岔（本地領先 13、遠端領先 10，遠端含 merge commit）。
-      選項：續做並補 spec／放棄並在移除前匯出 patch 備份
+- [x] `ttr-japan-scope-gate-worktree`（`feat/japan-scope-gate`，最後 commit 2026-08-06）：11 個 commit
+      未進 `origin/main`、16 個檔案未提交、本地與遠端分岔。2026-10-22 由其他 session 續做（#348，已關）：
+      rebase 後經 PR #359 合併（`b19a08e9`，migration 097 撞號改為 098 並已套用），後續 Phase 6b／6c 移到 #385，
+      舊遠端 branch 與 worktree 清理在 #358；遠端 `feat/japan-scope-gate` 已刪除，該目錄現改用
+      `docs/scope-gate-404-acceptance`。殘留：#358 已關，但 2026-10-25 本機 `feat/japan-scope-gate` branch 仍在，
+是否刪除由擁有者決定
 - [x] `ttr-authoritative-venue-repair-worktree`（`feat/authoritative-venue-repair`）：2026-10-22 使用者選擇合併；
       `10770777` 推上 main 後 worktree 退役（見上方「2026-10 campaign worktree 退役」）
 
@@ -360,13 +398,11 @@ git --no-pager cherry origin/main <branch>   # '-' 前綴 = 內容已在上游
 
 ### G4: 其他
 
-- [x] 2026-10-22 重新以 live registered path、physical containment 與 symlink alias 對帳：
-      repo root 內 10 個 linked worktree basename 均已在 `.git/info/exclude`
-      （`ttr-admin-qa-cleanup`、`ttr-ai-harness`、`ttr-authoritative-venue-repair`、
-      `ttr-ci-runner-pin`、`ttr-closer-auto-retire`、`ttr-evaluation-framework`、`ttr-japan-scope-gate`、
-      `ttr-pause-enrich-poster`、`ttr-pr-flow-tiering`、`ttr-publication-policy`），本次 append 0 行，
-      exclude 內也沒有 stale 的 `ttr-*-worktree/` 行；`<repo>.worktrees/` 的 external worktree 不適用
-      exclude。主工作樹 dirty 0，與 `origin/main` 為 0/0。
+- [x] 2026-10-25 重新以 live registered path、physical containment 與 symlink alias 對帳：
+      repo root 內 14 個 linked worktree basename 均在 `.git/info/exclude`，exclude 的 ttr 區塊恰為這 14 行
+      （當日先以整塊對帳移除 3 行過期條目，剩 13 行；之後新 session 建立 `ttr-tiff-venue-inserts-worktree` 時
+      自行 append 1 行，見「2026-10-22～25 退役與消失的 worktree」）；`<repo>.worktrees/`
+      的 external worktree 不適用 exclude。主工作樹 dirty 0，與 `origin/main` 為 0/0。
 - [ ] Dependabot 8 個依賴漏洞中 6 筆已 `fixed`（PR #304，2026-10-20），剩 #87、#89 共 2 筆 `open`
       （均為刻意不處理，已於 2026-10-22 列為另案待辦，見「G4 另案待辦」）。**性質上不屬於工作線盤點**，僅暫置於此；建議另立資安維護歸屬
 
@@ -420,21 +456,22 @@ alert 維持 `open`，待下列條件成立時處理：
 
 ### G5: Worktree 註冊路徑與外部 sibling 治理
 
-- [x] 保存 13 個註冊 worktree（2026-10-22 對帳當時，含 main 與本次對帳專屬 worktree）的完整
+- [x] 保存 16 個註冊 worktree（2026-10-25 對帳當時，含 main 與本次對帳專屬 worktree）的完整
       registered path、physical path 與 path class 證據
 - [x] 證明 `Development`／`development` 路徑解析到同一個 symlink／同一套實體 repo
-- [ ] 另案決定是否把 5 個以搬移前舊路徑（含小寫 `development`）註冊的 linked worktree
-      正規化為 `3-TTR/` 實體路徑（`git worktree repair` 屬變更操作，需批准）。5 個都是 G3 待決或 Phase A HOLD 的
-      舊工作線，若它們依序退役，此項會自然消失，不必另做 repair
+- [ ] 另案決定是否把 3 個以搬移前舊路徑（含小寫 `development`）註冊的 linked worktree
+      （admin-qa-cleanup、japan-scope-gate 目錄、publication-policy）正規化為 `3-TTR/` 實體路徑
+      （`git worktree repair` 屬變更操作，需批准）。它們依序退役或重建時此項會自然消失；worktree 集中與路徑
+      規則另見 #328
 - [ ] 決定是否把 `<repo>.worktrees/<slug>` + `agents/<slug>` 正式納入命名規則；
       此慣例不污染主工作樹 untracked 清單，也不需要 exclude。2026-10-22 該慣例下的 9 個舊 worktree
-      已全數退役，現存只有本次對帳專屬的 `agents/ledger-topology-reconcile`；
+      已全數退役，2026-10-25 現存只有本次對帳專屬的 `agents/ledger-topology-reconcile`；
       ledger-topology-reconcile prompt 寫死的舊根路徑（`/Users/flyingship/Development/Tokyo Taiwan Radar…`）
-      仍經 symlink 可用，正式納入時需一併改成實體路徑
-- [ ] `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar.worktrees/agents-vscode-performance-issues`
-      目錄存在且含 `.git`（內容停在 2026-06-11），但未註冊（`.git/worktrees/` 無對應項）；
-      其 gitdir 指向 `/Users/flyingship/development/Tokyo Taiwan Radar/.git/worktrees/agents-vscode-performance-issues`，
-      該目標不存在。待判定是殘留、進行中或 registration 已失效；未經批准不得 delete、prune 或 re-add
+      仍經 symlink 可用，正式納入時需一併改成實體路徑。可與 #328 的集中方案一起決定
+- [x] `agents-vscode-performance-issues`（未註冊、gitdir 失效的同層目錄）：2026-10-25 確認目錄已不存在，
+      連上層 `3-TTR/Tokyo Taiwan Radar.worktrees/` 也一度消失（本次對帳重新建立）；`.git/worktrees/`、branch、
+      `~/.Trash` 都沒有殘留，刪除者不明，刪除前是否匯出無法驗證（#352 已以觀測結果關閉）。殘留：舊路徑 symlink
+      `/Users/flyingship/Development/Tokyo Taiwan Radar.worktrees` 在上層目錄不存在時會指向空處，無害
 
 本次只更新證據，不授權 `git worktree move`、remove/re-add、repair 或手改 `.git/worktrees`。
 

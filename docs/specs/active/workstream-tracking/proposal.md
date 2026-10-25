@@ -16,6 +16,10 @@ tags: [governance, tracking, meta]
 本 spec 是這份盤點的**權威持久位置**。`.github/prompts/workstream-audit.prompt.md`
 只負責指示 agent 讀取本 spec 並重新查證，不自帶內容副本。
 
+2026-10-22 起，`AGENTS.md`「進度追蹤」把**進度入口**改為 GitHub Project TTR Roadmap 看板，細項一律開 issue。
+本 spec 因此收斂為 worktree／spec 拓撲、退役證據與治理缺口的紀錄；各工作線「做到哪」以看板 issue 為準，
+本檔只放指向 issue 的連結，不重複維護細項清單。
+
 ## Why（為什麼）
 
 三個獨立問題促成這份 spec：
@@ -25,12 +29,12 @@ tags: [governance, tracking, meta]
    session memory。
 
 2. **三個維度已經漂移**。A–E 是任務分類、worktree 是 git 隔離機制、spec 是文件單位，
-   三者從未設計成一對一。2026-10-22 live snapshot（退役 9 個 `agents/*` worktree 並建立本次對帳
-   worktree 後）有 19 個目錄位於 `docs/specs/active/`、2 個目錄位於 `docs/specs/archive/`，以及 13 個
-   註冊 worktree（1 個 main + 12 個 linked）。其中 6 個 linked worktree 沒有同 branch slug 的 active
-   spec（治理對帳用的 `agents/ledger-topology-reconcile` 明確指定 `workstream-tracking`，不計入）。
+   三者從未設計成一對一。2026-10-25 live snapshot 有 20 個目錄位於 `docs/specs/active/`、6 個目錄位於
+   `docs/specs/archive/`，以及 16 個註冊 worktree（1 個 main + 15 個 linked，含本次對帳 worktree）。
+   linked worktree 中只有 1 個（`ttr-venue-data-cleanup-worktree`，#371）沒有對應 spec；但目錄名、branch 名與
+   spec slug 經常不同（同一個目錄會被其他 session 換成新 branch），對應關係必須逐一查證，不能用名稱推斷。
    不能把「無 dedicated worktree」或「無同名 spec」一律判成違規，必須辨識 grandfathered 與明確指定關係。
-   目錄位置與 frontmatter `status` 是兩份證據；目前 6 個 spec 的兩者不一致（見 tasks.md inventory）。
+   目錄位置與 frontmatter `status` 是兩份證據；目前 2 個 spec 的兩者不一致（見 tasks.md inventory）。
 
 3. **治理缺口沒有歸屬**。停滯 worktree、未納版控的 prompt、違反 spec ⟺ worktree
    規則的分支——這些問題不屬於任何單一功能 spec，因此一直沒有被追蹤。
@@ -67,13 +71,12 @@ Worktree 身分不得只用 basename。權威證據是 `git worktree list --porc
 
 repo 實體根目錄已搬到 `/Users/flyingship/Development/3-TTR/Tokyo Taiwan Radar`，
 舊路徑 `/Users/flyingship/Development/Tokyo Taiwan Radar`（及 `.worktrees`）成為 symlink（2026-09-10）。
-2026-10-22 live 拓撲有三種註冊形態（共 13 個，含 main）：
+2026-10-25 live 拓撲有三種註冊形態（共 16 個，含 main）：
 
-1. **新路徑註冊**：`ttr-ai-harness-worktree`、`ttr-ci-runner-pin-worktree`、`ttr-closer-auto-retire-worktree`、
-   `ttr-pause-enrich-poster-worktree`、`ttr-pr-flow-tiering-worktree`（repo root 內，必須以
+1. **新路徑註冊**：repo root 內 11 個 `ttr-*-worktree`（清單見 tasks.md 拓撲表，必須以
    `.git/info/exclude` 防止 `git add -A` 誤掃），以及 root 外的 `3-TTR/Tokyo Taiwan Radar.worktrees/ledger-topology-reconcile`。
-2. **舊路徑 symlink-alias 註冊**：其餘 5 個 linked worktree（admin-qa-cleanup、authoritative-venue-repair、
-   evaluation-framework、japan-scope-gate、publication-policy，全在 root 內）的 Git 註冊字串仍是搬移前的
+2. **舊路徑 symlink-alias 註冊**：其餘 3 個 linked worktree（admin-qa-cleanup、japan-scope-gate 目錄、
+   publication-policy，全在 root 內）的 Git 註冊字串仍是搬移前的
    `/Users/flyingship/Development/Tokyo Taiwan Radar...`（`publication-policy` 為小寫
    `development`）。`pwd -P` 全部落在 `3-TTR/` 下，是同一套實體 repo 的 lexical alias；
    字串前綴 classifier 會把它們誤列為 `external`，需以 `pwd -P` containment 重新分類。
@@ -84,8 +87,9 @@ repo 實體根目錄已搬到 `/Users/flyingship/Development/3-TTR/Tokyo Taiwan 
    無 exclude 條目。**建議**後續將其正式寫入 git 規則並界定使用時機；本次只提出建議，不改寫
    `.github/instructions/git.instructions.md`。
 
-另有一個同層目錄 `agents-vscode-performance-issues` 含 `.git`、但不在 `git worktree list`；
-它的 gitdir 指標指向不存在的目標。這是待判定的治理缺口，不是可自行 prune、re-add 或刪除的授權。
+2026-10-22 曾觀測到同層目錄 `agents-vscode-performance-issues` 含 `.git`、但不在 `git worktree list`，
+gitdir 指標指向不存在的目標；2026-10-25 確認它已被刪除（刪除者不明，#352）。這段保留「未註冊但含 `.git` 的
+目錄可能存在」的歷史證據，遇到時仍不可自行 prune、re-add 或刪除。
 
 2026-08-08 曾另觀測到一個 repo-root sibling 的 external registration，以及 `v8` 的小寫註冊；
 前者已於 2026-08-09 以非強制移除與安全 branch deletion 正常退役（見 [tasks.md](./tasks.md) 的
