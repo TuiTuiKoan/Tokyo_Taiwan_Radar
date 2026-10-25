@@ -116,7 +116,11 @@ worktree 的 HEAD 可能早於腳本的新版（2026-10-13 ai-portability：`ttr
 Exit code：`0` = RETIRE_CANDIDATE、`10` = HOLD、`20` = UNDETERMINED、`2` = 用法錯誤。
 
 * **A0** 進入指定 worktree。**禁止在主工作樹做判定**——主工作樹是 governance-only，它的
-  dirty 狀態與 campaign 無關。
+  dirty 狀態與 campaign 無關。「進入」指判定的對象，**不是 shell 的 cwd**：整個 Phase A–D 都不在 Bash 裡
+  `cd` 進受稽核的 worktree，一律 `git -C '<絕對路徑>'` 或絕對路徑，否則 cwd 會停在裡面，Phase D 的占用檢查
+  與移除都會受影響（SKILL.md § 在 Bash 工具裡解析路徑）。
+* **重跑時機** — Phase C 動筆前、Phase D 的 D1 都要重跑稽核腳本。期間新出現的 open issue 是新的阻擋，
+  先前的同意不涵蓋它（SKILL.md § 來源 5：平行 session 新開的 issue）。
 * **A1 Identity** — 記錄 registered path、resolved physical path、path class
   （`canonical` / `divergent` / `external`）、branch。**不假設** 目錄叫 `ttr-<slug>-worktree`
   或分支叫 `feat/<slug>`；本 repo 兩種反例都已存在。

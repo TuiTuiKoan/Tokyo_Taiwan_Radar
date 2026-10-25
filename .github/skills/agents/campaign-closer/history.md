@@ -9,6 +9,39 @@ ms.date: 2026-08-12
 
 ---
 
+## 2026-10-22 — authoritative-venue-repair 結案：push 日期、平行 session 開 issue 造成 HOLD、裸 `cd` 重犯
+
+出處：#344；結案記錄 `docs/evaluation/campaigns/2026-10-22-authoritative-venue-repair.md`。
+
+### 1. push 日期不等於 author date
+
+**現象**：第一段 push 的 commit 作者日期是 2026-08-06，協調者交接時寫成「08-06 推上 main」。closer 從
+`origin/main` reflog 的 `update by push` 查出實際 push 是 2026-08-09 14:49（`8113549c` → `01754b85`）。
+**根因**：腳本段落輸出印 author date；rebase 後才 push 的 commit，author date 早於 push。
+**教訓**：沒有 V-M-D handoff 時，push 時間與 base/head 都從 reflog 推，再用 first-parent 交叉核對。規則寫入
+SKILL § 多次 push 的 campaign。
+
+### 2. Phase A 到 D 之間，平行 session 開的 issue 讓結論變成 HOLD
+
+**現象**：Phase A（06:36Z）`UNDETERMINED`。平行 session 依新的 `AGENTS.md` 進度追蹤規則開了 parked runbook 的代表卡
+#339（07:09Z），動筆前重跑變 `HOLD:unhandled_work`。協調 session 自己在第 3 次稽核之後開了 #341（07:52Z），
+結案記錄沒寫到它，D1 重跑又多一個阻擋。兩次都是「動筆前、移除前重跑稽核」才抓到；使用者兩次裁定為
+Deferred work 的追蹤位置，#341 於 D5 以 Update 段落補進記錄。
+**根因**：進度追蹤規則要求剩餘待辦開 issue 並貼 `spec:<slug>`，來源 5 則把這些 issue 算成未處理待辦，兩者
+方向相反；而 issue 可能在 Phase A 之後才出現。
+**教訓**：Phase C 動筆前與 D1 都重跑腳本；新 issue 是新的阻擋，舊的同意不涵蓋它。規則寫入 SKILL § 來源 5：
+平行 session 新開的 issue。腳本是否排除已裁定的追蹤卡，留待 #344 決定。
+
+### 3. 裸 `cd` 進受稽核的 worktree（既有規則重犯）
+
+**現象**：closer subagent 在 Phase A／C 直接 `cd` 進 `ttr-authoritative-venue-repair-worktree`，自己與協調 session
+的 primary working directory 都被改標成該 worktree。`lsof` 確認移除前沒有行程停留，沒有影響退役。
+**根因**：SKILL § 在 Bash 工具裡解析路徑（2026-10-14 條目）只舉「解析別的 worktree 路徑」的例子，執行者沒把它
+套用到受稽核的 worktree 本身。
+**教訓**：整個 Phase A–D 都不 `cd` 進受稽核的 worktree。agent 檔 A0 加上硬性提醒，SKILL 同節補記重犯。
+
+---
+
 ## 2026-10-22 — 稽核腳本只試 `archive/<slug>`，與 README 規定的日期前綴命名對不上
 
 **事實**：2026-08-12 的 `spec_dir_unresolved` 修正（見下方同日條目）把 fallback 寫成 `archive/<slug>/`。但 `docs/specs/README.md`

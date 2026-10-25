@@ -145,6 +145,11 @@ push 之間若有別的 campaign 的 commit 進入 `origin/main`，單一跨度�
   空段落規則。與 `--range` 並用時它是完整範圍，此時 `--head` 沒有 `--base` 是用法錯誤（exit 2）。
   三點形式 `a...b`、缺任一端、缺 `..` 的 `--range` 值一律 exit 2。
 * **V-M-D handoff 範本**帶成對的 base／head 與完整範圍；多次 push 時由協調者逐次累積。
+* **push 時間以 `origin/main` reflog 為準，不用 author date 推。** 沒有 V-M-D handoff 時，從
+  `git reflog show --date=iso refs/remotes/origin/main` 的 `update by push` 找每次 push 前後的 tip，再用
+  first-parent 的 parent 關係交叉核對。腳本段落輸出印的是 author date；rebase 後才 push 的 commit，author
+  date 早於 push（2026-10-22 authoritative-venue-repair：第一段作者日期 08-06，實際 push 是 08-09 14:49，
+  協調者交接時寫錯，closer 依 reflog 更正）。記錄裡寫 push 時間時註明來源是 reflog。
 
 ### 來源 5 排除 `daily-review` label
 
@@ -152,6 +157,24 @@ push 之間若有別的 campaign 的 commit 進入 `origin/main`，單一跨度�
 （2026-10-13 ai-portability：#296 使 `open_issues=1`）。搜尋因此是 `<slug> -label:daily-review`，輸出行
 註明 `excluding label:daily-review`。它是提醒、不是待辦。已知限制：真的待辦 issue 若被貼上這個 label
 會被漏掉，所以這個 label 只留給自動產生的提醒。
+
+### 來源 5：平行 session 新開的 issue，與已裁定的延後追蹤卡
+
+`AGENTS.md`「進度追蹤」要求剩餘待辦開 issue 並貼 `spec:<slug>` label；parked runbook 還要開一張代表卡。
+這些 issue 都會被來源 5 算成未處理待辦，而且可能在 Phase A 之後才出現。2026-10-22 authoritative-venue-repair：
+Phase A（06:36Z）是 `UNDETERMINED`；平行 session 推 `f632ef51` 時開了代表卡 #339（07:09Z），動筆前重跑變
+`HOLD:unhandled_work`；協調 session 在第 3 次稽核之後、記錄 commit 之前又開了 #341（07:52Z），D1 再多一個阻擋。
+
+* **Phase C 動筆前、Phase D 的 D1，都要重跑稽核腳本**，不只重看六值。Phase A 到 D 之間可能隔數小時，
+  期間平行 session 新開的 issue 只有重跑才看得到。重跑時 `--head` 照舊用 pushed HEAD（見 Phase D 同名一節）。
+* **新出現的 issue 是新的阻擋，先前的同意不涵蓋它。** 停下來回報，請使用者看過重跑結果後裁定：
+  算這個 campaign 的未完成工作（HOLD 成立），或算 Deferred work 的追蹤位置。後者在記錄裡照實寫出腳本判定
+  仍是 `HOLD:unhandled_work`，並註明是使用者的裁定，不改寫腳本結果。
+* **記錄已提交後才出現的 issue**，在 D5 回填時於記錄尾端追加 `### Update after the close-out (<日期>)`，
+  不改寫已提交的段落。
+* 協調 session 自己在稽核途中開 issue，同樣會觸發這個流程；開之前先想好它會不會讓 campaign 回到 HOLD。
+* 腳本是否要排除「已裁定為延後追蹤位置」的 issue（例如另設 label，或從記錄的 Deferred work 讀取 issue 號），
+  尚未決定，見 #344。在決定之前，每次都由使用者人工裁定。
 
 ### `not_checked` 與 `0` 是不同的主張
 
@@ -386,6 +409,10 @@ git -C "$WT" rev-parse --abbrev-ref HEAD
 * 對 worktree 的操作用 `git -C '<絕對路徑>'`，檔案用絕對路徑。上一節對帳的第 1 步取 live 路徑時也適用。
 * cwd 已漂移（primary working directory 被改標，或 `pwd` 不是預期的目錄）時，不靠 cwd 補救：先問使用者要把
   commit 放哪裡，之後用 `git -C '<絕對路徑>'` 明寫位置。
+* **這條規則已重犯一次。** 2026-10-22 authoritative-venue-repair：closer subagent 在 Phase A／C 直接 `cd` 進受稽核的
+  worktree，自己與協調 session 的 primary working directory 都被改標成該 worktree，Phase D 前得逐一確認沒有
+  行程停留。受稽核的 worktree 同樣適用：**整個 Phase A–D 都不 `cd` 進去**，每次 Bash 先回主工作樹，對 worktree
+  一律 `git -C` 或絕對路徑。agent 檔的 A0 已加上同一句。
 
 ### 驗證類檢查帶明確標籤，不靠 exit code 或結果順序
 
