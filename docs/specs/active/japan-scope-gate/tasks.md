@@ -48,10 +48,10 @@ updated: 2026-10-25
 
 ## Wave 2：明確延後
 
-* [ ] 另立計畫評估 Google News RSS narrow guard
-* [ ] 另立計畫評估 Big Romantic Records leg-level location filter
-* [ ] 另立計畫評估 publisher domain risk 與 `startup_terrace`
-* [ ] 另立計畫處理任何 `source_exclusions` 與 security/broken-link history routing
+* [ ] 另立計畫評估 Google News RSS narrow guard（已轉 issue #455，不在本 spec 追蹤）
+* [ ] 另立計畫評估 Big Romantic Records leg-level location filter（已轉 issue #455，不在本 spec 追蹤）
+* [ ] 另立計畫評估 publisher domain risk 與 `startup_terrace`（已轉 issue #455，不在本 spec 追蹤）
+* [ ] 另立計畫處理任何 `source_exclusions` 與 security/broken-link history routing（已轉 issue #455，不在本 spec 追蹤）
 
 ## Approval Gates
 
