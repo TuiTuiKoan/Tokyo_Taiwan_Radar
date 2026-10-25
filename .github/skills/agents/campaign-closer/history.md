@@ -9,6 +9,18 @@ ms.date: 2026-08-12
 
 ---
 
+## 2026-10-25 — 退役腳本用登記字串對帳 exclude，漏掉舊路徑註冊的 worktree
+
+出處：#444。
+
+**現象**：scraper-zero-output 退役腳本步驟 5 以 `grep -F "$M/"` 取目標清單，3 個以舊路徑或小寫父目錄登記的
+worktree 被判在 root 外，對帳後它們的 `ttr-*-worktree/` 行被移除，主工作樹出現 3 個 `??`。
+**根因**：SKILL.md 已有「用物理路徑」規則，但產生腳本的範本沒有跟著寫。
+**修法**：SKILL.md § exclude 對帳的目標清單新增範本（每個註冊路徑 `$( cd "$p" && /bin/pwd -P )`，在 root 之下才取 basename）
+與後驗證（`git status --short` 不得出現 `?? ttr-*-worktree/`）。本機 exclude 缺的 3 行由使用者補（本機檔，不進 repo）。
+
+---
+
 ## 2026-10-25 — 來源 5 排除 `deferred-work` label
 
 出處：#344（heartbeat）。**症狀**：`AGENTS.md` 要求剩餘待辦開 issue，這些 issue 讓每次結案都判 `HOLD:unhandled_work`。
