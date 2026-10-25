@@ -1,6 +1,6 @@
 # Heartbeat 排程 agent 的提示詞（草稿，Phase B 第一次執行前定稿）
 
-用途：每 8 小時由排程雲端 agent 執行一次。以下是整段提示詞；`<owner>/<repo>` 是 `TuiTuiKoan/Tokyo_Taiwan_Radar`。
+用途：每 8 小時由 Claude Code 排程雲端 agent 執行一次（不用 Codex）。模型：分類段 Haiku／low，修改段 Sonnet／medium；若排程只能選一個模型，用 Sonnet。以下是整段提示詞；`<owner>/<repo>` 是 `TuiTuiKoan/Tokyo_Taiwan_Radar`。
 
 ---
 

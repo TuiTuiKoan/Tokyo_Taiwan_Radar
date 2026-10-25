@@ -11,7 +11,7 @@ tags: [governance, agents, tooling, infra]
 
 把開發流程的預設從「每個細節問使用者、每次推送由使用者貼指令」改成「agent 依建議值自己決定並留下紀錄，只在少數人類關卡停下」。三件事：
 
-1. **自主程度政策**。寫進 `AGENTS.md` 與 `.github/copilot-instructions.md`。設計細節、worktree 選擇、模型選擇、試做參數一律採建議值（通常是「最小範圍試做，觀察幾天再擴大」）；只有「人類關卡」清單上的動作才停下來問。Claude 規劃完成後自動以 `codex exec` 把評審或實作交給 Codex，不再請使用者手動開 Codex session。
+1. **自主程度政策**。寫進 `AGENTS.md` 與 `.github/copilot-instructions.md`。設計細節、worktree 選擇、模型選擇、試做參數一律採建議值（通常是「最小範圍試做，觀察幾天再擴大」）；只有「人類關卡」清單上的動作才停下來問。Claude 規劃完成後自動以 `codex exec` 交給 Codex Plan Critic 評審，不再請使用者手動開 Codex session；規劃與實作都留在 Claude，模型等級依 tier 與成本選。
 2. **推送改走 PR**。沿用 `pr-flow-tiering` 已上線的三層：agent 自己推 feature branch、開 PR；Tier 0 自動合併，Tier 1 使用者一鍵合併，Tier 2 使用者看過再合併。V-M-D 不再產生要使用者貼到終端機的 push 指令。
 3. **issue 到 PR 的 heartbeat**。使用者（或 CI 失敗通知）開 issue 之後，排程的 agent 每天數次自動分類、挑一張可自動修的 issue、在隔離分支修好、推上去開 PR。使用者只做兩件事：驗證結果（看 PR、看網站、看資料）；覆核不精準的輸入（分類錯、修錯、範圍判斷錯），開 issue 或在 PR 留言。
 
@@ -41,7 +41,8 @@ tags: [governance, agents, tooling, infra]
 | 類型 | agent 怎麼做 |
 | --- | --- |
 | 設計細節、slug、worktree、模型、試做參數、小範圍取捨 | 採建議值，把決定與一句理由寫進 spec 的 proposal 或 issue，不問 |
-| 規劃完成後的評審或實作交接 | 自己執行 `codex exec`（§3），不問 |
+| 規劃完成後的 Plan Critic 評審 | 自己執行 `codex exec`（§3），不問 |
+| 規劃與實作用哪個模型 | Claude 的 agent 依 tier 與成本選（§3），不交 Codex 實作，不問 |
 | 推 feature branch、開 PR、建 issue 與 label、建 worktree | 自己做，回報裡一句話說明 |
 | 人類關卡（下表） | 停下，依 handoff 規則交一張卡片 |
 
@@ -76,14 +77,13 @@ worktree 內 commit → rebase origin/main → git push -u origin <branch>（hoo
 - 新建 worktree 後 `git branch --unset-upstream`，避免無參數 `git push` 推到 main（沿用 `pr-flow-tiering` Phase 0 的做法）。
 - `.claude/settings.json` 不需改：推 feature branch 已不提示（notes B5）。
 
-### 3. Codex 自動交接
+### 3. Codex 只做 Plan Critic；規劃與實作留在 Claude，模型依 tier 與成本
 
-Claude 不再要求使用者開 Codex。規則寫在 `AGENTS.md`：
+使用者 2026-10-25 釐清：Codex 的用途只有 Plan Critic（不同模型家族的評審視角）；開發與規劃都用 Claude。規則寫在 `AGENTS.md`：
 
-- 評審：`codex exec -p plan -s read-only -o docs/specs/active/<slug>/plan-critique-N.md "<提示>"`（既有規則，全文必須存檔）。
-- 實作：`codex exec --full-auto -C "<worktree 絕對路徑>" "<提示：讀 AGENTS.md 與該 spec，實作某里程碑，不 commit、不 push>"`。Codex 沒有 hooks，所以只能在 worktree 內以 `workspace-write` sandbox 跑；預設無網路，不能 push。Codex 跑完由 Claude 自己跑測試、commit、推 branch、開 PR。
-- Codex 啟動失敗或旗標不符時，Claude 讀對應 agent 檔自己執行，在報告中註明「未委派」。
-- 第一次實跑要確認的事（NOT TESTED）：`--full-auto` 在 `codex exec` 的實際 sandbox 與 approval 行為、`build` profile 是否存在（不存在就不帶 `-p`）。
+- 評審：Claude 規劃完成後自己執行 `codex exec -p plan -s read-only -o docs/specs/active/<slug>/plan-critique-N.md "<提示>"`，不再請使用者開 Codex；全文必須存檔（既有規則）。Codex 啟動失敗時改用 Claude 的 plan-critic 評審，報告註明同一模型家族。
+- 規劃與實作：architect、engineer、scraper-expert、designer、tester、validate-merge-deploy 都是 Claude 的 agent。subagent 的模型由 `tier` 投影（plan→Opus high、build→Sonnet medium、grunt→Haiku low，見 `ai-harness`）；主對話依「執行前的模型評估」選最便宜夠用的等級，Fable 只在跨 phase 架構規劃或 Opus 卡關時用。這些選擇是細節，agent 自己決定並在回報開頭說明，不問。
+- 不用 Codex 實作，也不把 Codex cloud 當 heartbeat 的執行者。
 
 ### 4. Heartbeat：issue 到 PR
 
@@ -92,11 +92,11 @@ Claude 不再要求使用者開 Codex。規則寫在 `AGENTS.md`：
 | 選項 | 配額歸屬 | 優點 | 缺點 |
 | --- | --- | --- | --- |
 | A. Claude Code 排程雲端 agent（routine） | Claude 訂閱 | 本 session 就能建立；讀同一份 `AGENTS.md`；可 push branch、開 PR | hooks 在雲端 session 的行為、配額歸屬 NOT TESTED |
-| B. Codex cloud 的 GitHub 整合 | ChatGPT 訂閱 | 第二個配額池；issue 留言即可觸發 | 使用者要先在 ChatGPT 連 GitHub；無 hooks |
+| B. Codex cloud 的 GitHub 整合 | ChatGPT 訂閱 | 第二個配額池 | 開發不用 Codex（使用者 2026-10-25 釐清）；不採用 |
 | C. GitHub Actions 跑 agent CLI | API 計費 | 完全在 repo 內 | 要 API key，與「成本＝配額」衝突；不採用 |
 | D. 家用 Mac launchd | Claude 訂閱 | hooks 完整 | 依賴 Mac 開機（#407 同類問題）；不採用為主線 |
 
-**採用 A 為第一輪，B 為 Phase C 的第二池。** 理由：A 不需使用者動手，規則與安全網和本 repo 一致；B 需要使用者一次性連接，等 A 跑通再加。
+**採用 A。** 理由：不需使用者動手，規則與安全網和本 repo 一致，開發留在 Claude。配額壓力由模型等級控制：heartbeat 的修 scraper 屬 build tier（Sonnet medium），分類屬 grunt tier（Haiku low）。
 
 **一次執行的流程**（提示詞草稿在 [heartbeat-prompt.md](./heartbeat-prompt.md)）
 
@@ -126,7 +126,7 @@ Claude 不再要求使用者開 Codex。規則寫在 `AGENTS.md`：
 | --- | --- | --- | --- |
 | Phase A（本 PR） | 政策文字與 V-M-D 改寫 | PR 以新流程交付（agent 推 branch、開 PR、使用者合併），測試全綠 | 使用者在 PR 否決任何一項預設決定 → 改文字再提 |
 | Phase B（合併後 7 天） | 排程雲端 agent，第一次只分類，之後每次最多 1 張 Tier 1 issue | 至少 1 張 heartbeat PR 經一鍵合併，且下一次 scraper 執行該來源有產出；人工步驟只剩「按合併」 | §4 的任一停止條件 |
-| Phase C | Codex cloud 第二池；合併後驗證迴路自動留言；Tier 1 LINE 推播 | 兩池各完成 1 張 | 配額曲線惡化 |
+| Phase C | 合併後驗證迴路自動留言；Tier 1 LINE 推播；heartbeat 分類段降到 Haiku | 一張 PR 從 issue 到合併到驗證全程無人工步驤 | 配額曲線惡化 |
 
 ### 7. 本 spec 預設採用的決定
 
@@ -137,13 +137,13 @@ Claude 不再要求使用者開 Codex。規則寫在 `AGENTS.md`：
 | A1 | PR 流程是預設（承接 pr-flow-tiering D1） | 是；直接 push main 只留給使用者 |
 | A2 | worktree 由誰決定 | agent 自選自建並回報；路徑慣例不變（D2） |
 | A3 | Tier 0 範圍 | 不變（D3） |
-| A4 | heartbeat runner | Claude Code 排程雲端 agent；Codex cloud 第二池 |
+| A4 | heartbeat runner | Claude Code 排程雲端 agent；不用 Codex |
 | A5 | 節奏與上限 | 每 8 小時、每次 1 張、同時 2 張待合併 |
 | A6 | 分類範圍 | 只碰沒有 `spec:` label 的 issue |
 
 ### 影響的檔案
 
-- `AGENTS.md`、`.github/copilot-instructions.md`：新增「自主程度與人類關卡」。
+- `AGENTS.md`、`.github/copilot-instructions.md`：新增「自主程度與人類關卡」；Codex 只做 Plan Critic，規劃與實作留在 Claude。
 - `.github/instructions/git.instructions.md`：Branch strategy 與 Agent workflow 改為 PR 預設；Worktree confirmation gate 改為 selection rule。
 - `.github/instructions/handoff.instructions.md`：只有人類關卡才交接卡片。
 - `.github/agents/validate-merge-deploy.agent.md`：Step 4 推 branch 與開 PR；Step 5 以 merge commit 驗證；`python3 scripts/sync_ai_adapters.py` 重生成 wrapper。
