@@ -9,6 +9,17 @@ ms.date: 2026-08-12
 
 ---
 
+## 2026-10-25 — 稽核腳本：刪除線待辦與 label-only issue 的計數誤差
+
+出處：#445。
+
+**現象**：`- [ ] ~~文字~~ — 理由` 被算成未處理；來源 5 只比字面 slug，漏掉帶 `spec:<slug>` label 的 issue。
+**修法**：`scripts/campaign-closeout-audit.sh` 新增 `struck_out=N`（列出、不計入 `unhandled_total`）；來源 5 另跑 `label spec:<slug>` 查詢，
+輸出 `open_issues_by_label` 與兩組號碼，label 有而字面搜尋沒有的 issue 計入 `unhandled_total`（`open_issues_label_only`）。
+測試補在 `scripts/tests/test_campaign_closeout_audit.py`。第 3 項（無 changes-log.md 時 `deferred_markers=0` 與「查過沒有」無法區分）未處理，另議。
+
+---
+
 ## 2026-10-22 — authoritative-venue-repair 結案：push 日期、平行 session 開 issue 造成 HOLD、裸 `cd` 重犯
 
 出處：#344；結案記錄 `docs/evaluation/campaigns/2026-10-22-authoritative-venue-repair.md`。
