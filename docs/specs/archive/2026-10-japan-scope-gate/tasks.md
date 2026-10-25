@@ -1,7 +1,7 @@
 ---
 title: Japan Scope Gate Tasks
 description: Wave 1 delivery checklist and approval boundaries for the Japan scope gate
-status: active
+status: archived
 updated: 2026-10-25
 ---
 

@@ -1,7 +1,7 @@
 ---
 title: Japan Scope Gate Notes
 description: Live read-only evidence collected for Phase 6b
-status: active
+status: archived
 updated: 2026-10-25
 ---
 

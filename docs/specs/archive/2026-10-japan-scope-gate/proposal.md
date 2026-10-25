@@ -2,7 +2,7 @@
 slug: japan-scope-gate
 title: Japan Scope Gate
 description: Add a consumable non-Japan audience decision and a review-safe admin action path
-status: active
+status: archived
 branch: feat/japan-scope-gate-6b
 created: 2026-08-04
 updated: 2026-10-23

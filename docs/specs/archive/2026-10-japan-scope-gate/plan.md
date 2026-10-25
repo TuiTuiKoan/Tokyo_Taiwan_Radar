@@ -1,7 +1,7 @@
 ---
 title: Japan Scope Gate Phase 6b Plan
 description: Transactional cleanup RPC, writer pause/drain runbook and approval package for the 22 reviewed non-Japan events
-status: active
+status: archived
 updated: 2026-10-23
 ---
 

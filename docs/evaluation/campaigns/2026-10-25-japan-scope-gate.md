@@ -122,9 +122,32 @@ that backfills the worktree disposition.
 
 ## Worktree disposition
 
-`pending`: the worktree is retired after this record lands on `origin/main`. The
-decision time and the six freshness values are written by the backfill after the
-removal, from the recovery capsule.
+`remove`, decided at 2026-10-25T07:14:54Z (the time the recovery capsule was written,
+after the owner reviewed the close-out audit result and confirmed the items it held on).
+The owner removed the worktree from a terminal outside it with `git worktree remove` on
+the registered path, without `--force`, deleted the branch with `git branch -d`, without
+`-D`, and reconciled the `.git/info/exclude` block as a whole. This section is written
+after that removal; it is merged only once the removal has happened.
+
+| Freshness value | Re-observed at 2026-10-25T07:14:54Z (immediately before the decision) |
+|-----------------|--------------------------|
+| branch tip | `eb88c9c085d347b889c4d7dfc5511d72e01ea053`, the commit that put this record on `origin/main` |
+| ahead of `origin/main` | `0` |
+| behind `origin/main` | `0` |
+| dirty count | `0` |
+| ignored artifact set | `28` entries, classified under Ignored artifacts and handling |
+| path identity | `divergent`, directory `ttr-japan-scope-gate-worktree`, branch `docs/japan-scope-gate-closeout` |
+
+The audit script held at `HOLD` and exited 10. The owner reviewed each held item on
+2026-10-25 and accepted it as known and handed over; they are listed under Known risks.
+Session contention was re-observed with `lsof -a -d cwd` on the physical path: the only
+processes with that directory as their working directory were this campaign's own
+Claude Code session, its terminal shell, and child processes of both. The owner
+confirmed no other Claude Code, Codex or VS Code window used the worktree. The script
+itself covers Copilot CLI sessions only.
+
+The recovery capsule is kept outside the repository at
+`~/.ai-notes/ttr/capsules/2026-10-25-japan-scope-gate.md`.
 
 ## Ignored artifacts and handling
 
