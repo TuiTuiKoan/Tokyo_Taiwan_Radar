@@ -2,6 +2,10 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-10-25：Annotator Backfill QA Rule 的驗證 SQL 跑不動
+
+症狀：SKILL.md 的驗證 SQL 用 `selection_reason->>'ja'`，但欄位型別是 `text`，執行得到 `42883`（#443）。修法：改成 `selection_reason::jsonb->>'ja'` 並註明欄位型別。未改資料庫型別。NOT TESTED：未對 production 執行（無憑證）。
+
 ## 2026-10-22：權限閘門先實作後評審，評審找到可推到 main 的繞過
 
 ### Mistake
