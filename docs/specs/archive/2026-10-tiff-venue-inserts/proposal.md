@@ -1,7 +1,7 @@
 ---
 slug: tiff-venue-inserts
 title: TIFF 2026 權威場館新增（4 筆）
-status: active
+status: archived
 branch: feat/tiff-venue-inserts
 created: 2026-10-25
 tags: [scraper, venue, data-repair, cas, production]
