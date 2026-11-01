@@ -2,7 +2,7 @@ playwright==1.64.0
 supabase==2.31.0
 python-dotenv==1.2.2
 openai>=2.50.0
-sentry-sdk>=2.0.0
+sentry-sdk>=2.73.0
 requests>=2.34.2
 httpx>=0.28.1
 beautifulsoup4>=4.12.0
