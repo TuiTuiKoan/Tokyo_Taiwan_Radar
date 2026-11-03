@@ -5,6 +5,8 @@
   "framework": "nextjs",
   "outputDirectory": ".next",
   "redirects": [
-    { "source": "/", "destination": "/ja", "permanent": true }
+    { "source": "/", "destination": "/ja", "permanent": true },
+    { "source": "/202611/synchronic-constellation", "destination": "/202611/synchronic-constellation/index.html", "permanent": false },
+    { "source": "/202611/synchronic-constellation/", "destination": "/202611/synchronic-constellation/index.html", "permanent": false }
   ]
 }
