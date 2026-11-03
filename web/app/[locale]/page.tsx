@@ -180,14 +180,12 @@ export default async function HomePage({ params, searchParams }: PageProps) {
             <h2 className="font-display font-bold text-[#3A261F] dark:text-fg text-xl">
               📌 {tAnn("featuredStrip")}
             </h2>
-            {featuredAnnouncements.length > 5 && (
-              <Link
-                href={`/${locale}/announcements`}
-                className="text-xs text-mascot-pink-deep hover:underline shrink-0"
-              >
-                {tAnn("viewAll")} →
-              </Link>
-            )}
+            <Link
+              href={`/${locale}/announcements`}
+              className="text-xs text-mascot-pink-deep hover:underline shrink-0"
+            >
+              {tAnn("viewAll")} →
+            </Link>
           </div>
           <div className="flex gap-3 overflow-x-auto pb-1">
             {featuredAnnouncements.slice(0, 5).map((ann) => (
