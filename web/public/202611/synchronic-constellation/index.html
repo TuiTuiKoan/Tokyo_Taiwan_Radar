@@ -133,7 +133,7 @@ html[lang=en] .hero .stars{opacity:.45;top:60px}
 button.item,button.chap,button.badge,button.back{font:inherit;color:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:rgba(43,58,140,.08)}
 button.item{width:100%;border:0;background:transparent}
 button.chap{width:100%}
-button.badge{border:0}
+button.badge{border:0;color:#fff}
 button.back{border:0;background:transparent}
 .pn button{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-size:18px;cursor:pointer;color:var(--ink)}
 .pn button:disabled{opacity:.35;cursor:default}
@@ -181,7 +181,7 @@ const T = {
     relW:"同じ作家の作品", relD:"同じ作家の資料", ownW:(n)=>`旧蔵者・${n}の作品`, ownD:(n)=>`${n}旧蔵のほかの資料`,
     listW:"出品作品", listD:"資料", period:{"前期展示":"前期展示","後期展示":"後期展示"},
     foot:`本ページは「出品作品リスト」「資料リスト」PDFをもとに作成した非公式の閲覧用インデックスです。正確な情報は
-      <a href="${PDF_A}">作品リスト（PDF）</a>、<a href="${PDF_D}">資料リスト（PDF）</a>および<a href="${EX_URL}">展覧会公式ページ</a>をご確認ください。<br>ご意見やお気づきの誤りがございましたら、東京台湾レーダー（<a href="mailto:tokyotaiwanradar@gmail.com">tokyotaiwanradar@gmail.com</a>）までご連絡ください。`,
+      <a href="${PDF_A}" target="_blank" rel="noopener noreferrer">作品リスト（PDF）</a>、<a href="${PDF_D}" target="_blank" rel="noopener noreferrer">資料リスト（PDF）</a>および<a href="${EX_URL}" target="_blank" rel="noopener noreferrer">展覧会公式ページ</a>をご確認ください。<br>ご意見やお気づきの誤りがございましたら、東京台湾レーダー（<a href="mailto:tokyotaiwanradar@gmail.com">tokyotaiwanradar@gmail.com</a>）までご連絡ください。`,
     ownerFmt:(link,kome)=>`${link}旧蔵${kome}`
   },
   en:{
@@ -204,7 +204,7 @@ const T = {
     relW:"Other works by this artist", relD:"Documents by this author", ownW:(n)=>`Works by former owner ${n}`, ownD:(n)=>`Other documents formerly owned by ${n}`,
     listW:"Artworks", listD:"Documents", period:{"前期展示":"First half of the exhibition only","後期展示":"Second half of the exhibition only"},
     foot:`This is an unofficial index based on the exhibition's List of Exhibited Works and List of Exhibited Documents (PDF). For accurate information, please refer to the
-      <a href="${PDF_A}">List of Works (PDF)</a>, <a href="${PDF_D}">List of Documents (PDF)</a> and the <a href="${EX_URL}">official exhibition page</a>.<br>For suggestions or corrections, please contact Tokyo Taiwan Radar (<a href="mailto:tokyotaiwanradar@gmail.com">tokyotaiwanradar@gmail.com</a>).`,
+      <a href="${PDF_A}" target="_blank" rel="noopener noreferrer">List of Works (PDF)</a>, <a href="${PDF_D}" target="_blank" rel="noopener noreferrer">List of Documents (PDF)</a> and the <a href="${EX_URL}" target="_blank" rel="noopener noreferrer">official exhibition page</a>.<br>For suggestions or corrections, please contact Tokyo Taiwan Radar (<a href="mailto:tokyotaiwanradar@gmail.com">tokyotaiwanradar@gmail.com</a>).`,
     ownerFmt:(link,kome)=>`formerly in the collection of ${link}${kome}`
   }
 };
