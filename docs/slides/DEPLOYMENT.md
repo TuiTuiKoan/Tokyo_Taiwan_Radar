@@ -65,6 +65,20 @@ python3 -c "from PIL import Image; Image.open('in.png').convert('RGB').save('out
 | Agentic AI 時代的設計工作流 | `agentic-design-workflow.*.html` | `/202606/normativity-design/index.*.html` | zh, en |
 | 金融服務規範設計工作坊 | `financial-normativity-workshop.zh.html` | `/202609/financial-normativity-workshop/index.zh.html` | zh |
 
+## Standalone guides
+
+Single-file pages whose source of truth is a claude.ai artifact, not a file under `docs/slides/`.
+The deployed `index.html` is a byte-for-byte copy of the artifact's HTML so later updates are a plain
+overwrite. The page switches JA/EN in-page, so it ships as one `index.html` (no `.zh`/`.en` split).
+`web/vercel.json` redirects the bare folder URL (with or without a trailing slash) to `index.html`.
+
+| Guide | Source | Production path | Locales |
+|-------|--------|-----------------|---------|
+| 共時的星叢 クイックガイド（Synchronic Constellation Guide） | claude.ai artifact `8YAHtP3TjvnsHQLmnT3tnt` | `/202611/synchronic-constellation/index.html` | ja, en (in-page toggle) |
+
+To update: export the artifact's latest HTML and overwrite
+`web/public/202611/synchronic-constellation/index.html`, then open a PR.
+
 The workshop deck reuses the same design tokens, mascot symbol, floating-shape engine and
 navigation script as the `agentic-design-workflow` deck; only the slide bodies, the `<title>`
 and the cover `.cover .meta` presenter style differ. Fixes to the shared CSS/JS should be
