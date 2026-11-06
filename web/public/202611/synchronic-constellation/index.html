@@ -82,7 +82,7 @@ button{font:inherit;color:inherit}
 mark{background:#f3e3b5;color:inherit;border-radius:2px;padding:0 1px}
 .empty{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px 16px;font-size:14.5px;color:var(--sub)}
 .empty b{color:var(--ink)}
-.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.idb{display:inline-block;color:#fff;font-weight:500;font-size:13px;line-height:1.5;padding:2px 10px;border-radius:999px;letter-spacing:.02em}
 
 /* detail */
 .topnav{display:flex;align-items:center;justify-content:space-between;padding:calc(12px + env(safe-area-inset-top)) 0 6px;position:sticky;top:0;background:var(--paper);z-index:5}
@@ -110,7 +110,7 @@ mark{background:#f3e3b5;color:inherit;border-radius:2px;padding:0 1px}
 
 .item .s{display:block}
 .kt{display:inline-block;font-size:10.5px;font-weight:500;letter-spacing:.06em;border-radius:4px;padding:0 6px;line-height:1.7;margin-left:14px}
-.kw{background:var(--deep);color:#fff}.kd{background:var(--accent-soft);color:var(--accent)}
+.kw{background:#efe6d2;color:#7a5c1c}.kd{background:var(--accent-soft);color:var(--accent)}
 .zh{display:block;font-size:13.5px;color:var(--sub);margin-top:2px}
 .rd{display:block;font-size:12.5px;color:var(--mute)}
 .ztitle{font-family:"Noto Serif JP",serif;font-size:15px;color:var(--sub);margin:-10px 0 16px}
@@ -142,6 +142,7 @@ button.back{border:0;background:transparent}
 .pn button:disabled{opacity:.35;cursor:default}
 
 .no[style*="var(--c0)"],.no[style*="var(--c2)"],.no[style*="var(--c5)"],
+.idb[style*="var(--c0)"],.idb[style*="var(--c2)"],.idb[style*="var(--c5)"],
 .badge[style*="var(--c0)"],.badge[style*="var(--c2)"],.badge[style*="var(--c5)"]{color:var(--deep)}
 .badge[style*="var(--c0)"] .bn,.badge[style*="var(--c2)"] .bn,.badge[style*="var(--c5)"] .bn{background:rgba(15,63,52,.16)}
 </style>
@@ -281,7 +282,7 @@ function itemHTML(x,q,extra){
   const sub=[who?highlight(who,q):"", extra?highlight(extra,q):"", esc(v(x,"year"))].filter(Boolean).join("　");
   const tag = x.kind==="work" ? `<span class="kt kw">${LANG==="en"?"Work":"作品"}</span>` : `<span class="kt kd">${LANG==="en"?"Doc":"資料"}</span>`;
   return `<li><button type="button" class="item" data-go="${x.href}">
-    <span class="id"><span class="dot" style="background:${c.color}"></span>${esc(x.label)}${tag}</span>
+    <span class="id"><span class="idb" style="background:${c.color}">${esc(x.label)}</span>${tag}</span>
     <span class="body"><span class="t">${highlight(v(x,"title"),q)}</span>${sub?`<span class="s">${sub}</span>`:""}</span>
   </button></li>`;
 }
