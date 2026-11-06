@@ -12,8 +12,8 @@
   --paper:#f6f4ef; --card:#fffdf9; --ink:#1d1d24; --sub:#5c5b63; --mute:#8d8b92;
   --line:#e2ded5; --accent:#2b3a8c; --accent-soft:#e7e9f6; --star:#c69a3a;
   --deep:#0F3F34; --cream:#F5F0E8; --pink:#F0B0B0;
-  /* 作品 badge：深綠底白字 */
-  --c0:var(--deep); --c1:var(--deep); --c2:var(--deep); --c3:var(--deep); --c4:var(--deep); --c5:var(--deep); --c6:var(--deep);
+  /* 章別 badge：各章節色票 */
+  --c0:#F0B0B0; --c1:#19564F; --c2:#D8B07A; --c3:#0F3F34; --c4:#B0693A; --c5:#CACACA; --c6:#5A3A1A;
 }
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
@@ -140,6 +140,10 @@ button.badge{border:0;color:#fff}
 button.back{border:0;background:transparent}
 .pn button{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-size:18px;cursor:pointer;color:var(--ink)}
 .pn button:disabled{opacity:.35;cursor:default}
+
+.no[style*="var(--c0)"],.no[style*="var(--c2)"],.no[style*="var(--c5)"],
+.badge[style*="var(--c0)"],.badge[style*="var(--c2)"],.badge[style*="var(--c5)"]{color:var(--deep)}
+.badge[style*="var(--c0)"] .bn,.badge[style*="var(--c2)"] .bn,.badge[style*="var(--c5)"] .bn{background:rgba(15,63,52,.16)}
 </style>
 </head>
 <body>
