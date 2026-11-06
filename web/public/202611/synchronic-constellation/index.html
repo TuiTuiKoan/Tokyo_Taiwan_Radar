@@ -60,7 +60,7 @@ button{font:inherit;color:inherit}
 .chap .nm small{display:block;font-family:"Noto Sans JP",sans-serif;font-weight:400;font-size:12px;color:var(--sub);margin-top:2px}
 .chap .ct{flex:none;font-size:12px;color:var(--sub)}
 .chap.off{opacity:.55;pointer-events:none}
-.chap .arr{flex:none;color:var(--mute)}
+.chap .arr{flex:none;display:inline-flex;color:var(--ink)}
 
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chip{display:inline-flex;align-items:center;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:7px 13px;font-size:14px;cursor:pointer;line-height:1.3}
@@ -418,7 +418,7 @@ function chapRow(n){
   const c=CHAPTERS[n], w=RANGE["w"+n], d=RANGE["d"+n];
   const parts=[w?`${t("works")} ${w.n}`:"", d?`${t("docs")} ${d.n}`:""].filter(Boolean).join(" · ");
   return `<span class="no" style="background:${c.color}">${n||(LANG==="en"?"In":"序")}</span>
-    <span class="nm">${esc(chName(n))}<small>${parts}</small></span><span class="arr">›</span>`;
+    <span class="nm">${esc(chName(n))}<small>${parts}</small></span><span class="arr">${CHEV_R}</span>`;
 }
 function homeIdle(){
   const chs=[0,1,2,3,4,5,6].map(n=>`<button type="button" class="chap" data-go="ch${n}">${chapRow(n)}</button>`).join("");
