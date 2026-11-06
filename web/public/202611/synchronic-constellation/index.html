@@ -528,8 +528,8 @@ function renderWork(id){
     <article>
       <div class="did">${t("workNo")}<strong>${w.id}</strong></div>
       ${badge(w.ch)}
-      <h1 class="dtitle">${esc(v(w,"title"))}</h1>
-      ${zhm ? (mt(w,"title")?`<p class="mtl">（非官方翻譯）</p>`:"") : en ? "" : (w.title_zh?`<p class="ztitle">${esc(w.title_zh)}</p>`:"")}
+      <h1 class="dtitle">${esc(v(w,"title"))}${zhm&&mt(w,"title")?MT:""}</h1>
+      ${zhm ? "" : en ? "" : (w.title_zh?`<p class="ztitle">${esc(w.title_zh)}</p>`:"")}
       ${w.note?`<p class="period">${esc(T[LANG].period[w.note]||w.note)}</p>`:""}
       <dl class="fields">
         ${field(t("fArtist"),artist,true)}
@@ -572,8 +572,7 @@ function renderDoc(id){
     <article>
       <div class="did">${t("docNo")}<strong>${d.id}</strong></div>
       ${badge(d.ch)}
-      <h1 class="dtitle">${esc(v(d,"title"))}</h1>
-      ${mt(d,"title")?`<p class="mtl">（非官方翻譯）</p>`:""}
+      <h1 class="dtitle">${esc(v(d,"title"))}${mt(d,"title")?MT:""}</h1>
       <dl class="fields">
         ${field(t("fAuthor"),namesHTML(d.author,d.author_en,d.z.author)+mt(d,"author"),true)}
         ${fieldM(t("fPub"),d,"publisher",v(d,"publisher"))}
