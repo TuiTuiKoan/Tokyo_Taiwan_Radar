@@ -138,7 +138,8 @@ button.item{width:100%;border:0;background:transparent}
 button.chap{width:100%}
 button.badge{border:0;color:#fff}
 button.back{border:0;background:transparent}
-.pn button{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-size:18px;cursor:pointer;color:var(--ink)}
+.pn button{display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;padding:0;line-height:0;border:1px solid var(--line);border-radius:12px;background:var(--card);cursor:pointer;color:var(--ink)}
+.pn button svg{display:block}
 .pn button:disabled{opacity:.35;cursor:default}
 
 .no[style*="var(--c0)"],.no[style*="var(--c2)"],.no[style*="var(--c3)"],.no[style*="var(--c4)"],.no[style*="var(--c6)"],.idb[style*="var(--c0)"],.idb[style*="var(--c2)"],.idb[style*="var(--c3)"],.idb[style*="var(--c4)"],.idb[style*="var(--c6)"],.badge[style*="var(--c0)"],.badge[style*="var(--c2)"],.badge[style*="var(--c3)"],.badge[style*="var(--c4)"],.badge[style*="var(--c6)"]{color:var(--deep)}
@@ -472,11 +473,13 @@ function renderResults(){
 }
 
 /* ---------- shared detail parts ---------- */
+const CHEV_L='<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg>';
+const CHEV_R='<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>';
 function topNav(prev,next,label){
   return `<nav class="topnav">
     <button type="button" class="back" data-go=""><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg>${label}</button>
     <span class="navr">${langBtn(true)}
-    ${prev!==undefined?`<span class="pn"><button type="button" ${prev?`data-go="${prev}"`:"disabled"} aria-label="Previous">‹</button><button type="button" ${next?`data-go="${next}"`:"disabled"} aria-label="Next">›</button></span>`:""}</span>
+    ${prev!==undefined?`<span class="pn"><button type="button" ${prev?`data-go="${prev}"`:"disabled"} aria-label="Previous">${CHEV_L}</button><button type="button" ${next?`data-go="${next}"`:"disabled"} aria-label="Next">${CHEV_R}</button></span>`:""}</span>
   </nav>`;
 }
 function bindCommon(){
