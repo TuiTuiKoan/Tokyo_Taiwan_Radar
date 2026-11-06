@@ -529,8 +529,7 @@ function renderWork(id){
       <div class="did">${t("workNo")}<strong>${w.id}</strong></div>
       ${badge(w.ch)}
       <h1 class="dtitle">${esc(v(w,"title"))}${zhm&&mt(w,"title")?MT:""}</h1>
-      ${zhm ? "" : en ? "" : (w.title_zh?`<p class="ztitle">${esc(w.title_zh)}</p>`:"")}
-      ${w.note?`<p class="period">${esc(T[LANG].period[w.note]||w.note)}</p>`:""}
+            ${w.note?`<p class="period">${esc(T[LANG].period[w.note]||w.note)}</p>`:""}
       <dl class="fields">
         ${field(t("fArtist"),artist,true)}
         ${field(t("fLife"),w.life)}
@@ -539,7 +538,6 @@ function renderWork(id){
         ${field(t("fSize"),sz?sz+(/[×x]|^h\.|[：:]/.test(sz)?" cm":""):"")}
         ${fieldM(t("fColl"),w,"collection",v(w,"collection"))}
       </dl>
-      ${w.title_zh && LANG==="ja"?`<p class="fn">${t("zhNote")}</p>`:""}
       ${w.title.includes("*")?`<p class="fn">${t("starNote")}</p>`:""}
     </article>
     ${relatedHTML(r)}
