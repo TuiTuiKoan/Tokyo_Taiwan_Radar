@@ -753,10 +753,12 @@ def collect_monthly_health_metrics(
             .data or []
         )
         if events:
-            reports = _fetch_reports_for(
+            # Keep this list apart from the confirmed-report counts in `reports`:
+            # reusing the name made _integrity_flags() receive a list (2026-11-01).
+            a3_reports = _fetch_reports_for(
                 sb, [e["id"] for e in events], "collect_monthly_health_metrics: A3",
             )
-            a3 = _aggregate_first_pass(events, reports)
+            a3 = _aggregate_first_pass(events, a3_reports)
     except Exception as exc:
         logger.warning("collect_monthly_health_metrics: A3 first-pass failed: %s", exc)
 

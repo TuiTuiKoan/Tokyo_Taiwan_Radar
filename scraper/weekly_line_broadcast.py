@@ -30,7 +30,7 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 from dotenv import load_dotenv
-from llm_client import finish, get_client
+from llm_client import LLMClient, finish, get_client
 from supabase import create_client
 
 from publication_rules import is_pure_publication_record
@@ -167,7 +167,7 @@ def _fetch_upcoming_events(sb) -> list[dict]:
     return res.data or []
 
 
-def _ai_select_events(client: OpenAI, events: list[dict], today: datetime) -> dict:
+def _ai_select_events(client: LLMClient, events: list[dict], today: datetime) -> dict:
     """Use GPT-4o-mini to select highlight events for weekly and monthly sections."""
     week_end = today + timedelta(days=21)
     week2_end = today + timedelta(days=28)
