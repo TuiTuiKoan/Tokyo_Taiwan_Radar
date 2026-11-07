@@ -1,0 +1,110 @@
+name: Source Diagnose Batch
+
+# Daily trigger for source-diagnose.yml (spec docs/specs/active/agent-autonomy/
+# proposal.md §8, D1①; plan-531-source-diagnosis.md 第二階段). Picks up to
+# MAX_ISSUES open scraper issues that still need a diagnosis and dispatches one
+# source-diagnose run per issue. The heartbeat (no network in its sandbox) then
+# fixes from the posted diagnosis.
+#
+# Which issues:
+#   1. label needs-diagnosis (the heartbeat asks for one), oldest first;
+#   2. then auto-fix + scraper issues whose title is "<source>：…0 產出…" or
+#      "…原因未知…" and that have no diagnosis comment yet, oldest first.
+# Only comments written by github-actions[bot] count as a diagnosis: the repo
+# is public, so anyone can post a comment that looks like one.
+#
+# needs-diagnosis is removed by source-diagnose.yml once it has posted (the
+# diagnosis or a "診斷失敗" note), not here, so a failed run cannot loop.
+# Issues this job cannot diagnose (no "<source>：" prefix, or a source that
+# only runs from a home IP) get needs-human instead.
+#
+# No checkout, no secrets. Issue titles are untrusted; the source name is
+# taken from the title prefix and validated before use. source-diagnose.yml
+# rejects unknown names itself.
+
+on:
+  schedule:
+    - cron: "0 4 * * *"  # 13:00 JST, after the 09:00 scrape and the 11:00 recovery check
+  workflow_dispatch:
+    inputs:
+      max_issues:
+        description: "Max issues to dispatch (1-5)"
+        required: false
+        default: "5"
+
+permissions: {}
+
+concurrency:
+  group: source-diagnose-batch
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      MAX_INPUT: ${{ inputs.max_issues }}
+      # Keep in sync with HOME_IP_ONLY_SOURCES in scraper/main.py (#378): these
+      # sites block GitHub runner IPs, so a diagnosis here can only say "403".
+      HOME_IP_ONLY: "mot taipei_fukuoka jposa_ja"
+    steps:
+      - name: Pick issues and dispatch source-diagnose
+        run: |
+          set -euo pipefail
+          MAX="${MAX_INPUT:-5}"
+          [[ "$MAX" =~ ^[1-5]$ ]] || MAX=5
+          MARK='<!-- source-diagnose -->'
+
+          # "<number> <title>" lines; jq keeps titles on one line.
+          gh api --paginate "repos/$GH_REPO/issues?state=open&labels=needs-diagnosis&sort=created&direction=asc&per_page=100" \
+            --jq '.[] | select(.pull_request == null) | "\(.number) \(.title | gsub("[\\r\\n]"; " "))"' > requested.txt
+          gh api --paginate "repos/$GH_REPO/issues?state=open&labels=auto-fix,scraper&sort=created&direction=asc&per_page=100" \
+            --jq '.[] | select(.pull_request == null) | select(.title | test("(0 產出|原因未知)")) | "\(.number) \(.title | gsub("[\\r\\n]"; " "))"' > zero.txt
+
+          picked=0
+          : > done.txt
+          summary="$RUNNER_TEMP/summary.md"
+          echo "## source-diagnose-batch" > "$summary"
+          while IFS= read -r line && [ "$picked" -lt "$MAX" ]; do
+            n="${line%% *}"; title="${line#* }"
+            [[ "$n" =~ ^[0-9]+$ ]] || continue
+            grep -qxF "$n" done.txt && continue
+            echo "$n" >> done.txt
+            src="${title%%：*}"
+            requested=0
+            grep -q "^$n " requested.txt && requested=1
+            if ! [[ "$src" =~ ^[a-z0-9_]+$ ]] || [ "$src" = "$title" ] || [[ " $HOME_IP_ONLY " == *" $src "* ]]; then
+              if [ "$requested" -eq 1 ]; then
+                if [[ " $HOME_IP_ONLY " == *" $src "* ]]; then
+                  reason="這個來源擋 GitHub runner 的 IP（#378），只能在家用 IP 重現，無法自動診斷。"
+                else
+                  reason="標題缺少 \`<source>：\` 前綴，無法自動診斷。請改標題或手動處理。"
+                fi
+                gh issue comment "$n" --body "source-diagnose-batch：$reason" > /dev/null
+                gh api -X POST "repos/$GH_REPO/issues/$n/labels" -f "labels[]=needs-human" > /dev/null
+                gh api -X DELETE "repos/$GH_REPO/issues/$n/labels/needs-diagnosis" > /dev/null || true
+                echo "- #$n：無法自動診斷，改貼 needs-human" >> "$summary"
+              fi
+              continue
+            fi
+            if [ "$requested" -eq 0 ]; then
+              has=$(gh api --paginate "repos/$GH_REPO/issues/$n/comments" \
+                --jq "[.[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$MARK\")))] | length" \
+                | awk '{s+=$1} END {print s+0}')
+              if [ "$has" -gt 0 ]; then continue; fi
+            fi
+            # schedule runs on the default branch; GITHUB_REF_NAME is that branch.
+            gh workflow run source-diagnose.yml --ref "$GITHUB_REF_NAME" \
+              -f sources="$src" -f issue="$n"
+            echo "- #$n \`$src\`：已 dispatch" >> "$summary"
+            picked=$((picked + 1))
+          done < <(cat requested.txt zero.txt)
+
+          echo "" >> "$summary"
+          echo "本次 dispatch $picked 張（上限 $MAX）。" >> "$summary"
+          cat "$summary" >> "$GITHUB_STEP_SUMMARY"
