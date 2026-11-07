@@ -108,7 +108,7 @@ worktree 內 commit → rebase origin/main → git push -u origin <branch>（hoo
 
 **限制與停止條件**
 
-- 每 8 小時一次；每次最多 1 張 issue；同時最多 2 張待合併的 heartbeat PR。
+- 每 8 小時一次；每次最多 1 張 issue；同時最多 2 張待合併的 heartbeat PR。（2026-11-07 現況：每 4 小時、每次最多 2 張；待合併上限分爬蟲類 6 張、腳本文件類 1 張，滿額時在 #528 通知。見 notes §5）
 - 任一 heartbeat PR 合併後被 revert → 停用排程，開 issue 檢討。
 - 連續 2 張 PR 被使用者關閉不合併 → 停用排程。
 - 排程因配額限制失敗 2 次 → 停用排程，降頻後再議（成本是人類關卡）。
@@ -138,7 +138,7 @@ worktree 內 commit → rebase origin/main → git push -u origin <branch>（hoo
 | A2 | worktree 由誰決定 | agent 自選自建並回報；路徑慣例不變（D2） |
 | A3 | Tier 0 範圍 | 不變（D3） |
 | A4 | heartbeat runner | Claude Code 排程雲端 agent；不用 Codex |
-| A5 | 節奏與上限 | 每 8 小時、每次 1 張、同時 2 張待合併 |
+| A5 | 節奏與上限 | 每 8 小時、每次 1 張、同時 2 張待合併（2026-11-07 改為每 4 小時、每次 2 張、爬蟲類 6 張／腳本文件類 1 張；notes §5） |
 | A6 | 分類範圍 | 只碰沒有 `spec:` label 的 issue |
 
 ### 影響的檔案
