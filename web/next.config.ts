@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
-import { withSentryConfig } from "@sentry/nextjs";
+import { withSentryConfig } from "@sentry/nextjs/config";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { LOCALES } from "./i18n/locales";
