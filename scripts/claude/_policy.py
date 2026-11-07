@@ -14,7 +14,7 @@ import fnmatch
 import json
 import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from _tokenizer import Command, Unsupported, Word, parse
 
@@ -955,11 +955,6 @@ MCP_GITHUB_DENY_RE = re.compile(
     r"|(?:create|update|delete|set)_\w*(?:ruleset|branch_protection|environment|secret)"
 )
 GH_WRITE_METHODS = frozenset({"PUT", "POST", "PATCH", "DELETE"})
-GH_API_FIELD_FLAGS = frozenset({"-f", "-F", "--field", "--raw-field", "--input"})
-GH_API_OPT_ARG = frozenset({
-    "-X", "--method", "-H", "--header", "-q", "--jq", "-t", "--template",
-    "--cache", "--hostname", "-p", "--preview",
-})
 # Endpoints that merge, write commits/refs/files, or change the guards around main.
 GH_API_DENY_RE = re.compile(
     r"(?:^|/)(?:"
@@ -1036,54 +1031,95 @@ def check_gh(args: list[Word]) -> Decision:
     return ALLOW
 
 
-def check_gh_api(args: list[Word]) -> Decision:
-    method: str | None = None
-    has_fields = False
-    field_values: list[Word] = []
-    endpoints: list[Word] = []
+# `gh api` flags as cobra/pflag parses them (`gh api --help`). Short flags may
+# be clustered (`-iXPUT`) and take their value attached, after `=`, or as the
+# next word (`-XPUT`, `-X=PUT`, `-X PUT`); every form is normalized to the
+# long name before checking (Codex review on #577, second pass, P1).
+GH_API_SHORT_VALUE = {
+    "X": "--method", "f": "--raw-field", "F": "--field", "H": "--header",
+    "q": "--jq", "t": "--template", "p": "--preview",
+}
+GH_API_SHORT_BOOL = frozenset("ih")
+GH_API_LONG_VALUE = frozenset(GH_API_SHORT_VALUE.values()) | {"--cache", "--hostname", "--input"}
+GH_API_LONG_BOOL = frozenset({"--include", "--help", "--paginate", "--silent", "--slurp", "--verbose"})
+
+
+def _gh_api_options(args: list[Word]) -> tuple[list[tuple[str, Word | None]], list[Word], bool]:
+    """Return ((long flag, value) pairs, positionals, uncertain).
+
+    uncertain is set for an unknown short flag or a flag word that holds a
+    variable: its arity is unknown, so a later word might be the endpoint.
+    """
+    opts: list[tuple[str, Word | None]] = []
+    positionals: list[Word] = []
+    uncertain = False
     i = 0
     while i < len(args):
         word, text = args[i], args[i].text
         nxt = args[i + 1] if i + 1 < len(args) else None
-        if text in ("-X", "--method"):
-            method = "?" if nxt is None or _dynamic(nxt) else nxt.text.upper()
-            i += 2
-        elif text.startswith("--method="):
-            method = "?" if _dynamic(word) else text.split("=", 1)[1].upper()
+        if text == "--":
+            positionals += args[i + 1:]
+            break
+        if text.startswith("--"):
+            name, eq, value = text.partition("=")
+            if name in GH_API_LONG_VALUE:
+                if eq:
+                    opts.append((name, replace(word, text=value)))
+                else:
+                    opts.append((name, nxt))
+                    i += 1
+            elif name not in GH_API_LONG_BOOL or _dynamic(word):
+                uncertain = True  # unknown arity: a later word might be the endpoint
             i += 1
-        elif text.startswith("-X") and len(text) > 2:
-            method = "?" if _dynamic(word) else text[2:].upper()
+            continue
+        if text.startswith("-") and text != "-":
+            j = 1
+            while j < len(text):
+                char = text[j]
+                if char in GH_API_SHORT_BOOL:
+                    j += 1
+                    continue
+                if char in GH_API_SHORT_VALUE:
+                    rest = text[j + 1:]
+                    if rest:
+                        opts.append((GH_API_SHORT_VALUE[char], replace(word, text=rest.removeprefix("="))))
+                    else:
+                        opts.append((GH_API_SHORT_VALUE[char], nxt))
+                        i += 1
+                    break
+                uncertain = True
+                break
+            else:
+                if _dynamic(word):
+                    uncertain = True  # `-i$X`: the variable may hold more flags
             i += 1
-        elif text in GH_API_FIELD_FLAGS:
+            continue
+        positionals.append(word)
+        i += 1
+    return opts, positionals, uncertain
+
+
+def check_gh_api(args: list[Word]) -> Decision:
+    opts, endpoints, uncertain = _gh_api_options(args)
+    method: str | None = "?" if uncertain else None
+    has_fields = False
+    field_values: list[Word] = []
+    for name, value in opts:
+        if name == "--method":
+            method = "?" if value is None or _dynamic(value) else value.text.upper()
+        elif name in ("--field", "--raw-field", "--input"):
             has_fields = True
-            if nxt is not None:
-                field_values.append(nxt)
-            if text == "--input":
+            if value is not None:
+                field_values.append(value)
+            if name == "--input":
                 field_values.append(Word(text="@input"))
-            i += 2
-        elif text.startswith(("--field=", "--raw-field=", "--input=")) or (
-            text[:2] in ("-f", "-F") and len(text) > 2
-        ):
-            has_fields = True
-            field_values.append(word)
-            if text.startswith("--input="):
-                field_values.append(Word(text="@input"))
-            i += 1
-        elif text in GH_API_OPT_ARG:
-            i += 2
-        elif text.startswith("-") and text != "-":
-            i += 1
-        else:
-            endpoints.append(word)
-            i += 1
     effective = method or ("POST" if has_fields else "GET")
     if effective == "GET" or not endpoints:
         return ALLOW
     if effective not in GH_WRITE_METHODS and effective != "?":
         return ALLOW  # HEAD and friends do not write
-    endpoint = endpoints[0]
-    path = _gh_endpoint(endpoint.text)
-    if path == "graphql":
+    paths = [(endpoint, _gh_endpoint(endpoint.text)) for endpoint in endpoints]
+    if paths[0][1] == "graphql" and not uncertain:
         # Only the query text can carry a mutation; other fields are GraphQL
         # variables (`gh api --help`), so a variable passed from the shell is
         # fine (Codex review on #577, P2). A query from a file, stdin, a shell
@@ -1091,21 +1127,20 @@ def check_gh_api(args: list[Word]) -> Decision:
         for value in field_values:
             if value.text == "@input":
                 return deny("github-merge-or-main-write")
-            text = value.text
-            for prefix in ("--raw-field=", "--field=", "-f", "-F"):
-                if text.startswith(prefix):
-                    text = text[len(prefix):]
-                    break
-            name, _, body = text.partition("=")
+            name, _, body = value.text.partition("=")
             if name != "query":
                 continue
             if _dynamic(value) or body.startswith("@") or GH_GRAPHQL_DENY_RE.search(body):
                 return deny("github-merge-or-main-write")
         return ALLOW
-    if GH_API_DENY_RE.search(path):
-        return deny("github-merge-or-main-write")
-    if _dynamic(endpoint) and (not path or path.endswith("/")):
-        return deny("github-merge-or-main-write")  # the endpoint's tail comes from a variable
+    # gh takes one endpoint; with an uncertain flag any positional may be it.
+    for endpoint, path in paths if uncertain else paths[:1]:
+        if path == "graphql":
+            return deny("github-merge-or-main-write")  # uncertain flags around a GraphQL call
+        if GH_API_DENY_RE.search(path):
+            return deny("github-merge-or-main-write")
+        if _dynamic(endpoint) and (not path or path.endswith("/")):
+            return deny("github-merge-or-main-write")  # the endpoint's tail comes from a variable
     return ALLOW
 
 
