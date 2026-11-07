@@ -182,6 +182,52 @@ worktree 內 commit → rebase origin/main → git push -u origin <branch>（hoo
 - D4：使用者一次週審 ≤90 分鐘。
 - 14 天盤點：每週關閉的 issue 數、PR 中位等待天數、revert 數，寫進 notes.md。
 
+### 9. Phase D5：第二車道——使用者核准、agent 實作（2026-11-07 起）
+
+**使用者 2026-11-07 的指示**：把 heartbeat 不碰的 issue 也納入自動開發；同時處理 #459／#460（「dry-run 正常、production 0」）與母 issue #367、#381 的收尾。建議模型：規劃與評審 Opus high；runner 實作 Sonnet medium。
+
+**盤點（2026-11-07，open issue 134 張）**：會自動前進的只有 38 張（0 產出 33、其他 auto-fix 5）；needs-human 28、spec 底下 60、新來源申請 6、系統用 2，共 94 張沒有自動車道。原因是 heartbeat 白名單刻意排除 `main.py`、`web/`、`supabase/`、workflow，且不碰 spec issue 與 source-intake。缺的不是程式能力，而是「使用者核准過的範圍」。
+
+**關鍵限制：agent 冒充不了的核准管道**。實測：雲端 agent 的 issue、留言、label 動作都以使用者帳號 TuiTuiKoan 進行（`performed_via_github_app` 為空），API 上和使用者本人無法區分；看板（Projects V2）只能走 GraphQL，雲端 session 讀寫都被擋。所以「使用者貼 `approved` label」可以被任何 agent（包括被 prompt injection 的 heartbeat）偽造，不能當核准。
+
+**設計**
+
+1. **核准清單是 main 上的檔案**：[lane2-approved.yml](./lane2-approved.yml)。agent 不能推 main；`pr_tier` 把 `docs/specs/**` 判為 tier 2，合併只能由使用者按。所以「檔案出現在 main」＝使用者合併過＝核准。runner 只讀 `origin/main` 上的這個檔，不讀 issue label、不讀留言。
+2. **週五：提案 PR**。runner 每週五從 94 張中挑最多 8 張「範圍清楚、能在一張 PR 內完成」的 issue，每張寫一筆：issue、要改的檔案、做法一句、需要使用者決定的問題與 agent 建議的答案、預估風險。只改 `lane2-approved.yml`，開 tier 2 PR，標題 `approve(lane2): 週次 <YYYY-Www>`。
+3. **週六：使用者週審**。在 PR 上刪掉不核准的條目或改答案（GitHub 網頁可直接編輯檔案），然後合併。不合併＝這週不核准任何事。
+4. **週日到週四：實作**。runner 每天最多實作 1 筆：取 main 上 `lane2-approved.yml` 中最舊、issue 仍 open、沒有 open PR 指向它的條目，照條目的範圍與答案實作，開 tier 2 PR（`Closes #n`、label `lane2`），下一個週六一起審。超出條目範圍就停下，在 issue 留言說明，不擴大範圍。
+5. **新來源申請（source-intake）分兩段核准**：第一段條目類型 `evaluate`，runner 依 researcher 規則評估並留言（不寫程式）；使用者核准第二段 `implement` 後才新增 scraper（會改 `main.py` 的 SCRAPERS）。
+
+**runner 的界線**
+
+| | 可以 | 不可以 |
+| --- | --- | --- |
+| 路徑 | `scraper/**`（含 `main.py`）、`web/**`、`scripts/**`（`scripts/claude/` 除外）、`docs/**`、`.github/skills/**`、`supabase/migrations/**`（只寫檔，apply 是人類關卡） | `.github/workflows/`、`.claude/`、`scripts/claude/`、`AGENTS.md`、`.github/agents/`、`.github/instructions/`、`lane2-approved.yml`（只有提案 PR 能改）、任何 `.env` |
+| 觸發帶 secrets 的 pull_request workflow 的路徑（#561 列的檔案） | #561 修好之前一律不碰；條目需要時，提案 PR 標「等 #561」 | — |
+| 動作 | feature branch、tier 2 PR、issue 留言 | 推 main、合併、production 寫入、`qa_auto_fix`／annotator live、花錢 |
+| 量 | 每天 1 筆實作、同時最多 3 張 open lane2 PR；週五提案最多 8 筆 | — |
+
+停止條件：任一 lane2 PR 合併後被 revert；連續 2 張 lane2 PR 被關閉未合併；提案 PR 連續 2 週沒被合併（代表使用者沒空或提案品質差），停止實作並在 #528 通知。
+
+**runner 的形式**：一個 Claude Code 排程雲端 agent（提示詞草稿 [lane2-runner-prompt.md](./lane2-runner-prompt.md)），每天一次，週五走提案模式。和 heartbeat 分開，因為白名單不同；由 agent 以 `create_trigger` 建立（agent 建立的排程，之後 agent 才能自己更新提示詞），但建立前需使用者核准：新排程會消耗 Claude 配額（人類關卡「花錢」）。
+
+**同一批處理的 D1 後續**
+
+- **#563 production log 擷取**：`source-diagnose.yml` 每次診斷時，另抓最近 3 次每日 `scraper.yml` run 的 log，擷取 `=== Starting scraper: <Class> ===` 到下一個來源之間的段落（清理後最多 60 行）貼進診斷留言。驗證：2026-11-06 的 log 顯示 prtimes 在 production 寫入 55 筆、waseda_taiwan 2 筆（#459／#460 的「0 產出」已過時，會由 zero-output-recovery 依資料關閉），taiwanshi 在 production 是 `403 Forbidden`（#506），這些都是 dry-run 看不到的訊號。
+- **母 issue 收尾提醒**：子 issue 內文以「母 issue：#N」指向母 issue（#367 有 9 張、#381 有 16 張）。`zero-output-recovery.yml` 增加一個不帶 secrets 的 job：母 issue 的子 issue 全部關閉時，在母 issue 留一次彙整（各子 issue 的結局），並貼 `ready-to-close` label。**不自動關閉**母 issue（使用者 2026-11-07：由週審提醒使用者關）；D4 digest 會列出 `ready-to-close`。
+
+**預設採用的決定**
+
+| # | 決定 | 採用值與理由 |
+| --- | --- | --- |
+| D5-a | 核准管道 | main 上的 `lane2-approved.yml`（見上），不用 label 或留言：後兩者 agent 可偽造 |
+| D5-b | 每天實作量 | 1 筆、open lane2 PR 上限 3：一週約 5 張，與週審量相符；觀察 2 週再調 |
+| D5-c | runner 是否改 workflow | 不改（第一輪最小範圍）；需要時轉 needs-human |
+| D5-d | 提案挑選優先序 | 有 production 影響的 bug（例：#540 每月失敗、#554 標注失敗、#404）＞阻擋其他工作的＞小型功能；每次至少 1 筆是 needs-human 的決策題，讓積壓的判斷題逐週消化 |
+| D5-e | 母 issue 是否自動關 | 不關，只提醒（使用者指示） |
+
+**驗收**：第一張提案 PR 被合併；兩週內至少 3 張 lane2 PR 合併且 0 revert；`ready-to-close` 在 #381 的子 issue 全關後出現。
+
 ### 影響的檔案
 
 - `AGENTS.md`、`.github/copilot-instructions.md`：新增「自主程度與人類關卡」；Codex 只做 Plan Critic，規劃與實作留在 Claude。
@@ -191,6 +237,7 @@ worktree 內 commit → rebase origin/main → git push -u origin <branch>（hoo
 - `docs/specs/board-themes.json`：`agent-autonomy` → 「AI工具鏈」。
 - `docs/specs/active/pr-flow-tiering/proposal.md`：D1 註明由本 spec 承接。
 - 新增：本目錄 `proposal.md`、`tasks.md`、`heartbeat-prompt.md`。
+- Phase D5 新增：本目錄 `lane2-approved.yml`、`lane2-runner-prompt.md`；`scripts/ci/parent_rollup.py`、`scripts/ci/prod_log_excerpt.py` 與測試；`source-diagnose.yml`、`zero-output-recovery.yml` 增修。
 - Phase D 新增：`.github/workflows/source-diagnose-batch.yml`、`pr-dryrun-evidence.yml`、`zero-output-recovery.yml`；`scraper/zero_output_recovery.py` 與其測試；本目錄 `heartbeat-prompt-v2.md`（草稿，使用者貼到 routine 後取代 `heartbeat-prompt.md`）。
 
 ### Worktree & Spec Tracking

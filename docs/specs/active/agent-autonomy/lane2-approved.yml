@@ -1,0 +1,29 @@
+# Lane 2 核准清單（agent-autonomy proposal §9，Phase D5）
+#
+# 這個檔案出現在 main 上的條目，就是使用者核准 lane2 runner 實作的範圍。
+# - 只有使用者能讓它進 main：agent 不能推 main，pr_tier 把 docs/specs/** 判為 tier 2。
+# - runner 只讀 origin/main 上的這個檔，不讀 issue label 或留言（那些 agent 都能偽造）。
+# - 每週五 runner 開「approve(lane2): 週次 YYYY-Www」PR 提案新條目；使用者在 PR 上
+#   刪掉不核准的條目、改 decision 的答案，然後合併。不合併＝這週不核准。
+# - 條目的 issue 關閉後，條目就失效；提案 PR 會順便清掉已完成的條目。
+#
+# 欄位：
+#   issue     issue 編號
+#   type      implement（寫程式、開 PR）或 evaluate（只評估並在 issue 留言，用於新來源申請）
+#   scope     做法一句話；runner 不得超出
+#   files     預計改的檔案（runner 若必須改清單外的檔，停下並留言）
+#   decision  需要使用者決定的問題與答案（使用者可改答案）；沒有就省略
+#   risk      low / medium / high（agent 的估計）
+#   proposed  提案日期與提案 PR
+#
+# 範例（不生效，註解內）：
+#   - issue: 540
+#     type: implement
+#     scope: external_stats_pull 的 upsert 指定 on_conflict，修正每月失敗
+#     files: [scraper/external_stats_pull.py, scraper/tests/test_external_stats_pull.py]
+#     decision: "衝突鍵用哪幾欄？答：(source, period)"
+#     risk: low
+#     proposed: 2026-11-13 #NNN
+
+version: 1
+entries: []
