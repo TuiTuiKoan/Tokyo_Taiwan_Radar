@@ -1,0 +1,70 @@
+name: Weekly Review Digest
+
+# One issue per week with everything that waits for the user's review morning
+# (spec docs/specs/active/agent-autonomy/proposal.md §8 D4, #559):
+# audit of what merged or auto-closed, tier 1 PRs to merge, tier 2 PRs and
+# needs-human issues to decide, and PRs to recycle. scripts/ci/weekly_digest.py
+# only reads; this workflow only opens the digest issue and closes last week's.
+# No secrets; evidence is taken from github-actions[bot] comments only.
+
+on:
+  schedule:
+    - cron: "7 13 * * 5"  # Friday 22:07 JST, before the Saturday review
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Only write the job summary; do not open or close issues"
+        type: boolean
+        default: true
+
+permissions: {}
+
+concurrency:
+  group: weekly-digest
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      checks: read
+      issues: write
+      pull-requests: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/ci
+
+      - name: Build the digest
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/weekly_digest.py --repo "$GH_REPO" \
+            --output "$RUNNER_TEMP/digest.md" --title-file "$RUNNER_TEMP/title.txt"
+          cat "$RUNNER_TEMP/digest.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open this week's issue and close last week's
+        if: env.DRY_RUN != 'true'
+        run: |
+          set -euo pipefail
+          title=$(head -1 "$RUNNER_TEMP/title.txt")
+          new=$(gh api -X POST "repos/$GH_REPO/issues" -f "title=$title" -F "body=@$RUNNER_TEMP/digest.md" \
+            -f "labels[]=weekly-digest" --jq .number)
+          [[ "$new" =~ ^[0-9]+$ ]] || { echo "could not open the digest issue"; exit 1; }
+          gh api --paginate "repos/$GH_REPO/issues?state=open&labels=weekly-digest&per_page=100" \
+            --jq '.[] | select(.pull_request == null) | .number' | while read -r old; do
+            [[ "$old" =~ ^[0-9]+$ ]] || continue
+            [ "$old" = "$new" ] && continue
+            gh issue comment "$old" --body "已由 #$new 取代。"
+            gh issue close "$old" --reason completed
+          done
+          echo "opened #$new" >> "$GITHUB_STEP_SUMMARY"
