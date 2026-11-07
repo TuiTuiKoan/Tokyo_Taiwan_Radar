@@ -1,5 +1,5 @@
 playwright==1.64.1
-supabase==2.31.0
+supabase==2.34.0
 python-dotenv==1.2.2
 openai>=3.44.0
 sentry-sdk>=2.73.0
