@@ -28,6 +28,7 @@ permissions:
 
 jobs:
   x-post:
+    environment: production
     runs-on: ubuntu-latest
 
     steps:

@@ -19,6 +19,7 @@ permissions:
 
 jobs:
   check-title-sync:
+    environment: production
     runs-on: ubuntu-latest
 
     steps:
