@@ -1,0 +1,118 @@
+name: Zero-output Recovery
+
+# Close "<source>：…0 產出…" scraper issues whose source has produced events
+# again (spec docs/specs/active/agent-autonomy/proposal.md §8, D1③).
+#
+# - Read-only against production: scraper/zero_output_recovery.py only selects
+#   from scraper_runs and decides with eval_scraper_quality.classify_output and
+#   source_expectations.json, the same logic as the weekly report. It closes
+#   only sources that are active again, off-season or quiet-as-expected.
+# - At most MAX_CLOSE issues per run, so a first run cannot sweep the board.
+# - Only issues with the `scraper` label (set by collaborators or the
+#   heartbeat, never by outsiders) are considered.
+# - An issue this job closed before and a human reopened is never closed again.
+# - Manual runs default to dry_run (report only). Emergency stop:
+#   `gh workflow disable zero-output-recovery.yml`.
+
+on:
+  schedule:
+    - cron: "0 2 * * *"  # 11:00 JST, after the 09:00 daily scrape
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Report only; do not comment or close"
+        type: boolean
+        default: true
+
+permissions: {}
+
+concurrency:
+  group: zero-output-recovery
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  MAX_CLOSE: 5
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: scraper/requirements.txt
+
+      - name: Install Python dependencies
+        run: pip install -r scraper/requirements.txt
+
+      - name: List open scraper issues and open PRs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # --slurp cannot be combined with --jq, so filter with jq afterwards.
+          gh api --paginate --slurp "repos/$GH_REPO/issues?state=open&labels=scraper&per_page=100" \
+            | jq 'add // [] | map({number, title, state, labels, pull_request})' > "$RUNNER_TEMP/issues.json"
+          echo "open scraper issues: $(jq length "$RUNNER_TEMP/issues.json")"
+          gh api --paginate --slurp "repos/$GH_REPO/pulls?state=open&per_page=100" \
+            | jq 'add // [] | map({number, title, body})' > "$RUNNER_TEMP/prs.json"
+
+      - name: Decide (read-only query)
+        working-directory: scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          python zero_output_recovery.py --issues "$RUNNER_TEMP/issues.json" \
+            --prs "$RUNNER_TEMP/prs.json" --output "$RUNNER_TEMP/actions.json"
+
+      - name: Comment and close recovered issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          MARK='<!-- zero-output-recovery -->'
+          summary="$RUNNER_TEMP/summary.md"
+          { echo "## zero-output-recovery"; echo; echo "dry_run=$DRY_RUN"; echo; } > "$summary"
+          count=$(jq length "$RUNNER_TEMP/actions.json")
+          closed=0
+          for i in $(seq 0 $((count - 1))); do
+            n=$(jq -r ".[$i].issue" "$RUNNER_TEMP/actions.json")
+            src=$(jq -r ".[$i].source" "$RUNNER_TEMP/actions.json")
+            status=$(jq -r ".[$i].status" "$RUNNER_TEMP/actions.json")
+            [[ "$n" =~ ^[0-9]+$ && "$src" =~ ^[a-z0-9_]+$ && "$status" =~ ^[a-z_]+$ ]] || continue
+            closed_before=$(gh api --paginate "repos/$GH_REPO/issues/$n/comments" \
+              --jq "[.[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$MARK\")))] | length" \
+              | awk '{s+=$1} END {print s+0}')
+            if [ "$closed_before" -gt 0 ]; then
+              echo "- #$n \`$src\`：曾由本 job 關閉後被重開，略過" >> "$summary"; continue
+            fi
+            if [ "$closed" -ge "$MAX_CLOSE" ]; then
+              echo "- #$n \`$src\`（$status）：本次已達上限 $MAX_CLOSE 張，明天再處理" >> "$summary"; continue
+            fi
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "- #$n \`$src\`（$status）：會關閉（dry-run，不動作）" >> "$summary"
+              closed=$((closed + 1)); continue
+            fi
+            jq -r ".[$i].comment" "$RUNNER_TEMP/actions.json" > "$RUNNER_TEMP/body.md"
+            gh issue comment "$n" --body-file "$RUNNER_TEMP/body.md"
+            gh issue close "$n" --reason completed
+            echo "- #$n \`$src\`（$status）：已留言並關閉" >> "$summary"
+            closed=$((closed + 1))
+          done
+          echo >> "$summary"
+          echo "符合關閉條件 $count 張；本次處理 $closed 張（上限 $MAX_CLOSE）。" >> "$summary"
+          cat "$summary" >> "$GITHUB_STEP_SUMMARY"
