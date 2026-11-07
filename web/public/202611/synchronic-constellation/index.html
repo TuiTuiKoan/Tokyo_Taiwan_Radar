@@ -358,10 +358,24 @@ function bindLang(){
   }));
 }
 
+const COLL_GENERIC=/^(個人|作家|遺族|不明|個人蔵|作家蔵|遺族蔵)$/;
+const COLL_EN={}, COLL_ZH={};
+function collNames(ja,en,zh){
+  const strip=x=>(x||"").replace(/[（(][^）)]*[）)]/g,"").replace(/ご?遺族|画像データ|画像|※/g,"");
+  const out=[]; const parts=strip(ja).split(/[、，,]/);
+  parts.forEach(t=>{ t=t.replace(/(氏)?(旧蔵|所蔵|蔵)$/,"").replace(/氏?(提供|寄贈)$/,"").replace(/氏$/,"").trim();
+    if(t.length<2||COLL_GENERIC.test(t)) return; out.push(t);
+    if(parts.length===1){
+      const e=(en||"").replace(/\s*\([^)]*\)/g,"").trim(), z=strip(zh).replace(/(收藏|提供|捐贈)$/,"").trim();
+      if(e && /^[A-Za-z][A-Za-z0-9 ,.'’&\-]+$/.test(e) && !/^(Collection of|formerly)/i.test(e) && !COLL_EN[t]) COLL_EN[t]=e;
+      if(z && !COLL_ZH[t]) COLL_ZH[t]=z; }
+  }); return out;
+}
 function topArtists(n){
   const c={};
-  WORKS.forEach(w=>splitNames(w.artist).forEach(a=>c[a]=(c[a]||0)+1));
-  DOCS.forEach(d=>splitNames(d.author).forEach(a=>c[a]=(c[a]||0)+1));
+  const add=names=>new Set(names).forEach(a=>c[a]=(c[a]||0)+1);
+  WORKS.forEach(w=>add([...splitNames(w.artist),...collNames(w.collection,w.collection_en,w.z.collection)]));
+  DOCS.forEach(d=>add([...splitNames(d.author),...collNames(d.collection,d.collection_en,d.z.collection),...collNames(d.owner,d.owner_en,d.z.owner)]));
   return Object.entries(c).filter(([,k])=>k>=4).sort((a,b)=>b[1]-a[1]).slice(0,n);
 }
 
@@ -422,7 +436,7 @@ function chapRow(n){
 }
 function homeIdle(){
   const chs=[0,1,2,3,4,5,6].map(n=>`<button type="button" class="chap" data-go="ch${n}">${chapRow(n)}</button>`).join("");
-  const ta=topArtists(18).map(([a,k])=>{ const label = LANG==="en" ? (EN_NAME[a]||a) : LANG==="zh" ? (ZH_NAME[a]||a) : a;
+  const ta=topArtists(24).map(([a,k])=>{ const label = LANG==="en" ? (EN_NAME[a]||COLL_EN[a]||a) : LANG==="zh" ? (ZH_NAME[a]||COLL_ZH[a]||a) : a;
     return `<button class="chip" data-q="${esc(label)}">${esc(label)}<span>${k}</span></button>`; }).join("");
   return `<p class="hint lead">${t("lead")}</p>
   <section class="sec"><h2>${t("byChapter")}</h2><div class="chapters">${chs}</div></section>
