@@ -90,7 +90,7 @@ jobs:
               echo "- exit code: $RC"
               echo "- 筆數: $COUNT"
               echo "- 前 5 筆標題:"
-              grep -o '"title": *"[^"]*"' "$OUT" | head -5 | sed 's/^/  - /' || true
+              grep -o '"name_ja": *"[^"]*"' "$OUT" | head -5 | sed 's/^/  - /' || true
               echo
               echo "<details><summary>stderr 末 60 行</summary>"
               echo
