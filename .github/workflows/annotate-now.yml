@@ -8,6 +8,7 @@ permissions:
 
 jobs:
   annotate:
+    environment: production
     runs-on: ubuntu-latest
 
     steps:

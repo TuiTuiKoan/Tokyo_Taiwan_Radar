@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   refetch:
+    environment: production
     if: vars.REFETCH_THIN_LIVE == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30

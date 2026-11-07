@@ -30,6 +30,7 @@ permissions:
 
 jobs:
   notify:
+    environment: production
     if: "github.event.workflow_run.conclusion != 'success' && github.event.workflow_run.conclusion != 'skipped' && github.event.workflow_run.name != 'Workflow Failure LINE Notify'"
     runs-on: ubuntu-latest
     steps:

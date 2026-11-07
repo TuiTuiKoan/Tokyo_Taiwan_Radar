@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   triage:
+    environment: production
     runs-on: ubuntu-latest
 
     steps:

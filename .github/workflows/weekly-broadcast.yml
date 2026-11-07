@@ -33,6 +33,7 @@ permissions:
 
 jobs:
   broadcast:
+    environment: production
     runs-on: ubuntu-latest
 
     steps:

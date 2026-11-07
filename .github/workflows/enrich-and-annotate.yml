@@ -13,6 +13,7 @@ permissions:
 
 jobs:
   enrich-and-annotate:
+    environment: production
     runs-on: ubuntu-latest
 
     steps:

@@ -11,6 +11,7 @@ on:
 
 jobs:
   auth-smoke:
+    environment: production
     runs-on: ubuntu-latest
     permissions:
       contents: read

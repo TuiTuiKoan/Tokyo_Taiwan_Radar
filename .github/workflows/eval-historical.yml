@@ -11,6 +11,11 @@ on:
       sample:
         description: 'Events to sample'
         default: '100'
+  push:
+    branches: [main]
+    paths:
+      - 'scraper/eval_historical.py'
+      - '.github/workflows/eval-historical.yml'
   pull_request:
     paths:
       - 'scraper/eval_historical.py'
@@ -20,7 +25,31 @@ permissions:
   contents: read
 
 jobs:
+  unit-tests:
+    # Pull requests run only tests that need no secrets (#561): a PR's code must
+    # never see production credentials. The report job below runs after merge.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: 'scraper/requirements.txt'
+
+      - name: Install Python dependencies
+        run: pip install -r scraper/requirements.txt
+
+      - name: Unit tests (no secrets)
+        working-directory: scraper
+        run: python -m pytest tests -q -k "eval_historical"
+
   backtest:
+    if: github.event_name != 'pull_request'
+    environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
