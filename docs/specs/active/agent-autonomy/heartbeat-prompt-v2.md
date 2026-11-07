@@ -1,6 +1,8 @@
 # Heartbeat 排程 agent 的提示詞 v2（草稿，Phase D2）
 
 > 狀態：草稿，已依 [plan-critique-1.md](./plan-critique-1.md) 修訂。D1 合併、且 `source-diagnose-batch` 至少成功跑過一次之後（v2 只依賴 D1①；D1② 的證據留言是有就引用），使用者把分隔線之後的全文貼到 routine；貼上後把本檔內容覆蓋 `heartbeat-prompt.md`、刪除本檔（同一個 PR）。在那之前 `heartbeat-prompt.md` 仍是權威副本。設計見 [proposal.md](./proposal.md) §8。
+>
+> 本檔取代 [heartbeat-prompt-531-patch.md](./heartbeat-prompt-531-patch.md)（另一個 session 於 2026-11-07 提交）：該 patch 的「診斷優先」以 exit code 判讀，會把被 `main.py` 吞掉例外的壞 scraper 當成正常（plan-critique-1 F1），且要求手動觸發診斷，已由 `source-diagnose-batch.yml` 取代。若使用者已貼上該 patch，貼 v2 時整段覆蓋即可；啟用 v2 的 PR 一併刪除該 patch 檔。
 
 用途：Claude Code 排程雲端 agent（`trig_01CEwNUKeAdxVu9UVLWav7tG`），每 4 小時執行一次（`0 1,5,9,13,17,21 * * *` UTC），模型 Sonnet。本檔是排程提示詞的權威副本；排程是以 HTTP API 建立的，agent 不能改，修改時由使用者到 https://claude.ai/code/routines/trig_01CEwNUKeAdxVu9UVLWav7tG 把下面分隔線之後的全文貼上。
 

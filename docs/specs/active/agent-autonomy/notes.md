@@ -67,4 +67,5 @@
 | 開成 issue | D1 #557、D2 #558、D4 #559、D3 裁決 #560、F8 #561、F9 #562、F7 #563 |
 | 實作時抓到的 bug | ①stdout 有含 `[` 的 log 時，從第一個 `[` 解析 JSON 會失敗（既有 source-diagnose 也有），改成逐一嘗試行首 `[`；②`jq map({…pull_request})` 讓每張 issue 帶 `pull_request: null`，以「有 key」判斷 PR 會把所有 issue 濾掉，改看值。②是對 live issue 資料乾跑時發現的 |
 | 乾跑證據 | batch 選件邏輯對 live issue 乾跑（dispatch 換成 echo）：#459、#460 已有 bot 診斷被跳過，取 #461、#462、#463、#468、#469；復原偵測的候選辨識對 live 資料取出 35 張 |
+| 與並行 session 的交會 | 本 PR 開發期間，另一個 session 合併了 `ca49fb9`（#538 的 name_ja 修正＋`heartbeat-prompt-531-patch.md`）。rebase 時 `source-diagnose.yml` 取本 PR 版本（已改用共用解析器、同樣讀 name_ja）；531-patch 由 v2 取代（v2 檔頭有說明） |
 | NOT TESTED | 四個 workflow 都只有 actionlint＋shellcheck 與本機單元測試，未在 Actions 上執行（workflow_dispatch 需要檔案先在 main）；`zero_output_recovery.py` 的 Supabase 查詢未實測 |
