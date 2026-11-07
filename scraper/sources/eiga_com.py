@@ -106,14 +106,14 @@ def _parse_original_title(data_text: str) -> tuple["str | None", "str | None"]:
 def _parse_date(text: str) -> datetime | None:
     m = _DATE_RE.search(text)
     if m:
-        return datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), tzinfo=_JST)
+        return datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), tzinfo=timezone.utc)
     return None
 
 
 def _yyyymmdd_to_date(s: str) -> datetime | None:
     """Convert 'YYYYMMDD' string to datetime."""
     if len(s) == 8 and s.isdigit():
-        return datetime(int(s[:4]), int(s[4:6]), int(s[6:8]), tzinfo=_JST)
+        return datetime(int(s[:4]), int(s[4:6]), int(s[6:8]), tzinfo=timezone.utc)
     return None
 
 
@@ -126,7 +126,11 @@ class EigaComScraper(BaseScraper):
             "User-Agent": _USER_AGENT,
             "Accept-Language": "ja,en;q=0.9",
         })
-        self._today = datetime.now(_JST)
+        # Calendar dates are stored as UTC midnight; use today's JST date at UTC midnight
+        # so comparisons with parsed dates stay consistent.
+        self._today = datetime.now(_JST).replace(
+            hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc
+        )
 
     def scrape(self) -> list[Event]:
         cutoff_past = self._today - timedelta(days=_LOOKBACK_DAYS)
