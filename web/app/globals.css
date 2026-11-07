@@ -208,6 +208,17 @@ html:has([data-site-bg]) body {
   background: transparent;
 }
 
+/* Single fixed gradient layer; html.dark swaps the gradient itself. Do not
+   stack a light and a dark layer and cross-fade them: iOS Safari tiles the
+   composited dark layer and the cream light layer shows through the tile
+   seams as full-height vertical white lines (#521). */
+.ttr-site-gradient {
+  background: linear-gradient(135deg, #fffdf5 0%, #fff1ee 58%, #f7ffe8 100%);
+}
+html.dark .ttr-site-gradient {
+  background: linear-gradient(135deg, #201510 0%, #1b1918 50%, #0d1c11 100%);
+}
+
 /* ------------------------------------------------------------
  * Defensive: pin form controls to explicit colors via tokens.
  * Wrapped in @layer base so Tailwind utility classes (e.g. bg-paper)

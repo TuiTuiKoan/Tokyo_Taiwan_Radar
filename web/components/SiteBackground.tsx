@@ -15,23 +15,11 @@ export function SiteBackground() {
       {/* SVG <defs> for the grid pattern referenced below */}
       <DesignDefs />
 
-      {/* 1. Paper gradient — light: paper→blush→matcha; dark: deep warm dark tones */}
+      {/* 1. Paper gradient — light: paper→blush→matcha; dark: deep warm dark tones.
+          One layer only; html.dark swaps the gradient in globals.css (.ttr-site-gradient). */}
       <div
         aria-hidden
-        className="fixed inset-0 -z-30 pointer-events-none"
-        style={{
-          background:
-            "linear-gradient(135deg, #FFFDF5 0%, #FFF1EE 58%, #F7FFE8 100%)",
-        }}
-      />
-      {/* Dark mode gradient layer — overlays on top of the light layer via html.dark */}
-      <div
-        aria-hidden
-        className="fixed inset-0 -z-30 pointer-events-none opacity-0 dark:opacity-100 transition-opacity duration-300"
-        style={{
-          background:
-            "linear-gradient(135deg, #201510 0%, #1b1918 50%, #0d1c11 100%)",
-        }}
+        className="ttr-site-gradient fixed inset-0 -z-30 pointer-events-none"
       />
 
       {/* 2. Grid pattern */}

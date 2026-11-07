@@ -192,3 +192,41 @@ def test_repair_latency_is_median_days_per_source():
 def test_script_note_reports_the_left_out_count():
     assert "698" in script_corrections_note({"script_corrections": 698})
     assert "失敗" in script_corrections_note({"script_corrections": None})
+
+
+# ─── collect_monthly_health_metrics end to end (2026-11-01 crash) ────────────
+
+class _FakeQuery:
+    def __init__(self, table: str):
+        self.table = table
+
+    def __getattr__(self, _name):
+        return lambda *args, **kwargs: self
+
+    def execute(self):
+        rows = {
+            "events": [{"id": "e1", "source_name": "peatix", "created_at": "2026-10-10T00:00:00+00:00"}],
+            "event_reports": [{"event_id": "e1", "created_at": "2026-10-10T03:00:00+00:00", "locale": "ja",
+                               "report_types": ["wrongCategory"]}],
+        }.get(self.table, [])
+        return type("Resp", (), {"data": rows, "count": 0})()
+
+
+class _FakeSupabase:
+    def table(self, name: str):
+        return _FakeQuery(name)
+
+
+def test_a3_reports_do_not_replace_confirmed_report_counts():
+    from datetime import datetime, timezone
+
+    from monthly_health_check import collect_monthly_health_metrics
+
+    data = collect_monthly_health_metrics(
+        _FakeSupabase(),
+        window_start=datetime(2026, 10, 1, tzinfo=timezone.utc),
+        window_end_exclusive=datetime(2026, 11, 1, tzinfo=timezone.utc),
+    )
+    assert isinstance(data["reports"], dict)
+    assert data["reports"]["wrongCategory"] == 1
+    assert isinstance(data["integrity_flags"], list)

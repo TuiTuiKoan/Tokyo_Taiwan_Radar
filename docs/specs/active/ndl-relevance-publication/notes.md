@@ -418,9 +418,60 @@ Decision guides 合併後沒有重跑非出版物 60 筆（只刪除一條要求
 - 出版物沒有地址，`_build_scope_finding()` 的 region 不會是 TAIWAN／OTHER_FOREIGN，不會進 scope 審核佇列。
 - 驗證：`pytest scraper/tests` 1531 passed、1 skipped；`check_enum_parity` OK；`sync_ai_adapters --check` OK。
 
+### 部署查證（2026-11-07，Phase E，唯讀）
+
+- C1–C4 與 spec 紀錄（`f809c20`…`ebcf538`，22 個 commit）已在 `origin/main`；`feat/ndl-relevance-publication` 未推到遠端。
+- 含本案程式的第一次 Daily Scraper（排程，run [40056871578](https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/actions/runs/40056871578)，
+  `547db87`，2026-10-24）**失敗**，原因與本案無關：`enrich_location.py` 第 61 行 `NameError: name 'OpenAI' is not defined`
+  （OpenAI 成本重整 #391 的殘留）。annotator 步驟本身完成（LLM calls 145、errors 0）。
+- 同日手動重跑（run [40067900799](https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/actions/runs/40067900799)，`17bb235`）**成功**；
+  之後 10/25–11/06 的排程 run 全部成功。
+- gate 原因代碼：兩次 run 共 7 筆新進出版物，全部是 `flag_off`；之後的 run 沒有新的首次標註出版物進 gate。
+  ndl 停用筆數仍為 0，沒有出版物被 gate 停用。
+- 分類抽看（7 筆全部，皆 `is_active=true`）：
+
+| 記錄 | 分類 | 讀法 |
+|------|------|------|
+| [日本統治期の台湾における都市娯楽装置の成立と展開](https://tokyotaiwanradar.com/ja/events/2219ca1a-9cde-4f83-a2dc-b06b5360a46c) | history academic | 合理 |
+| [日本による台湾統治八十年後の省察](https://tokyotaiwanradar.com/ja/events/f7e80562-a35e-4e59-8116-4ddf5bcd3e9d) | history academic | 合理 |
+| [台湾のカーボン・プライシングの展開と課題](https://tokyotaiwanradar.com/ja/events/84642bd9-c9b6-4ed1-889c-5df334e8b97d) | geopolitics academic | 可接受（環境政策沒有專屬 slug） |
+| [進化加速する台湾高速鉄道](https://tokyotaiwanradar.com/ja/events/55690e30-dc6b-4e92-b273-c12fbfa85683) | geopolitics | 可議（交通、tech 較貼切；屬 #422／#423 範圍） |
+| [海外大学との交流授業の教育効果：韓国と台湾](https://tokyotaiwanradar.com/ja/events/f28c5e09-aae6-4ba1-b709-4834f282dcd4) | academic | 多國比較，依 D1 屬 B，保留正確 |
+| [台湾における新規露天商の所得と商店開業の意思](https://tokyotaiwanradar.com/ja/events/5ef3501e-086a-4a40-9477-b1e7cbbd19d9) | academic | 合理 |
+| [主要国における2026/27年度の核果類生果の需給見通し](https://tokyotaiwanradar.com/ja/events/4433bfce-4b6b-4215-8029-3a242bfab183) | academic | 看似 N（台灣只是多國之一），gate 關閉中所以保留；留給 H |
+
+
+- 凍結（2026-10-23）後新進純出版物：ndl 22 筆（10/24–11/05）、hanmoto 1 筆，全部有效、無空分類。
+  H 的「30 筆或 3 週」以 3 週先到：**2026-11-13**。
+
 ## 處置批次
 
 （Phase F 每批填入：批次編號、核准字句與時間、完整 event id 與連結、讀回驗證結果。）
+
+### 第 1 批（2026-11-07，**已執行、讀回通過**）
+
+來源：`labels_metrics.csv` 中 `final_label = N` 的 4 筆（全部在 P_dev；`10fcb5ab` 盲標 N、裁決為 B，依 D1 排除）。
+2026-11-07 唯讀重讀：4 筆都不是 reviewed、不是合併目標或被合併、沒有 `category_corrections`，全部列入。
+
+| # | 記錄 | 標籤 | 理由 | `updated_at` | `is_active` | `annotation_status` | FC（非空／全部） |
+|---|------|------|------|------|------|------|------|
+| 1 | [日本企業の実行投資額は前年比2.2倍に：マレーシア](https://tokyotaiwanradar.com/ja/events/1a132f06-27fe-43ba-b463-0ed85524fdbe) | N | 多國系列中講馬來西亞的一篇，台灣只在系列名 | 2026-07-18 16:37:54Z | true | annotated | 4／4 |
+| 2 | [民族抹殺した朝鮮支配：不屈の独立・解放の闘い](https://tokyotaiwanradar.com/ja/events/7f2003f1-e064-4c6c-b339-27c54795bc1d) | N | 講朝鮮支配，台灣只在系列名 | 2026-09-02 03:46:35Z | true | annotated | 0／7 |
+| 3 | [外国企業の投資額が5年連続で過去最高額を更新：韓国](https://tokyotaiwanradar.com/ja/events/94ceddfe-1005-4cec-bdb0-55970ccf6c05) | N | 多國系列中講韓國的一篇，台灣只在系列名 | 2026-07-18 16:37:42Z | true | annotated | 4／4 |
+| 4 | [防衛産業をどう再建するか：再生に向けた日本の長い道のり](https://tokyotaiwanradar.com/ja/events/ccb2e6e1-8e6c-4d78-8a07-02220423f3b4) | N | 講日本防衛產業，台灣只在多地區系列名 | 2026-07-18 16:37:34Z | true | annotated | 4／4 |
+
+- 執行前基準：ndl 停用 0 筆；hanmoto 停用 40 筆（id 清單 md5 `3724f532b30a72462f8154a68acc33c9`，依 id 排序、逗號連接）。
+- 核准：使用者 2026-11-07 12:48 JST 回覆「核准停用第 1 批，4 筆」。
+- 執行前重讀（12:48，唯讀）：4 筆的 `is_active`、`annotation_status`、`updated_at`、合併關係、`category_corrections`、FC
+  與上表逐列相同；停用基準不變。
+- 執行：使用者在 Admin 隱藏，03:49:22Z–03:49:47Z（12:49 JST）。四筆時間各差約 9 秒、`deactivated_reason` 是單筆版的
+  `manually deactivated by admin`（不是批次版的 `(bulk)`），看起來是逐筆隱藏；寫入的是同一個 admin 停用流程，結果相同。
+- 讀回（12:49 之後，唯讀）：4 筆皆 `is_active=false`、`deactivated_by_pass='admin_manual'`。
+  ndl 停用集合＝這 4 筆（md5 `46d63892835a5d8dec98d5129aaffb74`），＝執行前（空）∪ 第 1 批；hanmoto 停用 40 筆、
+  md5 `3724f532b30a72462f8154a68acc33c9` 不變。沒有多停用或漏停用。
+- 回復方式：Admin 批次顯示這 4 個 id。
+- `final_label = N` 只有這 4 筆，Phase F 到此結束。未標過的 ndl 不停用，留給 gate 開啟後或 P6。
+- 只有 70 筆開發集被標過；未標的 ndl 不停用（proposal 4 第 1 點）。其餘不相關記錄要等 gate 開啟或 P6 處理。
 
 ## P6 交棒
 

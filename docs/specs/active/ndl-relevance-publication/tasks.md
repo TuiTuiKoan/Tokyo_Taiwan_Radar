@@ -100,20 +100,22 @@
 
 ## Phase E: 合併與部署（gate 旗標關閉）
 
-- [ ] rebase `origin/main`，交 V-M-D；push 由使用者執行
-- [ ] 第一次 Daily Scraper run 的 `headSha` 等於推送的 commit，且 conclusion=success
-- [ ] 只驗旗標關閉的行為：該 run 新進出版物的 gate 原因代碼為「旗標關閉」，沒有出版物被 gate 停用；
-      分類結果抽看
+- [x] rebase `origin/main`，交 V-M-D；push 由使用者執行（2026-10-23 使用者直接推上 main，`ebcf538`）
+- [x] 第一次 Daily Scraper run 的 `headSha` 等於推送的 commit，且 conclusion=success：
+      第一次排程 run（`547db87`）因無關的 `enrich_location.py` NameError 失敗，同日手動重跑（`17bb235`）成功，
+      見 `notes.md`「部署查證」
+- [x] 只驗旗標關閉的行為：該 run 新進出版物的 gate 原因代碼為「旗標關閉」，沒有出版物被 gate 停用；
+      分類結果抽看（7 筆，見 `notes.md`「部署查證」）
 
 ## Phase F: 既有不相關記錄處置（每批需使用者核准）
 
-- [ ] 由 `final_label` 為 N 的記錄產生處置清單（排除 reviewed、合併目標、`category_corrections`、B），
-      寫入 `notes.md`
-- [ ] 每批 ≤ 20 筆；核准前逐列重讀並記下停用 id 集合；複述清單並取得明確核准字句
-- [ ] 使用者以 Admin 批次隱藏執行（D4）
-- [ ] Tester 逐列讀回：該批全為 `is_active=false`、`deactivated_by_pass='admin_manual'`；
+- [x] 由 `final_label` 為 N 的記錄產生處置清單（排除 reviewed、合併目標、`category_corrections`、B），
+      寫入 `notes.md`（2026-11-07：第 1 批 4 筆）
+- [x] 每批 ≤ 20 筆；核准前逐列重讀並記下停用 id 集合；複述清單並取得明確核准字句
+- [x] 使用者以 Admin 批次隱藏執行（D4）（第 1 批實際為逐筆隱藏，結果相同，見 notes）
+- [x] Tester 逐列讀回：該批全為 `is_active=false`、`deactivated_by_pass='admin_manual'`；
       停用 id 集合＝執行前集合 ∪ 該批
-- [ ] 每批結果 commit 到 `notes.md`（C5）
+- [x] 每批結果 commit 到 `notes.md`（C5）（N 標籤只有 4 筆，第 1 批即全部）
 
 ## Phase G: Holdout、開啟 gate、交棒 P6
 

@@ -43,3 +43,14 @@
 | 雲端環境 | 成功 clone repo；`gh pr list` 因「GitHub GraphQL is not available from Claude Code sessions」失敗（403），agent 自行改用環境內建的 GitHub MCP 工具（`mcp__github__*`）完成 issue 讀寫；REST（`gh api repos/...`）可用。log 顯示 `hook_started ×4`，repo 的 PreToolUse hooks 在雲端有執行 |
 | 尚未驗證 | 推 branch 與 `gh pr create`（第一次只分類，沒走到）；配額歸屬；dry-run 在雲端的網路可達性。下一次排程 09:05 UTC（18:05 JST）會取件 #459 prtimes，屆時補驗 |
 | 清理 | 建立時被附上全部 MCP 連接器（含 Supabase）→ 已清空；提示詞補查重規則後以 `update` 覆寫 |
+
+## §5 heartbeat 停擺 12 天與上限調整（2026-11-07）
+
+| 項目 | 觀測 |
+| --- | --- |
+| 症狀 | 2026-10-25 的 #485～#488 四張 `auto-fix` PR 未合併，open 數達上限 4 → 之後每次執行（約 27 秒）都只分類、不修。到 2026-11-07 為止 38 張 `auto-fix` issue 沒有被取件（#446、#459 以下的爬蟲 0 產出）；期間沒有任何通知，使用者只看到「issue 一週都沒結清」 |
+| 連帶問題 | 使用者合併 #485 後，#487、#488 與 main 衝突（四張都改 closeout 稽核腳本或 campaign-closer 的 history.md）。heartbeat 不 force-push，無法自行修復；由互動 session rebase 後重開成 #526、#527 |
+| 判斷 | 上限是 WIP 限制（使用者的審核量與配額），不是 PR 之間的依賴；但腳本與文件類修復常改同一個檔，先合併一張就會讓其他張衝突。爬蟲來源修復各改各的 `scraper/sources/<source>.py`，幾乎不會衝突。真正的瓶頸是「滿額時沒有通知」 |
+| 調整（使用者同意） | ① 上限分兩類：爬蟲類（只改 `scraper/sources/**`、`scraper/tests/**`、`.github/skills/sources/**`）6 張，腳本文件類 1 張；② 取件先挑帶 `scraper` label 的 issue；③ 預計要改的檔案與任何 open PR（不限 `auto-fix`）重疊就跳過；④ 滿額時在固定追蹤 issue #528 留言列出待合併 PR，清單沒變就不重複留言；⑤ 停止條件「連續兩張被關閉未合併」不計寫明「已由 #n 取代」的 PR；⑥ sandbox 連不到來源網站且無法從原始碼確定原因時，改貼 `needs-human`，不做猜測式修復 |
+| 套用 | 排程是以 HTTP API 建立的，agent 的 `update_trigger` 被拒（「Agents can only update routines they created」）。新提示詞寫在 [heartbeat-prompt.md](./heartbeat-prompt.md)，由使用者到 routine 頁面貼上 |
+| 待觀察 | 7 天盤點時一併看：爬蟲類 PR 的合併速度、#528 通知是否讓等待天數縮短、配額是否吃緊 |
