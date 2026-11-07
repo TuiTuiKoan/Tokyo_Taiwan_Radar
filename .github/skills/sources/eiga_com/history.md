@@ -1,3 +1,11 @@
+## 2026-11-07
+
+### Calendar dates stored as UTC midnight (#547)
+
+- **Symptom**: `_parse_date()` / `_yyyymmdd_to_date()` used `tzinfo=_JST`, so DB held the previous day 15:00 UTC and the site (timeZone UTC) showed every date one day early.
+- **Fix**: both functions now use `tzinfo=timezone.utc`; `self._today` is today's JST date at UTC midnight so lookback/lookahead comparisons stay consistent. Test: `scraper/tests/test_eiga_com_dates.py`.
+- **Not changed**: how start_date is chosen and existing production rows (see #537).
+
 ## 2026-04-27
 
 ### Per-theater event redesign
