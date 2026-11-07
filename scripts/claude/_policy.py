@@ -1127,7 +1127,10 @@ def check_gh_api(args: list[Word]) -> Decision:
         for value in field_values:
             if value.text == "@input":
                 return deny("github-merge-or-main-write")
-            name, _, body = value.text.partition("=")
+            name, eq, body = value.text.partition("=")
+            if _dynamic(value) and not (eq and re.fullmatch(r"\w+=", value.text[: len(name) + 1])):
+                # `-f "$FIELD"`: the field name itself may come from a variable
+                return deny("github-merge-or-main-write")
             if name != "query":
                 continue
             if _dynamic(value) or body.startswith("@") or GH_GRAPHQL_DENY_RE.search(body):
