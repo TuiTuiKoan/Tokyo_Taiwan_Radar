@@ -37,7 +37,7 @@ One event is created **per theater** (not per movie):
 
 **source_id**: `eiga_com_{movie_id}_{theater_id}` — stable across weekly runs (upserts update `end_date`)
 
-**start_date**: movie's 劇場公開日 (`p.date-published strong`)
+**start_date**: per theater — 劇場公開日 (`p.date-published strong`) if the theater's first observed screening is within 7 days of it; otherwise the first observed `td[data-date]` (later run / revival, #537). The DB keeps the earliest start across runs for `eiga_com` (`_MOVIE_START_KEEP_EARLIEST_SOURCES`), so the weekly window cannot push it forward.
 
 **end_date**: last `td[data-date]` in the current week's schedule (updated each run via upsert)
 
@@ -107,7 +107,7 @@ Additional filter: pub_date within `[today-90, today+180]` to exclude very old r
 | `raw_title` | same as `name_ja` |
 | `source_id` | `eiga_com_{movie_id}_{theater_id}` |
 | `source_url` | `/movie-area/{id}/{pref}/{area}/` URL |
-| `start_date` | `p.date-published strong` → pub_date (movie release date) |
+| `start_date` | `_theater_start_date(pub_date, first td[data-date])` — 公開日, or the theater's first screening when it is > 7 days later |
 | `end_date` | last `td[data-date]` in weekly schedule |
 | `location_name` | `div.movie-schedule[data-theater]` |
 | `location_address` | `table.theater-table th="住所" + td` (a-tags stripped) |

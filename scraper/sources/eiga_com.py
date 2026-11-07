@@ -110,6 +110,29 @@ def _parse_date(text: str) -> datetime | None:
     return None
 
 
+# A theater whose first observed screening is more than this many days after the
+# film's 劇場公開日 is treated as a later run (二番館, regional run, revival).
+_LATER_RUN_GRACE_DAYS = 7
+
+
+def _theater_start_date(pub_date: datetime | None, first_screening: datetime) -> datetime:
+    """Return the start_date for one theater's event.
+
+    The 劇場公開日 belongs to the film, not to the theater. A theater that starts
+    screening well after it (e.g. シアター・イメージフォーラム starting a revival on
+    11/7 while 公開日 is in October) gets its own first screening date instead.
+    A theater already screening in the release week keeps the 公開日, because the
+    area page only shows the current week and cannot tell how long it has run.
+    The database keeps the earliest start across runs for eiga_com, so the
+    weekly schedule window cannot push the date forward later.
+    """
+    if pub_date is None:
+        return first_screening
+    if first_screening > pub_date + timedelta(days=_LATER_RUN_GRACE_DAYS):
+        return first_screening
+    return pub_date
+
+
 def _yyyymmdd_to_date(s: str) -> datetime | None:
     """Convert 'YYYYMMDD' string to datetime."""
     if len(s) == 8 and s.isdigit():
@@ -363,7 +386,7 @@ class EigaComScraper(BaseScraper):
                 location_address = self._fetch_theater_address(theater_page_path)
 
             # Build raw_description with date prefix
-            start = pub_date or dates[0]
+            start = _theater_start_date(pub_date, dates[0])
             desc_prefix = f"開催日時: {start.year}年{start.month:02d}月{start.day:02d}日"
             if end_date and end_date != start:
                 desc_prefix += f"〜{end_date.year}年{end_date.month:02d}月{end_date.day:02d}日"
@@ -380,7 +403,7 @@ class EigaComScraper(BaseScraper):
                 raw_title=title,
                 raw_description=desc_prefix + raw_description,
                 category=["movie"],
-                start_date=pub_date or dates[0],
+                start_date=start,
                 end_date=end_date,
                 location_name=theater_name,
                 location_address=location_address,
