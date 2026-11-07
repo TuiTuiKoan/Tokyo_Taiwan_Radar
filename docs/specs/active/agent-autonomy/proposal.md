@@ -141,6 +141,45 @@ worktree 內 commit → rebase origin/main → git push -u origin <branch>（hoo
 | A5 | 節奏與上限 | 每 8 小時、每次 1 張、同時 2 張待合併（2026-11-07 改為每 4 小時、每次 2 張、爬蟲類 6 張／腳本文件類 1 張；notes §5） |
 | A6 | 分類範圍 | 只碰沒有 `spec:` label 的 issue |
 
+### 8. Phase D：週審節奏下的全自動開發迴路（2026-11-07 起）
+
+**使用者 2026-11-07 的指示**：一週大約只有一個早上能審 PR；希望 agent 逐日自動驗證、排查、開發、推送。建議模型：規劃與評審 Opus high；workflow 與腳本實作 Sonnet medium。
+
+**問題（2026-11-07 盤點）**
+
+- 節奏不對稱：heartbeat 每 4 小時產出，合併每週一次。上限一滿（爬蟲類 6、腳本文件類 1），其餘時間只分類不修（notes §5）。
+- 證據缺口：sandbox 連不到來源網站（#531）。`source-diagnose.yml` 已上線但只能手動觸發；PR 本身沒有「修復前後筆數」，使用者審 PR 時要自己判斷。
+- 配額佔用：重複 PR（#488／#526 同修 #445）、久未合併 PR 佔住名額（#532）。
+- 已自愈的 issue 沒人關：「0 產出」issue 的來源恢復後，issue 仍佔著 heartbeat 的取件佇列。
+
+**四個改造**（D1、D2 不動任何人類關卡；D3 是治理決定；D4 只整理使用者已有的工作）
+
+| # | 改造 | 內容 | 人類關卡 |
+| --- | --- | --- | --- |
+| D1 | 證據工廠 | ①`source-diagnose-batch.yml`：每日挑最多 5 張還沒有診斷留言的「0 產出」issue（或貼了 `needs-diagnosis` 的），dispatch 既有的 `source-diagnose.yml`；②`pr-dryrun-evidence.yml`：改到 `scraper/sources/**` 的同 repo PR，在 Actions 上對 base 與 head 各跑一次 dry-run，留言「修復前 M 筆 → 修復後 N 筆」；③`zero-output-recovery.yml`：每日對 open 的「0 產出」issue 查 `scraper_runs` 最近 7 天，有產出就附數據留言並關閉 | 新增 workflow（tier 2 PR）；都不寫 production、dry-run 不帶 secrets |
+| D2 | 配額衛生 | heartbeat 提示詞 v2（[heartbeat-prompt-v2.md](./heartbeat-prompt-v2.md)）：「0 產出／原因未知」類 issue 先看診斷留言，沒有就貼 `needs-diagnosis` 跳過；盤點時以 `Closes #n` 去重；open 超過 14 天的 PR 在 #528 列為「建議關閉或重開」；PR body 引用診斷與 dry-run 證據 | 提示詞由使用者貼到 routine |
+| D3 | 證據門檻自動合併 | 路徑只在爬蟲類、測試綠、D1② 筆數 >0 且未暴增、無同檔 PR → 自動合併；先圈 3–5 個來源試行兩週 | **使用者裁決 go／no-go**，裁決前不實作 |
+| D4 | 週審 digest | 週五晚把待審 PR 整理成一張清單（稽核區／一鍵合併區／判斷區／回收區），使用者一個早上處理完；週日收尾 | 新增 workflow（tier 2 PR） |
+
+**與既有工作的關係**：source-diagnose 本體與 #538（標題欄位修正）不動，D1① 只是觸發器；#450（合併後驗證迴路）看的是已合併 PR 的來源，D1③ 看的是 open issue，兩者互補；#545（失敗訊號 intake）負責把 CI 失敗變成 issue，D1 負責讓這些 issue 有證據可修。上限沿用 notes §5 的爬蟲類 6／腳本文件類 1，不改。
+
+**預設採用的決定**
+
+| # | 決定 | 採用值與理由 |
+| --- | --- | --- |
+| D-a | 診斷批次的量 | 每日最多 5 個來源（plan-531 第二階段的上限）；Actions 分鐘數每來源 1–3 分鐘 |
+| D-b | dry-run 證據帶不帶 secrets | 不帶，與 source-diagnose 一致。需要憑證的來源顯示失敗，記 NOT TESTED |
+| D-c | PR 程式碼在哪個 job 跑 | 跑 PR 程式碼的 job 只有 `contents: read`；留言由另一個不 checkout PR 的 job 用 artifact 貼上 |
+| D-d | 復原偵測是否直接關 issue | 關。症狀就是「`scraper_runs` 28 天 0 產出」，同一個指標恢復即症狀消失；關閉可重開，留言附數據。repo variable `ZERO_OUTPUT_RECOVERY_DRY_RUN=true` 時只列出不動作 |
+| D-e | 14 天未合併的 PR | 仍算入上限（不擴大 WIP），只在 #528 標示，由使用者週審時關或重開 |
+
+**驗收**
+
+- D1：至少一張「0 產出」issue 經批次診斷後由 heartbeat 開出 PR（#531 的驗收標準）；復原偵測第一次執行的處理數寫進 notes。
+- D2：14 天內不再出現同一 `Closes #n` 被重複計數。
+- D4：使用者一次週審 ≤90 分鐘。
+- 14 天盤點：每週關閉的 issue 數、PR 中位等待天數、revert 數，寫進 notes.md。
+
 ### 影響的檔案
 
 - `AGENTS.md`、`.github/copilot-instructions.md`：新增「自主程度與人類關卡」；Codex 只做 Plan Critic，規劃與實作留在 Claude。
@@ -150,6 +189,7 @@ worktree 內 commit → rebase origin/main → git push -u origin <branch>（hoo
 - `docs/specs/board-themes.json`：`agent-autonomy` → 「AI工具鏈」。
 - `docs/specs/active/pr-flow-tiering/proposal.md`：D1 註明由本 spec 承接。
 - 新增：本目錄 `proposal.md`、`tasks.md`、`heartbeat-prompt.md`。
+- Phase D 新增：`.github/workflows/source-diagnose-batch.yml`、`pr-dryrun-evidence.yml`、`zero-output-recovery.yml`；`scraper/zero_output_recovery.py` 與其測試；本目錄 `heartbeat-prompt-v2.md`（草稿，使用者貼到 routine 後取代 `heartbeat-prompt.md`）。
 
 ### Worktree & Spec Tracking
 
