@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Fail-closed launcher for the Claude Code PreToolUse guards (see AGENTS.md).
 #
-# Usage (from .claude/settings.json): run_hook.sh bash|file  < hook payload
+# Usage (from .claude/settings.json): run_hook.sh bash|file|mcp  < hook payload
 # Exit 0 allows; stdout is forwarded only when it is the exact decision JSON
 # accepted by _policy.py --validate-output. Exit 2 blocks. Every other guard
 # outcome (crash, import error, unknown exit code, invalid output, missing
@@ -19,6 +19,7 @@ fail() {
 case "${1:-}" in
   bash) guard=pretooluse_bash_guard.py ;;
   file) guard=pretooluse_file_guard.py ;;
+  mcp) guard=pretooluse_mcp_guard.py ;;
   *) fail ;;
 esac
 
