@@ -1,5 +1,11 @@
 # yebizo — History
 
+## 2026-11-07 — Listing fetch failure downgraded to warning (#553)
+
+- **Symptom**: Sentry logged `YebizoScraper: failed to fetch program listing` as error ~7 times in 2 weeks (off-season; also 2026-07-02).
+- **Fix**: log level error → warning; still returns `[]`, matching the SKILL rule that off-season 0 events is acceptable. Test: `scraper/tests/test_yebizo_listing_failure.py`.
+- **Not verified**: whether the listing URL changed (sandbox cannot reach the site).
+
 ## 2026-04-26 — Initial implementation
 
 - **Dry-run results**: 3 Taiwan-related events from 67 total programs
