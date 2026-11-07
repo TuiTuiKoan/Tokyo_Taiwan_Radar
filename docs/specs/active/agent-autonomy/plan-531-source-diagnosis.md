@@ -26,8 +26,8 @@ heartbeat 的雲端 sandbox 對外部網站的 CONNECT 被 proxy 回 403，無�
 
 ## 里程碑
 
-- [ ] M1 使用者核准新增 workflow（關卡：`.github/workflows/`）
-- [ ] M2 實作 `source-diagnose.yml`，對 #459、#460 各跑一次，診斷留言貼回 issue
+- [x] M1 使用者 2026-11-07 口頭授權新增 workflow，不需再問
+- [ ] M2（已實作 `source-diagnose.yml`，合併到 main 後才能 dispatch；尚未執行）實作 `source-diagnose.yml`，對 #459、#460 各跑一次，診斷留言貼回 issue
 - [ ] M3 heartbeat 讀到診斷後修好至少一張並開 PR（驗收）
 - [ ] M4 提示詞 patch 套用；評估自動觸發
 
