@@ -1,5 +1,14 @@
 ## 2026-11-07
 
+### Per-theater start_date (#537)
+
+- **Symptom**: シアター・イメージフォーラム's revival of 日曜日の散歩者 started 11/7 (映画.com news 2026-10-05: Stranger 10/10–15, Image Forum from 11/7), but the event showed a mid-October start — every theater inherited the film's 劇場公開日.
+- **Fix**: `_theater_start_date()` uses the first observed screening when it is more than 7 days after 公開日. `database._build_movie_extend_row` keeps MIN(start) for `eiga_com` (the area page only shows the current week, so "prefer new start" would slide forward weekly) and normalizes legacy JST-midnight values (`T15:00:00Z`, pre-#547) before comparing.
+- **Existing rows**: `_oneoff_fix_eiga_com_theater_start.py` (dry-run default) proposes corrections for rows created > 7 days after their stored start; `--apply` is a production write and needs user approval.
+- **Known limit**: a theater showing since release but first observed > 7 days later (e.g. scraper outage) gets its first observed date. Cross-source date reconciliation is tracked in #546.
+
+## 2026-11-07
+
 ### Calendar dates stored as UTC midnight (#547)
 
 - **Symptom**: `_parse_date()` / `_yyyymmdd_to_date()` used `tzinfo=_JST`, so DB held the previous day 15:00 UTC and the site (timeZone UTC) showed every date one day early.

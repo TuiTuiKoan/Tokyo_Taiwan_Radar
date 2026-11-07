@@ -7,7 +7,7 @@ Uses the service role key (bypasses RLS) so the scraper can write freely.
 import json
 import logging
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Any
 
 from supabase import create_client, Client
@@ -752,6 +752,46 @@ def _write_pure_publication_sentinels(
                 raise RuntimeError(f"Pure publication FC postcondition failed for {event_id}:{field}")
 
 
+# Movie sources whose scraper derives start_date from a sliding weekly schedule.
+# For these, re-scrapes can only move start_date EARLIER: the current week's first
+# screening is a lower bound on "still showing", not the run's start (issue #537).
+_MOVIE_START_KEEP_EARLIEST_SOURCES = frozenset({"eiga_com"})
+
+
+def _parse_iso_utc(value: str) -> datetime | None:
+    try:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def _normalize_legacy_jst_midnight(value: str | None) -> str | None:
+    """Map a legacy JST-midnight timestamp (YYYY-MM-DDT15:00:00Z) to the next day's
+    UTC midnight, the calendar-date convention scrapers now use.
+
+    eiga_com stored JST-aware dates before #547, so 2026-11-12 was saved as
+    2026-11-11T15:00:00+00:00. Without this, MIN(old, new) would keep the
+    off-by-one legacy value forever.
+    """
+    if not value:
+        return value
+    dt = _parse_iso_utc(value)
+    if dt is None or (dt.hour, dt.minute, dt.second, dt.microsecond) != (15, 0, 0, 0):
+        return value
+    fixed = (dt + timedelta(hours=9)).replace(hour=0)
+    return fixed.isoformat()
+
+
+def _earliest_iso(a: str, b: str) -> str:
+    da, db_ = _parse_iso_utc(a), _parse_iso_utc(b)
+    if da is None or db_ is None:
+        return a if a <= b else b
+    return a if da <= db_ else b
+
+
 def _build_movie_extend_row(event: Event, existing_state: dict) -> dict | None:
     """
     Build a partial-update row for a movie event that already exists in DB.
@@ -781,9 +821,22 @@ def _build_movie_extend_row(event: Event, existing_state: dict) -> dict | None:
     # Trusting new_start means re-scrapes reflect the current schedule.
     # If new_start is None (schedule not yet available), fall back to old_start.
     merged_start = new_start or old_start
-
+    if event.source_name in _MOVIE_START_KEEP_EARLIEST_SOURCES:
+        # Sliding-window sources: keep the earliest start ever observed (#537).
+        # Legacy JST-midnight values are normalized first so they do not win MIN
+        # with an off-by-one date.
+        legacy_start = _normalize_legacy_jst_midnight(old_start)
+        if legacy_start and new_start:
+            merged_start = _earliest_iso(legacy_start, new_start)
+        else:
+            merged_start = new_start or legacy_start
+        legacy_end = _normalize_legacy_jst_midnight(old_end)
+        if legacy_end and new_end:
+            merged_end = legacy_end if _earliest_iso(legacy_end, new_end) == new_end else new_end
+        else:
+            merged_end = legacy_end or new_end
     # MAX(existing, scraped)
-    if old_end and new_end:
+    elif old_end and new_end:
         merged_end = max(old_end, new_end)
     else:
         merged_end = old_end or new_end
