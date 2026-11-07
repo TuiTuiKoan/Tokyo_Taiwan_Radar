@@ -36,6 +36,8 @@ jobs:
       tier: ${{ steps.tier.outputs.tier }}
       merge: ${{ steps.tier.outputs.merge }}
       sha: ${{ steps.tier.outputs.sha }}
+      lane2: ${{ steps.tier.outputs.lane2 }}
+      lane2_errors: ${{ steps.tier.outputs.lane2_errors }}
     steps:
       - name: Check out the default branch (never the PR head)
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -61,6 +63,25 @@ jobs:
           gh api --paginate --slurp "repos/$REPO/pulls/$pr/files" > "$RUNNER_TEMP/files.json"
           tier=$(python3 scripts/ci/pr_tier.py --files-json "$RUNNER_TEMP/files.json" --expected "$expected")
           case "$tier" in 0|1|2) ;; *) echo "unexpected tier: $tier"; exit 1 ;; esac
+          # Lane 2 approval file (agent-autonomy §9, #569): flag a PR that changes it
+          # together with other files, or changes only it but breaks the schema.
+          # The file's text is fetched at the scanned commit and parsed as data
+          # (yaml.safe_load) by the default branch's script; nothing from the PR runs.
+          lane2=$(python3 scripts/ci/lane2_approval.py status --files-json "$RUNNER_TEMP/files.json" --expected "$expected")
+          lane2_errors=""
+          case "$lane2" in none|only|mixed) ;; *) echo "unexpected lane2 status: $lane2"; exit 1 ;; esac
+          if [ "$lane2" = only ]; then
+            python3 -c 'import yaml' 2>/dev/null \
+              || python3 -m pip install --quiet --break-system-packages 'PyYAML==6.0.2'
+            gh api -H "Accept: application/vnd.github.raw+json" \
+              "repos/$REPO/contents/docs/specs/active/agent-autonomy/lane2-approved.yml?ref=$SHA" \
+              > "$RUNNER_TEMP/lane2.yml" || : > "$RUNNER_TEMP/lane2.yml"
+            result=$(python3 scripts/ci/lane2_approval.py validate "$RUNNER_TEMP/lane2.yml")
+            if [ "$(jq -r '.ok' <<< "$result")" != true ]; then
+              lane2=invalid
+              lane2_errors=$(jq -c '.errors' <<< "$result" | base64 -w0)
+            fi
+          fi
           merge=false
           if [ "$tier" = 0 ] && [ "$state" = open ] && [ "$draft" = false ] \
              && [ "$author" = "$OWNER" ] && [ "$head" = "$SHA" ]; then
@@ -71,8 +92,10 @@ jobs:
             echo "tier=$tier"
             echo "merge=$merge"
             echo "sha=$SHA"
+            echo "lane2=$lane2"
+            echo "lane2_errors=$lane2_errors"
           } >> "$GITHUB_OUTPUT"
-          echo "PR #$pr at ${SHA:0:8}: tier:$tier, merge=$merge ($expected changed files)" >> "$GITHUB_STEP_SUMMARY"
+          echo "PR #$pr at ${SHA:0:8}: tier:$tier, merge=$merge, lane2=$lane2 ($expected changed files)" >> "$GITHUB_STEP_SUMMARY"
 
   act:
     needs: classify
@@ -97,6 +120,47 @@ jobs:
             fi
           done
           gh pr edit "$PR" --repo "$REPO" --add-label "tier:$TIER"
+
+      - name: Flag lane 2 approval file changes
+        env:
+          LANE2: ${{ needs.classify.outputs.lane2 }}
+          LANE2_ERRORS: ${{ needs.classify.outputs.lane2_errors }}
+        run: |
+          current=$(gh pr view "$PR" --repo "$REPO" --json labels --jq '.labels[].name')
+          has() { printf '%s\n' "$current" | grep -qx "$1"; }
+          sync_label() {  # name, wanted(true/false), color, description
+            if [ "$2" = true ] && ! has "$1"; then
+              gh label create "$1" --repo "$REPO" --color "$3" --description "$4" --force > /dev/null
+              gh pr edit "$PR" --repo "$REPO" --add-label "$1"
+              return 0   # newly flagged
+            fi
+            if [ "$2" != true ] && has "$1"; then
+              gh pr edit "$PR" --repo "$REPO" --remove-label "$1"
+            fi
+            return 1
+          }
+          mixed=false; invalid=false
+          [ "$LANE2" = mixed ] && mixed=true
+          [ "$LANE2" = invalid ] && invalid=true
+          file=docs/specs/active/agent-autonomy/lane2-approved.yml
+          if sync_label lane2-approval-mixed "$mixed" B60205 "PR changes the lane 2 approval file together with other files"; then
+            {
+              echo "⚠️ **lane 2 核准檔被夾帶修改**：這張 PR 同時改了 \`$file\` 和其他檔案。"
+              echo
+              echo "核准只能經「只改這個檔」的提案 PR。lane 2 runner 會拒絕這種合併來源的條目（整份停用）。請把核准檔的變更拆到獨立 PR，或從這張 PR 移除。"
+            } > "$RUNNER_TEMP/body.md"
+            gh pr comment "$PR" --repo "$REPO" --body-file "$RUNNER_TEMP/body.md"
+          fi
+          if sync_label lane2-approval-invalid "$invalid" D93F0B "Lane 2 approval file does not match the schema"; then
+            {
+              echo "⚠️ **lane 2 核准檔格式錯誤**：\`$file\` 不符合 schema，合併後 runner 會整份停用（fail closed）。"
+              echo
+              echo '```text'
+              printf '%s' "$LANE2_ERRORS" | base64 -d | jq -r '.[] | "- " + gsub("```"; "'"'''"'")'
+              echo '```'
+            } > "$RUNNER_TEMP/body.md"
+            gh pr comment "$PR" --repo "$REPO" --body-file "$RUNNER_TEMP/body.md"
+          fi
 
       - name: Merge tier 0 at the scanned commit
         if: needs.classify.outputs.merge == 'true'
