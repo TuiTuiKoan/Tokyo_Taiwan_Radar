@@ -448,7 +448,7 @@ Decision guides 合併後沒有重跑非出版物 60 筆（只刪除一條要求
 
 （Phase F 每批填入：批次編號、核准字句與時間、完整 event id 與連結、讀回驗證結果。）
 
-### 第 1 批（2026-11-07 列單，**待使用者核准**）
+### 第 1 批（2026-11-07，**已執行、讀回通過**）
 
 來源：`labels_metrics.csv` 中 `final_label = N` 的 4 筆（全部在 P_dev；`10fcb5ab` 盲標 N、裁決為 B，依 D1 排除）。
 2026-11-07 唯讀重讀：4 筆都不是 reviewed、不是合併目標或被合併、沒有 `category_corrections`，全部列入。
@@ -461,7 +461,16 @@ Decision guides 合併後沒有重跑非出版物 60 筆（只刪除一條要求
 | 4 | [防衛産業をどう再建するか：再生に向けた日本の長い道のり](https://tokyotaiwanradar.com/ja/events/ccb2e6e1-8e6c-4d78-8a07-02220423f3b4) | N | 講日本防衛產業，台灣只在多地區系列名 | 2026-07-18 16:37:34Z | true | annotated | 4／4 |
 
 - 執行前基準：ndl 停用 0 筆；hanmoto 停用 40 筆（id 清單 md5 `3724f532b30a72462f8154a68acc33c9`，依 id 排序、逗號連接）。
-- 核准字句範例：「核准停用第 1 批，4 筆」。核准後、執行前要再重讀一次；執行後逐列讀回（proposal 4 第 4、7 點）。
+- 核准：使用者 2026-11-07 12:48 JST 回覆「核准停用第 1 批，4 筆」。
+- 執行前重讀（12:48，唯讀）：4 筆的 `is_active`、`annotation_status`、`updated_at`、合併關係、`category_corrections`、FC
+  與上表逐列相同；停用基準不變。
+- 執行：使用者在 Admin 隱藏，03:49:22Z–03:49:47Z（12:49 JST）。四筆時間各差約 9 秒、`deactivated_reason` 是單筆版的
+  `manually deactivated by admin`（不是批次版的 `(bulk)`），看起來是逐筆隱藏；寫入的是同一個 admin 停用流程，結果相同。
+- 讀回（12:49 之後，唯讀）：4 筆皆 `is_active=false`、`deactivated_by_pass='admin_manual'`。
+  ndl 停用集合＝這 4 筆（md5 `46d63892835a5d8dec98d5129aaffb74`），＝執行前（空）∪ 第 1 批；hanmoto 停用 40 筆、
+  md5 `3724f532b30a72462f8154a68acc33c9` 不變。沒有多停用或漏停用。
+- 回復方式：Admin 批次顯示這 4 個 id。
+- `final_label = N` 只有這 4 筆，Phase F 到此結束。未標過的 ndl 不停用，留給 gate 開啟後或 P6。
 - 只有 70 筆開發集被標過；未標的 ndl 不停用（proposal 4 第 1 點）。其餘不相關記錄要等 gate 開啟或 P6 處理。
 
 ## P6 交棒
