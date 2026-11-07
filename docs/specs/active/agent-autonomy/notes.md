@@ -82,3 +82,12 @@
 | 開成 issue 或併入 | G1 → #568；G3／G21 → #569；G5 → 併入 #561（留言擴大範圍）；D5 runner 建立 → #570（列前提 1–4） |
 | 實測的母 issue 狀態 | #381 列 30 個仍註冊的來源、子 issue 16 張，30 個都沒有結論；#367 列 9 個仍註冊的來源（tokyo_now 已退役），4 個沒有結論 |
 | NOT TESTED | 拆成兩個 job 的 source-diagnose 與 parent-rollup job 未在 Actions 上執行；report job 的組裝邏輯在 sandbox 以真實 production log 模擬過（gh 抓 log、不貼留言） |
+
+## §8 heartbeat v2 啟用（2026-11-07）
+
+| 項目 | 內容 |
+| --- | --- |
+| 啟用 | 使用者 19:33 JST 把 v2 貼到排程 `trig_01CEwNUKeAdxVu9UVLWav7tG`；本 PR 把 v2 改成正式的 `heartbeat-prompt.md`，刪除 `heartbeat-prompt-v2.md` 與 `heartbeat-prompt-531-patch.md`（#558） |
+| 啟用條件 | D1 已合併（#565）；source-diagnose-batch 已成功執行一次（2026-11-07 手動 dispatch，#461、#462、#463、#468、#469 取得診斷） |
+| 待觀察 | 第一輪 v2（22:00 JST）是否只取有 bot 診斷的 0 產出 issue、是否正確轉 needs-human、#528 通知是否含等待診斷數 |
+| Codex 審查 | 使用者已在 ChatGPT 設定連結 GitHub、開啟本 repo 的 Code Review，個人層級 Automatic review 關閉（只在留言 `@codex review` 時審）。agent 在 #571 留言 `@codex review` 無反應（PR 已合併，且系統在留言尾端附加 footer）；在 #556 留言被環境的外部寫入限制擋下。等下一張 open PR 由使用者留言實測 |
