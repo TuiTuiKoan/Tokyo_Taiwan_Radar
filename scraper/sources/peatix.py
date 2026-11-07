@@ -429,6 +429,16 @@ def _extract_peatix_location_from_text(page_text: str) -> tuple[str | None, str 
     return None, None
 
 
+
+def _is_before_cutoff(start_date: datetime, cutoff: datetime) -> bool:
+    """Compare dates safely; naive values are treated as UTC (avoids TypeError)."""
+    if start_date.tzinfo is None:
+        start_date = start_date.replace(tzinfo=timezone.utc)
+    if cutoff.tzinfo is None:
+        cutoff = cutoff.replace(tzinfo=timezone.utc)
+    return start_date < cutoff
+
+
 class PeatixScraper(BaseScraper):
     """Scrapes Taiwan-related events from Peatix in Tokyo."""
 
@@ -516,7 +526,7 @@ class PeatixScraper(BaseScraper):
             )
             page = context.new_page()
 
-            cutoff = datetime.now() - timedelta(days=DATE_LOOKBACK_DAYS)
+            cutoff = datetime.now(timezone.utc) - timedelta(days=DATE_LOOKBACK_DAYS)
 
             for keyword in TAIWAN_KEYWORDS:
                 links = self._search_events(page, keyword)
@@ -527,7 +537,7 @@ class PeatixScraper(BaseScraper):
                     try:
                         event = self._scrape_detail(page, url)
                         if event:
-                            if event.start_date and event.start_date < cutoff:
+                            if event.start_date and _is_before_cutoff(event.start_date, cutoff):
                                 logger.debug(
                                     "Peatix: skipping old event %s (%s)",
                                     event.name_ja,
@@ -558,7 +568,7 @@ class PeatixScraper(BaseScraper):
                         if event:
                             # Override category with organizer's known categories
                             event.category = list(org["categories"])
-                            if event.start_date and event.start_date < cutoff:
+                            if event.start_date and _is_before_cutoff(event.start_date, cutoff):
                                 logger.debug(
                                     "Peatix org group: skipping old event %s (%s)",
                                     event.name_ja,
