@@ -7,6 +7,13 @@
       "Bash(git push *main *)",
       "Bash(git push *HEAD)",
       "Bash(git push *HEAD *)"
+    ],
+    "deny": [
+      "mcp__github__merge_pull_request",
+      "mcp__github__enable_pull_request_auto_merge",
+      "mcp__github__create_or_update_file",
+      "mcp__github__push_files",
+      "mcp__github__delete_file"
     ]
   },
   "hooks": {
@@ -28,6 +35,17 @@
           {
             "type": "command",
             "command": "[ -f \"$CLAUDE_PROJECT_DIR/scripts/claude/run_hook.sh\" ] && exec bash \"$CLAUDE_PROJECT_DIR/scripts/claude/run_hook.sh\" file || exit 2",
+            "timeout": 30,
+            "onFailure": "block"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__github__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/scripts/claude/run_hook.sh\" ] && exec bash \"$CLAUDE_PROJECT_DIR/scripts/claude/run_hook.sh\" mcp || exit 2",
             "timeout": 30,
             "onFailure": "block"
           }

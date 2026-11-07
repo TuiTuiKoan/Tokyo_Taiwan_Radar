@@ -23,7 +23,10 @@ import _policy  # noqa: E402
 
 FIXED = _policy.INTERNAL_ERROR + "\n"
 FAKE = "sk-TESTONLY-c0ffee"
-SCRIPTS = ("run_hook.sh", "_policy.py", "_tokenizer.py", "pretooluse_bash_guard.py", "pretooluse_file_guard.py")
+SCRIPTS = (
+    "run_hook.sh", "_policy.py", "_tokenizer.py",
+    "pretooluse_bash_guard.py", "pretooluse_file_guard.py", "pretooluse_mcp_guard.py",
+)
 
 
 def hook_commands() -> dict[str, str]:
@@ -31,7 +34,15 @@ def hook_commands() -> dict[str, str]:
     commands = {}
     for entry in settings["hooks"]["PreToolUse"]:
         (hook,) = entry["hooks"]
-        commands["bash" if "Bash" in entry["matcher"].split("|") else "file"] = hook["command"]
+        matcher = entry["matcher"]
+        if "Bash" in matcher.split("|"):
+            kind = "bash"
+        elif matcher.startswith("mcp__"):
+            kind = "mcp"
+        else:
+            kind = "file"
+        assert kind not in commands, matcher
+        commands[kind] = hook["command"]
     return commands
 
 
@@ -96,6 +107,35 @@ def test_deny_forwards_rule_message(project):
 def test_file_guard_denies_env(project):
     result = run(project, "file", {"tool_name": "Read", "tool_input": {"file_path": str(project / ".env")}})
     assert result.returncode == 2 and "[env-file-access]" in result.stderr
+
+
+def mcp(tool: str) -> dict:
+    return {"tool_name": f"mcp__github__{tool}", "tool_input": {"pullNumber": 5}}
+
+
+@pytest.mark.parametrize("tool", ["merge_pull_request", "create_or_update_file", "push_files", "delete_file", "update_ref"])
+def test_mcp_guard_denies_merge_and_main_writes(project, tool):
+    result = run(project, "mcp", mcp(tool))
+    assert result.returncode == 2 and "[github-merge-or-main-write]" in result.stderr
+
+
+@pytest.mark.parametrize("tool", ["create_pull_request", "add_issue_comment", "get_pull_request", "list_pull_requests", "create_branch"])
+def test_mcp_guard_allows_reads_and_prs(project, tool):
+    result = run(project, "mcp", mcp(tool))
+    assert (result.returncode, result.stdout, result.stderr) == (0, "", "")
+
+
+def test_mcp_guard_rejects_other_tools(project):
+    result = run(project, "mcp", {"tool_name": "Bash", "tool_input": {"command": "true"}})
+    assert (result.returncode, result.stderr) == (2, FIXED)
+
+
+def test_settings_deny_lists_github_mcp_write_tools():
+    settings = json.loads((ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    deny = settings["permissions"]["deny"]
+    for tool in deny:
+        assert _policy.mcp_decision({"tool_name": tool, "tool_input": {}}).kind == "deny", tool
+    assert "mcp__github__merge_pull_request" in deny
 
 
 def test_monitor_goes_through_bash_guard(project):

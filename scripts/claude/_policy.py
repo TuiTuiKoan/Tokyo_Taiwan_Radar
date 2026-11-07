@@ -127,6 +127,12 @@ RULES = {
         "the command uses syntax the guard cannot verify",
         "split it into simpler commands",
     ),
+    "github-merge-or-main-write": (
+        "merging pull requests, writing commits/refs/files through the GitHub API, "
+        "and changing rulesets, branch protection, environments or secrets are reserved for the user",
+        "push a feature branch and open a PR (`gh api repos/{owner}/{repo}/pulls -f ...` is fine); "
+        "the user merges it on GitHub",
+    ),
 }
 
 
@@ -242,6 +248,16 @@ def file_decision(payload: object) -> Decision:
             return deny(rule)
         if tool in WRITE_TOOLS and is_git_config_path(value):
             return ASK_CONFIG
+    return ALLOW
+
+
+def mcp_decision(payload: object) -> Decision:
+    """GitHub MCP tools (agent-autonomy #568): deny merge and direct-write tools."""
+    tool, _data = _tool(payload)
+    if not tool.startswith(MCP_GITHUB_PREFIX):
+        raise ValueError("tool")
+    if MCP_GITHUB_DENY_RE.search(tool[len(MCP_GITHUB_PREFIX):]):
+        return deny("github-merge-or-main-write")
     return ALLOW
 
 
@@ -496,6 +512,8 @@ def check_command(cmd: Command) -> Decision:
 def dispatch(name: str, args: list[Word], cmd: Command) -> Decision:
     if name == "git":
         return check_git(args)
+    if name == "gh":
+        return check_gh(args)
     if name == "psql":
         return check_psql(args, cmd)
     if name == "supabase":
@@ -921,6 +939,132 @@ def check_shell(args: list[Word], cmd: Command) -> Decision:
     if _dynamic(script):
         return deny("dynamic-shell")
     return evaluate_command(script.text, cmd.depth + 1)
+
+
+# --- GitHub CLI and MCP (agent-autonomy #568) -------------------------------
+#
+# "Only the user merges to main" was a text rule: main has no branch protection,
+# and cloud agents act as the user's account. These rules block the CLI/API
+# routes that merge or write main directly. curl/other HTTP clients with a
+# token are not covered (see AGENTS.md residual risks).
+
+MCP_GITHUB_PREFIX = "mcp__github__"
+MCP_GITHUB_DENY_RE = re.compile(
+    r"merge_pull_request|auto_merge|create_or_update_file|push_files|delete_file"
+    r"|(?:create|update|delete)_(?:ref|commit|tree)\b"
+    r"|(?:create|update|delete|set)_\w*(?:ruleset|branch_protection|environment|secret)"
+)
+GH_WRITE_METHODS = frozenset({"PUT", "POST", "PATCH", "DELETE"})
+GH_API_FIELD_FLAGS = frozenset({"-f", "-F", "--field", "--raw-field", "--input"})
+GH_API_OPT_ARG = frozenset({
+    "-X", "--method", "-H", "--header", "-q", "--jq", "-t", "--template",
+    "--cache", "--hostname", "-p", "--preview",
+})
+# Endpoints that merge, write commits/refs/files, or change the guards around main.
+GH_API_DENY_RE = re.compile(
+    r"(?:^|/)(?:"
+    r"pulls/[^/]*/(?:merge|ccr/auto_merge|auto_merge)(?:/|$)"
+    r"|merges(?:/|$)"
+    r"|contents(?:/|$)"
+    r"|git/(?:refs|commits|tags|trees)(?:/|$)"
+    r"|rulesets(?:/|$)"
+    r"|branches/[^/]*/protection(?:/|$)"
+    r"|environments(?:/|$)"
+    r"|actions/secrets(?:/|$)"
+    r")"
+)
+GH_GRAPHQL_DENY_RE = re.compile(
+    r"\b(?:mergePullRequest|enablePullRequestAutoMerge|mergeBranch|createCommitOnBranch"
+    r"|createRef|updateRefs?|deleteRef"
+    r"|(?:create|update|delete)(?:BranchProtectionRule|RepositoryRuleset))\b"
+)
+GH_API_PREFIXES = ("https://api.github.com/", "http://api.github.com/", "api.github.com/")
+
+
+def _gh_endpoint(text: str) -> str:
+    for prefix in GH_API_PREFIXES:
+        if text.startswith(prefix):
+            text = text[len(prefix):]
+            break
+    return text.lstrip("/").split("?", 1)[0].split("#", 1)[0]
+
+
+def check_gh(args: list[Word]) -> Decision:
+    early = _dynamic_args(args)
+    if early:
+        return early
+    if not args:
+        return ALLOW
+    sub = args[0].text
+    rest = [w.text for w in args[1:]]
+    if sub == "pr" and "merge" in rest[:1]:
+        return deny("github-merge-or-main-write")
+    if sub == "alias" and rest[:1] and rest[0] in ("set", "import"):
+        return deny("github-merge-or-main-write")  # an alias could hide `pr merge`
+    if sub == "api":
+        return check_gh_api(args[1:])
+    return ALLOW
+
+
+def check_gh_api(args: list[Word]) -> Decision:
+    method: str | None = None
+    has_fields = False
+    field_values: list[Word] = []
+    endpoints: list[Word] = []
+    i = 0
+    while i < len(args):
+        word, text = args[i], args[i].text
+        nxt = args[i + 1] if i + 1 < len(args) else None
+        if text in ("-X", "--method"):
+            method = "?" if nxt is None or _dynamic(nxt) else nxt.text.upper()
+            i += 2
+        elif text.startswith("--method="):
+            method = "?" if _dynamic(word) else text.split("=", 1)[1].upper()
+            i += 1
+        elif text.startswith("-X") and len(text) > 2:
+            method = "?" if _dynamic(word) else text[2:].upper()
+            i += 1
+        elif text in GH_API_FIELD_FLAGS:
+            has_fields = True
+            if nxt is not None:
+                field_values.append(nxt)
+            if text == "--input":
+                field_values.append(Word(text="@input"))
+            i += 2
+        elif text.startswith(("--field=", "--raw-field=", "--input=")) or (
+            text[:2] in ("-f", "-F") and len(text) > 2
+        ):
+            has_fields = True
+            field_values.append(word)
+            if text.startswith("--input="):
+                field_values.append(Word(text="@input"))
+            i += 1
+        elif text in GH_API_OPT_ARG:
+            i += 2
+        elif text.startswith("-") and text != "-":
+            i += 1
+        else:
+            endpoints.append(word)
+            i += 1
+    effective = method or ("POST" if has_fields else "GET")
+    if effective == "GET" or not endpoints:
+        return ALLOW
+    if effective not in GH_WRITE_METHODS and effective != "?":
+        return ALLOW  # HEAD and friends do not write
+    endpoint = endpoints[0]
+    path = _gh_endpoint(endpoint.text)
+    if path == "graphql":
+        for value in field_values:
+            if _dynamic(value) or "@" in value.text.split("=", 1)[-1][:1] or value.text == "@input":
+                return deny("github-merge-or-main-write")  # query from a file or variable: cannot inspect
+            if GH_GRAPHQL_DENY_RE.search(value.text):
+                return deny("github-merge-or-main-write")
+        return ALLOW
+    if GH_API_DENY_RE.search(path):
+        return deny("github-merge-or-main-write")
+    if _dynamic(endpoint) and (not path or path.endswith("/")):
+        return deny("github-merge-or-main-write")  # the endpoint's tail comes from a variable
+    return ALLOW
 
 
 if __name__ == "__main__":

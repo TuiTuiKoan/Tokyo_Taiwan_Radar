@@ -127,6 +127,18 @@ MUST_ALLOW = [
     "git commit -F /dev/null --allow-empty",
     "git commit -am \"$(cat <<'EOF'\nfix: message\nEOF\n)\"",
     "git commit --message \"$(cat <<'EOF'\nfix: message\nEOF\n)\"",
+    # github-merge-or-main-write allow (#568): reads, issues, comments, labels, opening PRs
+    "gh pr view 12 --json state",
+    "gh pr create --title t --body b",
+    "gh api repos/o/r/pulls/5/merge",
+    "gh api -X GET repos/o/r/pulls/5/merge",
+    "gh api repos/o/r/issues/5/comments -f body=hi",
+    "gh api repos/o/r/pulls -f title=t -f head=feat/x -f base=main",
+    "gh api repos/o/r/issues/5/labels -f 'labels[]=auto-fix'",
+    'gh api repos/$R/issues/5/comments -f body=hi',
+    "gh api 'repos/o/r/contents/docs/a.md?ref=main'",
+    "gh api graphql -f query='query { viewer { login } }'",
+    "gh alias list",
 ]
 
 # check_push decision table (docs/specs/active/pr-flow-tiering/proposal.md). One
@@ -639,6 +651,30 @@ DENY = [
     ("git --unknown-option status", "unsupported-syntax"),
     ("env --bogus cmd", "unsupported-syntax"),
     ('bash -c "bash -c \\"bash -c \\\\\\"bash -c true\\\\\\"\\""', "unsupported-syntax"),
+    # github-merge-or-main-write (#568)
+    ("gh pr merge 12 --squash", "github-merge-or-main-write"),
+    ("gh api -X PUT repos/o/r/pulls/5/merge", "github-merge-or-main-write"),
+    ("gh api --method=PUT /repos/o/r/pulls/5/merge", "github-merge-or-main-write"),
+    ("gh api -XPUT https://api.github.com/repos/o/r/pulls/5/merge", "github-merge-or-main-write"),
+    ("gh api -X PUT repos/o/r/pulls/5/ccr/auto_merge", "github-merge-or-main-write"),
+    ("gh api repos/o/r/merges -f base=main -f head=x", "github-merge-or-main-write"),
+    ("gh api -X PUT repos/o/r/contents/README.md -f message=x -f content=eA==", "github-merge-or-main-write"),
+    ("gh api repos/o/r/git/refs -f ref=refs/heads/x -f sha=abc", "github-merge-or-main-write"),
+    ("gh api -X PATCH repos/o/r/git/refs/heads/main -f sha=abc", "github-merge-or-main-write"),
+    ("gh api repos/o/r/git/commits -f message=x -f tree=t", "github-merge-or-main-write"),
+    ("gh api repos/o/r/rulesets -X POST --input r.json", "github-merge-or-main-write"),
+    ("gh api -X DELETE repos/o/r/branches/main/protection", "github-merge-or-main-write"),
+    ("gh api -X PUT repos/o/r/environments/production", "github-merge-or-main-write"),
+    ("gh api -X PUT repos/o/r/actions/secrets/X -f encrypted_value=a", "github-merge-or-main-write"),
+    ("gh api repos/$R/pulls/$N/merge -X PUT", "github-merge-or-main-write"),
+    ("gh api -X POST $URL", "github-merge-or-main-write"),
+    ("gh api repos/$R/$P -f x=1", "github-merge-or-main-write"),
+    ("gh api graphql -f query='mutation { mergePullRequest(input:{}) { clientMutationId } }'", "github-merge-or-main-write"),
+    ("gh api graphql -F query=@q.graphql", "github-merge-or-main-write"),
+    ('gh api graphql -f query="$Q"', "github-merge-or-main-write"),
+    ("gh alias set m 'pr merge'", "github-merge-or-main-write"),
+    ("bash -c 'gh pr merge 3'", "github-merge-or-main-write"),
+    ("env GH_TOKEN=x gh pr merge 3", "github-merge-or-main-write"),
 ]
 
 HEREDOC_EXPECTED = {
@@ -656,6 +692,7 @@ BLOCKING_CLASSES = (
     "git-force-push", "git-reset-hard", "git-clean", "git-branch-D", "worktree-remove-force",
     "worktree-add-force", "env-file-write", "env-file-access", "env-dump", "prod-db-mutation",
     "unverifiable-sql-input", "dynamic-shell", "dynamic-verb", "dynamic-args", "unsupported-syntax",
+    "github-merge-or-main-write",
 )
 
 
