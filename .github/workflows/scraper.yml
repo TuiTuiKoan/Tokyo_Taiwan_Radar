@@ -15,6 +15,7 @@ permissions:
 
 jobs:
   scrape:
+    environment: production
     runs-on: ubuntu-latest
     outputs:
       summary: ${{ steps.summarize.outputs.summary }}
@@ -219,6 +220,7 @@ jobs:
           fi
 
   validate:
+    environment: production
     needs: scrape
     runs-on: ubuntu-latest
     if: always()
@@ -251,6 +253,7 @@ jobs:
           echo "warnings=$WARNINGS" >> $GITHUB_OUTPUT
 
   notify:
+    environment: production
     needs: [scrape, validate]
     runs-on: ubuntu-latest
     if: always()

@@ -16,6 +16,7 @@ permissions:
 
 jobs:
   health-check:
+    environment: production
     runs-on: ubuntu-latest
 
     steps:

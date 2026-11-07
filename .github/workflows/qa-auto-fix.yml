@@ -17,6 +17,7 @@ permissions:
 
 jobs:
   auto-fix:
+    environment: production
     runs-on: ubuntu-latest
 
     steps:

@@ -16,6 +16,7 @@ concurrency:
 
 jobs:
   health_check:
+    environment: production
     runs-on: ubuntu-latest
     permissions:
       contents: write

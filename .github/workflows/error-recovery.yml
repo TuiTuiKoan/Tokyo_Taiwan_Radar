@@ -15,6 +15,7 @@ permissions:
 
 jobs:
   recover:
+    environment: production
     if: vars.ERROR_RECOVERY_LIVE == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30

@@ -6,6 +6,11 @@ name: Guard Detections
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scraper/guard_detections.py'
+      - '.github/workflows/guard-detections.yml'
   pull_request:
     paths:
       - 'scraper/guard_detections.py'
@@ -15,7 +20,31 @@ permissions:
   contents: read
 
 jobs:
+  unit-tests:
+    # Pull requests run only tests that need no secrets (#561): a PR's code must
+    # never see production credentials. The report job below runs after merge.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: 'scraper/requirements.txt'
+
+      - name: Install Python dependencies
+        run: pip install -r scraper/requirements.txt
+
+      - name: Unit tests (no secrets)
+        working-directory: scraper
+        run: python -m pytest tests -q -k "guard_detections"
+
   detect:
+    if: github.event_name != 'pull_request'
+    environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
