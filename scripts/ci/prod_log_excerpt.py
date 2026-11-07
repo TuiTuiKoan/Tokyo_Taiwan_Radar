@@ -24,7 +24,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from dryrun_evidence import clean, clean_code  # noqa: E402
 
-MAX_LINES = 60
+HEAD_LINES = 15
+TAIL_LINES = 40
+MAX_LINES = HEAD_LINES + TAIL_LINES + 1  # + the omission marker
 LINE_LEN = 300
 CLASS_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
 SOURCE_RE = re.compile(r"^[a-z0-9_]+$")
@@ -34,7 +36,7 @@ _START = "=== Starting scraper: "
 # main.py logs "Skipping <key> (...)" for other sources between two sections.
 _OTHER_SKIP = re.compile(r"__main__: Skipping [a-z0-9_]+ \(")
 # Request logs carry no diagnosis (URLs are masked as ***) and crowd out the rest.
-_NOISE = ("httpx: HTTP Request:",)
+_NOISE = ("httpx: HTTP Request:", "InsecureRequestWarning", "warnings.warn(")
 
 
 def _strip(line: str) -> str:
@@ -55,8 +57,11 @@ def excerpt(log: str, class_name: str, source_key: str) -> list[str] | None:
                 if any(n in nxt for n in _NOISE):
                     continue
                 out.append(nxt)
+            # The verdict lines (scraped N / Skipped N / logged N / scraper failed)
+            # are at the end of a section, so keep the head and the tail.
             if len(out) > MAX_LINES:
-                out = out[: MAX_LINES - 1] + [f"…（另有 {len(out) - MAX_LINES + 1} 行省略）"]
+                omitted = len(out) - HEAD_LINES - TAIL_LINES
+                out = out[:HEAD_LINES] + [f"…（中間 {omitted} 行省略）"] + out[-TAIL_LINES:]
             return [clean_code(x, LINE_LEN) for x in out]
         if skip_marker in line:
             return [clean_code(line, LINE_LEN)]
