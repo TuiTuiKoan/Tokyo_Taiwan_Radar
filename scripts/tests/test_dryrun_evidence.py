@@ -37,6 +37,7 @@ def test_clean_neutralises_markdown_and_mentions(ev):
 def test_summarize_counts_and_titles(ev):
     s = ev.summarize(_stdout("台湾映画祭", ""), "line1\nline2", 0)
     assert s == {"rc": 0, "exception": None, "count": 2, "titles": ["台湾映画祭"],
+                 "dates": [{"id": "", "title": "台湾映画祭", "start": ""}],
                  "stderr_tail": ["line1", "line2"]}
     assert ev.summarize("", "Traceback", 1)["count"] is None
 
@@ -114,3 +115,62 @@ def test_cli_roundtrip(ev, tmp_path):
                     "--output", str(out)]) == 0
     text = out.read_text(encoding="utf-8")
     assert "`otto`" in text and "Bad-Name" not in text and "evil" not in text
+
+
+def _dated(*rows):
+    """dry-run stdout whose events carry source_id and start_date: rows of (id, title, start)."""
+    events = [{"source_id": i, "name_ja": t, "start_date": d} for i, t, d in rows]
+    return "INFO noise\n" + json.dumps(events, ensure_ascii=False, indent=2)
+
+
+def test_summarize_records_start_date_only_as_a_day(ev):
+    s = ev.summarize(_dated(("a1", "映画A", "2026-02-06T00:00:00+00:00"), ("a2", "映画B", None)), "", 0)
+    assert s["dates"] == [{"id": "a1", "title": "映画A", "start": "2026-02-06"},
+                          {"id": "a2", "title": "映画B", "start": ""}]
+
+
+def test_date_changes_matches_by_source_id(ev):
+    base = ev.summarize(_dated(("a1", "映画A", "2026-11-01T00:00:00+00:00"),
+                               ("a2", "映画B", "2026-11-03T00:00:00+00:00"),
+                               ("gone", "消えた", "2026-11-04T00:00:00+00:00")), "", 0)
+    head = ev.summarize(_dated(("a1", "映画A", "2026-11-07T00:00:00+00:00"),
+                               ("a2", "映画B", "2026-11-03T00:00:00+00:00"),
+                               ("new", "新規", "2026-11-09T00:00:00+00:00")), "", 0)
+    changes, compared = ev.date_changes(base, head)
+    assert compared == 2  # only events present on both sides
+    assert changes == [("映画A", "2026-11-01", "2026-11-07")]
+
+
+def test_date_changes_without_comparable_runs(ev):
+    head = ev.summarize(_dated(("a1", "映画A", "2026-11-07T00:00:00+00:00")), "", 0)
+    assert ev.date_changes(None, head) == ([], 0)
+    assert ev.date_changes({"rc": 1, "count": None}, head) == ([], 0)
+
+
+def test_render_shows_start_dates_and_changes(ev):
+    base = ev.summarize(_dated(("a1", "映画A", "2026-11-01T00:00:00+00:00")), "", 0)
+    head = ev.summarize(_dated(("a1", "映画A", "2026-11-07T00:00:00+00:00")), "", 0)
+    body = ev.render({"otto": {"base": base, "head": head}}, 573, "a" * 40, "b" * 40)
+    assert "  - 映画A（開始 2026-11-07）" in body
+    assert "- 開始日變化（修復前 → 修復後，前 20 筆內比對 1 筆）：" in body
+    assert "  - 映画A：2026-11-01 → 2026-11-07" in body
+
+
+def test_render_says_when_no_start_date_changed(ev):
+    run = ev.summarize(_dated(("a1", "映画A", "2026-11-07T00:00:00+00:00")), "", 0)
+    body = ev.render({"otto": {"base": run, "head": run}}, 1, "a", "b")
+    assert "- 開始日變化：無（前 20 筆內比對 1 筆）" in body
+
+
+def test_render_caps_date_changes_and_recleans(ev):
+    rows_b = [(f"id{i}", f"t{i}", "2026-11-01T00:00:00+00:00") for i in range(8)]
+    rows_h = [(f"id{i}", f"t{i}", "2026-11-07T00:00:00+00:00") for i in range(8)]
+    base, head = ev.summarize(_dated(*rows_b), "", 0), ev.summarize(_dated(*rows_h), "", 0)
+    body = ev.render({"otto": {"base": base, "head": head}}, 1, "a", "b")
+    assert body.count("2026-11-01 → 2026-11-07") == ev.MAX_DATE_CHANGES
+    assert "…另有 3 筆" in body
+    # Summaries may come from a job that ran the PR's code: values are cleaned again on render.
+    evil = {"rc": 0, "count": 1, "dates": [{"id": "x", "title": "@x <b>t</b> `z`", "start": "<i>2026</i>"}]}
+    base = {"rc": 0, "count": 1, "dates": [{"id": "x", "title": "t", "start": "2026-01-01"}]}
+    out = ev.render({"otto": {"base": base, "head": evil}}, 1, "a", "b")
+    assert "<b>" not in out and "<i>" not in out and "@x" not in out.replace("@\u200bx", "")

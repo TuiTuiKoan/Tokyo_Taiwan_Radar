@@ -33,6 +33,8 @@ MARKER = "<!-- pr-dryrun-evidence -->"
 MAX_COMMENT = 60_000
 MAX_TITLES = 5
 MAX_TITLE_LEN = 80
+MAX_DATE_ROWS = 20  # events kept per run for the base/head start_date comparison
+MAX_DATE_CHANGES = 5
 ERR_TAIL_LINES = 30
 ERR_LINE_LEN = 200
 SOURCE_RE = re.compile(r"^[a-z0-9_]+$")
@@ -86,6 +88,17 @@ def summarize(stdout: str, stderr: str, rc: int) -> dict:
     for e in (events or [])[:MAX_TITLES]:
         if isinstance(e, dict):
             titles.append(clean(e.get("name_ja") or e.get("raw_title") or ""))
+    dates: list[dict] = []
+    for e in (events or [])[:MAX_DATE_ROWS]:
+        if not isinstance(e, dict):
+            continue
+        row = {
+            "id": clean(e.get("source_id") or e.get("source_url") or "", 120),
+            "title": clean(e.get("name_ja") or e.get("raw_title") or ""),
+            "start": clean(str(e.get("start_date") or "")[:10], 10),
+        }
+        if row["id"] or row["title"]:
+            dates.append(row)
     tail = [clean_code(line, ERR_LINE_LEN) for line in stderr.splitlines()[-ERR_TAIL_LINES:]]
     found = EXCEPTION_RE.findall(stderr)
     return {
@@ -93,6 +106,7 @@ def summarize(stdout: str, stderr: str, rc: int) -> dict:
         "exception": clean(found[-1], 300) if found else None,
         "count": len(events) if events is not None else None,
         "titles": [t for t in titles if t],
+        "dates": dates,
         "stderr_tail": [t for t in tail if t],
     }
 
@@ -107,6 +121,44 @@ def _count(s: dict | None) -> str:
     if s.get("count") is None:
         return f"無法解析（exit {s.get('rc')}）"
     return f"{s['count']} 筆（exit {s.get('rc')}）"
+
+
+def _date_map(s: dict | None) -> dict[str, dict]:
+    rows: dict[str, dict] = {}
+    for r in (s or {}).get("dates") or []:
+        if isinstance(r, dict) and r.get("id"):
+            rows[clean(r["id"], 120)] = r
+    return rows
+
+
+def date_changes(base: dict | None, head: dict | None) -> tuple[list[tuple[str, str, str]], int]:
+    """Events present in both runs (matched by source_id) whose start date differs.
+
+    Returns (changes, number of events compared). The summaries come from jobs that ran
+    untrusted code, so every value is cleaned again here.
+    """
+    b, h = _date_map(base), _date_map(head)
+    shared = [k for k in h if k in b]
+    changes: list[tuple[str, str, str]] = []
+    for k in shared:
+        before, after = clean(b[k].get("start"), 10), clean(h[k].get("start"), 10)
+        if before != after:
+            changes.append((clean(h[k].get("title")) or k, before or "（無）", after or "（無）"))
+    return changes, len(shared)
+
+
+def _date_change_lines(base: dict | None, head: dict | None) -> list[str]:
+    changes, compared = date_changes(base, head)
+    if not compared:
+        return []
+    head_note = f"前 {MAX_DATE_ROWS} 筆內比對 {compared} 筆"
+    if not changes:
+        return [f"- 開始日變化：無（{head_note}）"]
+    out = [f"- 開始日變化（修復前 → 修復後，{head_note}）："]
+    out += [f"  - {t}：{b} → {a}" for t, b, a in changes[:MAX_DATE_CHANGES]]
+    if len(changes) > MAX_DATE_CHANGES:
+        out.append(f"  - …另有 {len(changes) - MAX_DATE_CHANGES} 筆")
+    return out
 
 
 def verdict(base: dict | None, head: dict | None) -> str:
@@ -155,6 +207,7 @@ def render(results: dict[str, dict[str, dict]], pr: int, base_sha: str, head_sha
         head = results[source].get("head") or {}
         lines += ["", f"### `{source}`（修復後）", ""]
         lines += _detail_lines(head)
+        lines += _date_change_lines(results[source].get("base"), head)
     lines += ["", "需要憑證的來源在這裡會失敗，屬 NOT TESTED，不代表修錯。"]
     body = "\n".join(lines) + "\n"
     if len(body) > MAX_COMMENT:
@@ -167,7 +220,15 @@ def _detail_lines(s: dict) -> list[str]:
     from a job that ran untrusted code."""
     out = [f"- 例外：{clean(s['exception'], 300)}" if s.get("exception") else "- 例外：無"]
     titles = [clean(t) for t in s.get("titles", [])][:MAX_TITLES]
-    out += ["- 前幾筆標題："] + ([f"  - {t}" for t in titles if t] or ["  - （沒有）"])
+    rows = [r for r in (s.get("dates") or []) if isinstance(r, dict) and clean(r.get("title"))][:MAX_TITLES]
+    if rows:
+        items = []
+        for r in rows:
+            start = clean(r.get("start"), 10)
+            items.append(f"  - {clean(r['title'])}" + (f"（開始 {start}）" if start else ""))
+    else:
+        items = [f"  - {t}" for t in titles if t]
+    out += ["- 前幾筆標題："] + (items or ["  - （沒有）"])
     tail = [clean_code(t, ERR_LINE_LEN) for t in s.get("stderr_tail", [])][-ERR_TAIL_LINES:]
     if tail:
         out += ["", "<details><summary>stderr 末段</summary>", "", "```"] + tail + ["```", "</details>"]
