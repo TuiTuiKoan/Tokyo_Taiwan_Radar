@@ -368,10 +368,15 @@ function collNames(ja){
   return out;
 }
 function topArtists(n){
+  const creators=new Set();
+  WORKS.forEach(w=>splitNames(w.artist).forEach(a=>creators.add(a)));
+  DOCS.forEach(d=>splitNames(d.author).forEach(a=>creators.add(a)));
   const c={};
   const add=names=>new Set(names).forEach(a=>c[a]=(c[a]||0)+1);
-  WORKS.forEach(w=>add([...splitNames(w.artist),...collNames(w.collection)]));
-  DOCS.forEach(d=>add([...splitNames(d.author),...collNames(d.collection),...collNames(d.owner)]));
+  // 所蔵・旧蔵は、その人自身が作家/著者でもある場合のみ加算（収集家だけの人は除外）
+  const own=x=>collNames(x).filter(a=>creators.has(a));
+  WORKS.forEach(w=>add([...splitNames(w.artist),...own(w.collection)]));
+  DOCS.forEach(d=>add([...splitNames(d.author),...own(d.collection),...own(d.owner)]));
   return Object.entries(c).filter(([,k])=>k>=4).sort((a,b)=>b[1]-a[1]).slice(0,n);
 }
 
