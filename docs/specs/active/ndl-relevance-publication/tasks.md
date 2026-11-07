@@ -110,12 +110,12 @@
 ## Phase F: 既有不相關記錄處置（每批需使用者核准）
 
 - [x] 由 `final_label` 為 N 的記錄產生處置清單（排除 reviewed、合併目標、`category_corrections`、B），
-      寫入 `notes.md`（2026-11-07：第 1 批 4 筆，待使用者核准）
-- [ ] 每批 ≤ 20 筆；核准前逐列重讀並記下停用 id 集合；複述清單並取得明確核准字句
-- [ ] 使用者以 Admin 批次隱藏執行（D4）
-- [ ] Tester 逐列讀回：該批全為 `is_active=false`、`deactivated_by_pass='admin_manual'`；
+      寫入 `notes.md`（2026-11-07：第 1 批 4 筆）
+- [x] 每批 ≤ 20 筆；核准前逐列重讀並記下停用 id 集合；複述清單並取得明確核准字句
+- [x] 使用者以 Admin 批次隱藏執行（D4）（第 1 批實際為逐筆隱藏，結果相同，見 notes）
+- [x] Tester 逐列讀回：該批全為 `is_active=false`、`deactivated_by_pass='admin_manual'`；
       停用 id 集合＝執行前集合 ∪ 該批
-- [ ] 每批結果 commit 到 `notes.md`（C5）
+- [x] 每批結果 commit 到 `notes.md`（C5）（N 標籤只有 4 筆，第 1 批即全部）
 
 ## Phase G: Holdout、開啟 gate、交棒 P6
 
