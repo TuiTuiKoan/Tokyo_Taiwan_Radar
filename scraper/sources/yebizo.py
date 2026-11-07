@@ -157,7 +157,8 @@ class YebizoScraper(BaseScraper):
     def scrape(self) -> list[Event]:
         html = self._fetch(PROGRAM_LIST_URL)
         if not html:
-            logger.error("YebizoScraper: failed to fetch program listing")
+            # Annual festival (mainly February): the program page may be down off-season.
+            logger.warning("YebizoScraper: failed to fetch program listing (off-season?)")
             return []
 
         soup = BeautifulSoup(html, "html.parser")
