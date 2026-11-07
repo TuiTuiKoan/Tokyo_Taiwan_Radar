@@ -28,6 +28,17 @@ T_SCRAPER = _policy.MASKED_AWK_PROGRAM + " scraper/.env"
 FAKE = "sk-TESTONLY-c0ffee"
 
 MUST_ALLOW = [
+    # rule 10: gh reads and ordinary writes stay allowed (#568)
+    "gh pr view 571",
+    "gh pr create --title x --body-file b.md",
+    "gh api repos/o/r/pulls/5",
+    "gh api repos/o/r/pulls/5/files",
+    'gh api "repos/o/r/contents/docs/a.md?ref=main"',
+    'gh api -X POST "$R/issues/$n/labels" -f "labels[]=x"',
+    "gh api repos/o/r/issues/1/comments -f body=hi",
+    'gh api -X DELETE "repos/$GH_REPO/issues/$n/labels/needs-diagnosis"',
+    "gh api -X POST repos/o/r/actions/workflows/x.yml/dispatches -f ref=main",
+    'gh api graphql -f query="{viewer{login}}"',
     # runbook must-allow list
     "git status --short",
     "git diff --check",
@@ -381,6 +392,23 @@ CONFIG_ASK = [command for kind, command in CONFIG_TABLE if kind == "ask"]
 CONFIG_ALLOW = [command for kind, command in CONFIG_TABLE if kind == "allow"]
 
 DENY = [
+    # 10 gh-merge-or-main-write (#568): merges and writes to main outside git push
+    ("gh pr merge 571 --squash", "gh-merge-or-main-write"),
+    ("env GH_TOKEN=x gh pr merge 1", "gh-merge-or-main-write"),
+    ('gh api -X PUT "$R/pulls/$N/merge"', "gh-merge-or-main-write"),
+    ("gh api repos/o/r/pulls/5/merge --method=PUT", "gh-merge-or-main-write"),
+    ('gh api -X PUT "$R/pulls/1/ccr/auto_merge"', "gh-merge-or-main-write"),
+    ("gh api -XPOST repos/o/r/merges -f base=main -f head=x", "gh-merge-or-main-write"),
+    ("gh api -X PUT repos/o/r/contents/docs/a.md -f message=x -f content=eA==", "gh-merge-or-main-write"),
+    ("gh api repos/o/r/git/refs/heads/main -X PATCH -f sha=abc", "gh-merge-or-main-write"),
+    ("gh api repos/o/r/git/commits -f message=x -f tree=t", "gh-merge-or-main-write"),
+    ("gh api --method PUT repos/o/r/rulesets/1 --input r.json", "gh-merge-or-main-write"),
+    ("gh api -X DELETE repos/o/r/branches/main/protection", "gh-merge-or-main-write"),
+    ('gh api graphql -f query="mutation{mergePullRequest(input:{pullRequestId:1}){clientMutationId}}"',
+     "gh-merge-or-main-write"),
+    ("gh api graphql -F query=@q.graphql", "gh-merge-or-main-write"),
+    ('gh api -X "$M" repos/o/r/pulls/1/merge', "gh-merge-or-main-write"),
+    ('gh api -X POST "$EP"', "gh-merge-or-main-write"),
     # 1 git-force-push
     ("git push --force", "git-force-push"),
     ("git push -f origin main", "git-force-push"),
@@ -656,6 +684,7 @@ BLOCKING_CLASSES = (
     "git-force-push", "git-reset-hard", "git-clean", "git-branch-D", "worktree-remove-force",
     "worktree-add-force", "env-file-write", "env-file-access", "env-dump", "prod-db-mutation",
     "unverifiable-sql-input", "dynamic-shell", "dynamic-verb", "dynamic-args", "unsupported-syntax",
+    "gh-merge-or-main-write",
 )
 
 
@@ -848,3 +877,32 @@ def _code_lines(path: Path) -> int:
 
 def test_tokenizer_budget():
     assert _code_lines(CLAUDE_DIR / "_tokenizer.py") <= 250
+
+
+@pytest.mark.parametrize(("tool", "kind"), [
+    ("mcp__github__merge_pull_request", "deny"),
+    ("mcp__github__create_or_update_file", "deny"),
+    ("mcp__github__push_files", "deny"),
+    ("mcp__github__delete_file", "deny"),
+    ("mcp__github__enable_auto_merge", "deny"),
+    ("mcp__GitHub__Merge_Pull_Request", "deny"),
+    ("mcp__github__get_pull_request", "allow"),
+    ("mcp__github__create_pull_request", "allow"),
+    ("mcp__github__add_issue_comment", "allow"),
+    ("mcp__github__create_branch", "allow"),
+])
+def test_mcp_github_tools(tool, kind):
+    decision = _policy.mcp_decision({"tool_name": tool, "tool_input": {}})
+    assert decision.kind == kind, tool
+    if kind == "deny":
+        assert decision.rule == "github-mcp-write"
+
+
+@pytest.mark.parametrize("payload", [
+    {"tool_name": "Bash", "tool_input": {}},
+    {"tool_name": "mcp__other__merge", "tool_input": {}},
+    {"tool_name": "mcp__github__x"},
+])
+def test_mcp_decision_rejects_other_tools(payload):
+    with pytest.raises(ValueError):
+        _policy.mcp_decision(payload)

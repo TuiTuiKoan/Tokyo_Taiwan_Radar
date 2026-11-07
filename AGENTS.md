@@ -193,6 +193,8 @@ Codex 不會因為 `.codex/agents/*.toml` 存在就自動派用 subagent（2026-
 | `.env`、`.env.*`（`.env.example`、`.env.sample`、`.env.template` 除外）的讀取、搜尋、複製、寫入、刪除與重導 | 阻擋。例外：單一路徑的 `git check-ignore -v`、`git ls-files --error-unmatch`、`test -f`、`stat`、`ls -l`、`wc -l`，以及 `.github/instructions/token-rotation.instructions.md`、`docs/GITHUB_TOKEN_SYNC_CHECKLIST.md` 的 masked awk 模板（逐字相同、不在 pipeline 內） |
 | `env`（無命令）、`printenv`、`export -p`、`declare -p`／`-x`、無參數 `set` 等環境變數傾印 | 阻擋 |
 | `supabase db push`（只放行精確的 `supabase db push --dry-run`）、`db reset`、`db query`、`db pull`、`migration up／down／repair／squash`、`seed`；`psql` 必須帶 `-X` 且只能是單一 `SELECT`／`SHOW`／`EXPLAIN`（不含 `ANALYZE`）；`python -c` 或 heredoc 餵入的 python 同時含 `create_client` 與 `.insert(`／`.update(`／`.upsert(`／`.delete(` | 阻擋（啟發式） |
+| 合併 PR 與繞過 PR 寫入 main（#568；agent 以使用者帳號操作，這些動作在 GitHub 上與使用者本人無法區分）：`gh pr merge`；`gh api` 以寫入方法（`-X`／`--method` 為 POST、PUT、PATCH、DELETE，或帶 `-f`／`-F`／`--input` 而未指定方法）打 `pulls/*/merge`、`pulls/*/ccr/auto_merge`、`merges`、`contents/`、`git/refs`、`git/commits`、`rulesets`、`branches/*/protection`；寫入方法或端點來自變數而無法判讀；`gh api graphql` 含合併、建立 commit、改 ref、改 branch protection 或 ruleset 的 mutation，或 query 來自檔案、stdin | 阻擋（`gh-merge-or-main-write`）。讀取（GET）、留言、貼 label、開 PR、dispatch workflow 照常放行 |
+| GitHub MCP 工具（matcher `mcp__github__.*`，由 `pretooluse_mcp_guard.py` 判斷）：`merge_pull_request`、`create_or_update_file`、`push_files`、`delete_file`、`create_ref`／`update_ref`／`delete_ref`，以及名稱含 `merge` 的工具 | 阻擋（`github-mcp-write`）。讀取、`create_pull_request`、留言等其他工具放行 |
 | `eval`、stdin 餵入的 shell（`… \| sh`、`bash <<EOF`、`sh -s`）、無法檢查的 `bash -c`、動詞位置的命令替換、`git`／`psql`／`supabase` 參數中的命令替換（`git rev-parse`、`git branch --show-current`、`pwd` 與 heredoc commit 訊息除外）、guard 不支援的語法 | 阻擋 |
 
 **未涵蓋（殘餘風險）**
@@ -202,6 +204,7 @@ Codex 不會因為 `.codex/agents/*.toml` 存在就自動派用 subagent（2026-
 - 字元層混淆（`$'\x67it'`、變數拼接）、`$VAR` 當動詞或 guarded 參數、`xargs`、`find -exec`、git alias、未解包的包裝動詞（`uv run`、`npx` 等）、經變數間接引用的 `source "$F"`、在直譯器內讀取環境變數，都不涵蓋。
 - hook 失敗與逾時以 `onFailure: "block"` 阻擋，需 Claude Code `2.1.295` 以上；舊版會忽略這個欄位，逾時時放行（launcher 缺失仍由命令本身的 `|| exit 2` 阻擋）。Claude Code 改版若不再辨識 decision JSON，`ask` 會退化為不提示。
 - `.claude/settings.local.json`、`disableAllHooks`、`--settings` 等覆蓋不在邊界內。
+- 合併與寫 main 的規則只涵蓋 `gh` 與名為 `github` 的 MCP server。`curl`／`wget`、直譯器內的 HTTP 請求（`python -c` 的 `requests`、`urllib`）直接打 GitHub API，其他名稱的 GitHub MCP server，以及 GitHub 網頁本身都不涵蓋。main 沒有 branch protection 時，這道防線仍只在 Claude Code 內有效；是否開「require a pull request」ruleset 由使用者決定（#568 c）。
 - 保留 Bash 的角色仍可經 Bash 重導寫入一般檔案（見上一段）。
 
 ## Skills wrappers

@@ -23,7 +23,8 @@ import _policy  # noqa: E402
 
 FIXED = _policy.INTERNAL_ERROR + "\n"
 FAKE = "sk-TESTONLY-c0ffee"
-SCRIPTS = ("run_hook.sh", "_policy.py", "_tokenizer.py", "pretooluse_bash_guard.py", "pretooluse_file_guard.py")
+SCRIPTS = ("run_hook.sh", "_policy.py", "_tokenizer.py", "pretooluse_bash_guard.py", "pretooluse_file_guard.py",
+           "pretooluse_mcp_guard.py")
 
 
 def hook_commands() -> dict[str, str]:
@@ -31,7 +32,9 @@ def hook_commands() -> dict[str, str]:
     commands = {}
     for entry in settings["hooks"]["PreToolUse"]:
         (hook,) = entry["hooks"]
-        commands["bash" if "Bash" in entry["matcher"].split("|") else "file"] = hook["command"]
+        matcher = entry["matcher"]
+        kind = "bash" if "Bash" in matcher.split("|") else "mcp" if matcher.startswith("mcp__") else "file"
+        commands[kind] = hook["command"]
     return commands
 
 
@@ -142,6 +145,8 @@ def test_policy_load_failure(project):
         ("bash", json.dumps({"tool_name": "Bash"})),
         ("file", json.dumps({"tool_name": "Read", "tool_input": {}})),
         ("file", json.dumps(["Read"])),
+        ("mcp", json.dumps({"tool_name": "Bash", "tool_input": {}})),
+        ("mcp", json.dumps(["mcp__github__merge_pull_request"])),
     ],
 )
 def test_invalid_stdin(project, kind, payload):
@@ -234,3 +239,11 @@ def test_fake_secret_never_reaches_stderr(project):
         assert command not in result.stderr
     result = run(project, "file", {"tool_name": "Read", "tool_input": {"file_path": str(project / ".env")}})
     assert result.returncode == 2 and FAKE not in result.stderr
+
+
+def test_mcp_guard_denies_merge_and_allows_reads(project):
+    # GitHub MCP tools bypass the Bash guard entirely; #568 routes them here.
+    merge = run(project, "mcp", {"tool_name": "mcp__github__merge_pull_request", "tool_input": {"pullNumber": 1}})
+    assert merge.returncode == 2 and "[github-mcp-write]" in merge.stderr and merge.stdout == ""
+    read = run(project, "mcp", {"tool_name": "mcp__github__get_pull_request", "tool_input": {"pullNumber": 1}})
+    assert (read.returncode, read.stdout, read.stderr) == (0, "", "")

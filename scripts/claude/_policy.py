@@ -127,6 +127,15 @@ RULES = {
         "the command uses syntax the guard cannot verify",
         "split it into simpler commands",
     ),
+    "gh-merge-or-main-write": (
+        "merging a pull request, or writing contents, refs, commits, rulesets, branch protection "
+        "or auto-merge through gh or the GitHub API, is the user's merge gate",
+        "push a feature branch with git and open the PR; the user merges it in GitHub",
+    ),
+    "github-mcp-write": (
+        "GitHub MCP merge and file-write tools bypass the push and merge gates",
+        "commit locally, push a feature branch with git, open the PR with create_pull_request",
+    ),
 }
 
 
@@ -225,6 +234,18 @@ def bash_decision(payload: object) -> Decision:
     if not isinstance(command, str):
         raise ValueError("command")
     return evaluate_command(command)
+
+
+def mcp_decision(payload: object) -> Decision:
+    """PreToolUse decision for GitHub MCP tools (matcher mcp__github__.* in .claude/settings.json)."""
+    tool, _ = _tool(payload)
+    m = MCP_GITHUB_RE.fullmatch(tool)
+    if not m:
+        raise ValueError("tool")
+    name = m.group(1).lower()
+    if name in MCP_GITHUB_WRITE or "merge" in name:
+        return deny("github-mcp-write")
+    return ALLOW
 
 
 def file_decision(payload: object) -> Decision:
@@ -500,6 +521,8 @@ def dispatch(name: str, args: list[Word], cmd: Command) -> Decision:
         return check_psql(args, cmd)
     if name == "supabase":
         return check_supabase(args)
+    if name == "gh":
+        return check_gh(args)
     if PYTHON_RE.fullmatch(name):
         return check_python(args, cmd)
     if name in SHELLS:
@@ -926,3 +949,111 @@ def check_shell(args: list[Word], cmd: Command) -> Decision:
 if __name__ == "__main__":
     ok = sys.argv[1:] == ["--validate-output"] and valid_output(sys.stdin.read())
     sys.exit(0 if ok else 1)
+
+
+# --- rule 10: merging and writing to main through gh / GitHub MCP (#568) ----
+#
+# Agents act with the user's GitHub identity, so a merge or a direct write to
+# main by an agent is indistinguishable from the user's own (plan-critique-2
+# G1). git push is gated above; these are the other routes. Reads stay allowed.
+
+GH_API_OPT_ARG = frozenset({
+    "-X", "--method", "-H", "--header", "-f", "--raw-field", "-F", "--field", "--input",
+    "-q", "--jq", "-t", "--template", "--cache", "-p", "--preview", "--hostname",
+})
+GH_API_PARAMS = frozenset({"-f", "--raw-field", "-F", "--field", "--input"})
+WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+GH_GUARDED_ENDPOINTS = (
+    re.compile(r"(?:^|/)pulls/[^/]*/merge(?:[?/]|$)"),
+    re.compile(r"(?:^|/)pulls/[^/]*/ccr/auto_merge(?:[?/]|$)"),
+    re.compile(r"(?:^|/)merges(?:[?/]|$)"),
+    re.compile(r"(?:^|/)contents(?:[?/]|$)"),
+    re.compile(r"(?:^|/)git/(?:refs|commits)(?:[?/]|$)"),
+    re.compile(r"(?:^|/)rulesets(?:[?/]|$)"),
+    re.compile(r"(?:^|/)branches/.*/protection(?:[?/]|$)"),
+)
+GRAPHQL_MUTATIONS = re.compile(
+    r"mergePullRequest|enablePullRequestAutoMerge|createCommitOnBranch|updateRefs?\b|createRef\b|"
+    r"deleteRef\b|(?:create|update|delete)BranchProtectionRule|(?:create|update|delete)RepositoryRuleset",
+    re.IGNORECASE,
+)
+MCP_GITHUB_RE = re.compile(r"mcp__github__([A-Za-z0-9_\-]+)", re.IGNORECASE)
+MCP_GITHUB_WRITE = frozenset({
+    "merge_pull_request", "create_or_update_file", "push_files", "delete_file",
+    "create_ref", "update_ref", "delete_ref",
+})
+
+
+def check_gh(args: list[Word]) -> Decision:
+    words = [w for w in args if w.text != "--"]
+    positional = [w for w in words if not w.text.startswith("-")]
+    if len(positional) >= 2 and positional[0].text == "pr" and positional[1].text == "merge":
+        return deny("gh-merge-or-main-write")
+    if positional and positional[0].text == "api":
+        return check_gh_api(words[words.index(positional[0]) + 1:])
+    return ALLOW
+
+
+def check_gh_api(args: list[Word]) -> Decision:
+    method: Word | None = None
+    params = False
+    values: list[Word] = []
+    endpoint: Word | None = None
+    i = 0
+    while i < len(args):
+        w = args[i]
+        text = w.text
+        flag, eq, attached = text.partition("=")
+        if text.startswith("--") and eq:
+            if flag in ("--method",):
+                method = Word(text=attached, vars=w.vars, subs=w.subs)
+            params |= flag in GH_API_PARAMS
+            if flag in GH_API_PARAMS:
+                values.append(w)
+            i += 1
+            continue
+        if text.startswith("-X") and len(text) > 2:  # -XPUT
+            method = Word(text=text[2:], vars=w.vars, subs=w.subs)
+            i += 1
+            continue
+        if text[:2] in ("-f", "-F") and len(text) > 2:  # -fkey=value
+            params = True
+            values.append(w)
+            i += 1
+            continue
+        if text in GH_API_OPT_ARG:
+            value = args[i + 1] if i + 1 < len(args) else Word()
+            if text in ("-X", "--method"):
+                method = value
+            if text in GH_API_PARAMS:
+                params = True
+                values.append(value)
+            i += 2
+            continue
+        if text.startswith("-"):
+            i += 1
+            continue
+        if endpoint is None:
+            endpoint = w
+        i += 1
+    if endpoint is None:
+        return ALLOW
+    if method is not None and _dynamic(method):
+        write = True
+    else:
+        write = (method.text.upper() in WRITE_METHODS) if method is not None else params
+    if endpoint.text.strip("/") == "graphql":
+        texts = [w.text for w in values] + [endpoint.text]
+        if any(GRAPHQL_MUTATIONS.search(x) for x in texts):
+            return deny("gh-merge-or-main-write")
+        # A query read from a file or stdin cannot be inspected.
+        if any(w.text.split("=", 1)[-1].startswith("@") or _dynamic(w) for w in values):
+            return deny("gh-merge-or-main-write")
+        return ALLOW
+    if not write:
+        return ALLOW
+    if endpoint.subs or (endpoint.vars and "/" not in endpoint.text):
+        return deny("gh-merge-or-main-write")  # write to an endpoint the guard cannot read
+    if any(rx.search(endpoint.text) for rx in GH_GUARDED_ENDPOINTS):
+        return deny("gh-merge-or-main-write")
+    return ALLOW

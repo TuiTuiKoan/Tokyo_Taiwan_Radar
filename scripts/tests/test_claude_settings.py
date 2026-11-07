@@ -15,6 +15,8 @@ PUSH_ASK_RULES = (
     "Bash(git push *HEAD)",
     "Bash(git push *HEAD *)",
 )
+# Fallback for gh pr merge when the hook is missing (#568); the hook denies it.
+MERGE_ASK_RULES = ("Bash(gh pr merge)", "Bash(gh pr merge *)")
 PUSH_COMMANDS = (
     "git push",
     "git push origin",
@@ -67,6 +69,18 @@ EXPECTED_HOOKS = {
                 {
                     "type": "command",
                     "command": hook_command("file"),
+                    "timeout": HOOK_TIMEOUT,
+                    "onFailure": "block",
+                }
+            ],
+        },
+        {
+            # GitHub MCP merge and write tools (#568).
+            "matcher": "mcp__github__.*",
+            "hooks": [
+                {
+                    "type": "command",
+                    "command": hook_command("mcp"),
                     "timeout": HOOK_TIMEOUT,
                     "onFailure": "block",
                 }
@@ -128,7 +142,7 @@ def test_no_bypass_or_hook_disabling(settings):
 def test_settings_exact_shape(settings):
     # Hooks from ai-portability (notes.md §4.23); ask rules narrowed by pr-flow-tiering plan B (notes.md B4).
     assert set(settings) == {"permissions", "hooks"}
-    assert settings["permissions"] == {"ask": list(PUSH_ASK_RULES)}
+    assert settings["permissions"] == {"ask": list(PUSH_ASK_RULES) + list(MERGE_ASK_RULES)}
     assert settings["hooks"] == EXPECTED_HOOKS
 
 
