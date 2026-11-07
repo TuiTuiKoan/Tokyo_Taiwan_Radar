@@ -989,20 +989,50 @@ def _gh_endpoint(text: str) -> str:
     return text.lstrip("/").split("?", 1)[0].split("#", 1)[0]
 
 
+# gh flags that take a value and may sit before or between subcommands
+# (`gh -R o/r pr merge`, `gh pr -R o/r merge`); skipped so the real
+# subcommand is compared (Codex review on #577, P1).
+GH_FLAG_ARG = frozenset({"-R", "--repo", "--hostname"})
+
+
+def _gh_positionals(args: list[Word]) -> list[tuple[int, Word]]:
+    """(index, word) of the non-flag arguments, skipping flag values."""
+    out: list[tuple[int, Word]] = []
+    i = 0
+    while i < len(args):
+        text = args[i].text
+        if text == "--":
+            out += [(j, args[j]) for j in range(i + 1, len(args))]
+            break
+        if text in GH_FLAG_ARG:
+            i += 2
+            continue
+        if text.startswith("-") and text != "-":
+            i += 1
+            continue
+        out.append((i, args[i]))
+        i += 1
+    return out
+
+
 def check_gh(args: list[Word]) -> Decision:
     early = _dynamic_args(args)
     if early:
         return early
-    if not args:
+    pos = _gh_positionals(args)
+    if not pos:
         return ALLOW
-    sub = args[0].text
-    rest = [w.text for w in args[1:]]
-    if sub == "pr" and "merge" in rest[:1]:
+    first = pos[0][1]
+    second = pos[1][1] if len(pos) > 1 else None
+    if _dynamic(first):
+        return deny("github-merge-or-main-write")  # `gh "$CMD" ...` cannot be inspected
+    sub = first.text
+    if sub == "pr" and second is not None and (second.text == "merge" or _dynamic(second)):
         return deny("github-merge-or-main-write")
-    if sub == "alias" and rest[:1] and rest[0] in ("set", "import"):
+    if sub == "alias" and second is not None and second.text in ("set", "import"):
         return deny("github-merge-or-main-write")  # an alias could hide `pr merge`
     if sub == "api":
-        return check_gh_api(args[1:])
+        return check_gh_api(args[pos[0][0] + 1:])
     return ALLOW
 
 
@@ -1054,10 +1084,22 @@ def check_gh_api(args: list[Word]) -> Decision:
     endpoint = endpoints[0]
     path = _gh_endpoint(endpoint.text)
     if path == "graphql":
+        # Only the query text can carry a mutation; other fields are GraphQL
+        # variables (`gh api --help`), so a variable passed from the shell is
+        # fine (Codex review on #577, P2). A query from a file, stdin, a shell
+        # variable or --input cannot be inspected.
         for value in field_values:
-            if _dynamic(value) or "@" in value.text.split("=", 1)[-1][:1] or value.text == "@input":
-                return deny("github-merge-or-main-write")  # query from a file or variable: cannot inspect
-            if GH_GRAPHQL_DENY_RE.search(value.text):
+            if value.text == "@input":
+                return deny("github-merge-or-main-write")
+            text = value.text
+            for prefix in ("--raw-field=", "--field=", "-f", "-F"):
+                if text.startswith(prefix):
+                    text = text[len(prefix):]
+                    break
+            name, _, body = text.partition("=")
+            if name != "query":
+                continue
+            if _dynamic(value) or body.startswith("@") or GH_GRAPHQL_DENY_RE.search(body):
                 return deny("github-merge-or-main-write")
         return ALLOW
     if GH_API_DENY_RE.search(path):
