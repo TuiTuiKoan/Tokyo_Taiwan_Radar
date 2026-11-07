@@ -168,7 +168,7 @@ handoffs:
 1. 使用原子化、描述清楚的提交消息（僅在有 staged 變更時）
 2. **V-M-D 自己推 feature branch**：在 worktree 內 `git push -u origin <分支>`。目的端是同名遠端分支，不是 `main`；不寫 `<分支>:main`、`HEAD`、無參數 `git push`。被拒絕（non-fast-forward）→ 回 Step 2 rebase 後再推，禁 `--force` 與 `--force-with-lease`。
    - commit 在本地 `main`（主工作目錄的治理／文件變更）時，一樣不推 `main`：`git push -u origin main:<docs/…分支名>` 推成一條新分支再開 PR。
-3. **開 PR**：`gh pr create --base main --head <分支> --title "<Conventional Commit 主旨>" --label "spec:<slug>" --body "<body>"`。body 必含：改了什麼、怎麼驗證（測試數字、dry-run 筆數、build 結果）、NOT TESTED 項目、風險等級、`Refs #n` 或 `Closes #n`。PR 已存在 → `gh pr view <分支> --json number,url` 取連結。
+3. **開 PR**：`gh pr create --base main --head <分支> --title "<Conventional Commit 主旨>" --label "spec:<slug>" --body "<body>"`。body 必含：改了什麼、怎麼驗證（測試數字、dry-run 筆數、build 結果）、NOT TESTED 項目、風險等級、`Refs #n` 或 `Closes #n`。NOT TESTED 要寫具體原因，不寫籠統的「缺憑證」：CI 會補的（`Scraper Tests` 的 pytest、`pr-dryrun-evidence` 留言的 dry-run）寫成「由 CI 補」；CI 跑完後若仍沒有證據（沒觸發、一個 PR 超過 3 個來源、共用模組、程式分支需要 DB 憑證），在 PR 留言列為 NOT TESTED 並說明原因。 PR 已存在 → `gh pr view <分支> --json number,url` 取連結。
 4. **等 tier label**：PR Tier workflow 在 gitleaks 成功後貼 `tier:0`／`1`／`2`（`gh pr view <n> --json labels`）。
    - `tier:0`：workflow 自動 squash 合併；直接進 5。
    - `tier:1`、`tier:2`：依 `.github/instructions/handoff.instructions.md` § 0 交**一張**卡片給使用者：PR 連結、tier、要看什麼、合併後會發生什麼。標 `寫 production`。**不產生任何 push 指令**，不執行 `gh pr merge`。

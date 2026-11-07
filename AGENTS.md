@@ -44,7 +44,7 @@ codex exec -p plan -s read-only -o docs/specs/active/<slug>/plan-critique-N.md "
 
 規劃（architect）、實作（engineer、scraper-expert、designer）、驗證（tester）、推送（validate-merge-deploy）都由 Claude 的 agent 執行，模型等級依 tier 與成本決定，不用 Codex 實作。
 
-推送規則：在 worktree 內 `git push -u origin <branch>`（hook 放行非 `main` 目的端），再 `gh pr create`（body 含改了什麼、怎麼驗證、NOT TESTED、`Refs`／`Closes #n`，label `spec:<slug>`）。PR Tier workflow 貼 `tier:N`：Tier 0 自動合併；Tier 1、2 交一張卡片給使用者，卡片只含 PR 連結、tier、要看什麼。使用者仍可自己直接 push `main`，agent 不提議。
+推送規則：在 worktree 內 `git push -u origin <branch>`（hook 放行非 `main` 目的端），再 `gh pr create`（body 含改了什麼、怎麼驗證、NOT TESTED、`Refs`／`Closes #n`，label `spec:<slug>`）。NOT TESTED 要寫具體原因，不寫籠統的「缺憑證」：CI 會補的（`Scraper Tests` 的 pytest、`pr-dryrun-evidence` 留言的 dry-run）寫成「由 CI 補」；CI 跑完後若仍沒有證據（沒觸發、一個 PR 超過 3 個來源、共用模組、程式分支需要 DB 憑證），在 PR 留言列為 NOT TESTED 並說明原因。 PR Tier workflow 貼 `tier:N`：Tier 0 自動合併；Tier 1、2 交一張卡片給使用者，卡片只含 PR 連結、tier、要看什麼。使用者仍可自己直接 push `main`，agent 不提議。
 
 ## 路徑規則表
 
