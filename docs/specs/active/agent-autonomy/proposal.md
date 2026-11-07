@@ -152,26 +152,28 @@ worktree 內 commit → rebase origin/main → git push -u origin <branch>（hoo
 - 配額佔用：重複 PR（#488／#526 同修 #445）、久未合併 PR 佔住名額（#532）。
 - 已自愈的 issue 沒人關：「0 產出」issue 的來源恢復後，issue 仍佔著 heartbeat 的取件佇列。
 
-**四個改造**（D1、D2 不動任何人類關卡；D3 是治理決定；D4 只整理使用者已有的工作）
+**四個改造**（D1、D2、D4 新增 workflow 權限與使用 secret，屬「權限與防線」，以 tier 2 PR 交使用者合併；D3 是治理決定，裁決前不實作）
 
 | # | 改造 | 內容 | 人類關卡 |
 | --- | --- | --- | --- |
-| D1 | 證據工廠 | ①`source-diagnose-batch.yml`：每日挑最多 5 張還沒有診斷留言的「0 產出」issue（或貼了 `needs-diagnosis` 的），dispatch 既有的 `source-diagnose.yml`；②`pr-dryrun-evidence.yml`：改到 `scraper/sources/**` 的同 repo PR，在 Actions 上對 base 與 head 各跑一次 dry-run，留言「修復前 M 筆 → 修復後 N 筆」；③`zero-output-recovery.yml`：每日對 open 的「0 產出」issue 查 `scraper_runs` 最近 7 天，有產出就附數據留言並關閉 | 新增 workflow（tier 2 PR）；都不寫 production、dry-run 不帶 secrets |
+| D1 | 證據工廠 | ①`source-diagnose-batch.yml`：每日挑最多 5 張還沒有 bot 診斷留言的「0 產出」issue（或貼了 `needs-diagnosis` 的），dispatch `source-diagnose.yml`；`source-diagnose.yml` 改為共用解析器、顯示被吞掉的例外、執行 scraper 的步驟不持有 token、成功或失敗都留一則 bot 留言並移除 `needs-diagnosis`（涵蓋 #538）；②`pr-dryrun-evidence.yml`：改到 `scraper/sources/**` 的同 repo PR，在 Actions 上對 base 與 head 各跑一次 dry-run，留言修復前後筆數與判讀；③`zero-output-recovery.yml`：每日以每週報表同一套判定（`classify_output`＋`source_expectations.json`）找出已恢復、季節外或零星預期內的「0 產出」issue，附數據留言並關閉，每次最多 5 張 | 權限：batch `actions: write`＋`issues: write`；diagnose `issues: write`；evidence `pull-requests: write`（只在不跑 PR 程式碼的 job）；recovery `issues: write`＋`SUPABASE_SERVICE_ROLE_KEY`（只 select）。dry-run 都不帶 secrets、不寫 production |
 | D2 | 配額衛生 | heartbeat 提示詞 v2（[heartbeat-prompt-v2.md](./heartbeat-prompt-v2.md)）：「0 產出／原因未知」類 issue 先看診斷留言，沒有就貼 `needs-diagnosis` 跳過；盤點時以 `Closes #n` 去重；open 超過 14 天的 PR 在 #528 列為「建議關閉或重開」；PR body 引用診斷與 dry-run 證據 | 提示詞由使用者貼到 routine |
-| D3 | 證據門檻自動合併 | 路徑只在爬蟲類、測試綠、D1② 筆數 >0 且未暴增、無同檔 PR → 自動合併；先圈 3–5 個來源試行兩週 | **使用者裁決 go／no-go**，裁決前不實作 |
+| D3 | 證據門檻自動合併 | 前提：F8（pull_request workflow 帶 production secrets）與 F9（`pr_tier` 把共用模組判為 tier 1）先修好。門檻：tier 1、測試綠、D1② 是「修復前 0 → 修復後 >0」（修復前已有產出的 PR 不適用，見 prtimes #538）、無例外、未暴增、無同檔 PR → 自動合併；先圈 3–5 個來源試行兩週 | **使用者裁決 go／no-go**，裁決前不實作 |
 | D4 | 週審 digest | 週五晚把待審 PR 整理成一張清單（稽核區／一鍵合併區／判斷區／回收區），使用者一個早上處理完；週日收尾 | 新增 workflow（tier 2 PR） |
 
-**與既有工作的關係**：source-diagnose 本體與 #538（標題欄位修正）不動，D1① 只是觸發器；#450（合併後驗證迴路）看的是已合併 PR 的來源，D1③ 看的是 open issue，兩者互補；#545（失敗訊號 intake）負責把 CI 失敗變成 issue，D1 負責讓這些 issue 有證據可修。上限沿用 notes §5 的爬蟲類 6／腳本文件類 1，不改。
+**與既有工作的關係**：D1 一併改 `source-diagnose.yml`（評審 F3、F14、F15），#538 的標題欄位修正因此被涵蓋；#450（合併後驗證迴路）看的是已合併 PR 的來源，D1③ 看的是 open issue，兩者互補；#545（失敗訊號 intake）負責把 CI 失敗變成 issue，D1 負責讓這些 issue 有證據可修。上限沿用 notes §5 的爬蟲類 6／腳本文件類 1，不改。
 
 **預設採用的決定**
 
 | # | 決定 | 採用值與理由 |
 | --- | --- | --- |
 | D-a | 診斷批次的量 | 每日最多 5 個來源（plan-531 第二階段的上限）；Actions 分鐘數每來源 1–3 分鐘 |
-| D-b | dry-run 證據帶不帶 secrets | 不帶，與 source-diagnose 一致。需要憑證的來源顯示失敗，記 NOT TESTED |
+| D-b | dry-run 證據帶不帶 secrets | 不帶，與 source-diagnose 一致。需要憑證的來源顯示失敗，記 NOT TESTED。判讀以 stderr 的 `scraper failed:` 為主：`main.py` 吞掉例外後仍 exit 0（評審 F1） |
 | D-c | PR 程式碼在哪個 job 跑 | 跑 PR 程式碼的 job 只有 `contents: read`；留言由另一個不 checkout PR 的 job 用 artifact 貼上 |
-| D-d | 復原偵測是否直接關 issue | 關。症狀就是「`scraper_runs` 28 天 0 產出」，同一個指標恢復即症狀消失；關閉可重開，留言附數據。repo variable `ZERO_OUTPUT_RECOVERY_DRY_RUN=true` 時只列出不動作 |
-| D-e | 14 天未合併的 PR | 仍算入上限（不擴大 WIP），只在 #528 標示，由使用者週審時關或重開 |
+| D-d | 復原偵測是否直接關 issue | 關，但只在每週報表的同一套判定（`classify_output`＋`source_expectations.json`，120 天資料）不再把來源列為待處理時：`active`、`off_season`、`quiet_expected`。最近一次執行失敗（`failing`）不關。每次最多 5 張；手動執行預設 dry-run；曾被關又被人重開的不再關。緊急停止用 `gh workflow disable`，不依賴 repo variable（評審 F6、F11） |
+| D-e | 14 天未合併的 PR | 仍算入上限（不擴大 WIP），只在 #528 標示，由使用者週審時關或重開；Closes 對象已關閉的孤兒 PR 不計入上限（評審 F18） |
+| D-f | D1② 是否延到第二批（評審建議延後） | 不延後：使用者 2026-11-07 指示本次實作 D1 的三個 workflow。評審指出的 F10（數來源而非模組、300 秒、artifact 一定上傳）、F7（修復前已有產出時不給綠勾）、F9（共用模組標為未測）已一併處理 |
+| D-g | `source_expectations.json` 是否加進 heartbeat 白名單（評審 F5 建議加） | 暫不加：改它會觸發 `scraper-quality.yml` 以 service role key 執行 PR 程式碼（F8）。F8 修好前，heartbeat 轉 needs-human 並附建議 JSON 片段；修好後再開白名單與 expectations 批次 PR |
 
 **驗收**
 
