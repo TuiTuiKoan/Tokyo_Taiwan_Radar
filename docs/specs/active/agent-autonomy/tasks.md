@@ -21,6 +21,10 @@
 - [ ] 合併後驗證迴路：下一次 scraper 執行後自動在 issue 留言產出數，0 產出就重開；Tier 1 LINE 推播；heartbeat 分類段改用 Haiku（grunt tier）
 - [ ] `pr-flow-tiering` Phase F 其餘文字（campaign closer 交接參數）與「要求 PR」ruleset，由使用者裁決
 
+## Phase D: 週審節奏下的全自動開發迴路（proposal §8）
+
+- [ ] D1 證據工廠、D2 提示詞 v2、D4 週審 digest 依各自 issue 完成，D3 由使用者裁決 go／no-go；14 天盤點（每週關閉 issue 數、PR 中位等待天數、revert 數）寫進 `notes.md`
+
 ## Verification
 
 - [ ] `python3 -m pytest scripts/claude/tests scripts/tests -q` 全綠；`python3 scripts/sync_ai_adapters.py --check` 通過
