@@ -17,6 +17,10 @@ name: Source Diagnose
 #   "scraper failed:" line as 例外 so a broken scraper is not read as quiet.
 #   Parsing lives in scripts/ci/dryrun_evidence.py (shared with
 #   pr-dryrun-evidence.yml); titles come from name_ja.
+# - Each block also gets the source's part of the last 3 production
+#   scraper.yml logs (scripts/ci/prod_log_excerpt.py, #563): a dry-run on
+#   Actions cannot show what the daily production run did (prtimes #459:
+#   dry-run 55 events, production "0"). The log step has only actions: read.
 
 on:
   workflow_dispatch:
@@ -33,6 +37,7 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 permissions:
+  actions: read
   contents: read
   issues: write
 
@@ -93,7 +98,44 @@ jobs:
             python3 ../scripts/ci/dryrun_evidence.py diagnose-section --source "$s" \
               --summary "$RUNNER_TEMP/$s.json" --output "$REPORT"
           done
-          cat "$REPORT" >> "$GITHUB_STEP_SUMMARY"
+          # Source key -> scraper class name, for the production log step.
+          timeout 120 python - "${LIST[@]}" > "$RUNNER_TEMP/classes.txt" <<'PY' || true
+          import sys
+          import main
+          wanted = set(sys.argv[1:])
+          for s in main.SCRAPERS:
+              key = main._scraper_key(s)
+              if key in wanted:
+                  print(key, type(s).__name__)
+          PY
+
+      - name: Production log excerpts (actions read only)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -u
+          REPORT="$RUNNER_TEMP/report.md"
+          mkdir -p "$RUNNER_TEMP/prodlogs"
+          ARGS=()
+          gh api "repos/$GH_REPO/actions/workflows/scraper.yml/runs?event=schedule&status=success&per_page=3" \
+            --jq '.workflow_runs[] | "\(.id) \(.created_at[:10])"' > "$RUNNER_TEMP/runs.txt" || true
+          while read -r run day; do
+            [[ "$run" =~ ^[0-9]+$ && "$day" =~ ^[0-9-]+$ ]] || continue
+            job=$(gh api "repos/$GH_REPO/actions/runs/$run/jobs" --jq '[.jobs[] | select(.name == "scrape")][0].id // empty')
+            [[ "$job" =~ ^[0-9]+$ ]] || continue
+            if gh api "repos/$GH_REPO/actions/jobs/$job/logs" > "$RUNNER_TEMP/prodlogs/$run.log" 2>/dev/null; then
+              ARGS+=(--log "$RUNNER_TEMP/prodlogs/$run.log" --label "run $run（$day）")
+            fi
+          done < "$RUNNER_TEMP/runs.txt"
+          while read -r key cls; do
+            [[ "$key" =~ ^[a-z0-9_]+$ && "$cls" =~ ^[A-Za-z][A-Za-z0-9_]*$ ]] || continue
+            python3 scripts/ci/prod_log_excerpt.py --class "$cls" --source "$key" "${ARGS[@]}" --output "$REPORT"
+          done < "$RUNNER_TEMP/classes.txt"
+
+      - name: Write job summary
+        run: cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Post diagnosis and clear needs-diagnosis
         if: inputs.issue != ''

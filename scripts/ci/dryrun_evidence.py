@@ -68,13 +68,25 @@ def clean(text: object, limit: int = MAX_TITLE_LEN) -> str:
     return s if len(s) <= limit else s[: limit - 1] + "…"
 
 
+def clean_code(text: object, limit: int = ERR_LINE_LEN) -> str:
+    """One line of untrusted text for inside a fenced code block.
+
+    Markdown is not rendered there, so underscores and brackets stay readable
+    (log lines, source keys); only what could close the fence, open HTML or
+    ping someone is neutralised.
+    """
+    s = re.sub(r"[\x00-\x1f\x7f]", " ", str(text or "")).strip()
+    s = re.sub(r"[`<>]", "", s).replace("@", "@\u200b")
+    return s if len(s) <= limit else s[: limit - 1] + "…"
+
+
 def summarize(stdout: str, stderr: str, rc: int) -> dict:
     events = parse_events(stdout)
     titles: list[str] = []
     for e in (events or [])[:MAX_TITLES]:
         if isinstance(e, dict):
             titles.append(clean(e.get("name_ja") or e.get("raw_title") or ""))
-    tail = [clean(line, ERR_LINE_LEN) for line in stderr.splitlines()[-ERR_TAIL_LINES:]]
+    tail = [clean_code(line, ERR_LINE_LEN) for line in stderr.splitlines()[-ERR_TAIL_LINES:]]
     found = EXCEPTION_RE.findall(stderr)
     return {
         "rc": rc,
@@ -156,7 +168,7 @@ def _detail_lines(s: dict) -> list[str]:
     out = [f"- 例外：{clean(s['exception'], 300)}" if s.get("exception") else "- 例外：無"]
     titles = [clean(t) for t in s.get("titles", [])][:MAX_TITLES]
     out += ["- 前幾筆標題："] + ([f"  - {t}" for t in titles if t] or ["  - （沒有）"])
-    tail = [clean(t, ERR_LINE_LEN) for t in s.get("stderr_tail", [])][-ERR_TAIL_LINES:]
+    tail = [clean_code(t, ERR_LINE_LEN) for t in s.get("stderr_tail", [])][-ERR_TAIL_LINES:]
     if tail:
         out += ["", "<details><summary>stderr 末段</summary>", "", "```"] + tail + ["```", "</details>"]
     return out

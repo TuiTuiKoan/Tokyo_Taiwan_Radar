@@ -23,7 +23,7 @@
 
 ## Phase D: 週審節奏下的全自動開發迴路（proposal §8）
 
-- [ ] D1 證據工廠、D2 提示詞 v2、D4 週審 digest 依各自 issue 完成，D3 由使用者裁決 go／no-go；14 天盤點（每週關閉 issue 數、PR 中位等待天數、revert 數）寫進 `notes.md`
+- [ ] D1 證據工廠、D2 提示詞 v2、D4 週審 digest、D5 第二車道（proposal §9）依各自 issue 完成，D3 由使用者裁決 go／no-go；14 天盤點（每週關閉 issue 數、PR 中位等待天數、revert 數）寫進 `notes.md`
 
 ## Verification
 
