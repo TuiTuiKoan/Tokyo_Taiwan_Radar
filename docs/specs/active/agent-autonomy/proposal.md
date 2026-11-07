@@ -157,7 +157,7 @@ worktree 內 commit → rebase origin/main → git push -u origin <branch>（hoo
 | # | 改造 | 內容 | 人類關卡 |
 | --- | --- | --- | --- |
 | D1 | 證據工廠 | ①`source-diagnose-batch.yml`：每日挑最多 5 張還沒有 bot 診斷留言的「0 產出」issue（或貼了 `needs-diagnosis` 的），dispatch `source-diagnose.yml`；`source-diagnose.yml` 改為共用解析器、顯示被吞掉的例外、執行 scraper 的步驟不持有 token、成功或失敗都留一則 bot 留言並移除 `needs-diagnosis`（涵蓋 #538）；②`pr-dryrun-evidence.yml`：改到 `scraper/sources/**` 的同 repo PR，在 Actions 上對 base 與 head 各跑一次 dry-run，留言修復前後筆數與判讀；③`zero-output-recovery.yml`：每日以每週報表同一套判定（`classify_output`＋`source_expectations.json`）找出已恢復、季節外或零星預期內的「0 產出」issue，附數據留言並關閉，每次最多 5 張 | 權限：batch `actions: write`＋`issues: write`；diagnose `issues: write`；evidence `pull-requests: write`（只在不跑 PR 程式碼的 job）；recovery `issues: write`＋`SUPABASE_SERVICE_ROLE_KEY`（只 select）。dry-run 都不帶 secrets、不寫 production |
-| D2 | 配額衛生 | heartbeat 提示詞 v2（[heartbeat-prompt-v2.md](./heartbeat-prompt-v2.md)）：「0 產出／原因未知」類 issue 先看診斷留言，沒有就貼 `needs-diagnosis` 跳過；盤點時以 `Closes #n` 去重；open 超過 14 天的 PR 在 #528 列為「建議關閉或重開」；PR body 引用診斷與 dry-run 證據 | 提示詞由使用者貼到 routine |
+| D2 | 配額衛生 | heartbeat 提示詞 v2（[heartbeat-prompt.md](./heartbeat-prompt.md)，2026-11-07 啟用）：「0 產出／原因未知」類 issue 先看診斷留言，沒有就貼 `needs-diagnosis` 跳過；盤點時以 `Closes #n` 去重；open 超過 14 天的 PR 在 #528 列為「建議關閉或重開」；PR body 引用診斷與 dry-run 證據 | 提示詞由使用者貼到 routine |
 | D3 | 證據門檻自動合併 | 前提：F8（pull_request workflow 帶 production secrets，#561）與 F9（`pr_tier` 把共用模組判為 tier 1，#562）先修好。門檻：tier 1、測試綠、D1② 是「修復前 0 → 修復後 >0」（修復前已有產出的 PR 不適用，見 prtimes #538）、無例外、未暴增、無同檔 PR → 自動合併；先圈 3–5 個來源試行兩週 | **使用者裁決 go／no-go**，裁決前不實作 |
 | D4 | 週審 digest | 週五晚把待審 PR 整理成一張清單（稽核區／一鍵合併區／判斷區／回收區），使用者一個早上處理完；週日收尾 | 新增 workflow（tier 2 PR） |
 
@@ -255,7 +255,7 @@ worktree 內 commit → rebase origin/main → git push -u origin <branch>（hoo
 - `docs/specs/active/pr-flow-tiering/proposal.md`：D1 註明由本 spec 承接。
 - 新增：本目錄 `proposal.md`、`tasks.md`、`heartbeat-prompt.md`。
 - Phase D5 新增：本目錄 `lane2-approved.yml`、`lane2-runner-prompt.md`、`plan-critique-2.md`；`scripts/ci/parent_rollup.py`、`scripts/ci/prod_log_excerpt.py` 與測試；`source-diagnose.yml`、`zero-output-recovery.yml` 增修。
-- Phase D 新增：`.github/workflows/source-diagnose-batch.yml`、`pr-dryrun-evidence.yml`、`zero-output-recovery.yml`；`scraper/zero_output_recovery.py` 與其測試；本目錄 `heartbeat-prompt-v2.md`（草稿，使用者貼到 routine 後取代 `heartbeat-prompt.md`）。
+- Phase D 新增：`.github/workflows/source-diagnose-batch.yml`、`pr-dryrun-evidence.yml`、`zero-output-recovery.yml`；`scraper/zero_output_recovery.py` 與其測試；本目錄 `heartbeat-prompt.md` 改為 v2（2026-11-07 啟用）。
 
 ### Worktree & Spec Tracking
 
