@@ -54,3 +54,17 @@
 | 調整（使用者同意） | ① 上限分兩類：爬蟲類（只改 `scraper/sources/**`、`scraper/tests/**`、`.github/skills/sources/**`）6 張，腳本文件類 1 張；② 取件先挑帶 `scraper` label 的 issue；③ 預計要改的檔案與任何 open PR（不限 `auto-fix`）重疊就跳過；④ 滿額時在固定追蹤 issue #528 留言列出待合併 PR，清單沒變就不重複留言；⑤ 停止條件「連續兩張被關閉未合併」不計寫明「已由 #n 取代」的 PR；⑥ sandbox 連不到來源網站且無法從原始碼確定原因時，改貼 `needs-human`，不做猜測式修復 |
 | 套用 | 排程是以 HTTP API 建立的，agent 的 `update_trigger` 被拒（「Agents can only update routines they created」）。新提示詞寫在 [heartbeat-prompt.md](./heartbeat-prompt.md)，由使用者到 routine 頁面貼上 |
 | 待觀察 | 7 天盤點時一併看：爬蟲類 PR 的合併速度、#528 通知是否讓等待天數縮短、配額是否吃緊 |
+
+## §6 Phase D 規劃、評審與 D1 交付（2026-11-07）
+
+| 項目 | 內容 |
+| --- | --- |
+| 起點 | 使用者一週約一個早上能審 PR，要求逐日自動驗證、排查、開發、推送。規劃寫進 proposal §8；以 main 2026-11-07 的現況為基準（`source-diagnose.yml` 已上線、上限爬蟲類 6／腳本文件類 1） |
+| 評審 | [plan-critique-1.md](./plan-critique-1.md)：Claude plan-critic（同一模型家族；此環境沒有 codex），go with changes，2 blocker、8 major |
+| 兩個 blocker | F1：`main.py` 吞掉 scraper 例外仍 exit 0，診斷與證據改以 `scraper failed:` 為主訊號；F2：public repo 任何人可偽造診斷留言，heartbeat 與 workflow 只信 `github-actions[bot]` |
+| 本 PR 處理 | F1–F4、F6、F10–F21 全部；F7 的判讀文字；F9 在 D1② 標為未測 |
+| 偏離評審 | D-f：D1② 不延後（使用者指示實作三個 workflow）；D-g：`source_expectations.json` 暫不加白名單（評審 F5 建議加，但會觸發 F8 的 secrets 暴露） |
+| 開成 issue | D1 #557、D2 #558、D4 #559、D3 裁決 #560、F8 #561、F9 #562、F7 #563 |
+| 實作時抓到的 bug | ①stdout 有含 `[` 的 log 時，從第一個 `[` 解析 JSON 會失敗（既有 source-diagnose 也有），改成逐一嘗試行首 `[`；②`jq map({…pull_request})` 讓每張 issue 帶 `pull_request: null`，以「有 key」判斷 PR 會把所有 issue 濾掉，改看值。②是對 live issue 資料乾跑時發現的 |
+| 乾跑證據 | batch 選件邏輯對 live issue 乾跑（dispatch 換成 echo）：#459、#460 已有 bot 診斷被跳過，取 #461、#462、#463、#468、#469；復原偵測的候選辨識對 live 資料取出 35 張 |
+| NOT TESTED | 四個 workflow 都只有 actionlint＋shellcheck 與本機單元測試，未在 Actions 上執行（workflow_dispatch 需要檔案先在 main）；`zero_output_recovery.py` 的 Supabase 查詢未實測 |
