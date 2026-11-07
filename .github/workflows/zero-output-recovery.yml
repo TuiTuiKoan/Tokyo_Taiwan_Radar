@@ -119,9 +119,11 @@ jobs:
           echo "符合關閉條件 $count 張；本次處理 $closed 張（上限 $MAX_CLOSE）。" >> "$summary"
           cat "$summary" >> "$GITHUB_STEP_SUMMARY"
 
-  # Parent issues ("母 issue：#N" in child bodies, e.g. #367, #381): once every
-  # child is closed, comment once and add ready-to-close. Never closes the
-  # parent; the user does that at the weekly review (proposal §9). No secrets.
+  # Parent issues (#367, #381): a parent is ready only when every "母 issue：#N"
+  # child is closed AND every source its body lists has a conclusion (a closed
+  # "<key>：" issue or a source_expectations.json entry); see
+  # scripts/ci/parent_rollup.py and plan-critique-2 G16, G17. Comments once per
+  # state, adds or withdraws ready-to-close, never closes the parent. No secrets.
   parent-rollup:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -136,40 +138,50 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-          sparse-checkout: scripts/ci
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            scripts/ci
+            scraper/main.py
+            scraper/source_expectations.json
 
-      - name: Find parents whose children are all closed
+      - name: Decide
         run: |
           set -euo pipefail
           gh api --paginate --slurp "repos/$GH_REPO/issues?state=all&per_page=100" \
-            | jq 'add // [] | map({number, title, state, state_reason, body, labels, pull_request})' \
+            | jq 'add // [] | map({number, title, state, state_reason, closed_at, body, labels, pull_request})' \
             > "$RUNNER_TEMP/all.json"
-          python3 scripts/ci/parent_rollup.py --issues "$RUNNER_TEMP/all.json" --output "$RUNNER_TEMP/rollup.json"
+          python3 scripts/ci/parent_rollup.py --issues "$RUNNER_TEMP/all.json" --main scraper/main.py \
+            --expectations scraper/source_expectations.json --output "$RUNNER_TEMP/rollup.json"
 
       - name: Comment and label
         run: |
           set -euo pipefail
-          MARK='<!-- parent-rollup -->'
           summary="$RUNNER_TEMP/summary.md"
           { echo "## parent-rollup"; echo; echo "dry_run=$DRY_RUN"; echo; } > "$summary"
           count=$(jq length "$RUNNER_TEMP/rollup.json")
           for i in $(seq 0 $((count - 1))); do
             n=$(jq -r ".[$i].parent" "$RUNNER_TEMP/rollup.json")
-            [[ "$n" =~ ^[0-9]+$ ]] || continue
-            done_before=$(gh api --paginate "repos/$GH_REPO/issues/$n/comments" \
-              --jq "[.[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$MARK\")))] | length" \
+            action=$(jq -r ".[$i].action" "$RUNNER_TEMP/rollup.json")
+            marker=$(jq -r ".[$i].marker" "$RUNNER_TEMP/rollup.json")
+            [[ "$n" =~ ^[0-9]+$ && "$action" =~ ^(ready|unresolved|withdraw)$ ]] || continue
+            [[ "$marker" =~ ^\<!--\ parent-rollup:[a-z]+:[0-9a-f]+\ --\>$ ]] || continue
+            posted=$(gh api --paginate "repos/$GH_REPO/issues/$n/comments" \
+              --jq "[.[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\")))] | length" \
               | awk '{s+=$1} END {print s+0}')
-            if [ "$done_before" -gt 0 ]; then
-              echo "- #$n：先前已提醒過（可能是使用者移除了 label），略過" >> "$summary"; continue
+            if [ "$posted" -gt 0 ]; then
+              echo "- #$n $action：同一狀態已提醒過，略過" >> "$summary"; continue
             fi
             if [ "$DRY_RUN" = "true" ]; then
-              echo "- #$n：子 issue 全部關閉，會提醒（dry-run）" >> "$summary"; continue
+              echo "- #$n $action（dry-run，不動作）" >> "$summary"; continue
             fi
             jq -r ".[$i].comment" "$RUNNER_TEMP/rollup.json" > "$RUNNER_TEMP/body.md"
             gh issue comment "$n" --body-file "$RUNNER_TEMP/body.md"
-            gh api -X POST "repos/$GH_REPO/issues/$n/labels" -f "labels[]=ready-to-close" > /dev/null
-            echo "- #$n：已留言並貼 ready-to-close" >> "$summary"
+            case "$action" in
+              ready) gh api -X POST "repos/$GH_REPO/issues/$n/labels" -f "labels[]=ready-to-close" > /dev/null ;;
+              withdraw) gh api -X DELETE "repos/$GH_REPO/issues/$n/labels/ready-to-close" > /dev/null || true ;;
+            esac
+            echo "- #$n $action：已處理" >> "$summary"
           done
           echo >> "$summary"
-          echo "符合條件的母 issue：$count 張。" >> "$summary"
+          echo "母 issue 動作：$count 筆。" >> "$summary"
           cat "$summary" >> "$GITHUB_STEP_SUMMARY"

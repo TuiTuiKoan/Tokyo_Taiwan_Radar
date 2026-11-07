@@ -68,10 +68,19 @@ def test_absent_source(px):
     assert px.excerpt(LOG, "NopeScraper", "nope") is None
 
 
-def test_long_section_is_capped(px):
+def test_long_section_keeps_head_and_verdict_tail(px):
+    # midland_cinema had 195 lines on 2026-11-06 with the verdict at the very end (critique G13).
     body = "\n".join(f"2026-11-06 x line {i}" for i in range(200))
-    got = px.excerpt(f"=== Starting scraper: BigScraper ===\n{body}\n", "BigScraper", "big")
-    assert len(got) == px.MAX_LINES and "省略" in got[-1]
+    tail = ("2026-11-06 [INFO] __main__: BigScraper: scraped 1 events\n"
+            "2026-11-06 [INFO] database: Skipped 1 already-scraped event(s)\n"
+            "2026-11-06 [INFO] __main__: BigScraper: logged 1 events to scraper_runs\n"
+            "2026-11-06 [INFO] urllib3 InsecureRequestWarning: noise\n")
+    got = px.excerpt(f"=== Starting scraper: BigScraper ===\n{body}\n{tail}", "BigScraper", "big")
+    assert len(got) == px.MAX_LINES
+    assert got[0].endswith("BigScraper ===") and "中間" in got[px.HEAD_LINES]
+    assert got[-3:] == ["2026-11-06 [INFO] __main__: BigScraper: scraped 1 events",
+                        "2026-11-06 [INFO] database: Skipped 1 already-scraped event(s)",
+                        "2026-11-06 [INFO] __main__: BigScraper: logged 1 events to scraper_runs"]
 
 
 def test_cli_appends_block_and_rejects_bad_names(px, tmp_path):

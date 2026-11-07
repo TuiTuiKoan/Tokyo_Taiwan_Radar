@@ -69,3 +69,16 @@
 | 乾跑證據 | batch 選件邏輯對 live issue 乾跑（dispatch 換成 echo）：#459、#460 已有 bot 診斷被跳過，取 #461、#462、#463、#468、#469；復原偵測的候選辨識對 live 資料取出 35 張 |
 | 與並行 session 的交會 | 本 PR 開發期間，另一個 session 合併了 `ca49fb9`（#538 的 name_ja 修正＋`heartbeat-prompt-531-patch.md`）。rebase 時 `source-diagnose.yml` 取本 PR 版本（已改用共用解析器、同樣讀 name_ja）；531-patch 由 v2 取代（v2 檔頭有說明） |
 | NOT TESTED | 四個 workflow 都只有 actionlint＋shellcheck 與本機單元測試，未在 Actions 上執行（workflow_dispatch 需要檔案先在 main）；`zero_output_recovery.py` 的 Supabase 查詢未實測 |
+
+## §7 Phase D5 規劃、評審與 D1 後續交付（2026-11-07）
+
+| 項目 | 內容 |
+| --- | --- |
+| D1 上線實測 | #565 合併後由 agent 手動觸發：zero-output-recovery（dry-run）在 Actions 上查 Supabase 成功，35 張候選中 10 張符合關閉條件、未動作；source-diagnose-batch dispatch #461、#462、#463、#468、#469，診斷留言已貼回（4 張「0 筆、無例外」，#463 執行中）。排程版尚未執行 |
+| 新事實 | production log（2026-11-04～06）：prtimes 每天寫入 53～55 筆、waseda_taiwan 2 筆、midland_cinema 1 筆。#459、#460 的「0 產出」已過時；taiwanshi 在 production 是 403 |
+| 評審 | [plan-critique-2.md](./plan-critique-2.md)：go with changes，1 blocker（G1）、14 major |
+| G1（blocker） | 「核准檔在 main＝使用者核准」不成立：main 無 branch protection、ruleset disabled；agent 以使用者帳號操作，合併事件與使用者無法區分；hooks 只管 `git push`，`gh pr merge`、`gh api` 寫 main、GitHub MCP 寫入工具都無規則。處置：proposal §9 照實改寫，runner 排程延到前提 1–4 完成 |
+| 本 PR 處理 | G13（log 擷取保留尾段）、G14（source-diagnose 拆兩個 job）、G15、G16（母 issue 對照內文每個來源）、G17（撤回 label）、G19（heartbeat v2 不用 --paginate）、G11（heartbeat v2 不取 lane2 條目）；§9、核准檔 schema、runner 提示詞依 G2–G12、G18–G22 改寫 |
+| 開成 issue 或併入 | G1 → #568；G3／G21 → #569；G5 → 併入 #561（留言擴大範圍）；D5 runner 建立 → #570（列前提 1–4） |
+| 實測的母 issue 狀態 | #381 列 30 個仍註冊的來源、子 issue 16 張，30 個都沒有結論；#367 列 9 個仍註冊的來源（tokyo_now 已退役），4 個沒有結論 |
+| NOT TESTED | 拆成兩個 job 的 source-diagnose 與 parent-rollup job 未在 Actions 上執行；report job 的組裝邏輯在 sandbox 以真實 production log 模擬過（gh 抓 log、不貼留言） |
