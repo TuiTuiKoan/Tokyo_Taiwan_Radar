@@ -189,6 +189,26 @@ def _extract_organizer(text: str) -> Optional[str]:
     return m.group(1).strip() if m else None
 
 
+def _is_ftip_organized(title: str) -> bool:
+    """True when the title signals FTIP's own event.
+
+    "当会" is a direct self-reference (e.g. "当会例会4/25"). "例会" is FTIP's
+    regular meeting: posts in this feed titled "7/4例会:…" or "10/10例会『…』"
+    are FTIP meetings even without "交流会" in the title. Only the title is
+    checked: "当会" in the body can refer to FTIP's past activity in posts
+    about third-party events.
+    """
+    return "当会" in title or "例会" in title
+
+
+def _resolve_organizer(title: str, content_text: str) -> Optional[str]:
+    """Explicit '主催：XXX' in the body wins; otherwise FTIP for its own meetings."""
+    explicit = _extract_organizer(content_text)
+    if explicit:
+        return explicit
+    return LOCATION_NAME if _is_ftip_organized(title) else None
+
+
 def _extract_date_from_text(text: str, pub_date: datetime) -> Optional[datetime]:
     """Try to extract the earliest future-ish date from text."""
     # Full date first (most reliable)
@@ -353,17 +373,13 @@ class FtipScraper(BaseScraper):
 
             raw_desc = content_text[:1000] if content_text else title
 
-            # Set organizer only when title signals this is FTIP's own event:
-            #   "当会" in title  → direct self-reference (e.g. "当会例会4/25")
-            #   "例会" + "交流会" in title → recurring FTIP meeting
-            # Avoid matching description where "当会" can appear in past-tense
-            # context about FTIP's past activity in third-party-event posts.
-            is_ftip_organized = (
-                "当会" in title
-                or ("例会" in title and "交流会" in title)
-            )
-            organizer_val = LOCATION_NAME if is_ftip_organized else _extract_organizer(content_text)
+            organizer_val = _resolve_organizer(title, content_text)
             showtime = _extract_showtime(content_text)
+            # Organizer may come from the title signal rather than the body;
+            # keep the evidence in raw_description so the annotator's
+            # organizer guard does not discard it.
+            if organizer_val and organizer_val not in raw_desc:
+                raw_desc = f"主催: {organizer_val}\n{raw_desc}"
 
             event = Event(
                 source_name=self.SOURCE_NAME,

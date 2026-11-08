@@ -2229,6 +2229,38 @@ def _has_taiwan_roots_signal(text: str) -> bool:
     return bool(_TAIWAN_ROOTS_RE.search(text or ""))
 
 
+def _organizer_has_evidence(
+    organizer: str,
+    source_text: str,
+    event: dict[str, Any],
+    default_org_map: dict[str, dict[str, Any]],
+    protected_fields: dict[str, Any] | None = None,
+) -> bool:
+    """Whether an organizer value is backed by something other than GPT.
+
+    The hallucination guard exists for GPT output (2026-05-06: セシリアママ
+    leaked from few-shot examples onto unrelated Peatix events). Values that
+    came from elsewhere are not GPT guesses and must survive it:
+    - the name appears in raw_title/raw_description;
+    - the scraper already stored this exact value (Peatix group link in the
+      DOM, FTIP's title-based rule), which is never in the body text;
+    - the source's research_sources default organizer;
+    - a human correction in field_corrections.
+    """
+    if not organizer:
+        return False
+    if organizer in (source_text or ""):
+        return True
+    if event.get("organizer") == organizer:
+        return True
+    default = (default_org_map or {}).get(event.get("source_name") or "", {}).get("organizer")
+    if default and default == organizer:
+        return True
+    if "organizer" in (protected_fields or {}):
+        return True
+    return False
+
+
 def _apply_small_venue_organizer_fallback(
     event: dict[str, Any],
     update_data: dict[str, Any],
@@ -3505,7 +3537,13 @@ def annotate_pending_events(
                 # Guard against hallucinated organizers that do not appear in the source text.
                 if update_data.get("organizer"):
                     _org_name = update_data["organizer"]
-                    if _org_name not in _source_text:
+                    if not _organizer_has_evidence(
+                        _org_name,
+                        _source_text,
+                        event,
+                        _default_org_map,
+                        _human_protected,
+                    ):
                         logger.warning(
                             "Discarding hallucinated organizer %r for event %s because it does not appear in raw_title/raw_description",
                             _org_name,
