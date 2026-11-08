@@ -168,4 +168,7 @@ def main():
 
 
 if __name__ == "__main__":
+    from observability import init_sentry
+
+    init_sentry("enrich_ocr_event")
     main()

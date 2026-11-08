@@ -1654,6 +1654,10 @@ if __name__ == "__main__":
 
     load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
+    from observability import init_sentry
+
+    init_sentry("merger")
+
     count = run_merger(dry_run=args.dry_run)
     action = "would be merged" if args.dry_run else "merged"
     print(f"Done: {count} pair(s)/orphan(s) {action} (Pass 0+1+1.5+2+3+4+5).")
