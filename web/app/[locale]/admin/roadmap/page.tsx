@@ -24,7 +24,6 @@ const MIGRATIONS = [
   { id: "050",  label: "organizers + venues entity 表（204 主辦方 / 210 場地，report-prototype-gap-fix Phase 2）", done: true },
   { id: "052",  label: "director 欄位（Schema.org）", done: true },
   { id: "052b", label: "event_media_coverage view（媒體曝光 Top 10，Phase 3）", done: true },
-  { id: "053+", label: "external_stats（JNTO / e-Stat / 法務省 benchmark data）", done: false },
 ];
 
 // ─── Product status ─────────────────────────────────────────────────────────
