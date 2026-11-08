@@ -130,7 +130,7 @@ def backfill_organizers(sb, dry_run: bool) -> None:
             )
             entity_id = resp.data[0]["id"] if resp.data else None
         except Exception as exc:
-            logger.error("  ✗ insert organizer %r: %s", canonical[:40], exc)
+            logger.exception("  ✗ insert organizer %r: %s", canonical[:40], exc)
             continue
         if not entity_id:
             continue
@@ -147,7 +147,7 @@ def backfill_organizers(sb, dry_run: bool) -> None:
             )
             updated_events += len(res.data or [])
         except Exception as exc:
-            logger.error("  ✗ backfill organizer_id for cluster %r: %s", canonical[:40], exc)
+            logger.exception("  ✗ backfill organizer_id for cluster %r: %s", canonical[:40], exc)
 
     logger.info("Inserted/upserted %d organizer entities; updated %d events with organizer_id",
                 inserted, updated_events)
@@ -190,7 +190,7 @@ def backfill_venues(sb, dry_run: bool) -> None:
             )
             entity_id = resp.data[0]["id"] if resp.data else None
         except Exception as exc:
-            logger.error("  ✗ insert venue %r: %s", canonical[:40], exc)
+            logger.exception("  ✗ insert venue %r: %s", canonical[:40], exc)
             continue
         if not entity_id:
             continue
@@ -206,7 +206,7 @@ def backfill_venues(sb, dry_run: bool) -> None:
             )
             updated_events += len(res.data or [])
         except Exception as exc:
-            logger.error("  ✗ backfill venue_id for cluster %r: %s", canonical[:40], exc)
+            logger.exception("  ✗ backfill venue_id for cluster %r: %s", canonical[:40], exc)
 
     logger.info("Inserted/upserted %d venue entities; updated %d events with venue_id",
                 inserted, updated_events)

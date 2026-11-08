@@ -255,7 +255,7 @@ class GoTaiwanScraper(BaseScraper):
                     events.append(event)
                 time.sleep(0.6)
             except Exception as exc:
-                logger.error("go_taiwan: failed to scrape %s: %s", article["url"], exc)
+                logger.exception("go_taiwan: failed to scrape %s: %s", article["url"], exc)
 
         logger.info("go_taiwan: %d Japan-side Taiwan events collected", len(events))
         return events
@@ -283,7 +283,7 @@ class GoTaiwanScraper(BaseScraper):
                         break
                     resp.raise_for_status()
                 except Exception as exc:
-                    logger.error("go_taiwan: listing fetch failed %s: %s", url, exc)
+                    logger.exception("go_taiwan: listing fetch failed %s: %s", url, exc)
                     break
 
                 soup = BeautifulSoup(resp.text, "html.parser")

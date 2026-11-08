@@ -224,7 +224,7 @@ class PlacebymethodScraper(BaseScraper):
             resp = requests.get(_LISTING_URL, headers=_HEADERS, timeout=20)
             resp.raise_for_status()
         except Exception as exc:
-            logger.error("placebymethod: listing fetch failed: %s", exc)
+            logger.exception("placebymethod: listing fetch failed: %s", exc)
             return []
 
         urls = _extract_exhibition_urls(resp.text)

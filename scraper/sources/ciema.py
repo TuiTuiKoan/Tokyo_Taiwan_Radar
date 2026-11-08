@@ -184,7 +184,7 @@ class CiemaScraper(BaseScraper):
             resp = self._session.get(LISTING_URL, timeout=20)
             resp.raise_for_status()
         except Exception as exc:
-            logger.error("Failed to fetch ciema: %s", exc)
+            logger.exception("Failed to fetch ciema: %s", exc)
             return []
 
         soup = BeautifulSoup(resp.content, "html.parser")

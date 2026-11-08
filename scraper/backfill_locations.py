@@ -120,7 +120,7 @@ def _apply_updates(sb, updates: list[dict]) -> int:
             sb.table("events").update(u["payload"]).eq("id", u["id"]).execute()
             applied += 1
         except Exception as exc:
-            logger.error("  Failed to update %s: %s", u["id"][:8], exc)
+            logger.exception("  Failed to update %s: %s", u["id"][:8], exc)
     return applied
 
 

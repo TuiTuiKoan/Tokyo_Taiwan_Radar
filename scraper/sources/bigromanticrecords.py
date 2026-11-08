@@ -152,7 +152,7 @@ class BigRomanticRecordsScraper(BaseScraper):
                         events.append(event)
                     time.sleep(1.0)
                 except Exception as exc:
-                    logger.error(
+                    logger.exception(
                         "bigromanticrecords: failed to scrape %s: %s", url, exc
                     )
 
@@ -177,7 +177,7 @@ class BigRomanticRecordsScraper(BaseScraper):
                     EVENT_LISTING_URL, wait_until="domcontentloaded", timeout=30_000
                 )
             except Exception:
-                logger.error("bigromanticrecords: failed to load listing page")
+                logger.exception("bigromanticrecords: failed to load listing page")
                 return []
 
         # Wait for article links to appear (Squarespace renders them via JS)

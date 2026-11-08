@@ -283,7 +283,7 @@ class FtipScraper(BaseScraper):
             resp = self._session.get(RSS_URL, timeout=20)
             resp.raise_for_status()
         except Exception as exc:
-            logger.error("Failed to fetch FTIP RSS: %s", exc)
+            logger.exception("Failed to fetch FTIP RSS: %s", exc)
             return events
 
         soup = BeautifulSoup(resp.content, "html.parser")

@@ -176,7 +176,7 @@ class MatsumotoCinemaSelectScraper(BaseScraper):
             resp = requests.get(_SITEMAP_URL, headers=_HEADERS, timeout=30)
             resp.raise_for_status()
         except Exception as exc:
-            logger.error("%s: sitemap fetch failed: %s", SOURCE_NAME, exc)
+            logger.exception("%s: sitemap fetch failed: %s", SOURCE_NAME, exc)
             return []
 
         ids: list[int] = []

@@ -221,7 +221,7 @@ class TaiwanExpoJapanScraper(BaseScraper):
             response = self._session.get(HOMEPAGE_URL, timeout=30)
             response.raise_for_status()
         except requests.RequestException as exc:
-            logger.error("taiwan_expo_japan: homepage fetch failed: %s", exc)
+            logger.exception("taiwan_expo_japan: homepage fetch failed: %s", exc)
             return []
 
         event = _parse_event_html(response.text)

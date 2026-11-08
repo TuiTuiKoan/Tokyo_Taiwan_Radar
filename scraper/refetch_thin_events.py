@@ -93,7 +93,7 @@ def fetch_page_text(url: str) -> str | None:
             text = page.inner_text("body")
             return text.strip() if text else None
         except Exception as e:
-            logger.error("  [Playwright error] %s", e)
+            logger.exception("  [Playwright error] %s", e)
             return None
         finally:
             browser.close()

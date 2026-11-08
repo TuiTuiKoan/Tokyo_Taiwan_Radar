@@ -510,10 +510,10 @@ def run(
             failures = 0
         except Exception as exc:
             failures += 1
-            logger.error("classifier failure (%d/%d): %r", failures, CIRCUIT_BREAKER_THRESHOLD, exc)
+            logger.exception("classifier failure (%d/%d): %r", failures, CIRCUIT_BREAKER_THRESHOLD, exc)
             if failures >= CIRCUIT_BREAKER_THRESHOLD:
                 circuit_tripped = True
-                logger.error("circuit breaker tripped — aborting run")
+                logger.exception("circuit breaker tripped — aborting run")
                 break
             continue
 

@@ -141,7 +141,7 @@ class MoonRomanticScraper(BaseScraper):
                             events.append(event)
                         time.sleep(1.0)
                     except Exception as exc:
-                        logger.error("moonromantic: failed to scrape %s: %s", post_url, exc)
+                        logger.exception("moonromantic: failed to scrape %s: %s", post_url, exc)
 
             browser.close()
 

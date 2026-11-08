@@ -4139,7 +4139,7 @@ def annotate_pending_events(
                     logger.info("  + sub-event %d: %s", j + 1, (sub.get("name_ja") or "")[:50])
                 except Exception as sub_exc:
                     # Skip only this sub-event; the parent stays 'annotated'.
-                    logger.error(
+                    logger.exception(
                         "  ✗ sub-event %d skipped (parent kept annotated): %s",
                         j + 1,
                         sub_exc,
@@ -4173,7 +4173,7 @@ def annotate_pending_events(
                         )
 
         except Exception as exc:
-            logger.error("  ✗ annotation failed: %s", exc)
+            logger.exception("  ✗ annotation failed: %s", exc)
             if dry_run:
                 logger.info("  [DRY-RUN] would set annotation_status=error for id=%s", eid)
             else:
@@ -4415,7 +4415,7 @@ def _get_or_create_film_work(
                 pass
             logger.warning("  ⚠ work unique-race requery empty for %r", original_title)
         else:
-            logger.error("  ✗ work insert failed (non-unique) for %r: %s", original_title, exc)
+            logger.exception("  ✗ work insert failed (non-unique) for %r: %s", original_title, exc)
         return None
 
 
@@ -5762,7 +5762,7 @@ def backfill_performer_i18n() -> None:
                 logger.warning("  GPT returned unexpected format: %s", type(raw))
                 continue
         except Exception as exc:
-            logger.error("  GPT batch error: %s", exc)
+            logger.exception("  GPT batch error: %s", exc)
             continue
 
         for item in results:

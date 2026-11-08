@@ -126,7 +126,7 @@ class UedaEigekiScraper(BaseScraper):
             resp.raise_for_status()
             resp.encoding = resp.apparent_encoding or "utf-8"
         except Exception as exc:
-            logger.error("uedaeigeki: failed to fetch %s: %s", listing_url, exc)
+            logger.exception("uedaeigeki: failed to fetch %s: %s", listing_url, exc)
             return []
 
         soup = BeautifulSoup(resp.text, "html.parser")

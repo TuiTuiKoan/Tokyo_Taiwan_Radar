@@ -180,13 +180,13 @@ def run(days: int) -> dict:
         try:
             sb.table("daily_quality_metrics").upsert(rows, on_conflict="metric_date").execute()
         except Exception as exc:
-            logger.error("upsert daily_quality_metrics failed: %s", exc)
+            logger.exception("upsert daily_quality_metrics failed: %s", exc)
 
     latest = rows[0] if rows else None
     try:
         health = source_health.check(sb, datetime.now(tz=UTC))
     except Exception as exc:
-        logger.error("source_health check failed: %s", exc)
+        logger.exception("source_health check failed: %s", exc)
         health = {"silent": [], "newly_silent": []}
     summary = {
         "days_computed": len(rows),

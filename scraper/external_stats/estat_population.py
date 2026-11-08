@@ -263,7 +263,7 @@ def _main() -> None:
             else:
                 puller.upsert(puller._table_name(), records)
         except Exception as exc:
-            logger.error("Failed for year %d: %s", year, exc)
+            logger.exception("Failed for year %d: %s", year, exc)
 
 
 if __name__ == "__main__":

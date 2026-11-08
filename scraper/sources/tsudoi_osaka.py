@@ -68,7 +68,7 @@ def _get_soup(url: str) -> Optional[BeautifulSoup]:
         r.raise_for_status()
         return BeautifulSoup(r.text, "html.parser")
     except Exception as exc:
-        logger.error("tsudoi_osaka: fetch error %s: %s", url, exc)
+        logger.exception("tsudoi_osaka: fetch error %s: %s", url, exc)
         return None
 
 

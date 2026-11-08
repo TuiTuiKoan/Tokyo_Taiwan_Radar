@@ -100,7 +100,7 @@ class TaiwanFestaScraper(BaseScraper):
             resp = self._session.get(HOMEPAGE_URL, timeout=20)
             resp.raise_for_status()
         except Exception as exc:
-            logger.error("taiwan_festa: failed to fetch homepage: %s", exc)
+            logger.exception("taiwan_festa: failed to fetch homepage: %s", exc)
             return []
 
         soup = BeautifulSoup(resp.text, "html.parser")

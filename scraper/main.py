@@ -486,7 +486,7 @@ def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str
                 except Exception as log_exc:
                     logger.warning("%s: could not write scraper_runs: %s", source_label, log_exc)
         except (Exception, LLMConfigError) as exc:
-            logger.error("%s: scraper failed: %s", source_label, exc)
+            logger.exception("%s: scraper failed: %s", source_label, exc)
             if isinstance(exc, LLMConfigError):
                 llm_config_error = llm_config_error or exc
             if not dry_run:
@@ -542,7 +542,7 @@ def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str
         else:
             logger.info("No new events from --source %s; skipping movie/person enrichment.", source)
     except LLMConfigError as exc:
-        logger.error("AI steps stopped: %s", exc)
+        logger.exception("AI steps stopped: %s", exc)
         llm_config_error = llm_config_error or exc
 
     # Ended events are no longer auto-archived here.

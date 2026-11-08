@@ -52,7 +52,7 @@ def run_jnto(sb, dry_run: bool, year: int | None = None) -> None:
         puller.upsert(puller._table_name(), records)
         logger.info("JNTO: %d records", len(records))
     except Exception as exc:
-        logger.error("JNTO failed for year %d: %s", target_year, exc)
+        logger.exception("JNTO failed for year %d: %s", target_year, exc)
         raise
 
 
@@ -115,7 +115,7 @@ def run_population(sb, dry_run: bool, year: int | None = None) -> None:
         puller.upsert(puller._table_name(), records)
         logger.info("Population: %d records for year %d", len(records), target_year)
     except Exception as exc:
-        logger.error("Population failed for year %d: %s", target_year, exc)
+        logger.exception("Population failed for year %d: %s", target_year, exc)
         raise
 
 
@@ -155,7 +155,7 @@ def main() -> None:
             elif source == "population":
                 run_population(sb, dry_run=args.dry_run, year=args.year)
         except Exception as exc:
-            logger.error("Source %s failed: %s", source, exc)
+            logger.exception("Source %s failed: %s", source, exc)
             errors.append(f"{source}: {exc}")
 
     if errors:

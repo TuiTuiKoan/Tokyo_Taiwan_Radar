@@ -139,7 +139,7 @@ class KgplusKyotographieScraper(BaseScraper):
             resp.raise_for_status()
             types = resp.json()
         except Exception as exc:
-            logger.error("KG+: failed to fetch WP types: %s", exc)
+            logger.exception("KG+: failed to fetch WP types: %s", exc)
             return None
 
         year_cpts = [k for k in types if re.match(r"^exhibitions_plus\d{4}$", k)]
@@ -165,7 +165,7 @@ class KgplusKyotographieScraper(BaseScraper):
                 resp.raise_for_status()
                 data = resp.json()
             except Exception as exc:
-                logger.error("KG+: error fetching exhibition list page %d: %s", page, exc)
+                logger.exception("KG+: error fetching exhibition list page %d: %s", page, exc)
                 break
 
             if not data:
