@@ -98,25 +98,3 @@ def test_other_movie_sources_keep_prefer_new_start():
     ev = _event("kyoto_cinema", _d(2026, 10, 24), _d(2026, 10, 30))
     row = _build_movie_extend_row(ev, _state("2026-10-10T00:00:00+00:00", "2026-10-23T00:00:00+00:00"))
     assert row["start_date"] == "2026-10-24T00:00:00+00:00"
-
-
-# ── one-off correction rule ───────────────────────────────────────────────
-
-from _oneoff_fix_eiga_com_theater_start import propose  # noqa: E402
-
-
-def test_oneoff_corrects_inherited_publication_date():
-    # Image Forum row: start 10/15 (legacy JST), created 11/1, scraper now says 11/7
-    row = {"start_date": "2026-10-14T15:00:00+00:00", "created_at": "2026-11-01T00:05:00+00:00"}
-    assert propose(row, _d(2026, 11, 7)) == "2026-11-07T00:00:00+00:00"
-
-
-def test_oneoff_leaves_first_run_theater_alone():
-    # Created before release → stored start was observed, keep it
-    row = {"start_date": "2026-10-10T00:00:00+00:00", "created_at": "2026-10-04T00:05:00+00:00"}
-    assert propose(row, _d(2026, 10, 24)) is None
-
-
-def test_oneoff_ignores_missing_scrape():
-    row = {"start_date": "2026-10-10T00:00:00+00:00", "created_at": "2026-11-01T00:05:00+00:00"}
-    assert propose(row, None) is None
