@@ -86,7 +86,7 @@ class AsahiCultureScraper(BaseScraper):
             r = requests.get(url, headers=HEADERS, timeout=15)
             r.encoding = "MS932"
         except requests.RequestException as e:
-            logger.error("asahiculture: fetch error: %s", e)
+            logger.exception("asahiculture: fetch error: %s", e)
             return events
 
         soup = BeautifulSoup(r.text, "html.parser")

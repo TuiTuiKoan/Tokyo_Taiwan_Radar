@@ -82,7 +82,7 @@ def main() -> None:
         print(json.dumps(result, ensure_ascii=False))
 
     except Exception as e:
-        logger.error("summarize_run failed: %s", e)
+        logger.exception("summarize_run failed: %s", e)
         print("{}")
 
 

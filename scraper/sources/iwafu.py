@@ -295,7 +295,7 @@ class IwafuScraper(BaseScraper):
                         events.append(event)
                     time.sleep(1.5)
                 except Exception as exc:
-                    logger.error("Failed to scrape event %s: %s", card.get("url"), exc)
+                    logger.exception("Failed to scrape event %s: %s", card.get("url"), exc)
 
             browser.close()
 

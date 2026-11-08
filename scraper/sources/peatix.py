@@ -547,7 +547,7 @@ class PeatixScraper(BaseScraper):
                                 events.append(event)
                         time.sleep(1.5)
                     except Exception as exc:
-                        logger.error("Peatix: failed to scrape %s: %s", url, exc)
+                        logger.exception("Peatix: failed to scrape %s: %s", url, exc)
 
             # --- DB-driven organizer groups (Layer 3) ---
             # Scrape events from known Taiwan-focused Peatix organizers directly,
@@ -578,7 +578,7 @@ class PeatixScraper(BaseScraper):
                                 events.append(event)
                         time.sleep(1.5)
                     except Exception as exc:
-                        logger.error(
+                        logger.exception(
                             "Peatix: failed to scrape group %s event %s: %s",
                             group_id, url, exc,
                         )

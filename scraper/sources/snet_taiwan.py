@@ -112,7 +112,7 @@ class SnetTaiwanScraper(BaseScraper):
             r.raise_for_status()
             posts = r.json()
         except Exception as e:
-            logger.error("snet_taiwan: WP API error: %s", e)
+            logger.exception("snet_taiwan: WP API error: %s", e)
             return events
 
         logger.info("snet_taiwan: %d posts from API", len(posts))

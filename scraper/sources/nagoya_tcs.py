@@ -310,7 +310,7 @@ class NagoyaTcsScraper(BaseScraper):
             resp = self._session.get(LISTING_URL, timeout=20)
             resp.raise_for_status()
         except Exception as exc:
-            logger.error("nagoya_tcs: listing fetch failed: %s", exc)
+            logger.exception("nagoya_tcs: listing fetch failed: %s", exc)
             return []
 
         soup = BeautifulSoup(resp.content, "html.parser")

@@ -275,7 +275,7 @@ class EsliteSpectrumScraper(BaseScraper):
                     events.append(event)
                 time.sleep(0.8)
             except Exception as exc:
-                logger.error("eslite_spectrum: failed to scrape %s: %s", item["url"], exc)
+                logger.exception("eslite_spectrum: failed to scrape %s: %s", item["url"], exc)
 
         logger.info("eslite_spectrum: collected %d Taiwan-related events", len(events))
         return events
@@ -289,7 +289,7 @@ class EsliteSpectrumScraper(BaseScraper):
             resp = session.get(NEWS_URL, timeout=15)
             resp.raise_for_status()
         except Exception as exc:
-            logger.error("eslite_spectrum: failed to fetch %s: %s", NEWS_URL, exc)
+            logger.exception("eslite_spectrum: failed to fetch %s: %s", NEWS_URL, exc)
             return items
 
         soup = BeautifulSoup(resp.text, "html.parser")
@@ -340,7 +340,7 @@ class EsliteSpectrumScraper(BaseScraper):
             resp = session.get(url, timeout=15)
             resp.raise_for_status()
         except Exception as exc:
-            logger.error("eslite_spectrum: GET %s failed: %s", url, exc)
+            logger.exception("eslite_spectrum: GET %s failed: %s", url, exc)
             return None
 
         soup = BeautifulSoup(resp.text, "html.parser")

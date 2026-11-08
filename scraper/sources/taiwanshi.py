@@ -175,13 +175,13 @@ class TaiwanshiScraper(BaseScraper):
             )
             resp.raise_for_status()
         except Exception as exc:
-            logger.error("taiwanshi: feed fetch failed: %s", exc)
+            logger.exception("taiwanshi: feed fetch failed: %s", exc)
             return []
 
         try:
             root = ET.fromstring(resp.content)
         except ET.ParseError as exc:
-            logger.error("taiwanshi: XML parse error: %s", exc)
+            logger.exception("taiwanshi: XML parse error: %s", exc)
             return []
 
         events: list[Event] = []

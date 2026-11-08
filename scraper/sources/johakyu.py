@@ -137,7 +137,7 @@ class JohakyuScraper(BaseScraper):
             resp = self._session.get(_SCHEDULE_URL, timeout=20)
             resp.raise_for_status()
         except Exception as exc:
-            logger.error("johakyu: failed to fetch schedule: %s", exc)
+            logger.exception("johakyu: failed to fetch schedule: %s", exc)
             return []
 
         soup = BeautifulSoup(resp.content, "html.parser")

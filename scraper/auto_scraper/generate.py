@@ -704,7 +704,7 @@ def run(opts: GenerateOptions, *, sb: Any | None = None) -> int:
     try:
         _check_eligibility(row)
     except GenerateError as exc:
-        logger.error("eligibility failed: %s", exc.message)
+        logger.exception("eligibility failed: %s", exc.message)
         if not opts.dry_run:
             _update_db_status(sb, opts.source_id, status=exc.status, failed_reason=exc.message)
         return 1
@@ -797,7 +797,7 @@ def run(opts: GenerateOptions, *, sb: Any | None = None) -> int:
         return 0
 
     except GenerateError as exc:
-        logger.error("[%s] %s", exc.status, exc.message)
+        logger.exception("[%s] %s", exc.status, exc.message)
         if not opts.dry_run:
             try:
                 _local = locals()

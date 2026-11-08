@@ -149,7 +149,7 @@ def main() -> None:
         print(json.dumps(result, ensure_ascii=False))
 
     except Exception as exc:
-        logger.error("backlog_health failed: %s", exc)
+        logger.exception("backlog_health failed: %s", exc)
         # Fail-safe: output unknown status so notify.py can still handle it
         print(json.dumps({"status": "unknown", "error": str(exc)}))
         sys.exit(1)

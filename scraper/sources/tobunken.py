@@ -158,7 +158,7 @@ class TobunkenScraper(BaseScraper):
             )
             resp.raise_for_status()
         except Exception as exc:
-            logger.error("tobunken: listing fetch failed: %s", exc)
+            logger.exception("tobunken: listing fetch failed: %s", exc)
             return []
 
         soup = BeautifulSoup(resp.content, "html.parser")
