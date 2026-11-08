@@ -103,7 +103,7 @@ def main() -> None:
             json.dump(output, f, ensure_ascii=False)
         logger.info("Wrote /tmp/warnings.json (%d warning(s))", len(warnings))
     except OSError as e:
-        logger.error("Could not write /tmp/warnings.json: %s", e)
+        logger.exception("Could not write /tmp/warnings.json: %s", e)
 
     if warnings:
         sys.exit(2)

@@ -222,7 +222,7 @@ class WuextWasedaScraper(BaseScraper):
             )
             resp.raise_for_status()
         except Exception as exc:
-            logger.error("%s: fetch search page failed: %s", SOURCE_NAME, exc)
+            logger.exception("%s: fetch search page failed: %s", SOURCE_NAME, exc)
             return []
 
         soup = BeautifulSoup(resp.text, "html.parser")

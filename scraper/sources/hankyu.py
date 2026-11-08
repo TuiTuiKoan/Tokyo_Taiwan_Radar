@@ -289,7 +289,7 @@ class _HankyuBase(BaseScraper):
         try:
             soup = self._get(store.event_url)
         except Exception as exc:
-            logger.error("Failed to fetch %s: %s", store.event_url, exc)
+            logger.exception("Failed to fetch %s: %s", store.event_url, exc)
             return []
 
         events: list[Event] = []

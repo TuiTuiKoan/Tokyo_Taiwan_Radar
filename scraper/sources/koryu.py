@@ -196,7 +196,7 @@ class KoryuScraper(BaseScraper):
                         events.append(event)
                     time.sleep(1.0)
                 except Exception as exc:
-                    logger.error("Failed to scrape %s: %s", item.get("href"), exc)
+                    logger.exception("Failed to scrape %s: %s", item.get("href"), exc)
 
             browser.close()
 

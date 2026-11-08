@@ -641,7 +641,7 @@ def run(opts: ResearchOptions, *, sb: Any | None = None) -> int:
         return 0
 
     except AssessError as exc:
-        logger.error("[%s] %s", exc.status, exc.message)
+        logger.exception("[%s] %s", exc.status, exc.message)
         if not opts.dry_run:
             try:
                 _update_db_error(sb, opts.source_id, exc.message)

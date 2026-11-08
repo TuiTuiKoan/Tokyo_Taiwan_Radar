@@ -202,7 +202,7 @@ class TransitStoreScraper(BaseScraper):
                 resp.raise_for_status()
                 data = resp.json()
             except Exception as exc:
-                logger.error("transit_store: failed to fetch page %d: %s", page, exc)
+                logger.exception("transit_store: failed to fetch page %d: %s", page, exc)
                 break
 
             batch = data.get("products", [])

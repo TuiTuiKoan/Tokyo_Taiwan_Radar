@@ -159,7 +159,7 @@ class TaiwanMatsuriScraper(BaseScraper):
                     logger.info("  ✓ %s — %s", slug, event.name_ja[:60] if event.name_ja else "")
                 time.sleep(1.0)
             except Exception as exc:
-                logger.error("Failed to scrape %s: %s", url, exc)
+                logger.exception("Failed to scrape %s: %s", url, exc)
 
         return events
 

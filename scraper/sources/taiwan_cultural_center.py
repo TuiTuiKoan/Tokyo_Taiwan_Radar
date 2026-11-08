@@ -457,7 +457,7 @@ class TaiwanCulturalCenterScraper(BaseScraper):
                         events.append(event)
                     time.sleep(1.5)  # Be polite to the server
                 except Exception as exc:
-                    logger.error("Failed to scrape %s: %s", url, exc)
+                    logger.exception("Failed to scrape %s: %s", url, exc)
 
             browser.close()
         return events

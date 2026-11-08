@@ -231,7 +231,7 @@ def main() -> None:
                 logger.info("  ✓ [%s] PAR %s → %s", kind, name, new_value)
                 _verify_write(sb, pid, new_value)
             except Exception as e:
-                logger.error("  ✗ %s: %s", pid, e)
+                logger.exception("  ✗ %s: %s", pid, e)
                 continue
 
         if kind == "multi":
@@ -293,7 +293,7 @@ def main() -> None:
                     logger.info("  ✓ [%s] SUB %s → %s", kind, name, new_value)
                     _verify_write(sb, sid, new_value)
                 except Exception as e:
-                    logger.error("  ✗ %s: %s", sid, e)
+                    logger.exception("  ✗ %s: %s", sid, e)
                     continue
 
             if kind == "sub-own":

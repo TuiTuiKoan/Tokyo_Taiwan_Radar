@@ -591,7 +591,7 @@ def run_merger(dry_run: bool = False) -> int:
                 pass0_count += 1
                 pass0_handled.add(secondary["id"])
             except Exception as exc:
-                logger.error(
+                logger.exception(
                     "Merger Pass 0: failed to merge %s ← %s: %s",
                     primary["source_id"],
                     secondary["source_id"],
@@ -791,7 +791,7 @@ def run_merger(dry_run: bool = False) -> int:
                     for k, v in primary_update.items():
                         primary[k] = v
                 except Exception as exc:
-                    logger.error(
+                    logger.exception(
                         "Merger Pass 1.1: failed to merge %s ← %s: %s",
                         primary["source_id"],
                         secondary["source_id"],
@@ -967,7 +967,7 @@ def run_merger(dry_run: bool = False) -> int:
                     pass1_5_count += 1
                     handled_secondary_ids.add(secondary["id"])
                 except Exception as exc:
-                    logger.error(
+                    logger.exception(
                         "Merger Pass 1.5: failed to merge %s ← %s: %s",
                         primary["source_id"],
                         secondary["source_id"],
@@ -1106,7 +1106,7 @@ def run_merger(dry_run: bool = False) -> int:
                     merge_count += 1
                     handled_secondary_ids.add(secondary["id"])
                 except Exception as exc:
-                    logger.error(
+                    logger.exception(
                         "Merger: failed to merge %s ← %s: %s",
                         primary["source_id"],
                         secondary["source_id"],
@@ -1232,7 +1232,7 @@ def run_merger(dry_run: bool = False) -> int:
             merge_count += 1
             handled_secondary_ids.add(secondary["id"])
         except Exception as exc:
-            logger.error(
+            logger.exception(
                 "Merger: failed to merge %s ← %s: %s",
                 primary["source_id"],
                 secondary["source_id"],
@@ -1372,7 +1372,7 @@ def run_merger(dry_run: bool = False) -> int:
                 pass3_count += 1
                 handled_secondary_ids.add(secondary_sub["id"])
             except Exception as exc:
-                logger.error(
+                logger.exception(
                     "Merger Pass 3: failed to merge %s ← %s: %s",
                     primary_sub["source_id"],
                     secondary_sub["source_id"],
@@ -1396,7 +1396,7 @@ def run_merger(dry_run: bool = False) -> int:
                     pass3_count += 1
                     handled_secondary_ids.add(orphaned_sub["id"])
                 except Exception as exc:
-                    logger.error(
+                    logger.exception(
                         "Merger Pass 3: failed to deactivate orphan %s: %s",
                         orphaned_sub["source_id"],
                         exc,
@@ -1503,7 +1503,7 @@ def run_merger(dry_run: bool = False) -> int:
                     pass5_count += 1
                     handled_secondary_ids.add(secondary["id"])
                 except Exception as exc:
-                    logger.error(
+                    logger.exception(
                         "Merger Pass 5: failed to merge %s ← %s: %s",
                         primary.get("source_id"),
                         secondary.get("source_id"),
@@ -1627,7 +1627,7 @@ def _flatten_grandchild_events(sb: Any, dry_run: bool = False) -> int:
                         root_id[:8],
                     )
             except Exception as exc:
-                logger.error("Pass 4: failed to process grandchild %s: %s", gc["id"][:8], exc)
+                logger.exception("Pass 4: failed to process grandchild %s: %s", gc["id"][:8], exc)
         count += 1
 
     logger.info("Merger Pass 4: %d grandchild event(s) processed", count)

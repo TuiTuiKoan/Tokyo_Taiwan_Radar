@@ -303,7 +303,7 @@ class CinemaClairScraper(BaseScraper):
             resp.raise_for_status()
             resp.encoding = resp.apparent_encoding or "utf-8"
         except Exception as exc:
-            logger.error("cinemaclair: failed to fetch listing page: %s", exc)
+            logger.exception("cinemaclair: failed to fetch listing page: %s", exc)
             return []
 
         soup = BeautifulSoup(resp.text, "html.parser")

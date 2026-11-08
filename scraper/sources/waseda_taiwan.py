@@ -136,7 +136,7 @@ def _fetch_posts(page: int) -> list[dict]:
         resp.raise_for_status()
         return resp.json()
     except Exception as exc:
-        logger.error("Waseda Taiwan API error (page %d): %s", page, exc)
+        logger.exception("Waseda Taiwan API error (page %d): %s", page, exc)
         return []
 
 

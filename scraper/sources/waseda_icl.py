@@ -146,7 +146,7 @@ def _fetch_posts(page: int, search_term: str) -> tuple[list[dict], bool]:
         total_pages = int(resp.headers.get("X-WP-TotalPages", 1))
         return posts, page < total_pages
     except Exception as exc:
-        logger.error("waseda_icl: API error (page=%d search=%r): %s", page, search_term, exc)
+        logger.exception("waseda_icl: API error (page=%d search=%r): %s", page, search_term, exc)
         return [], False
 
 

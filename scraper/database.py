@@ -1136,7 +1136,7 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
                 eid_to_row = {event_id: new_key_to_row[key] for key, event_id in key_to_eid.items()}
                 _auto_lock_location(client, eid_to_row)
         except Exception as exc:
-            logger.error("Failed to upsert events: %s", exc)
+            logger.exception("Failed to upsert events: %s", exc)
             raise
 
     # Movie-extend partial updates — separate pass after main upsert.
@@ -1160,7 +1160,7 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
                 )
             logger.info("Movie-extended %d event(s).", len(extend_rows))
         except Exception as exc:
-            logger.error("Failed to apply movie-extend updates: %s", exc)
+            logger.exception("Failed to apply movie-extend updates: %s", exc)
             raise
 
     # After upserting forced events: reset force_rescrape=false, annotation_status='pending'

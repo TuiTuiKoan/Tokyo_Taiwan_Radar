@@ -122,7 +122,7 @@ class TaiwanbunkasaiScraper(BaseScraper):
             resp = self._session.get(HOMEPAGE_URL, timeout=20)
             resp.raise_for_status()
         except Exception as exc:
-            logger.error("TaiwanbunkasaiScraper: fetch failed — %s", exc)
+            logger.exception("TaiwanbunkasaiScraper: fetch failed — %s", exc)
             return []
 
         soup = BeautifulSoup(resp.text, "html.parser")
