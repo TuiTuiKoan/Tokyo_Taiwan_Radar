@@ -299,4 +299,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    from observability import init_sentry
+
+    init_sentry("refetch_thin_events")
     main()

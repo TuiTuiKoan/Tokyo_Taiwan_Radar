@@ -99,8 +99,7 @@ python update_source.py --url "https://example.com" --status researched --create
 | `validate.py` | 異常偵測：缺翻譯、缺日期、selector 失效 |
 | `health_check.py` | 每日健康監控（LINE 告警，僅錯誤時推播）|
 | `indexnow.py` | 新事件 URL 提交至 Bing/IndexNow 加速索引 |
-| `external_stats/pull_all.py` | 政府公開資料拉取入口（JNTO/MOJ/e-Stat）— 每月一次 |
-| `report_generator.py` | 月報 section 組合（含 `build_section_benchmark()` 外部統計）|
+| `report_generator.py` | 月報 section 組合（手動執行）|
 
 ### 資料流
 
@@ -173,9 +172,6 @@ scraper.scrape()
 | `announcements` | 030 | 發文管理（三語 + 社群發布狀態）|
 | `announcement_events` | 030 | 發文 ↔ 事件關聯（junction table）|
 | `quota_snapshots` | 042 | 每日配額快照（Supabase DB size / GH Actions minutes）|
-| `external_stats_taiwan_visitors` | 055 | JNTO 訪日台灣人月別統計 |
-| `external_stats_resident_taiwanese` | 055 | MOJ 在留台灣人都道府縣別統計 |
-| `external_stats_population` | 055 | e-Stat 都道府縣別總人口（年更）|
 | `field_corrections` | 038b | 防止 GPT 覆蓋人工修正的欄位鎖（`corrected_value TEXT NOT NULL`）|
 | `field_corrections_audit` | 075 | QA 自修復的 before/after 變更紀錄（JSONB）|
 
@@ -189,7 +185,7 @@ scraper.scrape()
 | 016 | `event_views` 瀏覽統計 |
 | 017 | `reviewed` annotation status |
 | 018 | `official_url` + `scraped_at` |
-| 055 | `external_stats_*` 三張外部統計表（JNTO / MOJ / e-Stat）|
+| 055 | `external_stats_*` 三張外部統計表（JNTO / MOJ / e-Stat；2026-11 起由 105 移除）|
 | 075 | `field_corrections_audit` — QA 自修復的 audit trail（JSONB before/after）|
 
 ### QA 自修復 Pipeline
@@ -350,7 +346,6 @@ Admin 撰寫發文（三語 title + body + images）
 | `daily-health-check.yml` | 每日 | 健康監控 |
 | `secret-rotation-reminder.yml` | — | 密鑰輪替提醒 |
 | `monthly_health_check.yml` | 每月 1 日 09:00 JST | 月度 feedback-loop 健康檢查 + 上月 docs 月報產生（`docs/monthly_review/<YYYY-MM>.md`）|
-| `external-stats-pull.yml` | 每月 1 日 09:30 JST | JNTO / MOJ / e-Stat 外部統計拉取 |
 | `web-darkmode-smoke.yml` | push(main, web/**) / 手動 | dark mode smoke 測試（Navbar + 發文詳情相關活動） |
 | `eval-annotator.yml` | PR(annotator 相關路徑) / 手動 | Annotator Golden Set regression eval（frozen 模式，不接 DB）|
 | `eval-annotator-stage2.yml` | 週日 03:00 JST / 手動 | Annotator Stage 2 weekly eval（budget guard + KPI 門檻） |
@@ -402,7 +397,6 @@ Job 3: notify（depends: scrape + validate, always runs）
 | `INDEXNOW_KEY` | ✓ | — | IndexNow 索引 |
 | `SENTRY_DSN` | ✓ | ✓ | 錯誤追蹤 |
 | `SENTRY_AUTH_TOKEN` | — | ✓ | Source map 上傳 |
-| `ESTAT_APP_ID` | ✓ | — | e-Stat API 應用程式 ID（外部統計）|
 
 ---
 

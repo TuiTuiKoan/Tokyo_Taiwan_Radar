@@ -1807,4 +1807,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    from observability import init_sentry
+
+    init_sentry("auto_qa")
     main()

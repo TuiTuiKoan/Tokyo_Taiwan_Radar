@@ -91,3 +91,15 @@
 | 啟用條件 | D1 已合併（#565）；source-diagnose-batch 已成功執行一次（2026-11-07 手動 dispatch，#461、#462、#463、#468、#469 取得診斷） |
 | 待觀察 | 第一輪 v2（22:00 JST）是否只取有 bot 診斷的 0 產出 issue、是否正確轉 needs-human、#528 通知是否含等待診斷數 |
 | Codex 審查 | 使用者已在 ChatGPT 設定連結 GitHub、開啟本 repo 的 Code Review，個人層級 Automatic review 關閉（只在留言 `@codex review` 時審）。agent 在 #571 留言 `@codex review` 無反應（PR 已合併，且系統在留言尾端附加 footer）；在 #556 留言被環境的外部寫入限制擋下。等下一張 open PR 由使用者留言實測 |
+
+## §9 D1 第一次排程檢查（2026-11-08 15:03 JST；D5 前提 4）
+
+| 項目 | 結果 |
+| --- | --- |
+| zero-output-recovery（cron 02:00 UTC＝11:00 JST） | **15:03 JST 時還沒有任何 schedule run**；runs 只有 2026-11-07 的兩次手動 dispatch（success）。workflow 狀態 active，cron 已在 main。同一時段別的排程也延遲：Daily Scraper（排程 00:00 UTC）04:10 UTC 才開始，檢查時仍 in_progress。判讀：GitHub 排程延遲或略過，不是設定錯誤 |
+| source-diagnose-batch（cron 04:00 UTC＝13:00 JST） | 同上，沒有 schedule run（只有 11-07 手動 dispatch，success）。因此 5 張的 dispatch 結果、diagnose／report 兩個 job、production log 擷取，都**無法在本次判斷** |
+| 預期的 #459、#460 是否關閉 | 未驗證（recovery 尚未執行） |
+| heartbeat v2（11-07 22:00 JST 起） | 排程狀態正常，最近一輪 14:04 JST 成功。可見動作只有 22:06 JST 對 #446 的處置：auto-fix 改 needs-human 並留言「建議關閉」，符合 v2 的 60 天規則。其後各輪沒有新 PR、沒有 #528 通知；21 張以上帶 auto-fix 的 0 產出 issue 沒被碰，符合「沒有 bot 診斷就跳過」。無法從 GitHub 區分 heartbeat 與使用者（同一帳號），細節要看排程 session 紀錄 |
+| #574 的 Codex 審查 | 使用者在 #574 留了 `@codex review` 與 `@codexreview`，Codex 沒有回覆（#574 已在合併後才可能收到；當時 Codex App 尚未完成安裝）。審查流程改在 #577 驗證成功：每次 push 自動審（個人層級 Automatic review 已開）、找出 3 輪 P1 |
+| 結論 | D5 前提 4「D1 排程至少成功跑一次」**尚未滿足**：等 11-09 的 schedule run 再檢查，若連續 2 天都沒有 schedule run，改查 workflow 是否被 GitHub 停用或改 cron 避開整點 |
+| 下一次檢查要看 | recovery 的關閉清單（#459、#460）與 parent-rollup 動作；batch 的 5 張診斷；heartbeat 是否在診斷出現後開始取件 |

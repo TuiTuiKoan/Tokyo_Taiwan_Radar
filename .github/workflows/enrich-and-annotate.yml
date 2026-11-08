@@ -38,6 +38,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: python enrich_ocr_event.py --event-id "${{ inputs.event_id }}"
 
       - name: Step 2 — Annotate pending events
@@ -48,4 +49,5 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_KEY_ANNOTATOR: ${{ secrets.OPENAI_API_KEY_ANNOTATOR }}
           OPENAI_API_KEY_ENRICH: ${{ secrets.OPENAI_API_KEY_ENRICH }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: python annotator.py

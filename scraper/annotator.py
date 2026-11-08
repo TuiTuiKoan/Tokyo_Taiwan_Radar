@@ -5873,6 +5873,9 @@ def backfill_report_prefix(dry_run: bool = False) -> None:
 
 
 if __name__ == "__main__":
+    from observability import init_sentry
+
+    init_sentry("annotator")
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
