@@ -1,3 +1,12 @@
+## 2026-11-08
+
+### Removed the one-off start_date correction script (#595, refs #537)
+
+- **Removed**: `scraper/_oneoff_fix_eiga_com_theater_start.py` and its three `test_oneoff_*` tests. It was never applied. Run after the real start date had passed, its dry-run proposed the scrape day (2026-11-08 for Image Forum, whose true start is 11/7), because the area page only lists today onward; `--apply` would have written that value and keep-earliest would have locked it in. Since #573 new theater rows no longer inherit 公開日, so the script has no remaining targets.
+- **Existing rows fixed by hand** (Supabase SQL editor, user-run): `ea660d3d…` start → `2026-11-07T00:00:00Z`; `ab35e227…` start `2026-10-14T15:00:00Z` → `2026-10-15T00:00:00Z`.
+- **Do not set `force_rescrape=true` on eiga_com theater rows**: forced rows are fully overwritten and bypass keep-earliest, so start would become the scrape day.
+- **Checked 2026-11-08** (user-run, #595): in the sampled area pages every `td[data-date]` carried screenings (no empty cells), and a theater page shows the same week as its area page with no theater-level start date. Remaining accepted limits (grace-window starts, same-theater revivals, first observed after the start date) are tracked in #546.
+
 ## 2026-11-07
 
 ### Per-theater start_date (#537)
