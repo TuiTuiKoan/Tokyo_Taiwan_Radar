@@ -61,19 +61,8 @@ description: "GITHUB_TOKEN lifecycle management — PAT rotation, expiry monitor
 - **Update needed?**: No — this is passive monitoring only. No hardcoded values here.
 - **Note**: GitHub token appears in LINE notification message body automatically when rotation schedule is due.
 
-### Location 5: e-Stat API Application ID (`ESTAT_APP_ID`)
-- **File**: `scraper/.env`
-- **Format**: `ESTAT_APP_ID=<32-char hex string>`
-- **Purpose**: Authenticates e-Stat API calls (`getStatsList`, `getStatsData`, `getMetaInfo`)
-- **Who reads it**: `scraper/external_stats/estat_population.py`, `scraper/external_stats/pull_all.py`
-- **When obtained**: Register free account at [https://www.e-stat.go.jp/api/](https://www.e-stat.go.jp/api/) → Application Management → Register new app
-- **Rotation**: **No expiry** — but revoke and re-register if leaked
-- **CI secret**: Add `ESTAT_APP_ID` to GitHub Actions secrets (`Settings → Secrets and variables → Actions`)
-- **Workflow that uses it**: `.github/workflows/external-stats-pull.yml`
-- **Note**: e-Stat appId is not a rotating secret — no 90-day rotation required. Monitor only if leaked.
-
-### Location 6: OpenAI project keys (`OPENAI_API_KEY_*`)
-- **Where**: GitHub Actions secrets `OPENAI_API_KEY_ANNOTATOR`, `OPENAI_API_KEY_ENRICH`, `OPENAI_API_KEY_EVAL`; Vercel env `OPENAI_API_KEY_WEB`; optionally `scraper/.env`. `OPENAI_API_KEY` stays as the fallback for any key that is not set.
+### Location 5: OpenAI project keys (`OPENAI_API_KEY_*`)
+- **Where**: GitHub `production` environment secrets (#561) `OPENAI_API_KEY_ANNOTATOR`, `OPENAI_API_KEY_ENRICH`, `OPENAI_API_KEY_EVAL`; Vercel env `OPENAI_API_KEY_WEB`; optionally `scraper/.env`. `OPENAI_API_KEY` stays as the fallback for any key that is not set.
 - **Who reads it**: `scraper/llm_client.py` (`PROJECT_OF_GROUP`) and `web/lib/llm/usage.ts` (`openaiApiKey`).
 - **Rotation**: no expiry; when one leaks, revoke it in that OpenAI project and replace only that secret. Setup steps: `docs/specs/active/llm-cost-reset/notes.md` (M5 #320).
 

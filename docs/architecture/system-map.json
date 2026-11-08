@@ -393,12 +393,6 @@
       "category": "schedule"
     },
     {
-      "id": "external-stats-pull",
-      "label": "e-Stat external stats pull",
-      "description": "Monthly pull of Taiwan resident statistics from e-Stat API.",
-      "category": "schedule"
-    },
-    {
       "id": "auto-qa-scan",
       "label": "QA triage scheduled run",
       "description": "Daily scan of events to detect QA issues and file auto_qa_* reports.",
@@ -971,38 +965,6 @@
       "annotations": [
         "Quarterly cadence aligned with 90-day token rotation policy.",
         "GITHUB_TOKEN, OPENAI_API_KEY, SUPABASE keys monitored."
-      ]
-    },
-    {
-      "id": "external-stats-pull",
-      "actionId": "external-stats-pull",
-      "title": "e-Stat external stats pull",
-      "steps": [
-        {
-          "from": "github-actions-cron",
-          "to": ".github/workflows/external-stats-pull.yml",
-          "channel": "cron",
-          "payloadNote": "0 13 25 * * (UTC) = monthly 22:00 JST on 25th",
-          "evidenceRef": ".github/workflows/external-stats-pull.yml"
-        },
-        {
-          "from": ".github/workflows/external-stats-pull.yml",
-          "to": "scraper/external_stats/pull_all.py",
-          "channel": "Python module",
-          "payloadNote": "ESTAT_APP_ID auth -> getStatsData",
-          "evidenceRef": "scraper/external_stats/pull_all.py"
-        },
-        {
-          "from": "scraper/external_stats/pull_all.py",
-          "to": "db:external_stats",
-          "channel": "Supabase upsert",
-          "payloadNote": "Taiwan resident statistics in Japan",
-          "evidenceRef": "scraper/external_stats/pull_all.py"
-        }
-      ],
-      "annotations": [
-        "Authenticated by ESTAT_APP_ID (free, no rotation needed).",
-        "Monthly cadence to keep API quota low."
       ]
     },
     {
