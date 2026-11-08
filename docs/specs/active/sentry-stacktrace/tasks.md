@@ -4,7 +4,7 @@
 
 - [x] PR A：Python 統一初始化（`scraper/observability.py`）合併
 - [x] PR B：workflow step 補 `SENTRY_DSN` 合併（人類關卡：secrets）
-- [ ] PR C：`except` 內 `logger.error` → `logger.exception` 與防退化測試合併
-- [ ] PR D：Web instrumentation（server／edge／client／global-error、source map）合併
+- [x] PR C：`except` 內 `logger.error` → `logger.exception` 與防退化測試合併
+- [x] PR D：Web instrumentation（server／edge／client／global-error、source map）合併
 - [ ] Sentry 後台：code mapping 設定（人類關卡）
 - [ ] 驗收：Python 與 web 各至少一筆新 event 有 Stack Trace 且能點到 GitHub
