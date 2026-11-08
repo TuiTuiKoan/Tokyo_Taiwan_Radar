@@ -19,7 +19,7 @@ tags: [scraper, web, infra]
 - 原因一：`scraper/` 有 124 個 `logger.error`，只有 5 處帶 `exc_info`。83 個寫在 `except` 裡但沒帶 traceback；40 個寫在 `except` 外，本來就沒有例外物件。
 - 原因二：只有 `main.py` 初始化 Sentry，`annotator.py`、`merger.py` 等由 workflow 直接執行的腳本出錯不會進 Sentry。
 - 原因三：所有 event 的 environment 都是 `production`，本機執行也一樣。`RetiredModelScraper` 其實是 `tests/test_main_llm_config_error.py` 的假 scraper，在 #542 之前從本機 pytest 漏進來。
-- Web：沒有 `instrumentation.ts`，Next.js 16 下 `sentry.server.config.ts`／`sentry.edge.config.ts` 不會被載入，server 端錯誤沒進 Sentry；沒有 `app/global-error.tsx`；`withSentryConfig` 沒有 `org`／`project`，source map 傳不上去，前端 stack trace 是壓縮過的程式碼。
+- Web：2026-11-08 以帶 DSN 的 `next build` 實測，main 的產出裡沒有任何 client／server chunk 含 Sentry，也沒有 instrumentation 檔，**web 端 Sentry 完全沒有運作**，目前 project 裡的 event 全部來自 Python。原因：沒有 `instrumentation.ts`，Next.js 16 下 `sentry.server.config.ts`／`sentry.edge.config.ts` 不會被載入，server 端錯誤沒進 Sentry；Turbopack 不會注入舊的 `sentry.client.config.ts`；沒有 `app/global-error.tsx`；`withSentryConfig` 沒有 `org`／`project`，source map 傳不上去，前端 stack trace 是壓縮過的程式碼。
 
 ## Non-Goals（不做什麼）
 
