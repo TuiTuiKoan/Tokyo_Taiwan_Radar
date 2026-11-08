@@ -84,7 +84,16 @@ const nextConfig: NextConfig = {
 export default withSentryConfig(
   withNextIntl(nextConfig),
   {
-    silent: true,
+    // Source map upload needs the org and project slugs as well as the token;
+    // without them the upload was skipped and browser stack traces stayed
+    // minified, so Sentry code mappings could not link to GitHub. Set
+    // SENTRY_ORG (and SENTRY_PROJECT if the project is renamed) in Vercel.
+    org: process.env.SENTRY_ORG,
+    project: process.env.SENTRY_PROJECT ?? "javascript-nextjs-1q",
+    authToken: process.env.SENTRY_AUTH_TOKEN,
+    silent: !process.env.CI,
+    // Also upload maps for files outside the default set (more complete traces).
+    widenClientFileUpload: true,
     // Upload source maps only when SENTRY_AUTH_TOKEN is available
     sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
   }
