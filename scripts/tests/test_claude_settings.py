@@ -41,6 +41,15 @@ FEATURE_PUSH_COMMANDS = (
     "git push origin feat/x:feat/x",
 )
 HOOK_TIMEOUT = 30
+# GitHub MCP tools that merge or write main directly (agent-autonomy #568). The mcp hook is the
+# full rule; this deny list is the fallback when hooks are not loaded.
+MCP_DENY_RULES = (
+    "mcp__github__merge_pull_request",
+    "mcp__github__enable_pull_request_auto_merge",
+    "mcp__github__create_or_update_file",
+    "mcp__github__push_files",
+    "mcp__github__delete_file",
+)
 
 
 def hook_command(guard: str) -> str:
@@ -67,6 +76,17 @@ EXPECTED_HOOKS = {
                 {
                     "type": "command",
                     "command": hook_command("file"),
+                    "timeout": HOOK_TIMEOUT,
+                    "onFailure": "block",
+                }
+            ],
+        },
+        {
+            "matcher": "mcp__github__.*",
+            "hooks": [
+                {
+                    "type": "command",
+                    "command": hook_command("mcp"),
                     "timeout": HOOK_TIMEOUT,
                     "onFailure": "block",
                 }
@@ -126,9 +146,10 @@ def test_no_bypass_or_hook_disabling(settings):
 
 
 def test_settings_exact_shape(settings):
-    # Hooks from ai-portability (notes.md §4.23); ask rules narrowed by pr-flow-tiering plan B (notes.md B4).
+    # Hooks from ai-portability (notes.md §4.23); ask rules narrowed by pr-flow-tiering plan B (notes.md B4);
+    # GitHub MCP deny list and mcp hook from agent-autonomy #568.
     assert set(settings) == {"permissions", "hooks"}
-    assert settings["permissions"] == {"ask": list(PUSH_ASK_RULES)}
+    assert settings["permissions"] == {"ask": list(PUSH_ASK_RULES), "deny": list(MCP_DENY_RULES)}
     assert settings["hooks"] == EXPECTED_HOOKS
 
 

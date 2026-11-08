@@ -178,7 +178,7 @@ Codex 不會因為 `.codex/agents/*.toml` 存在就自動派用 subagent（2026-
 
 - 只在從 repo（或 worktree）根目錄啟動的 session 生效。從子目錄啟動時，Claude Code 不載入根目錄的 `.claude/settings.json`，push 核准與 hooks 都不存在（Claude Code `2.1.296` 實測）。
 - 對所有角色生效，含未投影權限的 architect、reviewer、researcher、scraper-expert（使用者裁決 Q8）；`claude --agent` 主執行緒與 subagent 兩種情境都已實測（`2.1.296`）。hooks 不依角色區分。
-- `Bash` 與 `Monitor` 工具的命令走同一個 guard；`Read`、`Grep`、`Write`、`Edit`、`NotebookEdit` 的路徑走 file guard。
+- `Bash` 與 `Monitor` 工具的命令走同一個 guard；`Read`、`Grep`、`Write`、`Edit`、`NotebookEdit` 的路徑走 file guard；GitHub MCP（`mcp__github__*`）走 mcp guard，`permissions.deny` 另列合併與寫檔工具作為沒有 hook 時的保底。
 - fail-closed：launcher 缺失、找不到 `python3`、guard 崩潰、逾時、輸出不符協定，一律阻擋。被誤擋時停下回報使用者，由使用者決定回退 hook commit 或停用單一規則（並補 positive test）；不得以 `--dangerously-skip-permissions`、`disableAllHooks` 或 `settings.local.json` 繞過。
 - 驗證：`python3 -m pytest scripts/claude/tests scripts/tests -q`。
 
@@ -194,12 +194,14 @@ Codex 不會因為 `.codex/agents/*.toml` 存在就自動派用 subagent（2026-
 | `env`（無命令）、`printenv`、`export -p`、`declare -p`／`-x`、無參數 `set` 等環境變數傾印 | 阻擋 |
 | `supabase db push`（只放行精確的 `supabase db push --dry-run`）、`db reset`、`db query`、`db pull`、`migration up／down／repair／squash`、`seed`；`psql` 必須帶 `-X` 且只能是單一 `SELECT`／`SHOW`／`EXPLAIN`（不含 `ANALYZE`）；`python -c` 或 heredoc 餵入的 python 同時含 `create_client` 與 `.insert(`／`.update(`／`.upsert(`／`.delete(` | 阻擋（啟發式） |
 | `eval`、stdin 餵入的 shell（`… \| sh`、`bash <<EOF`、`sh -s`）、無法檢查的 `bash -c`、動詞位置的命令替換、`git`／`psql`／`supabase` 參數中的命令替換（`git rev-parse`、`git branch --show-current`、`pwd` 與 heredoc commit 訊息除外）、guard 不支援的語法 | 阻擋 |
+| 合併 PR 與直接寫 main（#568）：`gh pr merge`；`gh alias set／import`；`gh api` 以 PUT／POST／PATCH／DELETE（含帶 `-f`／`-F`／`--input` 的隱含 POST）打 `pulls/*/merge`、`pulls/*/ccr/auto_merge`、`merges`、`contents/`、`git/refs`／`commits`／`tags`／`trees`、`rulesets`、`branches/*/protection`、`environments`、`actions/secrets`；端點尾段來自變數的寫入請求；GraphQL 的合併、建 commit、改 ref、ruleset／branch protection mutation，或 query 來自檔案、變數；GitHub MCP 的合併、自動合併、寫檔、推檔、刪檔、改 ref／commit 工具 | 阻擋（`github-merge-or-main-write`）。讀取、開 issue、留言、貼 label、開 PR 照常放行 |
 
 **未涵蓋（殘餘風險）**
 
 - prod-db 規則是啟發式，**不代表 production 寫入全面受保護**。經專案腳本的寫入（`scraper/update_source.py`、`qa_auto_fix.py`、`annotator.py` 等）、Supabase CLI 的 Management APIs、claude.ai 帳號層的 Supabase MCP 連接器（`execute_sql`、`apply_migration` 等）、`SELECT` 呼叫有副作用的函式、`.rpc(`、經 pipe 餵入的 python，都不在範圍內。
 - `.env` 規則是字面路徑檢查。只給父目錄的遞迴讀取（`grep -r`、`rg -uu`、以父目錄為 `path` 的 Grep 工具、`cp -r`、`tar`）、symlink／hard link 等別名路徑、直譯器程式碼字串內的路徑（如 `python3 -c "open('.env')"`）都不涵蓋。
 - 字元層混淆（`$'\x67it'`、變數拼接）、`$VAR` 當動詞或 guarded 參數、`xargs`、`find -exec`、git alias、未解包的包裝動詞（`uv run`、`npx` 等）、經變數間接引用的 `source "$F"`、在直譯器內讀取環境變數，都不涵蓋。
+- GitHub 防線只看 `gh` 與 `mcp__github__*`：`curl` 等 HTTP 客戶端帶 token 打 API、端點用 `..` 或變數接在字面尾段之後的寫法不涵蓋。main 的「require a pull request」ruleset 才是不依賴 Claude Code 的防線（#568 (c)，由使用者決定）。
 - hook 失敗與逾時以 `onFailure: "block"` 阻擋，需 Claude Code `2.1.295` 以上；舊版會忽略這個欄位，逾時時放行（launcher 缺失仍由命令本身的 `|| exit 2` 阻擋）。Claude Code 改版若不再辨識 decision JSON，`ask` 會退化為不提示。
 - `.claude/settings.local.json`、`disableAllHooks`、`--settings` 等覆蓋不在邊界內。
 - 保留 Bash 的角色仍可經 Bash 重導寫入一般檔案（見上一段）。

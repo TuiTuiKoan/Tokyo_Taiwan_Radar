@@ -14,7 +14,7 @@ import fnmatch
 import json
 import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from _tokenizer import Command, Unsupported, Word, parse
 
@@ -126,6 +126,12 @@ RULES = {
     "unsupported-syntax": (
         "the command uses syntax the guard cannot verify",
         "split it into simpler commands",
+    ),
+    "github-merge-or-main-write": (
+        "merging pull requests, writing commits/refs/files through the GitHub API, "
+        "and changing rulesets, branch protection, environments or secrets are reserved for the user",
+        "push a feature branch and open a PR (`gh api repos/{owner}/{repo}/pulls -f ...` is fine); "
+        "the user merges it on GitHub",
     ),
 }
 
@@ -242,6 +248,16 @@ def file_decision(payload: object) -> Decision:
             return deny(rule)
         if tool in WRITE_TOOLS and is_git_config_path(value):
             return ASK_CONFIG
+    return ALLOW
+
+
+def mcp_decision(payload: object) -> Decision:
+    """GitHub MCP tools (agent-autonomy #568): deny merge and direct-write tools."""
+    tool, _data = _tool(payload)
+    if not tool.startswith(MCP_GITHUB_PREFIX):
+        raise ValueError("tool")
+    if MCP_GITHUB_DENY_RE.search(tool[len(MCP_GITHUB_PREFIX):]):
+        return deny("github-merge-or-main-write")
     return ALLOW
 
 
@@ -496,6 +512,8 @@ def check_command(cmd: Command) -> Decision:
 def dispatch(name: str, args: list[Word], cmd: Command) -> Decision:
     if name == "git":
         return check_git(args)
+    if name == "gh":
+        return check_gh(args)
     if name == "psql":
         return check_psql(args, cmd)
     if name == "supabase":
@@ -921,6 +939,212 @@ def check_shell(args: list[Word], cmd: Command) -> Decision:
     if _dynamic(script):
         return deny("dynamic-shell")
     return evaluate_command(script.text, cmd.depth + 1)
+
+
+# --- GitHub CLI and MCP (agent-autonomy #568) -------------------------------
+#
+# "Only the user merges to main" was a text rule: main has no branch protection,
+# and cloud agents act as the user's account. These rules block the CLI/API
+# routes that merge or write main directly. curl/other HTTP clients with a
+# token are not covered (see AGENTS.md residual risks).
+
+MCP_GITHUB_PREFIX = "mcp__github__"
+MCP_GITHUB_DENY_RE = re.compile(
+    r"merge_pull_request|auto_merge|create_or_update_file|push_files|delete_file"
+    r"|(?:create|update|delete)_(?:ref|commit|tree)\b"
+    r"|(?:create|update|delete|set)_\w*(?:ruleset|branch_protection|environment|secret)"
+)
+GH_WRITE_METHODS = frozenset({"PUT", "POST", "PATCH", "DELETE"})
+# Endpoints that merge, write commits/refs/files, or change the guards around main.
+GH_API_DENY_RE = re.compile(
+    r"(?:^|/)(?:"
+    r"pulls/[^/]*/(?:merge|ccr/auto_merge|auto_merge)(?:/|$)"
+    r"|merges(?:/|$)"
+    r"|contents(?:/|$)"
+    r"|git/(?:refs|commits|tags|trees)(?:/|$)"
+    r"|rulesets(?:/|$)"
+    r"|branches/[^/]*/protection(?:/|$)"
+    r"|environments(?:/|$)"
+    r"|actions/secrets(?:/|$)"
+    r")"
+)
+GH_GRAPHQL_DENY_RE = re.compile(
+    r"\b(?:mergePullRequest|enablePullRequestAutoMerge|mergeBranch|createCommitOnBranch"
+    r"|createRef|updateRefs?|deleteRef"
+    r"|(?:create|update|delete)(?:BranchProtectionRule|RepositoryRuleset))\b"
+)
+GH_API_PREFIXES = ("https://api.github.com/", "http://api.github.com/", "api.github.com/")
+
+
+def _gh_endpoint(text: str) -> str:
+    for prefix in GH_API_PREFIXES:
+        if text.startswith(prefix):
+            text = text[len(prefix):]
+            break
+    return text.lstrip("/").split("?", 1)[0].split("#", 1)[0]
+
+
+# gh flags that take a value and may sit before or between subcommands
+# (`gh -R o/r pr merge`, `gh pr -R o/r merge`); skipped so the real
+# subcommand is compared (Codex review on #577, P1).
+GH_FLAG_ARG = frozenset({"-R", "--repo", "--hostname"})
+
+
+def _gh_positionals(args: list[Word]) -> list[tuple[int, Word]]:
+    """(index, word) of the non-flag arguments, skipping flag values."""
+    out: list[tuple[int, Word]] = []
+    i = 0
+    while i < len(args):
+        text = args[i].text
+        if text == "--":
+            out += [(j, args[j]) for j in range(i + 1, len(args))]
+            break
+        if text in GH_FLAG_ARG:
+            i += 2
+            continue
+        if text.startswith("-") and text != "-":
+            i += 1
+            continue
+        out.append((i, args[i]))
+        i += 1
+    return out
+
+
+def check_gh(args: list[Word]) -> Decision:
+    early = _dynamic_args(args)
+    if early:
+        return early
+    pos = _gh_positionals(args)
+    if not pos:
+        return ALLOW
+    first = pos[0][1]
+    second = pos[1][1] if len(pos) > 1 else None
+    if _dynamic(first):
+        return deny("github-merge-or-main-write")  # `gh "$CMD" ...` cannot be inspected
+    sub = first.text
+    if sub == "pr" and second is not None and (second.text == "merge" or _dynamic(second)):
+        return deny("github-merge-or-main-write")
+    if sub == "alias" and second is not None and second.text in ("set", "import"):
+        return deny("github-merge-or-main-write")  # an alias could hide `pr merge`
+    if sub == "api":
+        return check_gh_api(args[pos[0][0] + 1:])
+    return ALLOW
+
+
+# `gh api` flags as cobra/pflag parses them (`gh api --help`). Short flags may
+# be clustered (`-iXPUT`) and take their value attached, after `=`, or as the
+# next word (`-XPUT`, `-X=PUT`, `-X PUT`); every form is normalized to the
+# long name before checking (Codex review on #577, second pass, P1).
+GH_API_SHORT_VALUE = {
+    "X": "--method", "f": "--raw-field", "F": "--field", "H": "--header",
+    "q": "--jq", "t": "--template", "p": "--preview",
+}
+GH_API_SHORT_BOOL = frozenset("ih")
+GH_API_LONG_VALUE = frozenset(GH_API_SHORT_VALUE.values()) | {"--cache", "--hostname", "--input"}
+GH_API_LONG_BOOL = frozenset({"--include", "--help", "--paginate", "--silent", "--slurp", "--verbose"})
+
+
+def _gh_api_options(args: list[Word]) -> tuple[list[tuple[str, Word | None]], list[Word], bool]:
+    """Return ((long flag, value) pairs, positionals, uncertain).
+
+    uncertain is set for an unknown short flag or a flag word that holds a
+    variable: its arity is unknown, so a later word might be the endpoint.
+    """
+    opts: list[tuple[str, Word | None]] = []
+    positionals: list[Word] = []
+    uncertain = False
+    i = 0
+    while i < len(args):
+        word, text = args[i], args[i].text
+        nxt = args[i + 1] if i + 1 < len(args) else None
+        if text == "--":
+            positionals += args[i + 1:]
+            break
+        if text.startswith("--"):
+            name, eq, value = text.partition("=")
+            if name in GH_API_LONG_VALUE:
+                if eq:
+                    opts.append((name, replace(word, text=value)))
+                else:
+                    opts.append((name, nxt))
+                    i += 1
+            elif name not in GH_API_LONG_BOOL or _dynamic(word):
+                uncertain = True  # unknown arity: a later word might be the endpoint
+            i += 1
+            continue
+        if text.startswith("-") and text != "-":
+            j = 1
+            while j < len(text):
+                char = text[j]
+                if char in GH_API_SHORT_BOOL:
+                    j += 1
+                    continue
+                if char in GH_API_SHORT_VALUE:
+                    rest = text[j + 1:]
+                    if rest:
+                        opts.append((GH_API_SHORT_VALUE[char], replace(word, text=rest.removeprefix("="))))
+                    else:
+                        opts.append((GH_API_SHORT_VALUE[char], nxt))
+                        i += 1
+                    break
+                uncertain = True
+                break
+            else:
+                if _dynamic(word):
+                    uncertain = True  # `-i$X`: the variable may hold more flags
+            i += 1
+            continue
+        positionals.append(word)
+        i += 1
+    return opts, positionals, uncertain
+
+
+def check_gh_api(args: list[Word]) -> Decision:
+    opts, endpoints, uncertain = _gh_api_options(args)
+    method: str | None = "?" if uncertain else None
+    has_fields = False
+    field_values: list[Word] = []
+    for name, value in opts:
+        if name == "--method":
+            method = "?" if value is None or _dynamic(value) else value.text.upper()
+        elif name in ("--field", "--raw-field", "--input"):
+            has_fields = True
+            if value is not None:
+                field_values.append(value)
+            if name == "--input":
+                field_values.append(Word(text="@input"))
+    effective = method or ("POST" if has_fields else "GET")
+    if effective == "GET" or not endpoints:
+        return ALLOW
+    if effective not in GH_WRITE_METHODS and effective != "?":
+        return ALLOW  # HEAD and friends do not write
+    paths = [(endpoint, _gh_endpoint(endpoint.text)) for endpoint in endpoints]
+    if paths[0][1] == "graphql" and not uncertain:
+        # Only the query text can carry a mutation; other fields are GraphQL
+        # variables (`gh api --help`), so a variable passed from the shell is
+        # fine (Codex review on #577, P2). A query from a file, stdin, a shell
+        # variable or --input cannot be inspected.
+        for value in field_values:
+            if value.text == "@input":
+                return deny("github-merge-or-main-write")
+            name, eq, body = value.text.partition("=")
+            if _dynamic(value) and not (eq and re.fullmatch(r"\w+=", value.text[: len(name) + 1])):
+                # `-f "$FIELD"`: the field name itself may come from a variable
+                return deny("github-merge-or-main-write")
+            if name != "query":
+                continue
+            if _dynamic(value) or body.startswith("@") or GH_GRAPHQL_DENY_RE.search(body):
+                return deny("github-merge-or-main-write")
+        return ALLOW
+    # gh takes one endpoint; with an uncertain flag any positional may be it.
+    for endpoint, path in paths if uncertain else paths[:1]:
+        if path == "graphql":
+            return deny("github-merge-or-main-write")  # uncertain flags around a GraphQL call
+        if GH_API_DENY_RE.search(path):
+            return deny("github-merge-or-main-write")
+        if _dynamic(endpoint) and (not path or path.endswith("/")):
+            return deny("github-merge-or-main-write")  # the endpoint's tail comes from a variable
+    return ALLOW
 
 
 if __name__ == "__main__":
