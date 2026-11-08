@@ -49,3 +49,7 @@ heartbeat 的雲端 sandbox 對外部網站的 CONNECT 被 proxy 回 403，無�
 尚未實作或執行任何 workflow；本檔只是計畫。
 
 Refs #531
+
+## 更新 2026-11-08：自動排程
+
+`source-diagnose.yml` 加上每日 03:30 UTC 的 `schedule`。排程模式由 `scripts/pick_diagnose_targets.py` 挑最多 5 個「開著、帶 scraper＋auto-fix、標題為 `<來源>：…0 產出…`、尚無 `<!-- source-diagnose -->` 留言」的 issue（舊到新、一來源一張），逐一 dry-run 並把診斷貼回各自的 issue。沒有目標時跳過安裝與執行。約 33 張待診斷，7 天內跑完，之後新增的 issue 自動補上。手動 `workflow_dispatch` 保留。
