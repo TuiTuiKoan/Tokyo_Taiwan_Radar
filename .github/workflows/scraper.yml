@@ -65,6 +65,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: python merger.py
 
       - name: Fix reviewed events missing translations
@@ -76,6 +77,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_KEY_ANNOTATOR: ${{ secrets.OPENAI_API_KEY_ANNOTATOR }}
           OPENAI_API_KEY_ENRICH: ${{ secrets.OPENAI_API_KEY_ENRICH }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: python annotator.py --fix-reviewed
         continue-on-error: true
 
@@ -90,6 +92,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_KEY_ANNOTATOR: ${{ secrets.OPENAI_API_KEY_ANNOTATOR }}
           OPENAI_API_KEY_ENRICH: ${{ secrets.OPENAI_API_KEY_ENRICH }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: python enrich_location.py
         continue-on-error: true
 
@@ -98,6 +101,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         working-directory: scraper
         run: python enrich_addresses.py
 
@@ -122,6 +126,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: python merger.py
 
       - name: Auto-QA reconcile (close resolved reports)
@@ -129,6 +134,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: python auto_qa.py --reconcile
         continue-on-error: true
 
@@ -137,6 +143,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: python auto_qa.py
         continue-on-error: true
 
