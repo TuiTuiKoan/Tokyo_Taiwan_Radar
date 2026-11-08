@@ -19,6 +19,20 @@ from .base import BaseScraper, Event
 
 logger = logging.getLogger(__name__)
 
+
+# Peatix group links: absolute (https://peatix.com/group/123) or relative
+# (/group/123). Numeric IDs only, so nav links like /group/browse are skipped.
+_GROUP_HREF_RE = re.compile(r"(?:peatix\.com)?/group/\d+")
+
+
+def format_organizer_line(organizer_name: str, description: str | None) -> str:
+    """Return a '主催者: <name>' line for raw_description, or '' when the
+    name is empty or already present in the description."""
+    name = (organizer_name or "").strip()
+    if not name or name in (description or ""):
+        return ""
+    return f"主催者: {name}\n\n"
+
 SEARCH_URL = "https://peatix.com/search"
 _JST = timezone(timedelta(hours=9))
 
@@ -695,9 +709,9 @@ class PeatixScraper(BaseScraper):
         # (e.g. /group/browse, /group/top) whose inner_text may include extra UI text
         # like "Translate this page" that pollutes the organizer name.
         organizer_name = ""
-        for _el in page.query_selector_all("a[href*='peatix.com/group/']"):
+        for _el in page.query_selector_all("a[href*='/group/']"):
             _href = _el.get_attribute("href") or ""
-            if re.search(r"peatix\.com/group/\d+", _href):
+            if _GROUP_HREF_RE.search(_href):
                 _txt = (_el.inner_text() or "").strip()
                 # Collapse whitespace/newlines so multi-line elements show correctly
                 _txt = re.sub(r"\s+", " ", _txt)
@@ -829,7 +843,11 @@ class PeatixScraper(BaseScraper):
             if end_date and end_date != start_date:
                 date_prefix += f"〜{end_date.strftime('%Y年%m月%d日')}"
             date_prefix += "\n\n"
-        raw_desc_with_date = date_block + date_prefix + (description_ja or "")
+        # Organizer comes from the page DOM (group link), not the body text.
+        # Write it into raw_description so the annotator's organizer guard and
+        # QA can see the evidence instead of discarding the value.
+        organizer_line = format_organizer_line(organizer_name, description_ja)
+        raw_desc_with_date = date_block + date_prefix + organizer_line + (description_ja or "")
         if not (description_ja or "").strip():
             logger.warning("Peatix: empty event body after guards (date-prefix only): %s", url)
 
