@@ -42,6 +42,7 @@ jobs:
           OPENAI_API_KEY: "${{ secrets.OPENAI_API_KEY }}"
           OPENAI_API_KEY_ANNOTATOR: "${{ secrets.OPENAI_API_KEY_ANNOTATOR }}"
           OPENAI_API_KEY_ENRICH: "${{ secrets.OPENAI_API_KEY_ENRICH }}"
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: python refetch_thin_events.py --limit 20
 
       - name: Re-annotate pending events
@@ -51,4 +52,5 @@ jobs:
           OPENAI_API_KEY: "${{ secrets.OPENAI_API_KEY }}"
           OPENAI_API_KEY_ANNOTATOR: "${{ secrets.OPENAI_API_KEY_ANNOTATOR }}"
           OPENAI_API_KEY_ENRICH: "${{ secrets.OPENAI_API_KEY_ENRICH }}"
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: python annotator.py --limit 100
