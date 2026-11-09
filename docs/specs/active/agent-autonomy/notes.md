@@ -103,3 +103,15 @@
 | #574 的 Codex 審查 | 使用者在 #574 留了 `@codex review` 與 `@codexreview`，Codex 沒有回覆（#574 已在合併後才可能收到；當時 Codex App 尚未完成安裝）。審查流程改在 #577 驗證成功：每次 push 自動審（個人層級 Automatic review 已開）、找出 3 輪 P1 |
 | 結論 | D5 前提 4「D1 排程至少成功跑一次」**尚未滿足**：等 11-09 的 schedule run 再檢查，若連續 2 天都沒有 schedule run，改查 workflow 是否被 GitHub 停用或改 cron 避開整點 |
 | 下一次檢查要看 | recovery 的關閉清單（#459、#460）與 parent-rollup 動作；batch 的 5 張診斷；heartbeat 是否在診斷出現後開始取件 |
+
+## §10 D1 排程第二次檢查（2026-11-09 15:08 JST）
+
+| 項目 | 結果 |
+| --- | --- |
+| 排程是否自動跑 | **有**，但晚。11-08：zero-output-recovery 17:26 JST（預定 11:00，晚 6.4 小時）、source-diagnose-batch 20:03 JST（預定 13:00，晚 7 小時）。Daily Scraper 11-08 13:10、11-09 13:25 JST（預定 09:00，晚 4 小時以上）。11-09 檢查時兩個 D1 workflow 當天的 run 尚未出現。§9 的「排程沒跑」改判為「GitHub 排程延遲」；順序（爬蟲→回收→診斷）因每天晚的量接近而暫時沒顛倒，但沒有保證 |
+| recovery 第一次 run | 成功；關閉 #459（prtimes 恢復）、#460（waseda_taiwan 恢復）、#462、#463、#468（零星來源）＝上限 5；parent-rollup job 成功 |
+| batch | schedule run 成功（11-08 11:03Z）；另有一次手動 dispatch。共 10 張診斷，留言有 source-diagnose 標記與 stderr；production log 擷取是否出現尚未逐張核對 |
+| heartbeat v2 | 02:06 JST 那輪對 10 張已診斷的 0 產出 issue 全部轉 needs-human（#475–#479、#490–#492、#603、#604），**沒有開任何修復 PR**。理由都依 v2 規則：例外無、Actions 上來源正常（需查 production 紀錄）、頁面 0 卡片但無法重現（需家用環境）、過濾邏輯正確且附建議的 `source_expectations.json` 片段（如 `hankyu_kobe`）。行為符合設計，沒有誤修 |
+| 觀察 | 0 產出類 issue 經診斷後，**大多不是程式 bug**，所以泳道 1 對這一類產出很少自動 PR；它的價值在把「需要人」的原因講清楚。累積的 `source_expectations.json` 建議片段要由人（或日後放寬白名單）套用，建議週審時一次處理 |
+| D5 前提 4 | 排程至少成功跑過一次：**已滿足**（recovery 與 batch 各一次） |
+| 後續 | 每日監控改由排程「D1 排程每日監控」寫在 #592；延遲若持續超過 6 小時，改成非整點 cron |
