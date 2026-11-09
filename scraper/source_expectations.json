@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-10-23",
+  "updated_at": "2026-11-09",
   "note": "Expected output pattern per scraper run key (scraper_runs.source), used by eval_scraper_quality.py. pattern: seasonal (active_months, 1-12) | sporadic (max_quiet_days) | broken (issue). Conclusions from #327 unless noted. Remove a broken entry when its issue closes.",
   "sources": {
     "oaff": {"pattern": "seasonal", "active_months": [2, 3, 4], "note": "大阪アジアン映画祭，每年 3 月舉行"},
@@ -19,6 +19,9 @@
     "kino_cinema_shinsaibashi": {"pattern": "sporadic", "max_quiet_days": 180, "note": "戲院，取決於台灣片上映"},
     "kbc_cinema": {"pattern": "sporadic", "max_quiet_days": 180, "note": "戲院，取決於台灣片上映"},
     "ttcg_umeda": {"pattern": "sporadic", "max_quiet_days": 180, "note": "戲院，列表 19 部片，取決於台灣片上映"},
-    "cinelibre_kobe": {"pattern": "sporadic", "max_quiet_days": 180, "note": "戲院，列表 12 部片，取決於台灣片上映"}
+    "cinelibre_kobe": {"pattern": "sporadic", "max_quiet_days": 180, "note": "戲院，列表 12 部片，取決於台灣片上映"},
+    "hankyu_umeda": {"pattern": "sporadic", "max_quiet_days": 180, "note": "百貨催事，台灣相關不定期；列表 69 件、過濾邏輯已確認（#491 診斷）"},
+    "hankyu_hakata": {"pattern": "sporadic", "max_quiet_days": 180, "note": "百貨催事，台灣相關不定期；列表 16 件、過濾邏輯已確認（#479 診斷）"},
+    "hankyu_kobe": {"pattern": "sporadic", "max_quiet_days": 180, "note": "百貨催事，台灣相關不定期（阪急台湾フェア等）；列表 68 件、過濾邏輯已確認（#490 診斷）"}
   }
 }
