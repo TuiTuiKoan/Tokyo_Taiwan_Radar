@@ -1,5 +1,13 @@
 name: Zero-output Recovery
 
+# Spec: docs/specs/active/agent-autonomy/proposal.md §10 (Phase E, E6); issue #620
+# (closes #563 trigger part; refs #614: workflow_run cannot fix a late Daily Scraper).
+#
+# Trigger: runs when Daily Scraper completes (schedule runs only, not cancelled),
+# so it sees today's scraper_runs instead of guessing a clock time. The cron is a
+# fallback for when GitHub skipped the Daily Scraper run: job `guard` skips the
+# fallback if a workflow_run-triggered run already succeeded today (UTC).
+# source-diagnose-batch.yml chains off this workflow's completion.
 # Close "<source>：…0 產出…" scraper issues whose source has produced events
 # again (spec docs/specs/active/agent-autonomy/proposal.md §8, D1③).
 #
@@ -17,8 +25,11 @@ name: Zero-output Recovery
 #   `gh workflow disable zero-output-recovery.yml`.
 
 on:
+  workflow_run:
+    workflows: ["Daily Scraper"]
+    types: [completed]
   schedule:
-    - cron: "0 2 * * *"  # 11:00 JST, after the 09:00 daily scrape
+    - cron: "0 6 * * *"  # 15:00 JST fallback; skipped if a workflow_run run succeeded today
   workflow_dispatch:
     inputs:
       dry_run:
@@ -37,7 +48,38 @@ env:
   MAX_CLOSE: 5
 
 jobs:
+  # Fallback-cron guard. For schedule events: skip when a workflow_run-triggered run
+  # of this workflow already succeeded today (UTC). Other events never skip.
+  guard:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion != 'cancelled' && github.event.workflow_run.event == 'schedule')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          skip=false
+          if [ "$EVENT" = "schedule" ]; then
+            day=$(date -u +%F)
+            n=$(gh api "repos/$GH_REPO/actions/workflows/zero-output-recovery.yml/runs" \
+              -f event=workflow_run -f status=success -f "created=>=$day" -f per_page=1 --jq '.total_count')
+            echo "workflow_run-triggered successes today ($day, UTC): $n"
+            if [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -gt 0 ]; then skip=true; fi
+          fi
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+          echo "skip=$skip (event=$EVENT)"
+
   recover:
+    needs: guard
+    if: needs.guard.outputs.skip != 'true'
     environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -126,6 +168,8 @@ jobs:
   # scripts/ci/parent_rollup.py and plan-critique-2 G16, G17. Comments once per
   # state, adds or withdraws ready-to-close, never closes the parent. No secrets.
   parent-rollup:
+    needs: guard
+    if: needs.guard.outputs.skip != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
