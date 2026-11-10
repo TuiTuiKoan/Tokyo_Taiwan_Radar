@@ -25,6 +25,10 @@
 
 - [ ] D1 證據工廠、D2 提示詞 v2、D4 週審 digest、D5 第二車道（proposal §9）依各自 issue 完成，D3 由使用者裁決 go／no-go；14 天盤點（每週關閉 issue 數、PR 中位等待天數、revert 數）寫進 `notes.md`
 
+## Phase E: 消化率（proposal §10）
+
+- [ ] E1 診斷含 production log、E6 排程改 workflow_run、E5 量測行上線；E2 登記 PR 與 E3 分流合併；E4 `merge-readiness` 跑一週後使用者裁決 D3；四週盤點（每週淨關閉、needs-human 存量、合併的 heartbeat PR 數）寫進 `notes.md`
+
 ## Verification
 
 - [ ] `python3 -m pytest scripts/claude/tests scripts/tests -q` 全綠；`python3 scripts/sync_ai_adapters.py --check` 通過

@@ -115,3 +115,15 @@
 | 觀察 | 0 產出類 issue 經診斷後，**大多不是程式 bug**，所以泳道 1 對這一類產出很少自動 PR；它的價值在把「需要人」的原因講清楚。累積的 `source_expectations.json` 建議片段要由人（或日後放寬白名單）套用，建議週審時一次處理 |
 | D5 前提 4 | 排程至少成功跑過一次：**已滿足**（recovery 與 batch 各一次） |
 | 後續 | 每日監控改由排程「D1 排程每日監控」寫在 #592；延遲若持續超過 6 小時，改成非整點 cron |
+
+## §11 Phase E 規劃與評審（2026-11-10）
+
+| 項目 | 內容 |
+| --- | --- |
+| 起因 | D1 上線三天，open 130、needs-human 39→46、heartbeat 0 張修復 PR；使用者要求規劃「消化 issue、自動測試、驗證 PR」的改善方案 |
+| 根因查證 | #600（另一 session，11-08 合併）重寫 `source-diagnose.yml`：拿掉 #571 的 report job、加重複排程、scraper 步驟持有 `GH_TOKEN`、不再移除 `needs-diagnosis`。另外 #571 的 report job 本身用 `2>/dev/null` 吞掉下載錯誤，11-08 的「取不到」在 #600 之前就發生 |
+| 評審 | [plan-critique-3.md](./plan-critique-3.md)：go with changes，3 blocker、6 major。Codex 不可用，Claude plan-critic 代評，同一模型家族 |
+| 採納 | 全部。E1 去掉 `2>/dev/null`、補 token 與 needs-diagnosis 兩個回歸、刪 `pick_diagnose_targets.py`、timeout 調整；E2 登記條件加「過濾前 >0 筆」、上限 120 天、每張 ≤5 條、同時只一張 open PR、政策表移出白名單並由 PR Tier 檢查；E3 砍一次性腳本、家用 IP 輸出只當參考；E4 縮成 digest 唯讀判定、不做 label、D3 維持 no-go；E5 以 digest 的 REST 計算為準並加護欄指標；E1 與 E6 合成一張 PR；E6 改兩層 workflow_run、`!= cancelled`、保底 cron、#614 改 Refs |
+| 不採納 | 無 |
+| 已做 | E5 的監控提示詞已更新（agent 建立的排程，agent 可改） |
+| 開的 issue | #620（E1＋E6）、#621（E2）、#622（E3）、#623（E4＋E5） |
