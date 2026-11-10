@@ -97,3 +97,48 @@ def test_cli_appends_block_and_rejects_bad_names(px, tmp_path):
     assert "403 Client Error" in text and "這次執行的 log 沒有提到這個來源" in text
     assert px.main(["--class", "Bad;rm", "--source", "x", "--output", str(out)]) == 2
     assert px.main(["--class", "A", "--source", "x", "--log", str(log), "--output", str(out)]) == 2
+
+
+ANSI_LOG = (
+    "2026-11-10T05:00:00.0000000Z \x1b[36;1m2026-11-10 05:00:00,000 [INFO]\x1b[0m __main__: "
+    "=== Starting scraper: PrtimesScraper ===\r\n"
+    + "".join(
+        f"2026-11-10T05:00:{i:02d}.0000000Z \x1b[31m[WARN]\x1b[0m line {i}\x1b]0;title\x07\x00\r\n"
+        for i in range(1, 80)
+    )
+    + "2026-11-10T05:02:00.0000000Z __main__: PrtimesScraper: logged 3 events to scraper_runs\n"
+    + "2026-11-10T05:02:01.0000000Z __main__: Total events scraped: 3\n"
+)
+
+
+def test_ansi_and_control_characters_are_stripped(px):
+    got = px.excerpt(ANSI_LOG, "PrtimesScraper", "prtimes")
+    assert got is not None
+    joined = "\n".join(got)
+    assert "\x1b" not in joined and "\x07" not in joined and "\x00" not in joined and "\r" not in joined
+    assert "[31m" not in joined and "[0m" not in joined
+    assert got[0].endswith("=== Starting scraper: PrtimesScraper ===")
+    assert "[WARN] line 1" in got[1]
+
+
+def test_ansi_log_keeps_head_tail_and_budget(px):
+    got = px.excerpt(ANSI_LOG, "PrtimesScraper", "prtimes")
+    assert len(got) == px.MAX_LINES
+    assert "中間" in got[px.HEAD_LINES]
+    assert "logged 3 events" in got[-1]
+    assert "line 79" in got[-2]
+
+
+def test_strip_control_keeps_newline_and_tab(px):
+    assert px.strip_control("a\x1b[1mb\x1b[0m\tc\nd\x01e") == "ab\tc\nde"
+
+
+def test_main_cleans_escape_sequences_from_file(px, tmp_path):
+    log = tmp_path / "run.log"
+    log.write_text(ANSI_LOG, encoding="utf-8")
+    out = tmp_path / "out.md"
+    assert px.main(["--class", "PrtimesScraper", "--source", "prtimes",
+                    "--log", str(log), "--label", "run 1", "--output", str(out)]) == 0
+    text = out.read_text(encoding="utf-8")
+    assert "\x1b" not in text
+    assert "=== Starting scraper: PrtimesScraper ===" in text

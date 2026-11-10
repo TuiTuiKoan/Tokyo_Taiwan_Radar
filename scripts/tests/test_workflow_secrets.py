@@ -101,3 +101,12 @@ def test_source_diagnose_main_py_step_has_no_token(root):
 def test_source_diagnose_has_no_schedule(root):
     data = yaml.safe_load((root / ".github" / "workflows" / "source-diagnose.yml").read_text(encoding="utf-8"))
     assert "schedule" not in _triggers(data), "picking targets belongs to source-diagnose-batch.yml only"
+
+
+def test_source_diagnose_job_log_downloads_allow_escape_sequences(root):
+    """gh >= 2.8x refuses job logs (they contain ANSI) unless --allow-escape-sequences is passed."""
+    text = (root / ".github" / "workflows" / "source-diagnose.yml").read_text(encoding="utf-8")
+    calls = [ln for ln in text.splitlines() if re.search(r"gh api\b.*actions/jobs/.*/logs", ln)]
+    assert calls, "expected at least one job-logs download"
+    for ln in calls:
+        assert "--allow-escape-sequences" in ln, ln

@@ -219,11 +219,16 @@ jobs:
               echo "- run $run：沒有名為 scrape 的 job" >> "$NOTES"
               continue
             fi
-            if gh api "repos/$GH_REPO/actions/jobs/$job/logs" > "$RUNNER_TEMP/prodlogs/$run.log" 2> "$RUNNER_TEMP/log.err"; then
+            if gh api --allow-escape-sequences "repos/$GH_REPO/actions/jobs/$job/logs" > "$RUNNER_TEMP/prodlogs/$run.log" 2> "$RUNNER_TEMP/log.err"; then
               ARGS+=(--log "$RUNNER_TEMP/prodlogs/$run.log" --label "run $run（$day，$concl）")
             else
               status=$(grep -oE 'HTTP [0-9]{3}' "$RUNNER_TEMP/log.err" | head -1 || true)
-              echo "- run $run（job $job）：log 下載失敗，${status:-HTTP 狀態不明}：$(sanitize < "$RUNNER_TEMP/log.err" | head -c 200)" >> "$NOTES"
+              firstline=$(head -n 1 "$RUNNER_TEMP/log.err" | sanitize | head -c 200)
+              if [ -n "$status" ]; then
+                echo "- run $run（job $job）：log 下載失敗，$status：$(sanitize < "$RUNNER_TEMP/log.err" | head -c 200)" >> "$NOTES"
+              else
+                echo "- run $run（job $job）：log 下載失敗：${firstline:-gh 沒有輸出錯誤訊息}" >> "$NOTES"
+              fi
             fi
           done < "$RUNNER_TEMP/runs.txt"
 
