@@ -274,6 +274,21 @@ worktree 內 commit → rebase origin/main → git push -u origin <branch>（hoo
 
 **E5 量測（grunt）。** 「D1 排程每日監控」留言加一行 `<!-- counts: open= needs-human= auto-fix= opened-24h= closed-24h= closed-by-bot-24h= -->`（2026-11-10 已改提示詞，agent 建立的排程可由 agent 改）。LLM 自己數會數錯：`weekly_digest.py` 另以 REST 計算同一組數字加護欄指標（重開數、登記數、revert 數）寫進週報，#592 的每日值只當走向參考，以週報為準。
 
+**各項建議模型（AGENTS.md「執行前的模型評估」要求；subagent 依 tier 自動投影，主對話由使用者 `/model` 切換）。**
+
+| 工作 | 角色（tier） | 模型與 effort | 理由 |
+| --- | --- | --- | --- |
+| 規劃、修訂方案 | architect（plan） | Opus high | 設計取捨；Fable 只在跨 phase 架構規劃或 Opus 卡關時用 |
+| 評審 | plan-critic（plan） | Opus high（Codex 可用時改 Codex） | 不同視角；雲端連不到 OpenAI 時同一模型家族，報告註明 |
+| E1＋E6、E2、E3、E4 的 workflow 與腳本實作 | engineer（build） | Sonnet medium | 範圍明確、有測試 |
+| 驗證（跑測試、靜態檢查、觸發矩陣） | tester（grunt） | Haiku low | 機械性；發現缺陷再退回 engineer |
+| commit、推 feature branch、開 PR | validate-merge-deploy（build）或主對話 | Sonnet medium | 照規則執行 |
+| 主對話（協調、回報、開 issue） | — | Sonnet medium | 不需要更強的模型 |
+| E2 heartbeat v3 提示詞撰寫 | architect（plan） | Opus high | 提示詞改錯會讓排程偏離，改完交 plan-critic |
+| 每日監控、heartbeat 排程本身 | 排程 agent | Sonnet（排程設定的 model） | 長期執行，成本優先 |
+
+**實際紀錄（2026-11-10）。** 方案 §10 與協調在主對話 Fable 5.1 完成（偏高，應為 Sonnet／Opus）；plan-critic 用 Opus，engineer 用 Sonnet，tester 用 Haiku。E1＋E6 兩個 commit 的 `Co-Authored-By` 誤寫 Fable 5.1，實際作者是 Sonnet（已推送，不改歷史；以 PR 留言更正）。之後 commit 訊息的署名以實際執行的模型為準，派工提示詞不再預填模型名。
+
 **不做。** 不碰 `scraper/main.py`、web、production 寫入；不放寬 heartbeat 對 `scraper/sources/` 以外路徑的修復；不自動 resolve Codex thread；不做 D3 自動合併。
 
 **順序與工時。** E1＋E6 先（一天，解除 heartbeat 判斷的阻塞；合併後 heartbeat 對「例外無、筆數 >0」的 issue 才有 production 證據可用）；E5 已做；E2、E3 第二週（各一天，E2 的 v3 提示詞需使用者貼）；E4 第三週（一天）。四週盤點寫 notes。
