@@ -1,8 +1,21 @@
 # D1 自動驗證閘門與排程修復計畫（#608、#614）
 
-狀態：待實作。建立於 2026-11-10，由排程監控 agent（#592 每日監控）在第二天的檢查後規劃。
-範圍：`.github/workflows/`、`scripts/tests/`、`scripts/ci/`。兩個 PR **陸續執行**，PR A 合併並驗證後才開 PR B。
-建議模型：本計畫與評審用 Opus high；PR A、PR B 的實作用 Sonnet medium。
+狀態：**大部分已被 #620 取代。** 建立於 2026-11-10，由排程監控 agent（#592 每日監控）在第二天的檢查後規劃。
+範圍：`.github/workflows/`、`scripts/tests/`、`scripts/ci/`。
+建議模型：本計畫與評審用 Opus high；實作用 Sonnet medium。
+
+## 0. 狀態更正（2026-11-10 12:30 UTC）
+
+| 本文的章節 | 現況 |
+| --- | --- |
+| §1 F1、F2（report job 被 #600 刪除、擷取被 `2>/dev/null` 吞掉） | 診斷正確，**已由 #620（E1）修復**：two-job split、`report` 持 `actions: read`、呼叫 `prod_log_excerpt.py`、不再吞掉失敗、移除自身 schedule、刪除 `pick_diagnose_targets.py` |
+| §1 F3（沒有任何 CI 跑 `scripts/tests`，改 workflow 的 PR 不跑測試） | **仍然成立，是本文唯一未被取代的發現**；追蹤於 #633 |
+| §1 F4（排程延遲、兩套機制重複診斷） | 延遲的量測正確，但**結論建立在過期的檔案上**（見下）。#620（E6）已經把 recovery 與 batch 改成 `workflow_run` 串接＋保底 cron＋`guard` 去重 |
+| §3 A3（還原並強化 report job）、§3 A4（cron 分鐘） | **已由 #620 完成**，不要再做 |
+| §4 整個 PR B（B0 裁決、B1 事件驅動、B2 去重閘、B3 驗證） | **已由 #620（E6）完成**，含 `75b029c4` 修掉的重複觸發 bug（Refs #620）。B0 的甲／乙／丙不需要裁決了：已採「事件＋保底 cron＋guard」並上線 |
+| §3 A1（CI 閘門）、§3 A2（契約測試） | 仍要做，見 #633 |
+
+**規劃時的錯誤，記錄下來避免再犯**：本文的 F4 與整個 PR B 是對著**過期的檔案**寫的。`zero-output-recovery.yml` 與 `source-diagnose-batch.yml` 當時是從主工作樹讀的，那裡是 detached HEAD、落後 `main` 二十四個 commit，所以看到的是 cron `0 2`／`0 4` 且沒有 `workflow_run`；`source-diagnose.yml` 則是從 `origin/main` 讀的，那部分沒有問題。同一時間另一個 session 正在跑 Phase E（notes.md §11），#620–#623 在規劃開始前就已經開出來。AGENTS.md 已經寫了「換 session 或換工具接續時，先看該 spec 的 open issue（`label:spec:<slug>`），再讀 `tasks.md` 的里程碑」——沒有照做就是這次重工的原因。**讀 repo 現況一律用 `origin/main` 或 worktree，不要用主工作樹的 checkout；規劃前先列該 spec 的 open issue。**
 
 ## 1. 為什麼要做
 
@@ -90,6 +103,8 @@ D1 證據工廠的目的是讓 heartbeat 在沒有網路的 sandbox 裡也能看
 
 ### A3 — 還原並強化 `report` job
 
+> **已由 #620（E1）完成，不要再做。** 以下保留為當時的分析紀錄。
+
 1. **先移除 `source-diagnose.yml` 的 `schedule`**（F4）。這一步不只是去重：移除之後 `inputs.sources` / `inputs.issue` 回到「一個 run 對一張 issue」的單一契約，`8b77bbc4` 的 `report` job 就能近乎原樣還原，不必為了多組 (source, issue) 配對重寫。`EVENT = schedule` 的分支一併刪除。
 2. `scripts/pick_diagnose_targets.py` 與它的測試保留（batch 日後若要改用可以直接接），在 docstring 註明目前沒有 workflow 呼叫它，避免下一個人以為它還在線上。
 3. 還原 `diagnose` / `report` 兩個 job 的拆分，連同 `8b77bbc4` 的註解區塊（它記著為什麼要拆、為什麼留言要壓在 60,000 字以內、為什麼 `main.py` 吞例外後 exit code 不可信）。
@@ -101,6 +116,8 @@ D1 證據工廠的目的是讓 heartbeat 在沒有網路的 sandbox 裡也能看
 5. 保留原有的安全性質：`diagnose` 只有 `contents: read`、不帶 secrets、產出一律當 untrusted；`report` 從預設分支 checkout `scripts/ci`、重新清洗上傳的摘要、60,000 字上限、擷取先被砍。
 
 ### A4 — cron 分鐘移開整點
+
+> **已被 #620（E6）取代**：排程改成事件驅動加保底 cron，分鐘不再是重點。
 
 把 `zero-output-recovery.yml` 與 `source-diagnose-batch.yml` 的 cron 分鐘從 `0` 移開（依 AGENTS.md 的 jitter 習慣，例如 `17 2`、`43 4`）。兩行編輯，沒有行為風險，和 PR B 的 `workflow_run` 彼此獨立。
 
@@ -118,6 +135,8 @@ D1 證據工廠的目的是讓 heartbeat 在沒有網路的 sandbox 裡也能看
 NOT TESTED（要寫進 PR body，附具體理由，不寫籠統的「缺憑證」）：`report` job 在 runner 上讀 `actions` API 的實際權限行為，只能在合併後以預設分支的身分 dispatch 才驗證得到；PR 分支上的 workflow 檔不會以排程事件的身分執行。
 
 ## 4. PR B（後）：排程穩定
+
+> **整段已由 #620（E6）完成，不要再做。** B0 的甲／乙／丙不需要裁決：已採「事件＋保底 cron＋guard 去重」並上線，`75b029c4` 另修掉了重複觸發。以下保留為當時的分析與評審紀錄（Codex 在 PR #619 上對這段提了四個 P2，都已反映在文內）。
 
 **前提**：PR A 已合併，且 A5 的合併後驗證做完。cron 分鐘已在 PR A 改掉（A4），所以 PR B 只處理觸發方式。
 

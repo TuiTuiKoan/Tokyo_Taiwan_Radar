@@ -127,3 +127,15 @@
 | 不採納 | 無 |
 | 已做 | E5 的監控提示詞已更新（agent 建立的排程，agent 可改） |
 | 開的 issue | #620（E1＋E6）、#621（E2）、#622（E3）、#623（E4＋E5） |
+
+## §12 D1 監控的規劃重工與 CI 閘門（2026-11-10）
+
+| 項目 | 內容 |
+| --- | --- |
+| 起因 | #592 的每日監控在 11-10 第二天檢查時，發現診斷留言完全沒有 production log 段落，開了 #614，並依使用者要求規劃「自動驗證開發測試到 PR」 |
+| 產出 | [plan-d1-hardening.md](./plan-d1-hardening.md)（PR #619，使用者 12:27 UTC 合併）。Codex 在該 PR 上連續五輪提了五個 P2，全部成立並修正；其中四個集中在 PR B 的「cron 保底＋去重閘」 |
+| 重工 | 該計畫的 F4 與整個 PR B 是對著**過期檔案**寫的：兩個 workflow 讀自主工作樹的 detached HEAD（落後 main 24 個 commit）。同一時間另一個 session 的 Phase E #620 已經把 A3 與整個 PR B 做完，12:18 UTC 合併，比 #619 早九分鐘。規劃前沒有列 `label:spec:agent-autonomy` 的 open issue（AGENTS.md 已有這條規則），是重工的直接原因 |
+| 差點造成的損害 | 為「還原 report job」而把 `source-diagnose.yml` 覆寫成舊的 `8b77bbc4` 版本，會回退 #620。在 commit 前發現並還原，未推送 |
+| 存活的發現 | F3：沒有任何 CI 會跑 `scripts/tests`（十九個檔案），也沒有 workflow 層的 lint，改 `.github/workflows/**` 的 PR 不跑任何測試。PR #600 的 head commit 只有三個 check（Vercel、auto-merge skipped、gitleaks），這是那次回退能無聲進 main 的機制性原因。Phase E 沒有涵蓋這點 |
+| 處置 | #633：新增 `ci-checks.yml`（PR 改到 `scripts/**`、`.github/**`、`.claude/**` 就跑 `scripts/tests` 與 `scripts/claude/tests` 共 1,273 個測試，並跑 `sync_ai_adapters.py --check`）、`test_d1_workflow_contract.py`（鎖住 #620 上線的契約）、`test_workflow_shell_syntax.py`（全 repo 194 個 `run:` 區塊的 `bash -n`）。第一版不引入 actionlint：`bash -n` 不需第三方 binary、可離線、涵蓋真正會出事的那類錯誤 |
+| 教訓 | 讀 repo 現況一律用 `origin/main` 或 worktree，不要用主工作樹的 checkout；規劃前先列該 spec 的 open issue |
