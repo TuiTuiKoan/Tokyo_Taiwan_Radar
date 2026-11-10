@@ -1,0 +1,66 @@
+name: CI Checks
+
+# Issue #633: before this workflow, a pull request that changed only `scripts/**`
+# or `.github/workflows/**` ran no tests at all. PR #600 is the case in point —
+# it rewrote source-diagnose.yml, dropped the report job that posts production
+# log excerpts (#608), and its head commit carried three checks: Vercel preview
+# comments, auto-merge (skipped) and gitleaks. The nineteen test files under
+# scripts/tests, including the ones covering those very workflows, only ran when
+# someone remembered to run them by hand.
+#
+# Safety:
+# - Read-only token, no secrets (#561): everything here must pass offline.
+# - No Playwright, no network fixtures; scraper/tests stays with scraper-tests.yml.
+# - Making this check required for merging is a repository ruleset change (human
+#   gate) and is intentionally not done here.
+
+on:
+  pull_request:
+    paths:
+      - "scripts/**"
+      - ".github/workflows/**"
+      - ".github/agents/**"
+      - ".github/prompts/**"
+      - ".github/skills/**"
+      - ".claude/**"
+      - ".codex/**"
+      - ".agents/**"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ci-checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the pull request
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        # These tests read workflows and generated adapter files; they do not
+        # import scraper code, so scraper/requirements.txt is not needed.
+        run: pip install pytest pyyaml
+
+      - name: Run script and hook tests
+        run: python -m pytest scripts/tests scripts/claude/tests -q -p no:cacheprovider
+
+      - name: Check the generated AI adapter files are in sync
+        # AGENTS.md calls this "可跑" before committing; here it is a gate, so a
+        # changed agent/skill/prompt cannot land without its projection.
+        run: python3 scripts/sync_ai_adapters.py --check
