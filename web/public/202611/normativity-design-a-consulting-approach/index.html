@@ -497,7 +497,7 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
 </head>
 <body>
 <div id="progress"></div>
-<div id="hud">← → Navigate ・ <b id="hud-cur">1</b>/<b id="hud-tot">27</b> ・ F Fullscreen</div>
+<div id="hud">← → Navigate ・ <b id="hud-cur">1</b>/<b id="hud-tot">26</b> ・ F Fullscreen</div>
 
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -574,7 +574,6 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
     </div>
   </section>
 
-  
   <section class="slide" data-accent="red">
     <svg class="shape" style="top:-50px;left:-40px;width:200px" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#FF7AA0" opacity=".4"/></svg>
     <div class="eyebrow">00 ・ How Today Runs</div>
@@ -596,54 +595,35 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
     <span class="brandfoot">RUNDOWN</span><span class="pageno">02</span>
   </section>
 
-  
   <section class="slide divider" data-accent="red">
     <div class="pillar-word">Opening</div>
-    <h2>Opening ・ 30 minutes</h2>
-    <p class="lead" style="margin-top:18px">Before getting hands-on, let’s get everyone to the same starting point: which kind of AI we’re talking about, why it skips the interface, and where design sits now.</p>
+    <h2>Design for Agentic AI</h2>
+    <ul class="clean" style="margin-top:22px">
+      <li style="font-size:24px;margin-bottom:12px">Intent Is Skipping the Graphical Interface</li>
+      <li style="font-size:24px;margin-bottom:12px">Words Are Not Neutral or Objective</li>
+      <li style="font-size:24px;margin-bottom:12px">Norm(ativity) Design</li>
+    </ul>
     <span class="pageno">03</span>
   </section>
 
-  
   <section class="slide" data-accent="red">
-    <div class="eyebrow">01 ・ Four Things ① ・ Defining the Scope</div>
-    <h2 class="title-md">When we say “AI,” what do we mean?</h2>
-    <div class="grid3 hover-fill" style="margin-top:24px">
-      <div class="card glass">
-        <span class="tag coal">Like a computer’s five senses</span>
-        <h3>Receiving and perceiving the outside world</h3>
-        <ul class="clean">
-          <li>Natural language processing</li>
-          <li>Computer vision</li>
-        </ul>
-      </div>
-      <div class="card glass">
-        <span class="tag red">Like a computer’s memory and thinking</span>
-        <h3>Organize ・ Classify ・ Propose solutions</h3>
-        <ul class="clean">
-          <li>Knowledge representation</li>
-          <li>Automated reasoning</li>
-          <li>Machine learning</li>
-        </ul>
-      </div>
-      <div class="card glass">
-        <span class="tag forest">Interacting with the physical world</span>
-        <h3>Moving through mechanical structures</h3>
-        <ul class="clean">
-          <li>Robotics</li>
-        </ul>
-      </div>
+    <div class="eyebrow">01 ・ Three Things ①</div>
+    <h2 class="title-md">Intent Is Skipping the Graphical Interface</h2>
+    <p class="lead" style="margin-top:8px;font-size:19px">It didn’t take agentic AI: Google Search started this long ago. The answer appears right on the search page, and users no longer click into any website.</p>
+    <div class="grid3 hover-fill" style="margin-top:18px;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px">
+      <div class="card glass" style="padding:16px"><span class="tag coal">olympics</span><p style="font-size:14.5px">Gives the dates, host city, number of participating countries and the motto directly, plus “related questions.”</p></div>
+      <div class="card glass" style="padding:16px"><span class="tag coal">hou hsiao hsien</span><p style="font-size:14.5px">Person card: filmography timeline, awards, books and videos, all on one page.</p></div>
+      <div class="card glass" style="padding:16px"><span class="tag coal">juicer</span><p style="font-size:14.5px">Ads, product cards, encyclopedia and comparison videos mixed together — the decision is made on the search page.</p></div>
+      <div class="card glass" style="padding:16px"><span class="tag coal">Tokyo</span><p style="font-size:14.5px">Map, flight prices, weather, administrative data and news, integrated into a single page.</p></div>
     </div>
-    <div class="callout" style="margin-top:22px">
-      Today we focus on the kind <strong>built around large language models</strong> — the input is natural language and the output is <strong>probabilistic language</strong>.<br>
-      Framing the scope first keeps the rest of the discussion from talking past each other.
+    <div class="callout" style="margin-top:20px">
+      <strong>Language penetrates inter“face” or “touch”point.</strong><br>
+      When the interface is skipped, <strong>the place where traffic and choices happen shifts too</strong> — the “narrowing options and removing ambiguity” once handled by the screen now has nowhere to happen.
     </div>
-    <div class="fineprint" style="color:#9a8a7e;margin-top:10px">📎 Artificial Intelligence: A Modern Approach — Stuart J. Russell &amp; Peter Norvig</div>
-    <span class="brandfoot">FOUR THINGS ①</span><span class="pageno">04</span>
+    <span class="brandfoot">THREE THINGS ①</span><span class="pageno">04</span>
   </section>
 
-  
-    <section class="slide shot" data-accent="red">
+  <section class="slide shot" data-accent="red">
     <img src="TTR%20sharing/fig13-google-olympics.jpg" alt="Google search “olympics”: the answer appears directly on the search page"/>
     <span class="pageno">05</span>
   </section>
@@ -663,31 +643,13 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
     <span class="pageno">08</span>
   </section>
 
-<section class="slide" data-accent="red">
-    <div class="eyebrow">01 ・ Four Things ②</div>
-    <h2 class="title-md">UX Is Skipping the Graphical Interface</h2>
-    <p class="lead" style="margin-top:8px;font-size:19px">It didn’t take agentic AI: Google Search started this long ago. The answer appears right on the search page, and users no longer click into any website.</p>
-    <div class="grid3 hover-fill" style="margin-top:18px;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px">
-      <div class="card glass" style="padding:16px"><span class="tag coal">olympics</span><p style="font-size:14.5px">Gives the dates, host city, number of participating countries and the motto directly, plus “related questions.”</p></div>
-      <div class="card glass" style="padding:16px"><span class="tag coal">hou hsiao hsien</span><p style="font-size:14.5px">Person card: filmography timeline, awards, books and videos, all on one page.</p></div>
-      <div class="card glass" style="padding:16px"><span class="tag coal">juicer</span><p style="font-size:14.5px">Ads, product cards, encyclopedia and comparison videos mixed together — the decision is made on the search page.</p></div>
-      <div class="card glass" style="padding:16px"><span class="tag coal">Tokyo</span><p style="font-size:14.5px">Map, flight prices, weather, administrative data and news, integrated into a single page.</p></div>
-    </div>
-    <div class="callout" style="margin-top:20px">
-      <strong>Language penetrates inter“face” or “touch”point.</strong><br>
-      When the interface is skipped, <strong>the place where traffic and choices happen shifts too</strong> — the “narrowing options and removing ambiguity” once handled by the screen now has nowhere to happen.
-    </div>
-    <span class="brandfoot">FOUR THINGS ②</span><span class="pageno">09</span>
-  </section>
-
-  
   <section class="slide shot" data-accent="red">
     <img src="TTR%20sharing/fig19-ambient-interface.jpg" alt="In-car circular interface: a contextual interface beyond language"/>
-    <span class="pageno">10</span>
+    <span class="pageno">09</span>
   </section>
 
   <section class="slide" data-accent="red">
-    <div class="eyebrow">01 ・ Four Things ③</div>
+    <div class="eyebrow">01 ・ Three Things ②</div>
     <h2 class="title-md">Words Are Not Neutral or Objective</h2>
     <p class="lead" style="margin-top:8px;font-size:19px">Language is imprecise and ambiguous. That is the shakiest part of agentic AI, and the first place normativity design has to work.</p>
     <div class="grid2 hover-fill" style="margin-top:20px">
@@ -714,23 +676,22 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
     <div class="callout" style="margin-top:18px">
       So “<strong>ask first, or guess first? And how do we recover from a wrong guess?</strong>” becomes a design question, not an engineering question.
     </div>
-    <span class="brandfoot">FOUR THINGS ③</span><span class="pageno">11</span>
+    <span class="brandfoot">THREE THINGS ②</span><span class="pageno">10</span>
   </section>
 
-  
-    <section class="slide shot" data-accent="red">
+  <section class="slide shot" data-accent="red">
     <img src="TTR%20sharing/fig34-mj-buddha-basketball.jpg" alt="Midjourney: 6 buddhas are playing basketball"/>
-    <span class="pageno">12</span>
+    <span class="pageno">11</span>
   </section>
 
   <section class="slide shot" data-accent="red">
     <img src="TTR%20sharing/fig35-mj-dressed-like-buddha.jpg" alt="Midjourney: 6 players dressed like buddha — rewording the prompt gives a completely different result"/>
-    <span class="pageno">13</span>
+    <span class="pageno">12</span>
   </section>
 
   <section class="slide shot" data-accent="red">
     <img src="TTR%20sharing/fig36-mj-housewives-aprons.jpg" alt="Midjourney: constraints added, such as housewives aprons and --no multiple balls"/>
-    <span class="pageno">14</span>
+    <span class="pageno">13</span>
   </section>
 
   <section class="slide shot" data-accent="red">
@@ -738,42 +699,44 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
       <img src="TTR%20sharing/chatgpt-ghibli-prompt.jpg" alt="ChatGPT: asks follow-up questions to clarify the Buddha’s image, visual style and scene before generating"/>
       <img src="TTR%20sharing/chatgpt-ghibli-result.jpg" alt="Ghibli-style image ChatGPT generated from the clarified conditions"/>
     </div>
-    <span class="pageno">15</span>
+    <span class="pageno">14</span>
   </section>
 
-<section class="slide" data-accent="red">
+  <section class="slide hover-fill" data-accent="red">
     <svg class="shape" style="bottom:-40px;right:-30px;width:240px" viewBox="0 0 100 100"><polygon points="50,0 100,100 0,100" fill="#C4E86F" opacity=".45"/></svg>
-    <div class="eyebrow">01 ・ Four Things ④</div>
+    <div class="eyebrow">01 ・ Three Things ③</div>
     <h2 class="title-lg">Norm(ativity) Design</h2>
-    <p class="lead" style="margin-top:14px">Once the interface is skipped, what design handles is no longer just the screen, but <strong>data and norms</strong>.</p>
-    <div class="flow" style="margin-top:22px">
-      <div class="node">What the AI can access</div><span class="arr">→</span>
-      <div class="node">How far it can speak</div><span class="arr">→</span>
-      <div class="node">How to recover from a wrong answer</div><span class="arr">→</span>
-      <div class="node" style="border:1.5px solid #16a34a;color:#15803d;background:var(--paper)">Auditable norms</div>
+    <p class="lead" style="margin-top:14px">As users/agents are skipping GUI, design starts focusing on <strong>“normativity = definition of right”</strong>, such as guardrails, weighted rubric, or data schema.</p>
+    <div class="flow" style="margin-top:22px;flex-wrap:nowrap;align-items:stretch">
+      <div class="card glass" style="padding:14px 18px;margin:0"><h3 style="margin:0;font-size:19px;line-height:1.3">What the AI can access</h3></div>
+      <span class="arr" style="align-self:center">→</span>
+      <div class="card glass" style="padding:14px 18px;margin:0"><h3 style="margin:0;font-size:19px;line-height:1.3">How far it can speak</h3></div>
+      <span class="arr" style="align-self:center">→</span>
+      <div class="card glass" style="padding:14px 18px;margin:0"><h3 style="margin:0;font-size:19px;line-height:1.3">How to recover from a wrong answer</h3></div>
+      <span class="arr" style="align-self:center">→</span>
+      <div class="card glass" style="padding:14px 18px;margin:0"><h3 style="margin:0;font-size:19px;line-height:1.3">Auditable norms</h3></div>
     </div>
-    <div class="pills" style="margin-top:22px">
-      <span class="pill">Agentic Workflow &amp; Agent</span>
-      <span class="pill">Generative UI</span>
-      <span class="pill">Responsible AI</span>
-      <span class="pill">Appropriate Reliance</span>
-      <span class="pill">Explainable AI</span>
-      <span class="pill">Rules as Code</span>
+    <div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-top:22px">
+      <div class="card glass" style="padding:14px 18px;margin:0"><h3 style="margin:0;font-size:15px;line-height:1.3">Agentic Workflow &amp; Agent</h3></div>
+      <div class="card glass" style="padding:14px 18px;margin:0"><h3 style="margin:0;font-size:15px;line-height:1.3">Generative UI</h3></div>
+      <div class="card glass" style="padding:14px 18px;margin:0"><h3 style="margin:0;font-size:15px;line-height:1.3">Responsible AI</h3></div>
+      <div class="card glass" style="padding:14px 18px;margin:0"><h3 style="margin:0;font-size:15px;line-height:1.3">Appropriate Reliance</h3></div>
+      <div class="card glass" style="padding:14px 18px;margin:0"><h3 style="margin:0;font-size:15px;line-height:1.3">Explainable AI</h3></div>
+      <div class="card glass" style="padding:14px 18px;margin:0"><h3 style="margin:0;font-size:15px;line-height:1.3">Rules as Code</h3></div>
     </div>
     <div class="callout" style="margin-top:20px">
       Core thesis: <strong>Normativity design = progressively converging “probabilistic behavior” into “auditable norms.”</strong><br>
       This is the common ground of the next three themes, and the same thing the three group exercises are doing.
     </div>
-    <span class="brandfoot">NORMATIVITY DESIGN</span><span class="pageno">16</span>
+    <span class="brandfoot">NORMATIVITY DESIGN</span><span class="pageno">15</span>
   </section>
 
-  
-    <section class="slide shot" data-accent="red">
+  <section class="slide shot" data-accent="red">
     <img src="TTR%20sharing/norm-design-trend.jpg" alt="A New Trend of Norm(ativity) Design: Persona of VUI, Generative UI, Rules as Code"/>
-    <span class="pageno">17</span>
+    <span class="pageno">16</span>
   </section>
 
-<section class="slide divider" data-accent="forest">
+  <section class="slide divider" data-accent="forest">
     <div class="pillar-word">Workshop</div>
     <h2 style="font-size:56px">Three Parallel Groups ・ 30 min</h2>
     <p class="lead" style="margin-top:18px">Details are on each group’s guide page. Here we keep only three time checks.</p>
@@ -786,9 +749,8 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
       Reminder: what comes next is <strong>not a results presentation, but sharing of experience</strong>. Please prepare two things —<br>
       ① where you got stuck in the discussion ② what this reminded you of from your own work.
     </div>
-    <span class="pageno">18</span>
+    <span class="pageno">17</span>
   </section>
-
 
   <section class="slide" data-accent="forest">
   <div class="eyebrow">04 ・ S-1</div>
@@ -828,7 +790,7 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
     <div class="agcol-body"><span class="en">Database</span><span class="en">Web Search</span><span class="en">Product / System</span><span class="en">Dev Env</span></div>
    </div>
   </div>
-  <span class="brandfoot">STRUCTURE</span><span class="pageno">08</span>
+  <span class="brandfoot">STRUCTURE</span><span class="pageno">18</span>
  </section>
 
   <section class="slide hover-fill" data-accent="forest">
@@ -876,7 +838,7 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
    <div class="layer" data-c="3"><span class="lv">3</span><div><h3>Dev Layer</h3><p>Building the product: plan → engineer → tester.</p></div></div>
    <div class="layer" data-c="4"><span class="lv">4</span><div><h3>Ops Layer</h3><p>Feedback loops, metrics, eval.</p></div></div>
   </div>
-  <span class="brandfoot">STRUCTURE</span><span class="pageno">11</span>
+  <span class="brandfoot">STRUCTURE</span><span class="pageno">19</span>
  </section>
 
   <section class="slide hover-fill" data-accent="forest">
@@ -888,7 +850,7 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
    <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">3</span><div><h3>Agent Layer ・ How dev &amp; ops agents actually operate</h3><p>Agent Session Start Checklist: read <code style="font-size:14px">SKILL.md</code> before implementing. Next time you fix a bug, crystallize the lesson back into Skill.<br><span class="fineprint" style="color:#9a8a7e;margin-top:6px">📎 <a href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/blob/main/.github/agents/scraper-expert.agent.md#L20-L24" target="_blank" style="color:#9a8a7e;text-decoration:underline">agent.md#L20–24</a></span></p></div></div>
   </div>
   <div class="callout" style="margin-top:12px">Core principle: Code solidifies, Skills evolve, Agents execute—three layers iterate to drive "auditable norms."</div>
-  <span class="brandfoot">NORMATIVITY DESIGN</span><span class="pageno">14</span>
+  <span class="brandfoot">NORMATIVITY DESIGN</span><span class="pageno">20</span>
  </section>
 
   <section class="slide hover-fill" data-accent="gold">
@@ -900,7 +862,7 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
    <div class="layer" data-c="3"><span class="lv">3</span><svg class="motif" viewBox="0 0 48 48"><defs><pattern id="mg3b" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#1F5E2B" stroke-width="1.4"/></pattern><clipPath id="mc3b"><rect x="1.5" y="1.5" width="45" height="45" rx="8"/></clipPath></defs><g clip-path="url(#mc3b)"><rect x="1.5" y="1.5" width="45" height="45" rx="8" fill="#E8F6D6"/><rect x="1.5" y="1.5" width="45" height="45" fill="url(#mg3b)" opacity="0.4"/><path d="M10 30 Q7 14 24 13 Q40 14 38 29 Q36 41 22 40 Q11 39 10 30 Z" fill="#1F5E2B" opacity="0.14"/><g transform="translate(2.4 2.4)" fill="#3A261F" opacity="0.26"><path d="M13 35 L13 24 a11 11 0 0 1 22 0 L35 35 Z"/></g><g fill="#1F5E2B"><path d="M13 35 L13 24 a11 11 0 0 1 22 0 L35 35 Z"/></g></g></svg><div><h3>Dev Side · Accumulating Coding Experience</h3><p><strong style="color:var(--red)">NEW: </strong>Designers accumulate coding <strong>Experience</strong>; Because every future user could be a Builder, Design must truly understand users.</p></div></div>
    <div class="layer" data-c="4"><span class="lv" style="color:#7B4FB8">4</span><svg class="motif" viewBox="0 0 48 48"><defs><pattern id="mg4b" width="7" height="7" patternUnits="userSpaceOnUse"><path d="M7 0 L0 0 0 7" fill="none" stroke="#7B4FB8" stroke-width="1"/></pattern><clipPath id="mc4b"><rect x="1.5" y="1.5" width="45" height="45" rx="8"/></clipPath></defs><g clip-path="url(#mc4b)"><rect x="1.5" y="1.5" width="45" height="45" rx="8" fill="#F0E6FF"/><rect x="1.5" y="1.5" width="45" height="45" fill="url(#mg4b)" opacity="0.45"/><path d="M10 29 Q7 14 24 13 Q40 14 38 28 Q36 41 22 40 Q11 39 10 29 Z" fill="#7B4FB8" opacity="0.16"/><g transform="translate(2.4 2.4)" opacity="0.26" fill="#3A261F"><circle cx="24" cy="24" r="12"/></g><circle cx="24" cy="24" r="12" fill="#7B4FB8"/><circle cx="24" cy="24" r="7" fill="#F0E6FF"/><circle cx="24" cy="24" r="3" fill="#7B4FB8"/></g></svg><div><h3>Ops Side · Integrating Data Science</h3><p><strong style="color:var(--red)">NEW:</strong> Understanding <strong>Data Science workflows</strong> and combining them with UX experiments (metrics, eval).</p></div></div>
   </div>
-  <span class="brandfoot">BEHAVIOUR</span><span class="pageno">19</span>
+  <span class="brandfoot">BEHAVIOUR</span><span class="pageno">21</span>
  </section>
 
   <section class="slide hover-fill" data-accent="gold">
@@ -916,7 +878,7 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
    <div class="card glass" style="flex:1"><span class="tag gold">04</span><h3>Eval & Roadmap</h3><p>Assess and iterate using a <strong>Roadmap</strong>.</p></div>
   </div>
   <div class="callout" style="margin-top:22px"><strong>Interpret PROBLEM → SOLUTION</strong>: Bring <strong>Business Metrics</strong> and <strong>Technical Possibility</strong> back to <strong>Real Users</strong>.</div>
-  <span class="brandfoot">BEHAVIOUR</span><span class="pageno">21</span>
+  <span class="brandfoot">BEHAVIOUR</span><span class="pageno">22</span>
  </section>
 
   <section class="slide hover-fill" data-accent="gold">
@@ -944,7 +906,7 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
      <li>Eval / Usability Testing / Value Validation</li>
     </ul></div>
   </div>
-  <span class="brandfoot">BEHAVIOUR</span><span class="pageno">22</span>
+  <span class="brandfoot">BEHAVIOUR</span><span class="pageno">23</span>
  </section>
 
   <section class="slide" data-accent="red">
@@ -954,7 +916,7 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
    <img src="TTR%20sharing/human-data.png" alt="Human-Data Interaction Flow journey sample"
     style="max-width:100%;max-height:440px;object-fit:contain;border:1.5px solid rgba(58,38,31,.15);border-radius:14px;box-shadow:0 6px 22px rgba(58,38,31,.12)"/>
   </div>
-  <span class="pageno">23</span>
+  <span class="pageno">24</span>
  </section>
 
   <section class="slide" data-accent="red">
@@ -964,7 +926,7 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
    <img src="TTR%20sharing/line-leader-flow.png" alt="Human-Data Interaction Flow manufacturing example"
     style="max-width:100%;max-height:440px;object-fit:contain;border:1.5px solid rgba(58,38,31,.15);border-radius:14px;box-shadow:0 6px 22px rgba(58,38,31,.12)"/>
   </div>
-  <span class="pageno">24</span>
+  <span class="pageno">25</span>
  </section>
 
   <section class="slide" data-accent="red">
@@ -974,7 +936,7 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
    <img src="TTR%20sharing/conceptual-hints.png" alt="Conceptual Hints: Knowledge / Ambient Intelligence, Automated Workflow, Physical AI"
     style="max-width:100%;max-height:440px;object-fit:contain;border:1.5px solid rgba(58,38,31,.15);border-radius:14px;box-shadow:0 6px 22px rgba(58,38,31,.12)"/>
   </div>
-  <span class="pageno">25</span>
+  <span class="pageno">26</span>
  </section>
 
 </div>
