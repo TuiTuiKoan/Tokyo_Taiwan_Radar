@@ -1,5 +1,14 @@
 name: Source Diagnose Batch
 
+# Spec: docs/specs/active/agent-autonomy/proposal.md §10 (Phase E, E6); issue #620.
+# Trigger: runs when Zero-output Recovery completes (so it never diagnoses an
+# issue recovery is about to close). Chain: Daily Scraper -> Zero-output Recovery
+# -> this workflow (two workflow_run levels, under GitHub's limit of three).
+# The recovery run's own event is `workflow_run` on the normal path and
+# `schedule` on its fallback cron, so both are accepted; a manual (dispatch)
+# recovery run does not trigger a batch, and neither does a skipped one. The cron below is a fallback, skipped by
+# job `guard` when a workflow_run-triggered run already succeeded today (UTC).
+#
 # Daily trigger for source-diagnose.yml (spec docs/specs/active/agent-autonomy/
 # proposal.md §8, D1①; plan-531-source-diagnosis.md 第二階段). Picks up to
 # MAX_ISSUES open scraper issues that still need a diagnosis and dispatches one
@@ -23,8 +32,11 @@ name: Source Diagnose Batch
 # rejects unknown names itself.
 
 on:
+  workflow_run:
+    workflows: ["Zero-output Recovery"]
+    types: [completed]
   schedule:
-    - cron: "0 4 * * *"  # 13:00 JST, after the 09:00 scrape and the 11:00 recovery check
+    - cron: "0 7 * * *"  # 16:00 JST fallback; skipped if a workflow_run run succeeded today
   workflow_dispatch:
     inputs:
       max_issues:
@@ -39,7 +51,36 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  guard:
+    if: github.event_name != 'workflow_run' || (!contains(fromJSON('["cancelled","skipped"]'), github.event.workflow_run.conclusion) && contains(fromJSON('["schedule","workflow_run"]'), github.event.workflow_run.event))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          skip=false
+          if [ "$EVENT" = "schedule" ]; then
+            day=$(date -u +%F)
+            n=$(gh api "repos/$GH_REPO/actions/workflows/source-diagnose-batch.yml/runs" \
+              -f event=workflow_run -f status=success -f "created=>=$day" -f per_page=1 --jq '.total_count')
+            echo "workflow_run-triggered successes today ($day, UTC): $n"
+            if [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -gt 0 ]; then skip=true; fi
+          fi
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+          echo "skip=$skip (event=$EVENT)"
+
   dispatch:
+    needs: guard
+    if: needs.guard.outputs.skip != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -98,7 +139,8 @@ jobs:
                 | awk '{s+=$1} END {print s+0}')
               if [ "$has" -gt 0 ]; then continue; fi
             fi
-            # schedule runs on the default branch; GITHUB_REF_NAME is that branch.
+            # schedule and workflow_run events run on the default branch; GITHUB_REF_NAME is that branch
+            # (for a manual dispatch it is the chosen ref, as before).
             gh workflow run source-diagnose.yml --ref "$GITHUB_REF_NAME" \
               -f sources="$src" -f issue="$n"
             echo "- #$n \`$src\`：已 dispatch" >> "$summary"
