@@ -121,14 +121,28 @@ NOT TESTED（要寫進 PR body，附具體理由，不寫籠統的「缺憑證�
 
 **前提**：PR A 已合併，且 A5 的合併後驗證做完。cron 分鐘已在 PR A 改掉（A4），所以 PR B 只處理觸發方式。
 
+### B0 — 先決定要不要保留 cron（使用者裁決）
+
+下面 B1、B2 的設計是「`workflow_run` 事件驅動 ＋ cron 保底 ＋ 去重閘」。這個組合在評審中被連續挑出三個缺陷（見 B2 末段），全部來自「兩條觸發路徑要對同一次爬蟲達成一致」這件事。複雜度幾乎都是 cron 保底帶來的，所以在實作前先把簡化選項擺出來：
+
+| 選項 | 內容 | 代價 |
+| --- | --- | --- |
+| **甲：只留 `workflow_run`** | 拿掉兩個 workflow 的 cron，完全由 Daily Scraper 完成事件驅動。不需要去重閘 | 事件沒觸發的那天就不會跑；靠 #592 的每日監控抓到（那正是監控存在的理由） |
+| **乙：只留 cron** | 不加 `workflow_run`，只做 PR A 已完成的「分鐘移開整點」 | 延遲問題只緩解不解決（F4 顯示延遲是整體性的） |
+| **丙：事件 ＋ cron 保底** | 就是 B1、B2 | 去重閘的三個缺陷，以及日後每次改動都要維持兩條路徑一致 |
+
+**這是人類關卡**（排程行為與配額），由使用者裁決，agent 不自己選。使用者沒有指定時，建議選**甲**：它把「沒跑到」這件事交給已經在運作的監控，而不是交給一套必須自己維持一致性的機制。選甲就跳過 B2，B1 只留事件觸發那一半。
+
 ### B1 — 改成事件驅動，cron 留作保底
 
 `zero-output-recovery.yml` 與 `source-diagnose-batch.yml` 各加 `workflow_run`（`workflows: ["Daily Scraper"]`、`types: [completed]`），並保留 cron 作為「workflow_run 沒觸發」時的保底。兩者本來就假設自己在每日爬蟲之後跑，改成事件驅動之後順序有保證，也不再被 cron 壅塞影響。
 
-順序問題（recovery 應該在 batch 之前，否則 batch 會診斷到 recovery 稍後要關閉的 issue）：**實作時先查 GitHub 對 `workflow_run` 連鎖的限制**（由 `workflow_run` 觸發的 run 能否再觸發下一個 `workflow_run`）。
+順序問題（recovery 應該在 batch 之前，否則 batch 會診斷到 recovery 稍後要關閉的 issue）有兩個選項：
 
-- 可以連鎖 → Daily Scraper → recovery → batch。
-- 不能連鎖 → 兩者都掛 Daily Scraper，接受「batch 可能診斷到 recovery 稍後會關閉的 issue」這個小浪費。batch 本來就在自己執行時重新列 open issue，所以最壞情況是多做一次診斷，不是壞資料。採這個保守值，不為了順序去寫 sleep。
+- **串接**：只有 recovery 掛 `workflow_run`；recovery 跑完以 `workflow_dispatch` 叫 batch，並把**原始 Daily Scraper 的 run id 當成 input（`scraper_run_id`）傳下去**。用 dispatch 而不是讓 batch 也掛 `workflow_run`，一是順序確定，二是不必去賭 GitHub 對 `workflow_run` 連鎖的限制。recovery 的 job 要加 `actions: write`（batch 的 `dispatch` job 已經有）。
+- **並排**：兩者都掛 Daily Scraper，接受「batch 可能診斷到 recovery 稍後會關閉的 issue」這個小浪費。batch 在自己執行時重新列 open issue，所以最壞情況是多做一次診斷，不是壞資料。
+
+採**串接**，因為並排雖然簡單，卻讓 batch 的去重 key 和 cron 的不一致（見 B2 的第三次修正）。
 
 ### B2 — 去重閘（cron 保底的必要條件）
 
@@ -136,8 +150,11 @@ NOT TESTED（要寫進 PR body，附具體理由，不寫籠統的「缺憑證�
 
 所以 cron 保底必須配一道去重閘，作為兩個 workflow 的第一個步驟。去重的鍵是「這一次的 Daily Scraper run id」，而且必須是**實際處理過的紀錄**，不能用「有沒有兄弟 run 存在」去推論：
 
+**target 一律是原始 Daily Scraper 的 run id**，三個觸發來源都要收斂到同一個值，否則兩條路的 key 不同、去重等於沒有：
+
 1. 決定這次要處理的 production run（target）：
-   - `workflow_run` 觸發 → 直接用上游的 `github.event.workflow_run.id`；`conclusion` 不是 `success` 就 `exit 0`。
+   - `workflow_run` 觸發（只有 recovery 會收到）→ 用上游的 `github.event.workflow_run.id`；`conclusion` 不是 `success` 就 `exit 0`。
+   - `workflow_dispatch` 帶 `scraper_run_id`（batch 被 recovery 串接叫起來時）→ 用這個 input，先驗證它只有數字。**不可以用 `github.event.workflow_run.id`**，那會是 recovery 自己的 run id。
    - `schedule` 觸發 → 取最近一次 `scraper.yml` 的 schedule run。它**還沒 completed 就 `exit 0`**（今天的爬蟲還在跑，交給事件觸發），completed 才取它的 id。
 2. 查這個 target id 有沒有處理紀錄；有就 `exit 0`，並在 step summary 寫明是哪一個 run id 已經處理過。
 3. 處理完成後才寫下「已處理 target id」的紀錄。
@@ -146,11 +163,15 @@ NOT TESTED（要寫進 PR body，附具體理由，不寫籠統的「缺憑證�
 
 **初稿的寫法是錯的**：原本第 2 步只比對「自己有沒有在 T 之後建立的 run」，把「run 存在」當成「已處理」。Codex 的反例成立——Daily Scraper 00:00 建立、03:00 完成，recovery 的 cron 02:17 執行：cron 當時取得的是前一天的 completed run，而「T 之後建立的自己的 run」會命中前一天的執行而跳過；03:00 事件觸發時 T 變成今天，卻會看到 02:17 那個 cron run 而同樣跳過，當天沒有人處理。改成上面的版本後兩個方向都成立：02:17 的 cron 看到今天的 run 還沒 completed 就讓位，03:00 的事件觸發查 target id 沒有紀錄就處理。（2026-11-10 Codex 評審 P2 指出；PR #619 review comment `4524114217`。）
 
+**第三次修正**：串接方案下，batch 收到的 `workflow_run.id` 會是 **recovery 的** run id，不是 Daily Scraper 的，而 cron 路徑從 `scraper.yml` 取 target——兩條路的 key 不同，事件觸發做完之後 cron 仍會判定沒處理過，再 dispatch 下一批，翻倍問題原封不動回來。所以改成 recovery 以 `workflow_dispatch` 把原始 run id 傳給 batch（B1），batch 用那個 input 查寫紀錄。（2026-11-10 Codex 評審 P2 指出；PR #619 review comment `4524152683`。）
+
 去重的鍵用 run id 而不是日期，是因為 Daily Scraper 本身會延遲跨日（F4 的 11-10 是 05:47 UTC），用日期會在跨日那天失效。第 1 步查 `scraper.yml` 的 run 需要 `actions: read`，`zero-output-recovery.yml` 的 job 目前沒有，要補。
+
+**複雜度警訊**：這道去重閘到這裡已經被改了三次（兄弟 run 推論 → 處理紀錄 → 串接時的 target 收斂），每次都是同一類錯誤：兩條觸發路徑對「這一輪是哪一次爬蟲」的認定不一致。這本身就是「cron 保底」這個決定帶來的成本。實作 PR B 之前先看 B0 的兩個簡化選項（甲、乙），不要預設一定要保留 cron。
 
 ### B3 — PR B 的驗證
 
-- 去重閘加單元測試，四個案例都要有：target id 已有紀錄 → skip；沒有紀錄 → proceed；`schedule` 觸發但最近一次 Daily Scraper 還沒 completed → skip（讓位給事件觸發）；`workflow_run` 觸發但上游 `conclusion` 不是 `success` → skip。第三、四個案例就是初稿漏掉的兩個方向。
+- 去重閘加單元測試（選丙才需要），五個案例都要有：target id 已有紀錄 → skip；沒有紀錄 → proceed；`schedule` 觸發但最近一次 Daily Scraper 還沒 completed → skip（讓位給事件觸發）；`workflow_run` 觸發但上游 `conclusion` 不是 `success` → skip。第三、四個案例是初稿漏掉的兩個方向；第五個是「`workflow_dispatch` 帶 `scraper_run_id` 時，target 與 cron 路徑算出的是同一個 id」。
 - 合併後觀察三天，由 #592 的每日監控留言記錄實際延遲。**通過判準**：`workflow_run` 觸發的 run 在 Daily Scraper 完成後一小時內出現，且每天只有一輪實際執行（另一個觸發的 run 存在但被去重閘 skip）。
 - **回退判準**：連續三天 `workflow_run` 都沒觸發 → 把 `workflow_run` 拿掉、回到純 cron，並在 #614 寫明觀察結果。
 
@@ -171,6 +192,7 @@ NOT TESTED（要寫進 PR body，附具體理由，不寫籠統的「缺憑證�
 
 - 兩個 PR 都改 `.github/workflows/`，PR Tier 會貼 `tier:1` 或 `tier:2`，由使用者按合併鍵。agent 不執行 `gh pr merge`。
 - 把 A1 的新 job 設成 required status check 需要改 repo ruleset，不在本計畫內；若要做，由使用者在 GitHub 設定。
+- **B0 的甲／乙／丙由使用者裁決**：排程行為與配額屬人類關卡，agent 不自己選。沒有指定時 PR B 不開始。
 
 ## 7. 追蹤
 
