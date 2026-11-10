@@ -39,13 +39,24 @@ _OTHER_SKIP = re.compile(r"__main__: Skipping [a-z0-9_]+ \(")
 _NOISE = ("httpx: HTTP Request:", "InsecureRequestWarning", "warnings.warn(")
 
 
+# ANSI escape sequences: CSI (ESC [ ... final), OSC (ESC ] ... BEL or ESC \\), other two-byte ESC.
+_ANSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?|\x1b[@-Z\\-_]")
+# Control characters except newline and tab (CR is dropped too: CRLF logs).
+_CTRL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+
+
+def strip_control(text: str) -> str:
+    """Remove ANSI escape sequences and other control characters; keep \\n and \\t."""
+    return _CTRL.sub("", _ANSI.sub("", text))
+
+
 def _strip(line: str) -> str:
     return _GH_TS.sub("", line.rstrip("\n"))
 
 
 def excerpt(log: str, class_name: str, source_key: str) -> list[str] | None:
     """Cleaned lines for one source in one run, or None if the run never mentions it."""
-    lines = [_strip(x) for x in log.splitlines()]
+    lines = [_strip(x) for x in strip_control(log).splitlines()]
     start_marker = f"{_START}{class_name} ==="
     skip_marker = f"Skipping {source_key} ("
     for i, line in enumerate(lines):
