@@ -944,12 +944,31 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
 
   function initFloaters(container, tiers) {
     const svgDefs = document.getElementById("floater-defs");
+    /* One fill mode per floater, never repeated on the same slide.
+       The largest floater(s) may only be "solid" or "outline" (solid line). */
+    const MODES = ["solid", "outline", "dashed", "dots", "stripes", "hatch", "grid"];
+    const pick = a => a[Math.floor(Math.random() * a.length)];
+    const maxTier = Math.max(...tiers);
+    const pool = MODES.slice();
+    const modeOf = new Array(tiers.length);
+    /* largest first, so they get their restricted choice before the pool shrinks */
+    tiers.map((t, i) => [t, i]).sort((a, b) => b[0] - a[0]).forEach(([t, i]) => {
+      const allowed = t === maxTier ? pool.filter(m => m === "solid" || m === "outline") : pool;
+      const m = pick(allowed.length ? allowed : pool);
+      pool.splice(pool.indexOf(m), 1);
+      modeOf[i] = m;
+    });
     tiers.forEach((tierIdx, slot) => {
-      createFloater(container, svgDefs, tierIdx, slot);
+      const m = modeOf[slot];
+      const fill = m === "outline" ? pick(["outlineThin", "outlineThick"])
+                 : m === "dots" ? pick(["dotsDense", "dotsSparse"])
+                 : m;
+      createFloater(container, svgDefs, tierIdx, slot, fill);
     });
   }
 
-  function createFloater(container, svgDefs, tierIdx, slotIdx) {
+  let floaterSeq = 0;
+  function createFloater(container, svgDefs, tierIdx, slotIdx, fill) {
     const tier = TIERS[tierIdx];
     const [minPx, maxPx, minSec, maxSec] = tier;
     const size = Math.round(minPx + Math.random() * (maxPx - minPx));
@@ -957,13 +976,12 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
     const delay = -Math.random() * duration;
     const drift = DRIFTS[Math.floor(Math.random() * DRIFTS.length)];
     const shape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
-    const fill = FILLS[Math.floor(Math.random() * FILLS.length)];
     const color = (fill === "solid" && tierIdx > 1) ? "#C4E86F" : COLORS[Math.floor(Math.random() * COLORS.length)];
     const opacity = 0.12 + Math.random() * 0.18;
     const rotation = Math.round(Math.random() * 360);
     const patternRotation = Math.round(Math.random() * 90) - 45;
 
-    const id = `f-${tierIdx}-${slotIdx}`;
+    const id = `f-${++floaterSeq}-${tierIdx}-${slotIdx}`; /* unique per floater: ids used to collide across slides, so patterns resolved to slide 1's def */
     const patId = `pat-${id}`;
 
     const isPat = ["dotsDense", "dotsSparse", "stripes", "hatch", "grid"].includes(fill);
@@ -1016,8 +1034,8 @@ slides.forEach((slide, idx) => {
   fl.className = "floaters";
   slide.insertBefore(fl, slide.firstChild);
   const isCover = !!slide.querySelector(".cover-mascot");
-  /* cover: 5 sizes — three smallest appear twice, two largest once; inner: three smallest */
-  const tiers = isCover ? [0, 0, 1, 1, 2, 2, 3, 4] : [0, 1, 2];
+  /* cover: 5 sizes, 7 floaters (one per fill mode, no repeats); inner: three smallest */
+  const tiers = isCover ? [0, 1, 1, 2, 2, 3, 4] : [0, 1, 2];
   window.initFloatingShapes(fl, tiers);
 });
 
