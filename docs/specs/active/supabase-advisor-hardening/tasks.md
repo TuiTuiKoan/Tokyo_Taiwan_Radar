@@ -7,6 +7,6 @@
 - [x] M1 Plan Critic 評審存檔（`plan-critique-1.md`），依評審修訂計畫
 - [x] M2 `106_advisor_security_hardening.sql` 與本機 PostgreSQL 測試
 - [x] M3 `107_rls_initplan_policy_cleanup.sql` 與本機 PostgreSQL 測試（改寫前後可見列數相同）
-- [ ] M4 更新 `database.instructions.md`，推 feature branch 並開 PR
+- [x] M4 更新 `database.instructions.md`，推 feature branch 並開 PR
 - [ ] M5 使用者在 SQL Editor dry-run 後套用 106、107；advisor read-back 與 `database.instructions.md` 標記 APPLIED
 - [ ] M6 使用者開啟外洩密碼保護；advisor read-back
