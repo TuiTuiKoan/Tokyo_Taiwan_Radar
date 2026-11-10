@@ -245,6 +245,43 @@ worktree 內 commit → rebase origin/main → git push -u origin <branch>（hoo
 
 **驗收**：前提 1–4 完成；第一張提案 PR 被合併；兩週內至少 3 張 lane2 PR 合併且 0 revert；14 天盤點記錄 lane2 的配額、已消耗／未消耗／被拒的條目數。
 
+### 10. Phase E：消化率——讓 issue 真的減少（2026-11-10 起；依 plan-critique-3 修訂）
+
+**觀察（D1 上線三天，notes §9–§10、#592）。** open issue 130；三天新開 43、關閉 22；自動關閉只有 recovery 的每天 5 張。heartbeat v2 對 20 張已診斷的 0 產出 issue 全部轉 needs-human、**0 張修復 PR**，needs-human 由 39 漲到 46、auto-fix 由 18 降到 6。原因有三：
+
+1. **診斷沒有 production log。** 兩層原因：#571 的 `report` job 用 `gh api …/logs 2>/dev/null` 把下載或 class 對應失敗吞掉，只留「取不到」（11-08 的 10 張，#608）；之後 #600（另一個 session，2026-11-08 15:22 UTC 合併）重寫 `source-diagnose.yml`，整個拿掉 `report` job（`scripts/ci/prod_log_excerpt.py` 現在沒人用），另在 workflow 內加一條每日排程（12:30 JST，`scripts/pick_diagnose_targets.py`）與 `source-diagnose-batch.yml`（13:00 JST）重複挑件，並讓跑 `main.py` 的步驟持有 `GH_TOKEN`（issues: write），不再移除 `needs-diagnosis`。heartbeat 的規則「例外無、筆數 >0 → 需查 production 紀錄」因此每張都只能轉 needs-human。
+2. **「登記為零星來源」是最常見的結論，但 agent 不能寫 `source_expectations.json`。** 建議片段散在各 issue 留言，要人逐張抄。#561 已合併（PR 不再拿到 production secrets），當初排除這個檔的理由已消失。
+3. **needs-human 沒有分流。** 46 張混在一起，使用者看不出哪些是「按一下就好」、哪些要家用 IP、哪些要判斷；週審一個早上做不完就累積。
+
+**目標。** 四週後：每週淨關閉 ≥ 新開；needs-human 存量下降；每週至少 3 張 heartbeat 修復 PR 或登記 PR 被合併。護欄指標一起看：recovery 關了又被重開的數、登記為零星的來源數、revert 數——淨關閉不能靠自動關閉灌水。量測見 E5。
+
+**E1＋E6 一張 PR：診斷修回 production log、排程改事件驅動（build）。** 同一個 PR 改 `source-diagnose.yml`、`source-diagnose-batch.yml`、`zero-output-recovery.yml`，避免再出現 #600／#571 平行改同一檔：
+- 合回 `report` job（`actions: read`、讀最近 3 次 `scraper.yml` schedule run、`prod_log_excerpt.py`、60,000 字預算）；**去掉 `2>/dev/null`**，下載失敗或 class 對應不到時把原因（HTTP 狀態、job id、找不到的 class）寫進留言。驗收：手動 dispatch `prtimes`，留言出現該來源在 production 的 `=== Starting scraper:` 段落。
+- 跑 `main.py` 的步驟不得持有 `GH_TOKEN`；`scripts/tests/test_workflow_secrets.py` 加一條：執行 scraper 的 step 的 `env` 不含 `github.token`／`secrets.*`。
+- 刪掉 workflow 內的每日排程與 `scripts/pick_diagnose_targets.py`（含測試）：它不檢查留言作者（公開 repo 任何人貼標記就能擋住診斷），也不處理 `needs-diagnosis` 與家用 IP 來源。挑件只留 batch；診斷貼出後移除 `needs-diagnosis`（#571 行為）。
+- `timeout 600` × 5 來源 = 50 分鐘，超過 job 的 45 分鐘：每來源改 `timeout 420`，job `timeout-minutes: 50`。
+- 觸發：`zero-output-recovery.yml` 改 `on: workflow_run: workflows: ["Daily Scraper"], types: [completed]`，條件 `conclusion != 'cancelled'` 且原 event 是 `schedule`；`source-diagnose-batch.yml` 改掛 `Zero-output Recovery` 完成（兩層，未超過 GitHub 的三層上限），這樣 batch 不會去診斷 recovery 正要關的 issue。兩者都保留 `workflow_dispatch`，並各留一條保底 cron（UTC 06:00、07:00，當天已跑過就直接結束），Daily Scraper 被 GitHub 略過時仍有一次機會。Closes #608、#563；Refs #614（延遲本身無法由 workflow_run 解決）。
+
+**E2 heartbeat 可寫 `source_expectations.json`，登記建議合成一張 PR（build＋使用者改提示詞）。** 白名單加 `scraper/source_expectations.json`（前提 #561 已合併）。
+- **登記條件（三者皆要）**：診斷「例外無」；診斷顯示**過濾前 >0 筆**（列表抓得到，只是沒有台灣相關；診斷留言若沒有這個數字，E1 的 report 要補印 `Found N …` 行）；過濾邏輯可從原始碼確認。「筆數 0 且過濾前也 0」是網站改版或 selector 失效的典型樣子，**不登記**，維持 needs-human（`nh:prod-check`）。
+- `max_quiet_days` 上限 **120**，不給 180／365；pattern 與天數照固定表填（百貨 120、戲院 120、研究機構 120、RSS 120、週更來源 60）。這張表放在 `scripts/ci/expectations_policy.json`（**不在 heartbeat 白名單**），PR Tier workflow 在 default branch 檢查 `source_expectations.json` 的 diff：新增條目超過表的上限、或單一 PR 新增超過 5 條，就在 PR 留言標 ⚠️ 並貼 `needs-human`。
+- 同時只能有**一張** open 的 `chore/expectations-*` PR；有就跳過本輪登記。這張 PR 是 tier 2（`pr_tier.classify` 實測），由使用者合併；body 每來源一行附診斷連結與過濾前筆數，`Refs` 各 issue、不 `Closes`——合併後由 recovery 依新設定自動關閉。
+- 提示詞改成 v3（diff：白名單一行、刪第 20 行的禁止句、改寫第 65 行分支、交付段加「登記 PR」），由使用者貼進排程。
+
+**E3 needs-human 分流（build；只改 heartbeat 提示詞與 digest）。** heartbeat 轉 needs-human 時同時貼次分類 label：`nh:home-ip`、`nh:prod-check`、`nh:decision`、`nh:stale`；轉回 auto-fix 時移除 `nh:*`。既有 46 張不寫一次性腳本，由 heartbeat 每輪補最多 10 張（依留言關鍵字），一週內補完。weekly digest 的「判斷區」依四類分組，每類一句處理方式；`nh:home-ip` 另產一行可貼到 Mac 的命令（`cd scraper && python main.py --dry-run --source a b c`）。使用者貼回的輸出**只當參考**（agent 與使用者同帳號，`<!-- home-ip-run -->` 標記擋不住偽造），不能單獨當成「可以修」的判準；真正的證據仍是 E1 的 production log 與 pr-dryrun-evidence。
+
+**E4 可合併判定併進 weekly digest（build；不做 label 狀態機）。** `weekly_digest.py` 產生時唯讀計算每張 tier 1／auto-fix PR 的四項：tests（check-runs）、dry-run 修復前 0 → 修復後 N（`<!-- pr-dryrun-evidence -->`，作者限 `github-actions[bot]`）、Codex 無未解決（`codex-review-state:v1`，作者限 `chatgpt-codex-connector[bot]`）、`mergeable_state` 非 dirty；四項齊全列在「一鍵合併區」最上面並標 ✅。不加 `ready-to-merge` label（PR Tier 在 Secret Scan 後就觸發，tests 與 dry-run 多半未完成，label 會殘留）。**D3 自動合併維持 no-go**：前提 #562、#568 仍 open；以 `GITHUB_TOKEN` 合併不會觸發 main 的 push workflow（secret-scan、web-*-smoke、eval-*）；擴大 merge job 權限屬「權限與防線」。等 E4 的 ✅ 判定跑兩週、使用者看過準確率再議。
+
+**E5 量測（grunt）。** 「D1 排程每日監控」留言加一行 `<!-- counts: open= needs-human= auto-fix= opened-24h= closed-24h= closed-by-bot-24h= -->`（2026-11-10 已改提示詞，agent 建立的排程可由 agent 改）。LLM 自己數會數錯：`weekly_digest.py` 另以 REST 計算同一組數字加護欄指標（重開數、登記數、revert 數）寫進週報，#592 的每日值只當走向參考，以週報為準。
+
+**不做。** 不碰 `scraper/main.py`、web、production 寫入；不放寬 heartbeat 對 `scraper/sources/` 以外路徑的修復；不自動 resolve Codex thread；不做 D3 自動合併。
+
+**順序與工時。** E1＋E6 先（一天，解除 heartbeat 判斷的阻塞；合併後 heartbeat 對「例外無、筆數 >0」的 issue 才有 production 證據可用）；E5 已做；E2、E3 第二週（各一天，E2 的 v3 提示詞需使用者貼）；E4 第三週（一天）。四週盤點寫 notes。
+
+**人類關卡。** 使用者：合併 E1＋E6 的 PR（新增 `actions: read` 與 `workflow_run` 觸發，屬 workflow 權限）；貼 heartbeat v3 提示詞（E2、E3）；合併每一張 `chore/expectations-*` PR（tier 2）；D3 go／no-go（維持 no-go）。其餘 agent 自做，走 tier 2 PR。
+
+**教訓（寫進 AGENTS.md 待辦 #607）。** #600 與 #571 改同一個 workflow、互不知情：動 `.github/workflows/` 前，先查該檔最近 7 天的 PR（`gh api repos/.../commits?path=…`）與 open 的 spec issue；本 spec 的 workflow 檔都在檔頭註明 spec 與 issue。
+
 ### 影響的檔案
 
 - `AGENTS.md`、`.github/copilot-instructions.md`：新增「自主程度與人類關卡」；Codex 只做 Plan Critic，規劃與實作留在 Claude。
