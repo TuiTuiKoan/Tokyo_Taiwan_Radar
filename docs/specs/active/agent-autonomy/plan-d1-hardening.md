@@ -82,9 +82,11 @@ D1 證據工廠的目的是讓 heartbeat 在沒有網路的 sandbox 裡也能看
 3. `report` job 必須有一個步驟呼叫 `scripts/ci/prod_log_excerpt.py`。
 4. `diagnose` job 不得持有 `issues: write` 或 `actions: read`（維持 untrusted 隔離：跑外部網站程式的 job 不該能寫 issue）。
 5. `source-diagnose.yml` 不得有 `schedule`（batch 是唯一排程入口，見 A3）。
-6. 所有帶 `schedule` 的 workflow，cron 的分鐘欄不得是 `0` 或 `30`（配合 PR B；先寫成測試，PR B 才改值——所以這條在 PR A 先標 `xfail` 或只涵蓋本 spec 的兩個檔案，避免一次擋住其他四十個 workflow）。
+6. `zero-output-recovery.yml` 與 `source-diagnose-batch.yml` 的 cron 分鐘欄不得是 `0` 或 `30`。
 
-第 6 條的處理方式在實作時二選一，採建議值：**PR A 只對 `zero-output-recovery.yml` 與 `source-diagnose-batch.yml` 兩個檔案斷言，PR B 改完就會綠**；其餘 workflow 的 cron 另開 issue。
+第 6 條只斷言這兩個檔案，其餘四十餘個 workflow 的 cron 另開 issue，避免一次擋住全部。
+
+**cron 分鐘的修改必須在 PR A 一起做（A4），不能留到 PR B。** 初稿把它排在 PR B 是錯的：那兩個檔案現在的分鐘都是 `0`，而 A5 要求 PR A 的契約測試全綠、PR B 又必須等 PR A 合併，PR A 於是過不了自己的閘門。縮小斷言範圍不能解決，因為失敗的正是這兩個檔案。（2026-11-10 Codex 評審 P2 指出；PR #619 review comment `4524048127`。）
 
 ### A3 — 還原並強化 `report` job
 
@@ -98,7 +100,13 @@ D1 證據工廠的目的是讓 heartbeat 在沒有網路的 sandbox 裡也能看
    - 下載成功但 log 裡沒提到這個來源（這條原本就有，保留）
 5. 保留原有的安全性質：`diagnose` 只有 `contents: read`、不帶 secrets、產出一律當 untrusted；`report` 從預設分支 checkout `scripts/ci`、重新清洗上傳的摘要、60,000 字上限、擷取先被砍。
 
-### A4 — PR A 的驗證
+### A4 — cron 分鐘移開整點
+
+把 `zero-output-recovery.yml` 與 `source-diagnose-batch.yml` 的 cron 分鐘從 `0` 移開（依 AGENTS.md 的 jitter 習慣，例如 `17 2`、`43 4`）。兩行編輯，沒有行為風險，和 PR B 的 `workflow_run` 彼此獨立。
+
+放在 PR A 的理由有兩個：A2 第 6 條的契約測試要有東西可驗（見上），而且「測試和它測的東西在同一個 PR」本來就是這次回退給的教訓。這一步單獨不會根治延遲（F4 顯示延遲是整體性的），只是避開整點高峰。
+
+### A5 — PR A 的驗證
 
 | 層 | 做什麼 | 什麼時候 |
 | --- | --- | --- |
@@ -111,7 +119,7 @@ NOT TESTED（要寫進 PR body，附具體理由，不寫籠統的「缺憑證�
 
 ## 4. PR B（後）：排程穩定
 
-**前提**：PR A 已合併，且 A4 的合併後驗證做完。
+**前提**：PR A 已合併，且 A5 的合併後驗證做完。cron 分鐘已在 PR A 改掉（A4），所以 PR B 只處理觸發方式。
 
 ### B1 — 改成事件驅動，cron 留作保底
 
@@ -122,14 +130,22 @@ NOT TESTED（要寫進 PR body，附具體理由，不寫籠統的「缺憑證�
 - 可以連鎖 → Daily Scraper → recovery → batch。
 - 不能連鎖 → 兩者都掛 Daily Scraper，接受「batch 可能診斷到 recovery 稍後會關閉的 issue」這個小浪費。batch 本來就在自己執行時重新列 open issue，所以最壞情況是多做一次診斷，不是壞資料。採這個保守值，不為了順序去寫 sleep。
 
-### B2 — cron 分鐘改非整點
+### B2 — 去重閘（cron 保底的必要條件）
 
-依 AGENTS.md 的 jitter 習慣，把兩個 cron 的分鐘從 `0` 移開（例如 `17 2`、`43 4`）。這一步單獨不會根治延遲（F4 顯示延遲是整體性的），但它讓 A2 第 6 條的契約測試有意義，也避開整點高峰。
+**「加 `workflow_run`、cron 留著保底」單獨寫出來是錯的**：兩個觸發都正常時會每天跑兩輪，正好重現 F4 要消掉的處理量翻倍。現有的 `concurrency`（兩個 workflow 都是 `cancel-in-progress: false`）只防同時執行，不防同一天處理兩次；而第二輪不會空轉——batch 只跳過「已經有診斷留言」的 issue，所以它會接著挑下一批五張，recovery 的 `MAX_CLOSE=5` 也只是單次執行的上限。（2026-11-10 Codex 評審 P2 指出；PR #619 review comment `4524048136`。）
+
+所以 cron 保底必須配一道去重閘，作為兩個 workflow 的第一個步驟，去重的鍵是「這一次的 Daily Scraper run」而不是日期：
+
+1. 取最近一次 completed 的 `scraper.yml` schedule run，記下它的 `created_at`（T）與 run id。
+2. 列自己這個 workflow 在 T 之後建立的 run（`event=workflow_run` 與 `event=schedule` 都要列），排除自己。
+3. 有任何一個就 `exit 0`，並在 step summary 寫明「這次的 Daily Scraper run（id）已由 <event> 觸發的 run 處理過」。
+
+只需要 `actions: read`（`zero-output-recovery.yml` 的 job 目前沒有，要補）。用 run id 當鍵而不是日期，是因為 Daily Scraper 本身也會延遲跨日（F4 的 11-10 是 05:47 UTC），用日期會在跨日那天失效。
 
 ### B3 — PR B 的驗證
 
-- A2 的 cron 契約測試在 PR 上自動擋住整點。
-- 合併後觀察三天，由 #592 的每日監控留言記錄實際延遲。**通過判準**：`workflow_run` 觸發的 run 在 Daily Scraper 完成後一小時內出現。
+- 去重閘加單元測試：同一個 Daily Scraper run id 已被處理時回報 skip，沒被處理時回報 proceed。
+- 合併後觀察三天，由 #592 的每日監控留言記錄實際延遲。**通過判準**：`workflow_run` 觸發的 run 在 Daily Scraper 完成後一小時內出現，且每天只有一輪實際執行（另一個觸發的 run 存在但被去重閘 skip）。
 - **回退判準**：連續三天 `workflow_run` 都沒觸發 → 把 `workflow_run` 拿掉、回到純 cron，並在 #614 寫明觀察結果。
 
 ## 5. 風險
@@ -139,7 +155,9 @@ NOT TESTED（要寫進 PR body，附具體理由，不寫籠統的「缺憑證�
 | `workflow_run` 連鎖深度限制 | B1 已寫兩條路；實作時先查文件再決定，不假設可以連鎖 |
 | actionlint 對既有 workflow 噴大量既存問題 | A1 第一版只掃 PR 改動到的檔案；全掃另開 issue |
 | 新 CI job 讓改 `.github/` 的 PR 變慢 | 預估一兩分鐘，可接受；A1 開 `cancel-in-progress` |
-| A2 第 6 條一次擋住其他四十個 workflow 的 cron | A2 已限定只斷言本 spec 的兩個檔案 |
+| A2 第 6 條一次擋住其他四十個 workflow 的 cron | A2 已限定只斷言本 spec 的兩個檔案；其餘另開 issue |
+| PR A 過不了自己的契約測試（cron 分鐘還沒改） | cron 分鐘改到 PR A（A4）。初稿把它排在 PR B 才會有這個矛盾 |
+| `workflow_run` 與 cron 都觸發，每天跑兩輪 | B2 的去重閘，鍵是 Daily Scraper 的 run id；沒有這道閘就不要保留 cron |
 | F2 的根因可能不在這三個失敗點 | A3 第 4 項讓它寫出理由；若四種理由都不符，再依留言內容另開 issue，不在這個計畫裡猜 |
 
 ## 6. 人類關卡
