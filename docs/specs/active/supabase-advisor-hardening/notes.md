@@ -118,3 +118,583 @@ Performance：
 
   七個外鍵索引中最大的是 `field_corrections`（約 1.3 萬列），一般 `CREATE INDEX` 的 ShareLock 只會維持很短的時間。
 - `rls_auto_enable()` 完整定義見本檔「函式（改前）」一節與 106 的測試 fixture；event trigger `ensure_rls` 監聽 `ddl_command_end`。
+
+## 逐字 policy（engineer 查詢，2026-11-10）
+
+來源：Supabase MCP 唯讀 `select … from pg_policies`（PostgreSQL 17.6）。17 張表共 43 條 policy；`roles` 是 `roles::text`；`USING`／`WITH CHECK` 保留 `pg_policies` 輸出的換行與縮排。107 的 `DO` 區塊把空白收成單一空格再比對，並把 `( SELECT auth.uid() AS uid)` 視為 `@UID@`。
+
+轉錄驗證：用同一個正規化在 production 與本檔資料各算 `md5(string_agg(t|p|pm|c|r|qual|with_check order by t,p))`，都是 `bba798042ca5853f9dfb37be41f90a50`（43 列）。
+
+
+### account_usage
+
+**Users read own account usage** — PERMISSIVE, SELECT, roles `{authenticated}`
+
+```sql
+-- USING
+(auth.uid() = user_id)
+-- WITH CHECK
+NULL
+```
+
+
+### aeo_visits
+
+**Admins read aeo_visits** — PERMISSIVE, SELECT, roles `{public}`
+
+```sql
+-- USING
+(EXISTS ( SELECT 1
+   FROM user_roles
+  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::text))))
+-- WITH CHECK
+NULL
+```
+
+**Anyone can insert aeo_visit** — PERMISSIVE, INSERT, roles `{public}`
+
+```sql
+-- USING
+NULL
+-- WITH CHECK
+true
+```
+
+
+### announcement_events
+
+**announcement_events_admin_all** — PERMISSIVE, ALL, roles `{public}`
+
+```sql
+-- USING
+(EXISTS ( SELECT 1
+   FROM user_roles
+  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::text))))
+-- WITH CHECK
+(EXISTS ( SELECT 1
+   FROM user_roles
+  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::text))))
+```
+
+**announcement_events_public_read** — PERMISSIVE, SELECT, roles `{public}`
+
+```sql
+-- USING
+(EXISTS ( SELECT 1
+   FROM announcements a
+  WHERE ((a.id = announcement_events.announcement_id) AND (a.published_at IS NOT NULL) AND (a.published_at <= now()))))
+-- WITH CHECK
+NULL
+```
+
+
+### announcements
+
+**announcements_admin_all** — PERMISSIVE, ALL, roles `{public}`
+
+```sql
+-- USING
+(EXISTS ( SELECT 1
+   FROM user_roles
+  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::text))))
+-- WITH CHECK
+(EXISTS ( SELECT 1
+   FROM user_roles
+  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::text))))
+```
+
+**announcements_public_read** — PERMISSIVE, SELECT, roles `{public}`
+
+```sql
+-- USING
+((published_at IS NOT NULL) AND (published_at <= now()))
+-- WITH CHECK
+NULL
+```
+
+
+### app_settings
+
+**Admin full access on app_settings** — PERMISSIVE, ALL, roles `{authenticated}`
+
+```sql
+-- USING
+(EXISTS ( SELECT 1
+   FROM user_roles
+  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::text))))
+-- WITH CHECK
+(EXISTS ( SELECT 1
+   FROM user_roles
+  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::text))))
+```
+
+**app_settings_lock_key_immutable** — RESTRICTIVE, ALL, roles `{authenticated}`
+
+```sql
+-- USING
+(key <> 'admin_reports_cleanup_maintenance'::text)
+-- WITH CHECK
+(key <> 'admin_reports_cleanup_maintenance'::text)
+```
+
+
+### creator_events
+
+**Admins manage creator_events** — PERMISSIVE, ALL, roles `{public}`
+
+```sql
+-- USING
+(EXISTS ( SELECT 1
+   FROM user_roles
+  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::text))))
+-- WITH CHECK
+NULL
+```
+
+
+### event_reports
+
+**Admins can update reports** — PERMISSIVE, UPDATE, roles `{public}`
+
+```sql
+-- USING
+(EXISTS ( SELECT 1
+   FROM user_roles
+  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::text))))
+-- WITH CHECK
+NULL
+```
+
+**Admins can view reports** — PERMISSIVE, SELECT, roles `{public}`
+
+```sql
+-- USING
+(EXISTS ( SELECT 1
+   FROM user_roles
+  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::text))))
+-- WITH CHECK
+NULL
+```
+
+**Anyone can submit reports** — PERMISSIVE, INSERT, roles `{public}`
+
+```sql
+-- USING
+NULL
+-- WITH CHECK
+true
+```
+
+**event_reports_machine_tokens_block_insert** — RESTRICTIVE, INSERT, roles `{anon,authenticated}`
+
+```sql
+-- USING
+NULL
+-- WITH CHECK
+(NOT (EXISTS ( SELECT 1
+   FROM unnest(event_reports.report_types) token(value)
+  WHERE ((token.value = ANY (ARRAY['scopeReviewNonJapan'::text, 'auto_security_prompt_injection'::text])) OR (token.value ~~ 'scopeDecision:%'::text) OR (token.value ~~ 'scopeRegion:%'::text) OR (token.value ~~ 'scopeHash:%'::text) OR (token.value ~~ 'securityHash:%'::text) OR (token.value ~~ 'securitySeverity:%'::text)))))
+```
+
+**event_reports_maint_block_delete** — RESTRICTIVE, DELETE, roles `{public}`
+
+```sql
+-- USING
+(NOT admin_reports_maintenance_active())
+-- WITH CHECK
+NULL
+```
+
+**event_reports_maint_block_insert** — RESTRICTIVE, INSERT, roles `{public}`
+
+```sql
+-- USING
+NULL
+-- WITH CHECK
+(NOT admin_reports_maintenance_active())
+```
+
+**event_reports_maint_block_update** — RESTRICTIVE, UPDATE, roles `{public}`
+
+```sql
+-- USING
+(NOT admin_reports_maintenance_active())
+-- WITH CHECK
+(NOT admin_reports_maintenance_active())
+```
+
+
+### event_views
+
+**Admins read event_views** — PERMISSIVE, SELECT, roles `{public}`
+
+```sql
+-- USING
+(EXISTS ( SELECT 1
+   FROM user_roles
+  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::text))))
+-- WITH CHECK
+NULL
+```
+
+**Anyone can insert event_view** — PERMISSIVE, INSERT, roles `{public}`
+
+```sql
+-- USING
+NULL
+-- WITH CHECK
+true
+```
+
+
+### field_corrections
+
+**Admin full access on field_corrections** — PERMISSIVE, ALL, roles `{authenticated}`
+
+```sql
+-- USING
+(EXISTS ( SELECT 1
+   FROM user_roles
+  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::text))))
+-- WITH CHECK
+(EXISTS ( SELECT 1
+   FROM user_roles
+  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::text))))
+```
+
+**field_corrections_maint_block_delete** — RESTRICTIVE, DELETE, roles `{public}`
+
+```sql
+-- USING
+(NOT admin_reports_maintenance_active())
+-- WITH CHECK
+NULL
+```
+
+**field_corrections_maint_block_insert** — RESTRICTIVE, INSERT, roles `{public}`
+
+```sql
+-- USING
+NULL
+-- WITH CHECK
+(NOT admin_reports_maintenance_active())
+```
+
+**field_corrections_maint_block_update** — RESTRICTIVE, UPDATE, roles `{public}`
+
+```sql
+-- USING
+(NOT admin_reports_maintenance_active())
+-- WITH CHECK
+(NOT admin_reports_maintenance_active())
+```
+
+
+### quota_snapshots
+
+**Admins can view quota_snapshots** — PERMISSIVE, SELECT, roles `{authenticated}`
+
+```sql
+-- USING
+(EXISTS ( SELECT 1
+   FROM user_roles
+  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::text))))
+-- WITH CHECK
+NULL
+```
+
+
+### research_reports
+
+**Admins can update research_reports** — PERMISSIVE, UPDATE, roles `{public}`
+
+```sql
+-- USING
+(EXISTS ( SELECT 1
+   FROM user_roles
+  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::text))))
+-- WITH CHECK
+NULL
+```
+
+**Admins read research_reports** — PERMISSIVE, SELECT, roles `{public}`
+
+```sql
+-- USING
+(EXISTS ( SELECT 1
+   FROM user_roles
+  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::text))))
+-- WITH CHECK
+NULL
+```
+
+**Admins update research_reports** — PERMISSIVE, UPDATE, roles `{public}`
+
+```sql
+-- USING
+(EXISTS ( SELECT 1
+   FROM user_roles
+  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::text))))
+-- WITH CHECK
+NULL
+```
+
+
+### research_sources
+
+**Admins can read research_sources** — PERMISSIVE, SELECT, roles `{public}`
+
+```sql
+-- USING
+(EXISTS ( SELECT 1
+   FROM user_roles
+  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::text))))
+-- WITH CHECK
+NULL
+```
+
+**Admins can update research_sources** — PERMISSIVE, UPDATE, roles `{public}`
+
+```sql
+-- USING
+(EXISTS ( SELECT 1
+   FROM user_roles
+  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::text))))
+-- WITH CHECK
+NULL
+```
+
+**Service role can write research_sources** — PERMISSIVE, ALL, roles `{public}`
+
+```sql
+-- USING
+(auth.role() = 'service_role'::text)
+-- WITH CHECK
+NULL
+```
+
+
+### scraper_runs
+
+**Admins read scraper_runs** — PERMISSIVE, SELECT, roles `{public}`
+
+```sql
+-- USING
+(EXISTS ( SELECT 1
+   FROM user_roles
+  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::text))))
+-- WITH CHECK
+NULL
+```
+
+
+### selection_reason_corrections
+
+**admin_full_src** — PERMISSIVE, ALL, roles `{authenticated}`
+
+```sql
+-- USING
+(EXISTS ( SELECT 1
+   FROM user_roles
+  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::text))))
+-- WITH CHECK
+(EXISTS ( SELECT 1
+   FROM user_roles
+  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::text))))
+```
+
+**selection_reason_corrections_maint_block_delete** — RESTRICTIVE, DELETE, roles `{public}`
+
+```sql
+-- USING
+(NOT admin_reports_maintenance_active())
+-- WITH CHECK
+NULL
+```
+
+**selection_reason_corrections_maint_block_insert** — RESTRICTIVE, INSERT, roles `{public}`
+
+```sql
+-- USING
+NULL
+-- WITH CHECK
+(NOT admin_reports_maintenance_active())
+```
+
+**selection_reason_corrections_maint_block_update** — RESTRICTIVE, UPDATE, roles `{public}`
+
+```sql
+-- USING
+(NOT admin_reports_maintenance_active())
+-- WITH CHECK
+(NOT admin_reports_maintenance_active())
+```
+
+
+### source_exclusions
+
+**source_exclusions_admin_all** — PERMISSIVE, ALL, roles `{authenticated}`
+
+```sql
+-- USING
+is_admin()
+-- WITH CHECK
+is_admin()
+```
+
+**source_exclusions_admin_select** — PERMISSIVE, SELECT, roles `{authenticated}`
+
+```sql
+-- USING
+is_admin()
+-- WITH CHECK
+NULL
+```
+
+
+### user_roles
+
+**Users read own role** — PERMISSIVE, SELECT, roles `{public}`
+
+```sql
+-- USING
+(auth.uid() = user_id)
+-- WITH CHECK
+NULL
+```
+
+
+### works
+
+**Admins can manage works** — PERMISSIVE, ALL, roles `{public}`
+
+```sql
+-- USING
+(EXISTS ( SELECT 1
+   FROM user_roles
+  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::text))))
+-- WITH CHECK
+(EXISTS ( SELECT 1
+   FROM user_roles
+  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::text))))
+```
+
+**Anyone can read works** — PERMISSIVE, SELECT, roles `{public}`
+
+```sql
+-- USING
+true
+-- WITH CHECK
+NULL
+```
+
+**works_maint_block_delete** — RESTRICTIVE, DELETE, roles `{public}`
+
+```sql
+-- USING
+(NOT admin_reports_maintenance_active())
+-- WITH CHECK
+NULL
+```
+
+**works_maint_block_insert** — RESTRICTIVE, INSERT, roles `{public}`
+
+```sql
+-- USING
+NULL
+-- WITH CHECK
+(NOT admin_reports_maintenance_active())
+```
+
+**works_maint_block_update** — RESTRICTIVE, UPDATE, roles `{public}`
+
+```sql
+-- USING
+(NOT admin_reports_maintenance_active())
+-- WITH CHECK
+(NOT admin_reports_maintenance_active())
+```
+
+
+## Table grant 與 RLS（engineer 查詢，2026-11-10）
+
+`has_table_privilege` 在 `anon`／`authenticated`／`service_role` 上對 S/I/U/D 的結果。沒有任何表設 FORCE RLS，所有列出的表 `relrowsecurity = t`。
+
+| 表 | anon | authenticated | service_role |
+| --- | --- | --- | --- |
+| `account_usage` | 無 | SELECT | SIUD |
+| `creators` | 無 | SIUD | SIUD |
+| 其餘（`user_roles`、`event_reports`、`scraper_runs`、`research_*`、`event_views`、`creator_events`、`aeo_visits`、`announcements`、`announcement_events`、`field_corrections`、`selection_reason_corrections`、`quota_snapshots`、`works`、`app_settings`、`source_exclusions`、`events`、`category_corrections`、`field_corrections_audit`） | SIUD | SIUD | SIUD |
+
+## 其他 fixture 依據（engineer 查詢，2026-11-10）
+
+- `auth.uid()`、`auth.role()`：`LANGUAGE sql STABLE`，`coalesce(nullif(current_setting('request.jwt.claim.sub'|'request.jwt.claim.role', true), ''), (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub'|'role'))`，`::uuid`／`::text`。完整定義在 `scraper/tests/test_advisor_hardening.py` 的 `SUPER_SQL`。
+- `*_updated_at` trigger 掛載：`update_announcements_updated_at` → `announcements`；`set_creators_updated_at` → `creators`；`works_set_updated_at` → `works`；`set_updated_at` → `events`、`organizers`、`sources`、`venues`。
+- 函式 ACL：`admin_list_users`、`admin_reports_maintenance_active` 沒有 PUBLIC 項目（`{postgres,anon,authenticated,service_role}`）；`is_admin`、`rls_auto_enable` 與 4 個 trigger 函式有 `=X`（PUBLIC）。
+- event trigger `ensure_rls`：`ddl_command_end`，tag `CREATE TABLE`／`CREATE TABLE AS`／`SELECT INTO`，enabled `O`，函式 `rls_auto_enable`（owner `postgres`）。其他 event trigger（`pgrst_ddl_watch`、`issue_pg_*`）屬於 `supabase_admin`，不受影響。
+- 7 個 FK 的現有索引：無任何一個以該欄位開頭（`field_corrections` 只有 `event_id`、`report_id` 部分索引、`(event_id, field_name)`）。
+- `admin_list_users()` COMMENT 逐字：`Admin-only RPC; uses auth.uid() first, then request.jwt.claim.sub fallback for SQL Editor testing.`；`is_admin()`、`admin_reports_maintenance_active()`、`rls_auto_enable()` 原本沒有 COMMENT。
+
+## 本機 PostgreSQL 16 測試輸出（engineer，2026-11-10）
+
+`cd scraper && python3 -m pytest tests/test_advisor_hardening.py -q`：34 passed。EXPLAIN（`costs off`，30000 列 `aeo_visits`）：
+
+
+```text
+=== aeo_visits (admin) :: before 107 ===
+Seq Scan on aeo_visits
+  Filter: ($0 AND (path = '/p5'::text))
+  InitPlan 1 (returns $0)
+    ->  Seq Scan on user_roles
+          Filter: ((role = 'admin'::text) AND ((COALESCE(NULLIF(current_setting('request.jwt.claim.sub'::text, true), ''::text), ((NULLIF(current_setting('request.jwt.claims'::text, true), ''::text))::jsonb ->> 'sub'::text)))::uuid = user_id) AND (user_id = (COALESCE(NULLIF(current_setting('request.jwt.claim.sub'::text, true), ''::text), ((NULLIF(current_setting('request.jwt.claims'::text, true), ''::text))::jsonb ->> 'sub'::text)))::uuid))
+
+=== aeo_visits (admin) :: after 107 ===
+Seq Scan on aeo_visits
+  Filter: ($2 AND (path = '/p5'::text))
+  InitPlan 3 (returns $2)
+    ->  Result
+          One-Time Filter: ($1 = $0)
+          InitPlan 1 (returns $0)
+            ->  Result
+          InitPlan 2 (returns $1)
+            ->  Result
+          ->  Seq Scan on user_roles
+                Filter: ((user_id = $0) AND (role = 'admin'::text))
+
+=== aeo_visits (anon) :: before 107 ===
+Seq Scan on aeo_visits
+  Filter: ($0 AND (path = '/p5'::text))
+  InitPlan 1 (returns $0)
+    ->  Seq Scan on user_roles
+          Filter: ((role = 'admin'::text) AND ((COALESCE(NULLIF(current_setting('request.jwt.claim.sub'::text, true), ''::text), ((NULLIF(current_setting('request.jwt.claims'::text, true), ''::text))::jsonb ->> 'sub'::text)))::uuid = user_id) AND (user_id = (COALESCE(NULLIF(current_setting('request.jwt.claim.sub'::text, true), ''::text), ((NULLIF(current_setting('request.jwt.claims'::text, true), ''::text))::jsonb ->> 'sub'::text)))::uuid))
+
+=== aeo_visits (anon) :: after 107 ===
+Seq Scan on aeo_visits
+  Filter: (false AND (path = '/p5'::text))
+
+=== user_roles (user) :: before 107 ===
+Seq Scan on user_roles
+  Filter: ((COALESCE(NULLIF(current_setting('request.jwt.claim.sub'::text, true), ''::text), ((NULLIF(current_setting('request.jwt.claims'::text, true), ''::text))::jsonb ->> 'sub'::text)))::uuid = user_id)
+
+=== user_roles (user) :: after 107 ===
+Seq Scan on user_roles
+  Filter: ($0 = user_id)
+  InitPlan 1 (returns $0)
+    ->  Result
+
+=== account_usage (user) :: before 107 ===
+Seq Scan on account_usage
+  Filter: ((COALESCE(NULLIF(current_setting('request.jwt.claim.sub'::text, true), ''::text), ((NULLIF(current_setting('request.jwt.claims'::text, true), ''::text))::jsonb ->> 'sub'::text)))::uuid = user_id)
+
+=== account_usage (user) :: after 107 ===
+Seq Scan on account_usage
+  Filter: ($0 = user_id)
+  InitPlan 1 (returns $0)
+    ->  Result
+```
+
+
+讀法：
+- admin 型 policy 改前就是 `InitPlan 1`，每個語句評估一次；改後多幾層 `Result` InitPlan（`auth.uid()` 被拆成 `$0`、`$1`），每語句仍只算一次，所以 `aeo_visits` 沒有可量的效能差。
+- `anon` 查 `aeo_visits`：改前要規劃並執行 admin 子查詢；改後 admin policy 不再套用，計畫變成 `Filter: (false AND …)`。
+- `user_roles`、`account_usage`：改前 `Filter` 內每列呼叫 `current_setting`／`jsonb` 取值；改後 `InitPlan` 一次。這才是實際省下的部分。
