@@ -4,10 +4,14 @@ name: Source Diagnose Batch
 # Trigger: runs when Zero-output Recovery completes (so it never diagnoses an
 # issue recovery is about to close). Chain: Daily Scraper -> Zero-output Recovery
 # -> this workflow (two workflow_run levels, under GitHub's limit of three).
-# The recovery run's own event is `workflow_run` on the normal path and
-# `schedule` on its fallback cron, so both are accepted; a manual (dispatch)
-# recovery run does not trigger a batch, and neither does a skipped one. The cron below is a fallback, skipped by
-# job `guard` when a workflow_run-triggered run already succeeded today (UTC).
+# Only a recovery run that was itself started by Daily Scraper (event
+# `workflow_run`) forwards here; recovery's fallback-cron run (event `schedule`),
+# a manual recovery run, and a cancelled or skipped one do not. This workflow's
+# own cron (07:00 UTC) is the fallback. Job `guard` skips every non-manual run
+# when an earlier run today (UTC) already ran the `dispatch` job, so no issue is
+# dispatched twice in a day (a run whose `dispatch` job was skipped does not count).
+# The dispatch below uses GITHUB_TOKEN: workflow_dispatch is one of the events
+# GitHub allows GITHUB_TOKEN to trigger, so source-diagnose.yml still starts.
 #
 # Daily trigger for source-diagnose.yml (spec docs/specs/active/agent-autonomy/
 # proposal.md §8, D1①; plan-531-source-diagnosis.md 第二階段). Picks up to
@@ -51,8 +55,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Duplicate guard: see the file header. Manual dispatch never skips.
   guard:
-    if: github.event_name != 'workflow_run' || (!contains(fromJSON('["cancelled","skipped"]'), github.event.workflow_run.conclusion) && contains(fromJSON('["schedule","workflow_run"]'), github.event.workflow_run.event))
+    if: github.event_name != 'workflow_run' || (!contains(fromJSON('["cancelled","skipped"]'), github.event.workflow_run.conclusion) && github.event.workflow_run.event == 'workflow_run')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -68,12 +73,20 @@ jobs:
         run: |
           set -euo pipefail
           skip=false
-          if [ "$EVENT" = "schedule" ]; then
+          if [ "$EVENT" != "workflow_dispatch" ]; then
             day=$(date -u +%F)
-            n=$(gh api "repos/$GH_REPO/actions/workflows/source-diagnose-batch.yml/runs" \
-              -f event=workflow_run -f status=success -f "created=>=$day" -f per_page=1 --jq '.total_count')
-            echo "workflow_run-triggered successes today ($day, UTC): $n"
-            if [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -gt 0 ]; then skip=true; fi
+            # Earlier runs of this workflow today (UTC), not manual, not this run.
+            gh api "repos/$GH_REPO/actions/workflows/source-diagnose-batch.yml/runs" \
+              -f status=success -f "created=>=$day" -f per_page=30 \
+              --jq ".workflow_runs[] | select(.event != \"workflow_dispatch\" and .id != $GITHUB_RUN_ID) | .id" > "$RUNNER_TEMP/earlier.txt"
+            # A run whose `dispatch` job was skipped by this guard also concludes
+            # `success`; only a run whose `dispatch` job succeeded counts as "already ran".
+            while read -r id; do
+              [[ "$id" =~ ^[0-9]+$ ]] || continue
+              c=$(gh api "repos/$GH_REPO/actions/runs/$id/jobs" --jq '[.jobs[] | select(.name == "dispatch")][0].conclusion // "none"')
+              echo "run $id: dispatch job = $c"
+              if [ "$c" = "success" ]; then skip=true; break; fi
+            done < "$RUNNER_TEMP/earlier.txt"
           fi
           echo "skip=$skip" >> "$GITHUB_OUTPUT"
           echo "skip=$skip (event=$EVENT)"

@@ -5,8 +5,9 @@ name: Zero-output Recovery
 #
 # Trigger: runs when Daily Scraper completes (schedule runs only, not cancelled),
 # so it sees today's scraper_runs instead of guessing a clock time. The cron is a
-# fallback for when GitHub skipped the Daily Scraper run: job `guard` skips the
-# fallback if a workflow_run-triggered run already succeeded today (UTC).
+# fallback for when GitHub skipped the Daily Scraper run: job `guard` skips any
+# non-manual run if an earlier run today (UTC) already ran the `recover` job
+# (a run whose `recover` job was skipped by the guard does not count).
 # source-diagnose-batch.yml chains off this workflow's completion.
 # Close "<source>：…0 產出…" scraper issues whose source has produced events
 # again (spec docs/specs/active/agent-autonomy/proposal.md §8, D1③).
@@ -48,8 +49,8 @@ env:
   MAX_CLOSE: 5
 
 jobs:
-  # Fallback-cron guard. For schedule events: skip when a workflow_run-triggered run
-  # of this workflow already succeeded today (UTC). Other events never skip.
+  # Duplicate guard: skip when an earlier non-manual run today (UTC) already
+  # succeeded in the `recover` job. Manual dispatch never skips.
   guard:
     if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion != 'cancelled' && github.event.workflow_run.event == 'schedule')
     runs-on: ubuntu-latest
@@ -67,12 +68,20 @@ jobs:
         run: |
           set -euo pipefail
           skip=false
-          if [ "$EVENT" = "schedule" ]; then
+          if [ "$EVENT" != "workflow_dispatch" ]; then
             day=$(date -u +%F)
-            n=$(gh api "repos/$GH_REPO/actions/workflows/zero-output-recovery.yml/runs" \
-              -f event=workflow_run -f status=success -f "created=>=$day" -f per_page=1 --jq '.total_count')
-            echo "workflow_run-triggered successes today ($day, UTC): $n"
-            if [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -gt 0 ]; then skip=true; fi
+            # Earlier runs of this workflow today (UTC), not manual, not this run.
+            gh api "repos/$GH_REPO/actions/workflows/zero-output-recovery.yml/runs" \
+              -f status=success -f "created=>=$day" -f per_page=30 \
+              --jq ".workflow_runs[] | select(.event != \"workflow_dispatch\" and .id != $GITHUB_RUN_ID) | .id" > "$RUNNER_TEMP/earlier.txt"
+            # A run whose `recover` job was skipped by this guard also concludes
+            # `success`; only a run whose `recover` job succeeded counts as "already ran".
+            while read -r id; do
+              [[ "$id" =~ ^[0-9]+$ ]] || continue
+              c=$(gh api "repos/$GH_REPO/actions/runs/$id/jobs" --jq '[.jobs[] | select(.name == "recover")][0].conclusion // "none"')
+              echo "run $id: recover job = $c"
+              if [ "$c" = "success" ]; then skip=true; break; fi
+            done < "$RUNNER_TEMP/earlier.txt"
           fi
           echo "skip=$skip" >> "$GITHUB_OUTPUT"
           echo "skip=$skip (event=$EVENT)"
