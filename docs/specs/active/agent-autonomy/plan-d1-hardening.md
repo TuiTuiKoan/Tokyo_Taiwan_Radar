@@ -134,17 +134,23 @@ NOT TESTED（要寫進 PR body，附具體理由，不寫籠統的「缺憑證�
 
 **「加 `workflow_run`、cron 留著保底」單獨寫出來是錯的**：兩個觸發都正常時會每天跑兩輪，正好重現 F4 要消掉的處理量翻倍。現有的 `concurrency`（兩個 workflow 都是 `cancel-in-progress: false`）只防同時執行，不防同一天處理兩次；而第二輪不會空轉——batch 只跳過「已經有診斷留言」的 issue，所以它會接著挑下一批五張，recovery 的 `MAX_CLOSE=5` 也只是單次執行的上限。（2026-11-10 Codex 評審 P2 指出；PR #619 review comment `4524048136`。）
 
-所以 cron 保底必須配一道去重閘，作為兩個 workflow 的第一個步驟，去重的鍵是「這一次的 Daily Scraper run」而不是日期：
+所以 cron 保底必須配一道去重閘，作為兩個 workflow 的第一個步驟。去重的鍵是「這一次的 Daily Scraper run id」，而且必須是**實際處理過的紀錄**，不能用「有沒有兄弟 run 存在」去推論：
 
-1. 取最近一次 completed 的 `scraper.yml` schedule run，記下它的 `created_at`（T）與 run id。
-2. 列自己這個 workflow 在 T 之後建立的 run（`event=workflow_run` 與 `event=schedule` 都要列），排除自己。
-3. 有任何一個就 `exit 0`，並在 step summary 寫明「這次的 Daily Scraper run（id）已由 <event> 觸發的 run 處理過」。
+1. 決定這次要處理的 production run（target）：
+   - `workflow_run` 觸發 → 直接用上游的 `github.event.workflow_run.id`；`conclusion` 不是 `success` 就 `exit 0`。
+   - `schedule` 觸發 → 取最近一次 `scraper.yml` 的 schedule run。它**還沒 completed 就 `exit 0`**（今天的爬蟲還在跑，交給事件觸發），completed 才取它的 id。
+2. 查這個 target id 有沒有處理紀錄；有就 `exit 0`，並在 step summary 寫明是哪一個 run id 已經處理過。
+3. 處理完成後才寫下「已處理 target id」的紀錄。
 
-只需要 `actions: read`（`zero-output-recovery.yml` 的 job 目前沒有，要補）。用 run id 當鍵而不是日期，是因為 Daily Scraper 本身也會延遲跨日（F4 的 11-10 是 05:47 UTC），用日期會在跨日那天失效。
+紀錄用 Actions cache，key 形如 `<workflow>-processed-<target_run_id>`（`actions/cache/restore` 查、成功後 `actions/cache/save` 寫）。實作時先確認 cache 在 job 的 `permissions` 下寫得進去；寫不進去就改用具名 artifact，`gh api "repos/<repo>/actions/artifacts?name=processed-<id>"` 可以跨 run 查詢。兩種都不需要新服務。
+
+**初稿的寫法是錯的**：原本第 2 步只比對「自己有沒有在 T 之後建立的 run」，把「run 存在」當成「已處理」。Codex 的反例成立——Daily Scraper 00:00 建立、03:00 完成，recovery 的 cron 02:17 執行：cron 當時取得的是前一天的 completed run，而「T 之後建立的自己的 run」會命中前一天的執行而跳過；03:00 事件觸發時 T 變成今天，卻會看到 02:17 那個 cron run 而同樣跳過，當天沒有人處理。改成上面的版本後兩個方向都成立：02:17 的 cron 看到今天的 run 還沒 completed 就讓位，03:00 的事件觸發查 target id 沒有紀錄就處理。（2026-11-10 Codex 評審 P2 指出；PR #619 review comment `4524114217`。）
+
+去重的鍵用 run id 而不是日期，是因為 Daily Scraper 本身會延遲跨日（F4 的 11-10 是 05:47 UTC），用日期會在跨日那天失效。第 1 步查 `scraper.yml` 的 run 需要 `actions: read`，`zero-output-recovery.yml` 的 job 目前沒有，要補。
 
 ### B3 — PR B 的驗證
 
-- 去重閘加單元測試：同一個 Daily Scraper run id 已被處理時回報 skip，沒被處理時回報 proceed。
+- 去重閘加單元測試，四個案例都要有：target id 已有紀錄 → skip；沒有紀錄 → proceed；`schedule` 觸發但最近一次 Daily Scraper 還沒 completed → skip（讓位給事件觸發）；`workflow_run` 觸發但上游 `conclusion` 不是 `success` → skip。第三、四個案例就是初稿漏掉的兩個方向。
 - 合併後觀察三天，由 #592 的每日監控留言記錄實際延遲。**通過判準**：`workflow_run` 觸發的 run 在 Daily Scraper 完成後一小時內出現，且每天只有一輪實際執行（另一個觸發的 run 存在但被去重閘 skip）。
 - **回退判準**：連續三天 `workflow_run` 都沒觸發 → 把 `workflow_run` 拿掉、回到純 cron，並在 #614 寫明觀察結果。
 
@@ -158,6 +164,7 @@ NOT TESTED（要寫進 PR body，附具體理由，不寫籠統的「缺憑證�
 | A2 第 6 條一次擋住其他四十個 workflow 的 cron | A2 已限定只斷言本 spec 的兩個檔案；其餘另開 issue |
 | PR A 過不了自己的契約測試（cron 分鐘還沒改） | cron 分鐘改到 PR A（A4）。初稿把它排在 PR B 才會有這個矛盾 |
 | `workflow_run` 與 cron 都觸發，每天跑兩輪 | B2 的去重閘，鍵是 Daily Scraper 的 run id；沒有這道閘就不要保留 cron |
+| 去重閘反而讓某一天完全沒處理 | 去重必須看「實際處理紀錄」，不能用「兄弟 run 存在」推論；cron 遇到還沒 completed 的爬蟲要讓位。初稿兩邊都踩到，見 B2 末段 |
 | F2 的根因可能不在這三個失敗點 | A3 第 4 項讓它寫出理由；若四種理由都不符，再依留言內容另開 issue，不在這個計畫裡猜 |
 
 ## 6. 人類關卡
