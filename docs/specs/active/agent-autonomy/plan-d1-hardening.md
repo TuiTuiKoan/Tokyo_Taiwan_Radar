@@ -123,13 +123,13 @@ NOT TESTED（要寫進 PR body，附具體理由，不寫籠統的「缺憑證�
 
 ### B0 — 先決定要不要保留 cron（使用者裁決）
 
-下面 B1、B2 的設計是「`workflow_run` 事件驅動 ＋ cron 保底 ＋ 去重閘」。這個組合在評審中被連續挑出三個缺陷（見 B2 末段），全部來自「兩條觸發路徑要對同一次爬蟲達成一致」這件事。複雜度幾乎都是 cron 保底帶來的，所以在實作前先把簡化選項擺出來：
+下面 B1、B2 的設計是「`workflow_run` 事件驅動 ＋ cron 保底 ＋ 去重閘」。這個組合在評審中被連續挑出四個缺陷（見 B2 末段），全部來自「兩條觸發路徑要對同一次爬蟲達成一致」這件事。複雜度幾乎都是 cron 保底帶來的，所以在實作前先把簡化選項擺出來：
 
 | 選項 | 內容 | 代價 |
 | --- | --- | --- |
 | **甲：只留 `workflow_run`** | 拿掉兩個 workflow 的 cron，完全由 Daily Scraper 完成事件驅動。不需要去重閘 | 事件沒觸發的那天就不會跑；靠 #592 的每日監控抓到（那正是監控存在的理由） |
 | **乙：只留 cron** | 不加 `workflow_run`，只做 PR A 已完成的「分鐘移開整點」 | 延遲問題只緩解不解決（F4 顯示延遲是整體性的） |
-| **丙：事件 ＋ cron 保底** | 就是 B1、B2 | 去重閘的三個缺陷，以及日後每次改動都要維持兩條路徑一致 |
+| **丙：事件 ＋ cron 保底** | 就是 B1、B2 | 去重閘的四個缺陷，以及日後每次改動都要維持兩條路徑一致 |
 
 **這是人類關卡**（排程行為與配額），由使用者裁決，agent 不自己選。使用者沒有指定時，建議選**甲**：它把「沒跑到」這件事交給已經在運作的監控，而不是交給一套必須自己維持一致性的機制。選甲就跳過 B2，B1 只留事件觸發那一半。
 
@@ -159,7 +159,9 @@ NOT TESTED（要寫進 PR body，附具體理由，不寫籠統的「缺憑證�
 2. 查這個 target id 有沒有處理紀錄；有就 `exit 0`，並在 step summary 寫明是哪一個 run id 已經處理過。
 3. 處理完成後才寫下「已處理 target id」的紀錄。
 
-紀錄用 Actions cache，key 形如 `<workflow>-processed-<target_run_id>`（`actions/cache/restore` 查、成功後 `actions/cache/save` 寫）。實作時先確認 cache 在 job 的 `permissions` 下寫得進去；寫不進去就改用具名 artifact，`gh api "repos/<repo>/actions/artifacts?name=processed-<id>"` 可以跨 run 查詢。兩種都不需要新服務。
+紀錄用 Actions cache，key 形如 `<workflow>-processed-<target_run_id>`（`actions/cache/restore` 查、成功後 `actions/cache/save` 寫）。實作時先確認 cache 在 job 的 `permissions` 下寫得進去；寫不進去就改用具名 artifact，`gh api "repos/<repo>/actions/artifacts?name=<workflow>-processed-<target_run_id>"` 可以跨 run 查詢。兩種都不需要新服務。
+
+**紀錄名稱一定要帶 workflow 命名空間**，cache key 與 artifact 名稱都要。初稿的 artifact 備援寫成 `processed-<id>`，少了命名空間：串接順序下 recovery 先寫下這個 Daily Scraper target 的紀錄，batch 接著查同一個名稱就會把 recovery 的紀錄當成自己已處理而整輪略過，一張診斷都不會 dispatch。cache key 本來就有隔離，備援路徑漏掉就等於兩條路行為不一致。（2026-11-10 Codex 評審 P2 指出；PR #619 review comment `4524751383`。）
 
 **初稿的寫法是錯的**：原本第 2 步只比對「自己有沒有在 T 之後建立的 run」，把「run 存在」當成「已處理」。Codex 的反例成立——Daily Scraper 00:00 建立、03:00 完成，recovery 的 cron 02:17 執行：cron 當時取得的是前一天的 completed run，而「T 之後建立的自己的 run」會命中前一天的執行而跳過；03:00 事件觸發時 T 變成今天，卻會看到 02:17 那個 cron run 而同樣跳過，當天沒有人處理。改成上面的版本後兩個方向都成立：02:17 的 cron 看到今天的 run 還沒 completed 就讓位，03:00 的事件觸發查 target id 沒有紀錄就處理。（2026-11-10 Codex 評審 P2 指出；PR #619 review comment `4524114217`。）
 
@@ -167,7 +169,7 @@ NOT TESTED（要寫進 PR body，附具體理由，不寫籠統的「缺憑證�
 
 去重的鍵用 run id 而不是日期，是因為 Daily Scraper 本身會延遲跨日（F4 的 11-10 是 05:47 UTC），用日期會在跨日那天失效。第 1 步查 `scraper.yml` 的 run 需要 `actions: read`，`zero-output-recovery.yml` 的 job 目前沒有，要補。
 
-**複雜度警訊**：這道去重閘到這裡已經被改了三次（兄弟 run 推論 → 處理紀錄 → 串接時的 target 收斂），每次都是同一類錯誤：兩條觸發路徑對「這一輪是哪一次爬蟲」的認定不一致。這本身就是「cron 保底」這個決定帶來的成本。實作 PR B 之前先看 B0 的兩個簡化選項（甲、乙），不要預設一定要保留 cron。
+**複雜度警訊**：這道去重閘到這裡已經被改了四次（要有去重 → 用處理紀錄而非兄弟 run 推論 → 串接時 target 收斂 → 紀錄名稱要帶 workflow 命名空間），每一次都是同一類錯誤：兩條觸發路徑、或主備兩種紀錄方式，對「這一輪是哪一次爬蟲、是誰處理的」認定不一致。這本身就是「cron 保底」這個決定帶來的成本，而且成本還在累積。實作 PR B 之前先看 B0 的兩個簡化選項（甲、乙），不要預設一定要保留 cron。
 
 ### B3 — PR B 的驗證
 
