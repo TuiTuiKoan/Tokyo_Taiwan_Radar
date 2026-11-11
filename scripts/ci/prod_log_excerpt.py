@@ -32,6 +32,8 @@ CLASS_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
 SOURCE_RE = re.compile(r"^[a-z0-9_]+$")
 # "2026-11-06T05:11:41.1063449Z " prefix that GitHub adds to every log line.
 _GH_TS = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z ")
+# GitHub job logs carry ANSI: CSI (colours), OSC (hyperlinks/titles) and other ESC sequences (#654).
+_ANSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[ -/]*[0-~]")
 _START = "=== Starting scraper: "
 # main.py logs "Skipping <key> (...)" for other sources between two sections.
 _OTHER_SKIP = re.compile(r"__main__: Skipping [a-z0-9_]+ \(")
@@ -40,7 +42,7 @@ _NOISE = ("httpx: HTTP Request:", "InsecureRequestWarning", "warnings.warn(")
 
 
 def _strip(line: str) -> str:
-    return _GH_TS.sub("", line.rstrip("\n"))
+    return _GH_TS.sub("", _ANSI.sub("", line.rstrip("\n")))
 
 
 def excerpt(log: str, class_name: str, source_key: str) -> list[str] | None:

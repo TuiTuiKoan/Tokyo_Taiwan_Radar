@@ -97,3 +97,40 @@ def test_cli_appends_block_and_rejects_bad_names(px, tmp_path):
     assert "403 Client Error" in text and "這次執行的 log 沒有提到這個來源" in text
     assert px.main(["--class", "Bad;rm", "--source", "x", "--output", str(out)]) == 2
     assert px.main(["--class", "A", "--source", "x", "--log", str(log), "--output", str(out)]) == 2
+
+
+def test_marker_with_ansi_still_matches(px):
+    log = (
+        "2026-11-06T05:11:41.1Z \x1b[36;1m=== Starting scraper: \x1b[0mTaiwanshiScraper ===\x1b[0m\n"
+        "2026-11-06T05:11:42.1Z \x1b[32mtaiwanshi: scraped 1 events\x1b[0m\n"
+    )
+    got = px.excerpt(log, "TaiwanshiScraper", "taiwanshi")
+    assert got is not None and "\x1b" not in "".join(got)
+    assert got[1].endswith("taiwanshi: scraped 1 events")
+
+
+def test_ansi_before_timestamp_is_stripped(px):
+    log = "\x1b[0m2026-11-06T05:11:41.1Z === Starting scraper: AScraper ===\n2026-11-06T05:11:42.1Z body\n"
+    got = px.excerpt(log, "AScraper", "a")
+    assert got == ["=== Starting scraper: AScraper ===", "body"]
+
+
+def test_charset_and_osc8_sequences_keep_label(px):
+    assert px._strip("\x1b(B\x1b[mplain") == "plain"
+    assert px._strip("\x1b]8;;https://example.com\x1b\\label\x1b]8;;\x1b\\") == "label"
+    assert px._strip("\x1b]8;;https://example.com\x07label\x1b]8;;\x07") == "label"
+
+
+def test_cli_strips_escape_bytes_from_log_file(px, tmp_path):
+    log = tmp_path / "a.log"
+    raw = (
+        "2026-11-06T05:11:41.1Z \x1b[36;1m=== Starting scraper: TaiwanshiScraper ===\x1b(B\x1b[m\n"
+        "2026-11-06T05:11:42.1Z \x1b[0mtaiwanshi: ok\x1b[0m\n"
+    )
+    log.write_bytes(raw.encode("utf-8"))
+    out = tmp_path / "report.md"
+    assert px.main(["--class", "TaiwanshiScraper", "--source", "taiwanshi", "--log", str(log),
+                    "--label", "run 1", "--output", str(out)]) == 0
+    text = out.read_text(encoding="utf-8")
+    assert "taiwanshi: ok" in text
+    assert "\x1b" not in text and "[0m" not in text and "(B" not in text
