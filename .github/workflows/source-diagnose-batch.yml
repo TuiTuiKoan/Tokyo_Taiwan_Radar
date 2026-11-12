@@ -76,7 +76,7 @@ jobs:
           if [ "$EVENT" != "workflow_dispatch" ]; then
             day=$(date -u +%F)
             # Earlier runs of this workflow today (UTC), not manual, not this run.
-            gh api "repos/$GH_REPO/actions/workflows/source-diagnose-batch.yml/runs" \
+            gh api -X GET "repos/$GH_REPO/actions/workflows/source-diagnose-batch.yml/runs" \
               -f status=success -f "created=>=$day" -f per_page=30 \
               --jq ".workflow_runs[] | select(.event != \"workflow_dispatch\" and .id != $GITHUB_RUN_ID) | .id" > "$RUNNER_TEMP/earlier.txt"
             # A run whose `dispatch` job was skipped by this guard also concludes
