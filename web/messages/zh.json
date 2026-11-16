@@ -803,6 +803,9 @@
     "FilterLocale": "語系",
     "AllCategories": "全部類別",
     "AllLocales": "全部語系",
+    "FilterVisitor": "訪客類型",
+    "Visitor_exclude_bots": "排除 bot（預設）",
+    "Visitor_all": "全部",
     "unsaved_confirm": "表單尚未保存，確定要取消嗎？",
     "analyticsCollectedMonthlyTitle": "每月新收錄活動（過去 12 個月）",
     "ByTrafficSource": "流量來源分佈",
@@ -815,7 +818,8 @@
     "trafficSourceDirect": "直接訪問",
     "trafficSourceOther": "其他外部連結",
     "trafficSourceUnknown": "未追蹤（舊資料）",
-    "bulkExcludedNotice": "範圍複審報告已排除於批次確認，請逐筆檢視後處理。"
+    "bulkExcludedNotice": "範圍複審報告已排除於批次確認，請逐筆檢視後處理。",
+    "analyticsBotsExcludedNote": "已排除判定為 bot 的瀏覽。2026 年 11 月以前的紀錄只排除了已知 bot，仍混有部分未識別的 bot。"
   },
   "report": {
     "aiDisclaimer": "AI選取可能有誤差，如果發現問題，歡迎提報",

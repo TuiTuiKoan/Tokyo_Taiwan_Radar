@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest, type NextFetchEvent } from "next/server";
 import { LOCALES } from "@/i18n/locales";
 import { EVENT_DETAIL_PATH, decideEventDetail, fetchEventStub } from "@/lib/eventDetailGate";
+import { detectAeoBot } from "@/lib/analytics/botDetect";
 
 const intlMiddleware = createMiddleware({
   locales: LOCALES,
@@ -15,29 +16,6 @@ const intlMiddleware = createMiddleware({
     secure: process.env.NODE_ENV === "production",
   },
 });
-
-// AEO monitoring — User-Agent → bot name
-// Order matters: more specific patterns first
-const BOT_PATTERNS: Array<[RegExp, string]> = [
-  [/GPTBot/i, "GPTBot"],
-  [/OAI-SearchBot/i, "OAI-SearchBot"],
-  [/ChatGPT-User/i, "ChatGPT-User"],
-  [/anthropic-ai/i, "Anthropic-ai"],
-  [/Claude-Web/i, "Claude-Web"],
-  [/ClaudeBot/i, "ClaudeBot"],
-  [/PerplexityBot/i, "PerplexityBot"],
-  [/Perplexity-User/i, "Perplexity-User"],
-  [/Google-Extended/i, "Google-Extended"],
-  [/Googlebot/i, "Googlebot"],
-  [/bingbot/i, "Bingbot"],
-  [/cohere-ai/i, "cohere-ai"],
-  [/Meta-ExternalAgent/i, "Meta-ExternalAgent"],
-  [/FacebookBot/i, "FacebookBot"],
-  [/YouBot/i, "YouBot"],
-  [/DuckDuckBot/i, "DuckDuckBot"],
-  [/Applebot/i, "Applebot"],
-  [/Bytespider/i, "Bytespider"],
-];
 
 // AEO monitoring — referer hostname → AI source label
 const AI_REFERER_HOSTS: Record<string, string> = {
@@ -53,14 +31,6 @@ const AI_REFERER_HOSTS: Record<string, string> = {
   "you.com": "You.com",
   "duckduckgo.com": "DuckDuckGo-AI",
 };
-
-function detectBot(ua: string | null): string | null {
-  if (!ua) return null;
-  for (const [pattern, name] of BOT_PATTERNS) {
-    if (pattern.test(ua)) return name;
-  }
-  return null;
-}
 
 function detectAiReferer(referer: string | null): string | null {
   if (!referer) return null;
@@ -109,7 +79,7 @@ export async function proxy(request: NextRequest, event: NextFetchEvent) {
   const ua = request.headers.get("user-agent");
   const referer = request.headers.get("referer");
   const country = request.headers.get("x-vercel-ip-country") ?? null;
-  const botName = detectBot(ua);
+  const botName = detectAeoBot(ua);
   const aiSource = !botName ? detectAiReferer(referer) : null;
   if (botName || aiSource) {
     const logPromise = logAeoVisit({
