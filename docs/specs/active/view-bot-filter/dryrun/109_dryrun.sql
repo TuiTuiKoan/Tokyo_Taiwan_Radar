@@ -22,7 +22,7 @@
 begin;
 set local lock_timeout = '5s';
 -- DRY RUN copy of supabase/migrations/109_event_views_visitor_class.sql:
--- identical except the final COMMIT is replaced by ROLLBACK.
+-- identical except it ends by raising a summary error, which rolls everything back.
 
 alter table public.event_views
   add column if not exists visitor_class text not null default 'unclassified',
@@ -94,9 +94,22 @@ begin
   end if;
 end $$;
 
--- Show what would change, then undo everything.
-select visitor_class, country, count(*) from public.event_views
- group by 1, 2 order by 3 desc limit 20;
+-- Show the result and undo everything. The Supabase SQL Editor only displays
+-- the last statement, so the summary is reported as an error: raising aborts
+-- the transaction (nothing is kept) and the editor shows the message.
+do $$
+declare
+  us_bot int; jp_bot int; all_bot int; unc int;
+begin
+  select count(*) filter (where country = 'US' and visitor_class = 'known_bot'),
+         count(*) filter (where country = 'JP' and visitor_class = 'known_bot'),
+         count(*) filter (where visitor_class = 'known_bot'),
+         count(*) filter (where visitor_class = 'unclassified')
+    into us_bot, jp_bot, all_bot, unc
+    from public.event_views;
+  raise exception 'DRYRUN OK (rolled back): known_bot US=%, JP=%, total=%; unclassified=%',
+    us_bot, jp_bot, all_bot, unc;
+end $$;
 
 rollback;
 
