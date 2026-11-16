@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { headers } from "next/headers";
 import { classifyReferrer, normalizeUtmSource } from "@/lib/analytics/trafficSource";
+import { classifyVisitor } from "@/lib/analytics/botDetect";
 
 function normalizeCountry(raw: string | null): string | null {
   if (!raw) return null;
@@ -29,6 +30,12 @@ export async function recordEventView(
     const country = normalizeCountry(headerList.get("x-vercel-ip-country"));
     const region = normalizeRegion(headerList.get("x-vercel-ip-country-region"));
     const trafficSource = normalizeUtmSource(utmSource) ?? classifyReferrer(headerList.get("referer"));
+    // Crawlers that run JS (Googlebot, Applebot, Bingbot…) fire this action too.
+    // Keep their rows, labelled, so dashboards can exclude them (spec view-bot-filter).
+    const { visitorClass, botName } = classifyVisitor({
+      userAgent: headerList.get("user-agent"),
+      acceptLanguage: headerList.get("accept-language"),
+    });
     const supabase = await createClient();
 
     // Exclude admin self-views (public visitors have no session → getUser returns null, no extra query)
@@ -50,6 +57,8 @@ export async function recordEventView(
       country,
       country_region: region,
       traffic_source: trafficSource,
+      visitor_class: visitorClass,
+      bot_name: botName,
     });
   } catch {
     // Analytics failures should never surface to the user — swallow silently.

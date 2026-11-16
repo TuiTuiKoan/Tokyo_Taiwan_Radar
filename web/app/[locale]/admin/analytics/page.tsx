@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { DEFAULT_VISITOR_FILTER, visitorClassesFor } from "@/lib/analytics/visitorFilter";
 import { type Locale } from "@/lib/types";
 import AdminTabNav from "@/components/AdminTabNav";
 import AnalyticsDashboard from "@/components/admin/AnalyticsDashboard";
@@ -160,6 +161,8 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
   const c24h = new Date(nowMs - 86400e3).toISOString();
   const c7d = new Date(nowMs - 7 * 86400e3).toISOString();
   const c30d = new Date(nowMs - 30 * 86400e3).toISOString();
+  // Exclude rows labelled as bots (spec view-bot-filter); keeps pre-109 "unclassified" rows.
+  const humanish = visitorClassesFor(DEFAULT_VISITOR_FILTER) ?? [];
 
   const [
     totalRes,
@@ -171,13 +174,14 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
     gsc,
     guideStatsRes,
   ] = await Promise.all([
-      supabase.from("event_views").select("id", { count: "exact", head: true }),
-      supabase.from("event_views").select("id", { count: "exact", head: true }).gte("viewed_at", c24h),
-      supabase.from("event_views").select("id", { count: "exact", head: true }).gte("viewed_at", c7d),
-      supabase.from("event_views").select("id", { count: "exact", head: true }).gte("viewed_at", c30d),
+      supabase.from("event_views").select("id", { count: "exact", head: true }).in("visitor_class", humanish),
+      supabase.from("event_views").select("id", { count: "exact", head: true }).gte("viewed_at", c24h).in("visitor_class", humanish),
+      supabase.from("event_views").select("id", { count: "exact", head: true }).gte("viewed_at", c7d).in("visitor_class", humanish),
+      supabase.from("event_views").select("id", { count: "exact", head: true }).gte("viewed_at", c30d).in("visitor_class", humanish),
       supabase
         .from("event_views")
         .select("viewed_at, locale, event_id, events(id, name_ja, name_zh, name_en)")
+        .in("visitor_class", humanish)
         .order("viewed_at", { ascending: false })
         .limit(20),
       supabase.from("events").select("category").eq("is_active", true).not("category", "is", null),
@@ -185,32 +189,28 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
       supabase.rpc("guide_stats", { p_slug: GUIDE_SLUGS[0], p_since: c30d }),
     ]);
 
-  // Bypasses PostgREST max-rows=1000 default limit using loop paging
+  // Loop paging. Advance by the rows actually returned: PostgREST caps each
+  // response at max-rows (1000), so "fewer than pageSize" does not mean done.
   let topViewRows: TopViewRow[] = [];
-  let pageViews = 0;
+  let viewsOffset = 0;
   const pageSizeViews = 5000;
-  let hasMoreViews = true;
 
-  while (hasMoreViews) {
+  while (true) {
     const { data: pageData, error: pageErr } = await supabase
       .from("event_views")
       .select("event_id, country")
       .gte("viewed_at", c30d)
-      .range(pageViews * pageSizeViews, (pageViews + 1) * pageSizeViews - 1);
+      .in("visitor_class", humanish)
+      .order("id", { ascending: true })
+      .range(viewsOffset, viewsOffset + pageSizeViews - 1);
 
     if (pageErr) {
       console.error("Error fetching event views for top ranking:", pageErr);
-      hasMoreViews = false;
-    } else if (pageData && pageData.length > 0) {
-      topViewRows = topViewRows.concat(pageData as TopViewRow[]);
-      if (pageData.length < pageSizeViews) {
-        hasMoreViews = false;
-      } else {
-        pageViews++;
-      }
-    } else {
-      hasMoreViews = false;
+      break;
     }
+    if (!pageData || pageData.length === 0) break;
+    topViewRows = topViewRows.concat(pageData as TopViewRow[]);
+    viewsOffset += pageData.length;
   }
 
   const summary = {
@@ -285,7 +285,8 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
 
       <AnalyticsDashboard locale={locale} />
 
-      <h2 className="text-base font-semibold text-fg mb-3">{t("analyticsSummaryTitle")}</h2>
+      <h2 className="text-base font-semibold text-fg mb-1">{t("analyticsSummaryTitle")}</h2>
+      <p className="text-xs text-fg-subtle mb-3">{t("analyticsBotsExcludedNote")}</p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
         {[
           { label: t("analyticsTotalViews"), value: summary.total },

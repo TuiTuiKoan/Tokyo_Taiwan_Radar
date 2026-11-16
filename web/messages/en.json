@@ -804,6 +804,9 @@
     "FilterLocale": "Locale",
     "AllCategories": "All Categories",
     "AllLocales": "All Interfaces",
+    "FilterVisitor": "Visitor type",
+    "Visitor_exclude_bots": "Exclude bots (default)",
+    "Visitor_all": "All",
     "unsaved_confirm": "Unsaved changes will be lost. Are you sure you want to cancel?",
     "ByTrafficSource": "Views by Traffic Source",
     "trafficSourceGoogle": "Google Search",
@@ -815,7 +818,8 @@
     "trafficSourceDirect": "Direct",
     "trafficSourceOther": "Other External",
     "trafficSourceUnknown": "Untracked (legacy)",
-    "bulkExcludedNotice": "Scope review reports are excluded from bulk confirmation. Review and handle each row individually."
+    "bulkExcludedNotice": "Scope review reports are excluded from bulk confirmation. Review and handle each row individually.",
+    "analyticsBotsExcludedNote": "Views identified as bots are excluded. Records before November 2026 only exclude known bots, so some unidentified bots remain."
   },
   "report": {
     "aiDisclaimer": "AI selection may have errors — report issues here",

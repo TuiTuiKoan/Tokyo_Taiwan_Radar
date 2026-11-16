@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { matchesLocation } from "@/lib/locationMarkers";
 import { matchesCity, REGIONS_WITH_CITY } from "@/lib/regionPrefectures";
 import { buildMonthRange } from "@/lib/analytics/monthlyBuckets";
+import { parseVisitorFilter, visitorClassesFor } from "@/lib/analytics/visitorFilter";
 
 export const dynamic = "force-dynamic";
 
@@ -99,6 +100,8 @@ export async function GET(req: Request) {
     const city = searchParams.get("city");
     const category = searchParams.get("category");
     const localeParam = searchParams.get("locale");
+    // Default excludes rows labelled as bots (spec view-bot-filter).
+    const visitorClasses = visitorClassesFor(parseVisitorFilter(searchParams.get("visitor")));
 
     if (!fromMonth || !toMonth) {
       return NextResponse.json({ error: "Missing fromMonth or toMonth" }, { status: 400 });
@@ -137,11 +140,14 @@ export async function GET(req: Request) {
     const pageSize = 5000;
 
     while (true) {
-      const { data: pageData, error: fetchErr } = await supabase
+      let query = supabase
         .from("event_views")
         .select("viewed_at, country, country_region, traffic_source, locale, event_id, events(category, location_name, location_address, location_prefectures)")
         .gte("viewed_at", rangeStart)
-        .lte("viewed_at", rangeEnd)
+        .lte("viewed_at", rangeEnd);
+      if (visitorClasses) query = query.in("visitor_class", visitorClasses);
+      const { data: pageData, error: fetchErr } = await query
+        .order("id", { ascending: true })
         .range(offset, offset + pageSize - 1);
 
       if (fetchErr) {

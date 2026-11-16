@@ -803,6 +803,9 @@
     "FilterLocale": "言語",
     "AllCategories": "全てのカテゴリー",
     "AllLocales": "全ての言語",
+    "FilterVisitor": "訪問者の種類",
+    "Visitor_exclude_bots": "bot を除く（既定）",
+    "Visitor_all": "すべて",
     "unsaved_confirm": "入力中の内容は保存されていません。本当にキャンセルしますか？",
     "analyticsCollectedMonthlyTitle": "月別の新規収集イベント数（過去12ヶ月）",
     "ByTrafficSource": "流入元別閲覧数",
@@ -815,7 +818,8 @@
     "trafficSourceDirect": "直接アクセス",
     "trafficSourceOther": "その他の外部リンク",
     "trafficSourceUnknown": "未計測（旧データ）",
-    "bulkExcludedNotice": "スコープ確認レポートは一括承認から除外されます。1件ずつ確認して処理してください。"
+    "bulkExcludedNotice": "スコープ確認レポートは一括承認から除外されます。1件ずつ確認して処理してください。",
+    "analyticsBotsExcludedNote": "bot と判定された閲覧は除外しています。2026年11月以前の記録は既知の bot だけを除外しており、未識別の bot が一部残っています。"
   },
   "report": {
     "aiDisclaimer": "AIの選定には誤りがある場合があります。問題を見つけた場合はご報告ください",

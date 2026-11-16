@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { CATEGORIES } from "@/lib/types";
 import { LOCATION_KEYS, LocationKey } from "@/lib/locationMarkers";
 import { REGIONS_WITH_CITY, REGION_PREFECTURES, PREFECTURE_LABELS_EN, RegionWithCity } from "@/lib/regionPrefectures";
+import { DEFAULT_VISITOR_FILTER, type VisitorFilter } from "@/lib/analytics/visitorFilter";
 
 interface AnalyticsDashboardProps {
   locale: string;
@@ -46,6 +47,7 @@ export default function AnalyticsDashboard({ locale }: AnalyticsDashboardProps) 
   const [city, setCity] = useState<string>("all");
   const [category, setCategory] = useState<string>("all");
   const [localeFilter, setLocaleFilter] = useState<string>("all");
+  const [visitorFilter, setVisitorFilter] = useState<VisitorFilter>(DEFAULT_VISITOR_FILTER);
 
   const [loading, setLoading] = useState(false);
   const [errorStatus, setErrorStatus] = useState<string | null>(null);
@@ -114,6 +116,7 @@ export default function AnalyticsDashboard({ locale }: AnalyticsDashboardProps) 
         city,
         category,
         locale: localeFilter,
+        visitor: visitorFilter,
       });
 
       const [resEvents, resViews] = await Promise.all([
@@ -336,6 +339,22 @@ export default function AnalyticsDashboard({ locale }: AnalyticsDashboardProps) 
             <option value="zh">中文</option>
             <option value="ja">日本語</option>
             <option value="en">English</option>
+          </select>
+        </div>
+
+        {/* Visitor type (event_views only; spec view-bot-filter) */}
+        <div>
+          <label className="block text-xs font-medium text-fg-subtle mb-1">{tAdmin("FilterVisitor")}</label>
+          <select
+            value={visitorFilter}
+            onChange={(e) => setVisitorFilter(e.target.value as VisitorFilter)}
+            className="w-full text-sm bg-elevated border border-line rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-green-600"
+          >
+            {(["exclude_bots", "all"] as const).map((f) => (
+              <option key={f} value={f}>
+                {tAdmin(`Visitor_${f}`)}
+              </option>
+            ))}
           </select>
         </div>
 
