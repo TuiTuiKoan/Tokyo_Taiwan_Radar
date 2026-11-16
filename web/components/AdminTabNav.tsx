@@ -18,6 +18,7 @@ type AdminTab =
   | "stats"
   | "analytics"
   | "aeo"
+  | "guides"
   | "specs"
   | "roadmap";
 
@@ -77,6 +78,7 @@ export default async function AdminTabNav({ locale, activeTab }: Props) {
       {tab("stats",         t("statsTab"),          `/${locale}/admin/stats`)}
       {tab("analytics",     t("analyticsTab"),      `/${locale}/admin/analytics`)}
       {tab("aeo",           t("aeoTab"),            `/${locale}/admin/aeo`)}
+      {tab("guides",        t("guidesTab"),         `/${locale}/admin/guides`)}
       <span className="mx-1 border-l border-green-600 h-6 self-center" />
       {tab("specs",         t("tabs.specs"),        `/${locale}/admin/specs/architecture`)}
       {tab("roadmap",       t("tabs.roadmap"),      `/${locale}/admin/roadmap`)}

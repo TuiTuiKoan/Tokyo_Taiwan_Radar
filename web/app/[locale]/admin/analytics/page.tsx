@@ -6,6 +6,7 @@ import AdminTabNav from "@/components/AdminTabNav";
 import AnalyticsDashboard from "@/components/admin/AnalyticsDashboard";
 import Link from "next/link";
 import { fetchGscStats } from "@/lib/gsc";
+import { GUIDE_SLUGS } from "@/lib/analytics/guideTrack";
 
 interface PageProps {
   params: Promise<{ locale: Locale }>;
@@ -168,6 +169,7 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
     recentRawRes,
     allActiveEventsRes,
     gsc,
+    guideStatsRes,
   ] = await Promise.all([
       supabase.from("event_views").select("id", { count: "exact", head: true }),
       supabase.from("event_views").select("id", { count: "exact", head: true }).gte("viewed_at", c24h),
@@ -180,6 +182,7 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
         .limit(20),
       supabase.from("events").select("category").eq("is_active", true).not("category", "is", null),
       fetchGscStats(),
+      supabase.rpc("guide_stats", { p_slug: GUIDE_SLUGS[0], p_since: c30d }),
     ]);
 
   // Bypasses PostgREST max-rows=1000 default limit using loop paging
@@ -216,6 +219,9 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
     last7d: last7Res.count ?? 0,
     last30d: last30Res.count ?? 0,
   };
+
+  const guideSummary = (guideStatsRes.data as { summary?: { sessions: number; views: number; searches: number } } | null)
+    ?.summary;
 
   const viewCountMap: Record<string, number> = {};
   for (const row of topViewRows) {
@@ -293,6 +299,25 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
           </div>
         ))}
       </div>
+
+      {/* Guide tools (/YYYYMM/*) are counted separately in guide_events; this card only links there. */}
+      <Link
+        href={`/${locale}/admin/guides`}
+        className="mb-8 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface px-5 py-4 hover:border-green-600 transition"
+      >
+        <div>
+          <h2 className="text-base font-semibold text-fg mb-1">{t("guidesCardTitle")}</h2>
+          <p className="text-sm text-fg-muted">
+            {GUIDE_SLUGS[0]} ·{" "}
+            {t("guidesCardBody", {
+              sessions: fmtNum(guideSummary?.sessions ?? 0),
+              views: fmtNum(guideSummary?.views ?? 0),
+              searches: fmtNum(guideSummary?.searches ?? 0),
+            })}
+          </p>
+        </div>
+        <span className="text-sm text-green-700">{t("guidesCardLink")}</span>
+      </Link>
 
       <div className="mb-8 rounded-xl border border-line bg-surface px-5 py-4">
         <h2 className="text-base font-semibold text-fg mb-3">{t("analyticsGscTitle")}</h2>

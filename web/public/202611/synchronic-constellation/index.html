@@ -656,5 +656,119 @@ document.addEventListener("click",e=>{
 route();
 
 </script>
+<script>
+/* Anonymous usage tracker — Tokyo Taiwan Radar, spec guide-analytics.
+   No cookie, no IP; the session ID lives only in this tab's sessionStorage.
+   Additive: it only listens to events of the guide above and never changes its behaviour.
+   To reuse in another /YYYYMM/* guide, copy this block, change GUIDE_SLUG, and add the
+   slug to GUIDE_SLUGS in web/lib/analytics/guideTrack.ts. */
+(function(){
+  "use strict";
+  var GUIDE_SLUG="202611/synchronic-constellation", ENDPOINT="/api/guide/track";
+  var MAX_SEG=30*60*1000, MAX_BATCH=20, SEARCH_DEBOUNCE=1200, FLUSH_MS=4000;
+  function ss(k,v){ try{ if(v===undefined) return sessionStorage.getItem(k); sessionStorage.setItem(k,v); }catch(e){} return null; }
+  function rid(){
+    var a=new Uint8Array(12), i;
+    try{ crypto.getRandomValues(a); }catch(e){ for(i=0;i<a.length;i++) a[i]=Math.random()*256|0; }
+    var s=""; for(i=0;i<a.length;i++) s+=("0"+a[i].toString(16)).slice(-2); return s;
+  }
+  var sid=ss("ttr_gsid"); if(!sid){ sid=rid(); ss("ttr_gsid",sid); }
+  var seq=+(ss("ttr_gseq")||"-1"); if(!(seq>=-1)) seq=-1;
+  /* session-level source: keep the first referrer / UTM of this tab */
+  var ref=ss("ttr_gref"), utm=null;
+  if(ref===null){ ref=document.referrer||""; ss("ttr_gref",ref); }
+  try{ utm=JSON.parse(ss("ttr_gutm")||"null"); }catch(e){}
+  if(!utm){
+    utm={};
+    try{ var p=new URLSearchParams(location.search); ["source","medium","campaign"].forEach(function(k){ var v=p.get("utm_"+k); if(v) utm[k]=v.slice(0,64); }); }catch(e){}
+    ss("ttr_gutm",JSON.stringify(utm));
+  }
+
+  var queue=[], timer=null;
+  function curLang(){ try{ return LANG; }catch(e){ return null; } }
+  function push(ev){ ev.lang=curLang(); queue.push(ev); if(queue.length>=MAX_BATCH) flush(); else if(!timer) timer=setTimeout(flush,FLUSH_MS); }
+  function flush(){
+    if(timer){ clearTimeout(timer); timer=null; }
+    while(queue.length){
+      var body=JSON.stringify({slug:GUIDE_SLUG,sid:sid,ref:ref,utm:utm,events:queue.splice(0,MAX_BATCH)});
+      var ok=false;
+      try{ ok=!!(navigator.sendBeacon && navigator.sendBeacon(ENDPOINT,body)); }catch(e){}
+      if(!ok){ try{ fetch(ENDPOINT,{method:"POST",body:body,keepalive:true,credentials:"same-origin",headers:{"Content-Type":"text/plain"}}).catch(function(){}); }catch(e){} }
+    }
+  }
+
+  /* views: same rules as route() above; unknown hashes render home, so they count as home */
+  function hash(){ try{ return readHash(); }catch(e){ try{ return decodeURIComponent((location.hash||"").slice(1)); }catch(e2){ return ""; } } }
+  function classify(h){
+    var m;
+    try{
+      if(docById[h]!=null) return {kind:"doc",id:h};
+      if((m=h.match(/^A([0-6]-\d{2})$/)) && workById[m[1]]!=null) return {kind:"work",id:m[1]};
+      if((m=h.match(/^ch([0-6])$/))) return {kind:"chapter",id:"ch"+m[1]};
+    }catch(e){}
+    return {kind:"home",id:null};
+  }
+  var cur=null, segStart=0, segSent=true;
+  function startSeg(){ segStart=Date.now(); segSent=false; }
+  function endSeg(){
+    if(!cur || segSent) return;
+    segSent=true;
+    push({t:"leave",kind:cur.kind,id:cur.id,seq:cur.seq,ms:Math.min(MAX_SEG,Math.max(0,Date.now()-segStart))});
+  }
+  function enter(){
+    var c=classify(hash());
+    if(cur && cur.kind===c.kind && cur.id===c.id) return;
+    endSeg();
+    seq++; ss("ttr_gseq",String(seq));
+    cur={kind:c.kind,id:c.id,seq:seq};
+    push({t:"view",kind:c.kind,id:c.id,seq:seq});
+    if(document.visibilityState!=="hidden") startSeg();
+  }
+  window.addEventListener("hashchange",enter);
+  document.addEventListener("visibilitychange",function(){
+    if(document.visibilityState==="hidden"){ endSeg(); flush(); }
+    else if(segSent && cur) startSeg();
+  });
+  window.addEventListener("pagehide",function(){ endSeg(); flush(); });
+  window.addEventListener("pageshow",function(e){ if(e.persisted && segSent && cur) startSeg(); });
+
+  /* search: typed (debounced, IME-aware), artist chips, artist links on detail pages */
+  var lastQ="", st=null;
+  function resultCount(){
+    var r=document.getElementById("results"); if(!r) return null;
+    if(r.querySelector(".empty")) return 0;
+    return r.querySelectorAll("li, .chap").length;
+  }
+  function logSearch(via){
+    var el=document.getElementById("q"), v=((el&&el.value)||"").trim().slice(0,100);
+    if(!v || (v===lastQ && via==="input")) return;
+    lastQ=v; push({t:"search",q:v,n:resultCount(),via:via});
+  }
+  function debounceSearch(){ clearTimeout(st); st=setTimeout(function(){ logSearch("input"); },SEARCH_DEBOUNCE); }
+  document.addEventListener("input",function(e){ if(e.target && e.target.id==="q" && !e.isComposing) debounceSearch(); });
+  document.addEventListener("compositionend",function(e){ if(e.target && e.target.id==="q") debounceSearch(); });
+  document.addEventListener("submit",function(e){ if(e.target && e.target.id==="sf"){ clearTimeout(st); logSearch("input"); } },true);
+
+  /* language switch: capture phase, before the guide swaps LANG */
+  document.addEventListener("click",function(e){
+    var b=e.target && e.target.closest && e.target.closest("[data-lang]");
+    if(b && b.dataset.lang && b.dataset.lang!==curLang()) push({t:"lang",to:b.dataset.lang});
+  },true);
+  /* chips, artist links, outbound links: bubble phase, after the guide has rendered */
+  document.addEventListener("click",function(e){
+    var t=e.target; if(!t || !t.closest) return;
+    if(t.closest("[data-q]")){ setTimeout(function(){ logSearch("chip"); },0); return; }
+    if(t.closest("[data-a]")){ setTimeout(function(){ logSearch("artist"); },0); return; }
+    var a=t.closest("a[href]"); if(!a) return;
+    var href=a.href||"";
+    if(/^mailto:/i.test(href)){ push({t:"outbound",url:href}); return; }
+    if(!/^https?:/i.test(href)) return;
+    if(a.host===location.host && a.pathname.indexOf("/"+GUIDE_SLUG)===0) return;
+    push({t:"outbound",url:href});
+  });
+
+  enter();
+})();
+</script>
 </body>
 </html>

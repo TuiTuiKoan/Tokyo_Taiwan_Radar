@@ -168,3 +168,48 @@ export async function fetchGscStats(): Promise<GscStats> {
     };
   }
 }
+
+export interface GscPageQueries {
+  configured: boolean;
+  error?: string;
+  period?: { startDate: string; endDate: string };
+  queries?: GscTopQuery[];
+}
+
+/**
+ * Search queries whose landing page URL contains `pathFragment` (last 28 days).
+ * Used by /admin/guides; `contains` also matches the `/index.html` URL that the
+ * vercel.json redirect produces.
+ */
+export async function fetchGscQueriesForPage(pathFragment: string, rowLimit = 20): Promise<GscPageQueries> {
+  if (!process.env.GSC_CLIENT_ID || !process.env.GSC_CLIENT_SECRET || !process.env.GSC_REFRESH_TOKEN) {
+    return { configured: false };
+  }
+  try {
+    const token = await getAccessToken();
+    const endDate = new Date().toISOString().slice(0, 10);
+    const startDate = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const rows = await fetchSearchAnalytics(token, {
+      startDate,
+      endDate,
+      dimensions: ["query"],
+      dimensionFilterGroups: [
+        { filters: [{ dimension: "page", operator: "contains", expression: pathFragment }] },
+      ],
+      rowLimit,
+    });
+    return {
+      configured: true,
+      period: { startDate, endDate },
+      queries: rows.map((row) => ({
+        query: row.keys[0] ?? "",
+        clicks: row.clicks ?? 0,
+        impressions: row.impressions ?? 0,
+        ctr: round((row.ctr ?? 0) * 100, 1),
+        position: round(row.position ?? 0, 1),
+      })),
+    };
+  } catch (error) {
+    return { configured: true, error: String(error) };
+  }
+}
