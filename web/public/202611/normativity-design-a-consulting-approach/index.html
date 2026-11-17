@@ -350,35 +350,22 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
   pointer-events:none;}
 .cover .cover-mascot .m{position:relative;z-index:1;width:100%;height:100%;overflow:visible;}
 
-/* Antenna Flow Animations — faster leaf-vein pulse */
+/* Antenna flow — mirrors web/app/globals.css (12s cycle: ring burst 0-17%, 24-unit segment travels 17-23%, then pause).
+   Tip core/spark animations are intentionally off, same as the main site; only the expanding ring + travelling segment play. */
 .lianbu-antenna-flow-line {
-  animation: lianbu-antenna-flow-line 8s linear infinite;
+  stroke-dasharray: 24 200;
+  stroke-dashoffset: 0;
+  animation: lianbu-antenna-flow-line 12s linear infinite;
+  filter: saturate(1.16) brightness(1.22);
+  opacity: 0;
+  visibility: hidden;
 }
-/* Disabled: this dot pairs an feGaussianBlur filter with animateMotion, which
-  WebKit re-rasterises every frame. The main site disables it for the same reason. */
 .lianbu-antenna-flow-dot { display: none; }
 @keyframes lianbu-antenna-flow-line {
-  0%, 22% { stroke-dashoffset: 0; opacity: 0; visibility: hidden; }
-  24% { stroke-dashoffset: 0; opacity: 0.96; visibility: visible; }
-  29% { stroke-dashoffset: -147; opacity: 0.96; visibility: visible; }
-  30%, 100% { stroke-dashoffset: -171; opacity: 0; visibility: hidden; }
-}
-
-@keyframes lianbu-tip-core-flash {
-  0%, 100% { fill: #1F5E2B; }
-  10% { fill: #FFD700; }
-  24% { fill: #1F5E2B; }
-}
-.lianbu-tip-core {
-  animation: lianbu-tip-core-flash 8s linear infinite;
-}
-
-@keyframes lianbu-tip-spark-flash {
-  0%, 24%, 100% { fill: #C4E86F; opacity: 1; }
-  10%, 18% { fill: #C4E86F; opacity: 0; }
-}
-.lianbu-tip-spark {
-  animation: lianbu-tip-spark-flash 8s linear infinite;
+  0%, 15% { stroke-dashoffset: 0; stroke-width: 4.6; opacity: 0; visibility: hidden; }
+  17% { stroke-dashoffset: 0; stroke-width: 4.6; opacity: 0.96; visibility: visible; }
+  22% { stroke-dashoffset: -147; stroke-width: 4.6; opacity: 0.96; visibility: visible; }
+  23%, 100% { stroke-dashoffset: -171; opacity: 0; visibility: hidden; }
 }
 
 @media (prefers-reduced-motion:reduce){
@@ -515,8 +502,8 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
       <stop offset="100%" stop-color="#FFFFFF" />
     </linearGradient>
     <radialGradient id="tip-ring-grad" cx="164" cy="26" r="64" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#FFD700" stop-opacity="0.95" />
-      <stop offset="50%" stop-color="#FFED4D" stop-opacity="0.7" />
+      <stop offset="0%" stop-color="#C4E86F" stop-opacity="0.95" />
+      <stop offset="50%" stop-color="#FFD700" stop-opacity="0.6" />
       <stop offset="100%" stop-color="#A8D840" stop-opacity="0" />
     </radialGradient>
     <!-- Box padded to r=80 around (164,26). At exactly r=64 it clipped the halo
@@ -525,7 +512,7 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
     <mask id="tip-ring-mask" maskUnits="userSpaceOnUse" x="84" y="-54" width="160" height="160">
       <circle cx="164" cy="26" r="64" fill="white" />
       <circle cx="164" cy="26" r="0" fill="black">
-        <animate attributeName="r" values="0;0;64;64;0;0" keyTimes="0;0.075;0.24;0.25;0.251;1" dur="8s" repeatCount="indefinite" calcMode="linear" />
+        <animate attributeName="r" values="0;0;64;64;0;0" keyTimes="0;0.055;0.17;0.18;0.181;1" dur="12s" repeatCount="indefinite" calcMode="linear" />
       </circle>
     </mask>
     <filter id="flow-glow" x="-50%" y="-50%" width="200%" height="200%">
@@ -539,15 +526,15 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
   <symbol id="lianbu" viewBox="0 -50 250 320">
     <g transform="translate(20 0) rotate(3 100 150)">
       <path d="M100,80 C110,30 60,0 80,20 C100,40 140,50 160,30" fill="none" stroke="#1F5E2B" stroke-width="4.5" stroke-linecap="round"/>
-      <path class="lianbu-antenna-flow-line" d="M160,30 C140,50 100,40 80,20 C60,0 110,30 100,80" fill="none" stroke="url(#flow-grad)" stroke-width="3.6" stroke-linecap="round" opacity="0" visibility="hidden" stroke-dasharray="171 171" />
+      <path class="lianbu-antenna-flow-line" d="M160,30 C140,50 100,40 80,20 C60,0 110,30 100,80" fill="none" stroke="url(#flow-grad)" stroke-width="4.6" stroke-linecap="round" opacity="0" visibility="hidden" />
       <circle class="lianbu-antenna-flow-dot" cx="100" cy="80" r="4.2" fill="#FFFFFF" filter="url(#flow-glow)" opacity="0" visibility="hidden">
-        <animateMotion dur="12s" repeatCount="indefinite" rotate="auto" path="M160,30 C140,50 100,40 80,20 C60,0 110,30 100,80" keyTimes="0;0.24;0.29;1" keyPoints="0;0;1;1" calcMode="linear" />
+        <animateMotion dur="12s" repeatCount="indefinite" rotate="auto" path="M160,30 C140,50 100,40 80,20 C60,0 110,30 100,80" keyTimes="0;0.17;0.22;1" keyPoints="0;0;1;1" calcMode="linear" />
       </circle>
       <g>
         <circle cx="164" cy="26" r="11" fill="none" stroke="#1F5E2B" stroke-width="1.4" opacity="0.4" />
         <circle class="lianbu-tip-ring" cx="164" cy="26" r="11" fill="url(#tip-ring-grad)" opacity="0" mask="url(#tip-ring-mask)">
-          <animate attributeName="r" values="11;64;64;11;11" keyTimes="0;0.10;0.24;0.25;1" dur="8s" repeatCount="indefinite" calcMode="linear" />
-          <animate attributeName="opacity" values="0;0.95;0.95;0;0" keyTimes="0;0.10;0.24;0.25;1" dur="8s" repeatCount="indefinite" calcMode="linear" />
+          <animate attributeName="r" values="11;64;64;11;11" keyTimes="0;0.07;0.17;0.18;1" dur="12s" repeatCount="indefinite" calcMode="linear" />
+          <animate attributeName="opacity" values="0;0.95;0.95;0;0" keyTimes="0;0.07;0.17;0.18;1" dur="12s" repeatCount="indefinite" calcMode="linear" />
         </circle>
         <circle class="lianbu-tip-core" cx="164" cy="26" r="6" fill="#1F5E2B" />
         <circle class="lianbu-tip-spark" cx="164" cy="26" r="2.2" fill="#C4E86F" />
