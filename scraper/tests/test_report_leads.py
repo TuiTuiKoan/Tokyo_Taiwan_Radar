@@ -11,6 +11,7 @@ from report_leads import (
     intake_issue_link,
     may_still_be_attendable,
     org_domain,
+    safe_href,
     short_url,
 )
 
@@ -131,3 +132,18 @@ def test_digest_no_fetch_mode_only_gaps():
     out = _digest([r], fetch=None)
     assert "`tufs.ac.jp` × 1" in out
     assert "已結束，只供參考（0）" in out
+
+
+def test_links_point_at_full_external_urls_not_inactive_ttr_pages():
+    r = {"id": "66666666-cccc", "source_url": "https://news.example.jp/a?id=1",
+         "raw_title": "t", "start_date": "2026-01-01"}
+    html = '<main><a href="https://org.example.jp/event?id=42&lang=ja">詳細</a></main>'
+    out = _digest([r], fetch=lambda u: (u, html, 200))
+    assert "(https://news.example.jp/a?id=1)" in out  # report link → article, not TTR
+    assert "tokyotaiwanradar.com/ja/events/66666666" not in out
+    assert "(https://org.example.jp/event?id=42&lang=ja)" in out  # full candidate kept
+
+
+def test_safe_href_blocks_breakout_and_non_http():
+    assert safe_href("javascript:alert(1)") == ""
+    assert ")" not in safe_href("https://x.jp/a)b(c d")

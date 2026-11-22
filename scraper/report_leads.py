@@ -149,14 +149,24 @@ def short_url(url: str, limit: int = MAX_URL_DISPLAY) -> str:
     return shown if len(shown) <= limit else shown[: limit - 1] + "…"
 
 
-def intake_issue_link(candidate_url: str, report_title: str, report_event_id: str) -> str:
+def safe_href(url: str) -> str:
+    """Full URL usable as a markdown link destination: http(s) only, and the
+    characters that would break out of ``(...)`` are percent-encoded."""
+    if not url.lower().startswith(("http://", "https://")):
+        return ""
+    return quote(url, safe=":/?#[]@!$&'*+,;=%~-._")
+
+
+def intake_issue_link(candidate_url: str, report_title: str, report_event_id: str,
+                      report_url: str = "") -> str:
     """Pre-filled new-issue URL. Exactly one label (each label is a run), and
     the candidate is the body's FIRST url (ingest_url.extract_url takes it)."""
     title = f"url-intake: {short_url(candidate_url, 80)}"
     body = (
         f"{candidate_url}\n\n"
         f"報導：{report_title[:80]}\n"
-        f"TTR：{SITE}/ja/events/{report_event_id}\n"
+        f"報導網址：{report_url}\n"
+        f"TTR 內部 id（已停用，前台 404）：{report_event_id}\n"
         f"（report-leads 週審產生；看完預覽再決定是否貼 url-intake:approved）"
     )
     return (
@@ -227,7 +237,17 @@ def build_digest(
         return f"{out}（⚠ injection 疑似：{', '.join(flags)}）" if flags else out
 
     def link(r: dict) -> str:
-        return f"[{title(r) or r['id'][:8]}]({SITE}/ja/events/{r['id']})"
+        # The report row is inactive, so its TTR page is a 404: link the
+        # original article instead and keep the id as plain text.
+        href = safe_href(r.get("source_url") or "")
+        label = title(r) or r["id"][:8]
+        ref = f"`{r['id'][:8]}`"
+        return f"[{label}]({href}) {ref}" if href else f"{label} {ref}"
+
+    def cand(url: str) -> str:
+        href = safe_href(url)
+        label = escape(short_url(url))
+        return f"[{label}]({href})" if href else f"`{label}`"
 
     lines = [
         f"## 報導線索（{len(reports)} 篇已停用的新聞型報導）",
@@ -250,14 +270,14 @@ def build_digest(
     for it in live:
         r = it["report"]
         lines.append(
-            f"- `{escape(short_url(it['url']))}`（分數 {it['score']}）← {link(r)}"
-            f" · [開 url-intake issue]({intake_issue_link(it['url'], r.get('name_ja') or r.get('raw_title') or '', r['id'])})"
+            f"- {cand(it['url'])}（分數 {it['score']}）← {link(r)}"
+            f" · [開 url-intake issue]({intake_issue_link(it['url'], r.get('name_ja') or r.get('raw_title') or '', r['id'], r.get('source_url') or '')})"
         )
     lines += ["", f"### 原始活動頁候選：已結束，只供參考（{len(other)}）"]
     if not other:
         lines.append("- 無")
     for it in other:
-        lines.append(f"- `{escape(short_url(it['url']))}`（分數 {it['score']}）← {link(it['report'])}")
+        lines.append(f"- {cand(it['url'])}（分數 {it['score']}）← {link(it['report'])}")
     if budget_hit:
         lines += ["", f"> 抓取超過 {budget_seconds:.0f} 秒預算，後面的報導沒有抽候選。"]
     return "\n".join(lines) + "\n"

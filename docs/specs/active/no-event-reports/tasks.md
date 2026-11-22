@@ -22,4 +22,4 @@
 ## Phase 3: 報導線索（#726，`report-leads.md`，PR 疊在本 spec branch 上）
 
 - [x] 規劃、Plan Critic 評審（`plan-critique-2.md`，同一模型家族），改為週審唯讀腳本
-- [ ] `scraper/report_leads.py` 與測試、接到 `weekly-review.prompt.md`；開 PR
+- [x] `scraper/report_leads.py` 與測試、接到 `weekly-review.prompt.md`；開 PR（#751）
