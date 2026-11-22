@@ -78,7 +78,8 @@ def test_parse_detail_e441():
     d = parse_detail(DETAIL_E441)
     assert d["title"] == "小川尚義・浅井恵倫・土田滋台湾資料贈呈記念式典"
     assert d["start"] == datetime(2026, 6, 19, 13, 0, tzinfo=JST)
-    assert d["end"].date().isoformat() == "2026-06-19"
+    assert d["end"] == datetime(2026, 6, 19, 17, 30, tzinfo=JST)
+    assert d["end"] >= d["start"]
     assert d["venue"].startswith("303 : AA研 大会議室")
     assert d["language"] == "英語"
     assert "AA研" in d["organizer"]

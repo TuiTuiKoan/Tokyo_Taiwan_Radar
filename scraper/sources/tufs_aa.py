@@ -205,9 +205,17 @@ def parse_detail(html: str) -> dict:
     start = end = None
     if dates:
         start, end = min(dates), max(dates)
-        tm = _TIME_RE.search(when or "")
-        if tm and len(set(dates)) == 1:
-            start = start.replace(hour=int(tm.group(1)), minute=int(tm.group(2)))
+        times = _TIME_RE.findall(when or "")
+        if times and len(set(dates)) == 1:
+            sh, sm = map(int, times[0])
+            start = start.replace(hour=sh, minute=sm)
+            # End time "13:00-17:30" → 17:30; without one, end = start. Never
+            # leave end at midnight (it would sort before start and the web
+            # treats end_date < now as finished).
+            eh, em = map(int, times[1]) if len(times) > 1 else (sh, sm)
+            end = end.replace(hour=eh, minute=em)
+            if end < start:
+                end = start
 
     body = "\n".join(lines)
     # Cut site chrome that follows the article (related links, breadcrumbs)
