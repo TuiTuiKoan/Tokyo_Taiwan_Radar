@@ -221,6 +221,10 @@ class FakeQuery:
         self.filters.append(("eq", col, val))
         return self
 
+    def ilike(self, col, pattern):
+        self.filters.append(("ilike", col, pattern))
+        return self
+
     def contains(self, col, val):
         self.filters.append(("contains", col, tuple(val)))
         return self
@@ -239,6 +243,10 @@ class FakeQuery:
                     ok = False
                 if kind == "contains" and not set(val) <= set(row.get(col) or []):
                     ok = False
+                if kind == "ilike":
+                    needle = val.strip("%").replace("\\%", "%").replace("\\_", "_").lower()
+                    if needle not in (row.get(col) or "").lower():
+                        ok = False
             if ok:
                 rows.append(row)
         return type("R", (), {"data": rows})()
@@ -297,3 +305,45 @@ def test_apply_never_writes_when_lookup_fails():
     with pytest.raises(iu.LookupFailed):
         iu.run_apply(iu.validate_payload(_payload()), FakeClient(fail=True), calls.append, lambda *a: None)
     assert calls == []
+
+
+# ── Possible duplicates by title (#712) ────────────────────────────────────
+
+TOWER_TITLE = "【アジア音楽旅 KNOW MUSIC KNOW ASIA】「台湾音市 NEXT 2026」ライブイベント開催決定！ | タワーレコード渋谷店"
+
+
+def test_key_phrases_prefer_quoted_names_and_drop_site_suffix():
+    assert iu.key_phrases(TOWER_TITLE) == ["台湾音市 NEXT 2026"]
+    assert iu.key_phrases("Taiwan Film Night in Osaka 2026 | Example Hall") == ["Taiwan Film Night in Osaka 2026"]
+    assert iu.key_phrases("報道写真展「日中台：交錯するまなざし―写真でたどる100年の歩み―」") == ["写真でたどる100年の歩み"]
+
+
+def test_ilike_literal_escapes_wildcards():
+    assert iu._ilike_literal("100%_off") == "%100\\%\\_off%"
+
+
+def test_find_similar_spots_the_prtimes_announcement():
+    client = FakeClient([
+        {"id": "pr", "is_active": True, "source_name": "prtimes", "start_date": "2026-12-11",
+         "raw_title": "…ライブイベント「台湾音市 NEXT 2026」タワーレコード渋谷店で開催決定！", "name_ja": "x"},
+        {"id": "gone", "is_active": False, "source_name": "prtimes", "raw_title": "台湾音市 NEXT 2026"},
+        {"id": "other", "is_active": True, "source_name": "peatix", "raw_title": "台湾映画祭"},
+    ])
+    assert [r["id"] for r in iu.find_similar(client, TOWER_TITLE)] == ["pr"]
+
+
+def test_find_similar_failure_is_advisory():
+    assert iu.find_similar(FakeClient(fail=True), TOWER_TITLE) == []
+
+
+def test_preview_lists_possible_duplicates():
+    page = iu.validate_payload(_payload(title=TOWER_TITLE))
+    similar = [{"id": "pr", "start_date": "2026-12-11T10:00:00+00:00", "name_ja": "台湾音市 NEXT 2026", "source_name": "prtimes"}]
+    md = iu.render_preview(page, [], 0, similar)
+    assert "可能重複" in md and "/ja/events/pr" in md and "2026-12-11" in md
+
+
+def test_result_explains_404_before_annotation():
+    md = iu.render_result({"url": "https://example.com/a", "host": "example.com", "status": "inserted",
+                           "event_url": iu.event_link("x"), "same_host_count": 1})
+    assert "404" in md
