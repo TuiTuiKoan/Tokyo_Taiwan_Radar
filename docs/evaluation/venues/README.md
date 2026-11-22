@@ -75,3 +75,13 @@ case 只凍結 `event_id`、`raw_md5` 與期望值，raw 文字在執行時從�
 
 - 地點的結構化欄位（例如 asahiculture 的教室、kokuchpro 的會場欄）由各 scraper 直接寫入，不經過 LLM，不在抽取段範圍內。
 - 解析段只測 `lookup_venue_for_location()`；annotator 何時呼叫它、FC 鎖定如何覆蓋結果，不在本 eval 範圍。
+
+## 地址量尺與稽核（spec `venue-ground-truth`）
+
+上面三段評的是「地點 → 場館」。事件的 `location_address` 夠不夠具體，由另一把量尺評：
+
+- `scraper/address_quality.py`：把地址字串分成 street、town、region、empty、non_japan、not_address 六級，只有 street 合格。純函式，不連網。
+- `scraper/audit_venue_addresses.py`：唯讀稽核，輸出各來源的街道級比率、以場地名為單位的缺口清單、登記簿的回填候選上限，以及給人工抽查的分層樣本（`--sample-output`）。
+- 基準：[`2026-11-22-address-baseline.md`](./2026-11-22-address-baseline.md)；抽查樣本：[`2026-11-22-address-grade-sample.md`](./2026-11-22-address-grade-sample.md)。
+
+量尺只讀字串，street 不代表地址存在或正確，不是 ground truth。
