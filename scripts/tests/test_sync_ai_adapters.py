@@ -4,6 +4,7 @@ from pathlib import Path
 
 EXPECTED_ROLES = {
     "plan-critic": "planner",
+    "learner": "planner",
     "tester": "tester",
     "validate-merge-deploy": "vmd",
     "close-campaign-retire-worktree": "closer",
@@ -24,13 +25,14 @@ EXPECTED_TIERS = {
     "close-campaign-retire-worktree": "build",
     "researcher": "build",
     "reviewer": "build",
+    "learner": "build",
     "tester": "grunt",
     "lianbu-spokesperson": "grunt",
     "peatix-scraper": "grunt",
     "tcc-scraper": "grunt",
 }
 EDIT_TOOLS = {"Edit", "Write", "NotebookEdit"}
-AGENT_COUNT = 13
+AGENT_COUNT = 14
 
 
 def agent_name(sync, path: Path) -> str:

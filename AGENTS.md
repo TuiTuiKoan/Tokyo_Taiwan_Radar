@@ -103,6 +103,7 @@ Claude Code 可直接叫用 `.claude/agents` 下的 subagent wrapper。Codex 沒
 | Close Campaign & Retire Worktree | `close-campaign-retire-worktree` | `.github/agents/campaign-closer.agent.md` | 關閉完成的 campaign、檢查 worktree 爭用與未處理工作。 |
 | Designer | `designer` | `.github/agents/designer.agent.md` | UI / visual design、theme、motion、i18n consistency 與 Recraft pipeline。 |
 | Engineer | `engineer` | `.github/agents/engineer.agent.md` | 全端實作、CI/CD 與部署流程。 |
+| Learner | `learner` | `.github/agents/learner.agent.md` | 每週歸納重複發生的問題並提案；第一階段只寫報告（spec `auto-learning`）。 |
 | Lianbu Spokesperson | `lianbu-spokesperson` | `.github/agents/lianbu-spokesperson.agent.md` | 以小霧 / レンブちゃん人格撰寫社群貼文與回覆草案。 |
 | Plan Critic | `plan-critic` | `.github/agents/plan-critic.agent.md` | 評審 Architect 計畫、指出複雜度與風險。 |
 | Researcher | `researcher` | `.github/agents/researcher.agent.md` | 發掘並評估新的台灣相關活動來源。 |
@@ -141,7 +142,7 @@ Codex 不會因為 `.codex/agents/*.toml` 存在就自動派用 subagent（2026-
 | `tier` | 用途 | Claude wrapper | Codex agent 檔 | 目前的 agent |
 | --- | --- | --- | --- | --- |
 | `plan` | 規劃與批評 | `model: opus`、`effort: high` | `model_reasoning_effort = "high"` | architect、plan-critic |
-| `build` | 實作、驗證閘門、治理 | `model: sonnet`、`effort: medium` | `"medium"` | engineer、designer、scraper-expert、validate-merge-deploy、close-campaign-retire-worktree、researcher、reviewer |
+| `build` | 實作、驗證閘門、治理 | `model: sonnet`、`effort: medium` | `"medium"` | engineer、designer、scraper-expert、validate-merge-deploy、close-campaign-retire-worktree、researcher、reviewer、learner |
 | `grunt` | 機械性、低風險任務 | `model: haiku`、`effort: low` | `"low"` | tester、lianbu-spokesperson、peatix-scraper、tcc-scraper |
 
   - Claude Code：投影寫入 `.claude/agents/<kebab>.md`。subagent 的模型優先序是呼叫參數、frontmatter、`CLAUDE_CODE_SUBAGENT_MODEL`、主對話模型（Claude Code 2.1.251 起）。
@@ -166,7 +167,7 @@ Codex 不會因為 `.codex/agents/*.toml` 存在就自動派用 subagent（2026-
 | `claude-role` | Agent | Claude Code 工具層 |
 | --- | --- | --- |
 | `full` | engineer、designer、peatix-scraper、tcc-scraper | 不限制（繼承全部工具） |
-| `planner` | plan-critic | 禁用 Edit／Write／NotebookEdit；保留 Bash 做唯讀診斷 |
+| `planner` | plan-critic、learner | 禁用 Edit／Write／NotebookEdit；保留 Bash 做唯讀診斷 |
 | `tester` | tester | 禁用 Edit／Write／NotebookEdit；保留 Bash 執行測試 |
 | `vmd` | validate-merge-deploy | 禁用 Edit／Write／NotebookEdit；保留 Bash 執行 git 與驗證 |
 | `closer` | close-campaign-retire-worktree | 禁用 Edit／Write／NotebookEdit，沒有 web 工具；保留 Bash |
