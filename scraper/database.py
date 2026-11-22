@@ -4,6 +4,7 @@ Supabase database client for upserting scraped events.
 Uses the service role key (bypasses RLS) so the scraper can write freely.
 """
 
+from copy import deepcopy
 import json
 import logging
 import os
@@ -664,19 +665,37 @@ def get_event_id_by_source(source_name: str, source_id: str) -> str | None:
         return None
 
 
-def _auto_lock_location(client, eid_to_row: dict[str, dict[str, Any]]) -> None:
-    """Auto-lock scraper-provided location fields so annotator cannot overwrite."""
+AUTO_LOCK_FIELDS = ("location_name", "location_address", "location_prefectures")
+
+
+def _scraped_location(row: dict[str, Any]) -> dict[str, Any]:
+    """The location fields as the scraper delivered them, before venue propagation."""
+    return {field: deepcopy(row.get(field)) for field in AUTO_LOCK_FIELDS}
+
+
+def _auto_lock_location(
+    client,
+    eid_to_row: dict[str, dict[str, Any]],
+    scraped: dict[str, dict[str, Any]] | None = None,
+) -> None:
+    """Auto-lock scraper-provided location fields so annotator cannot overwrite.
+
+    `scraped` maps event id to the fields as the scraper delivered them. A field
+    that venue propagation (`_populate_entity_fks`) changed is not locked: its
+    value came from the venue registry, and a lock would stop a later venue fix
+    from reaching the event (venue-ground-truth plan-critique-2 B1).
+    """
     import json
     fc_records = []
     for eid, row in eid_to_row.items():
         if is_pure_publication_record(row) or not row.get("location_name"):
             continue
-        for field, value in [
-            ("location_name",        row.get("location_name")),
-            ("location_address",     row.get("location_address")),
-            ("location_prefectures", row.get("location_prefectures")),
-        ]:
+        original = scraped.get(eid) if scraped is not None else None
+        for field in AUTO_LOCK_FIELDS:
+            value = row.get(field)
             if value is None or value == []:
+                continue
+            if original is not None and original.get(field) != value:
                 continue
             corrected = json.dumps(value, ensure_ascii=False) if isinstance(value, list) else value
             fc_records.append({"event_id": eid, "field_name": field, "corrected_value": corrected})
@@ -1028,6 +1047,12 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
     if not all_rows and not extend_rows:
         return []
 
+    # Remember what the scraper delivered before venue propagation rewrites it,
+    # so the auto-lock below locks scraper values only.
+    scraped_location = {
+        (row["source_name"], row["source_id"]): _scraped_location(row) for row in new_rows
+    }
+
     # Tier 2: populate organizer_id / venue_id FKs from `organizers` / `venues`
     # entity tables (migration 050). Raw text columns are preserved — this only
     # adds FK references when an existing canonical/alias matches.
@@ -1134,7 +1159,8 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
                     and row.get("id")
                 }
                 eid_to_row = {event_id: new_key_to_row[key] for key, event_id in key_to_eid.items()}
-                _auto_lock_location(client, eid_to_row)
+                scraped = {event_id: scraped_location[key] for key, event_id in key_to_eid.items()}
+                _auto_lock_location(client, eid_to_row, scraped)
         except Exception as exc:
             logger.exception("Failed to upsert events: %s", exc)
             raise
