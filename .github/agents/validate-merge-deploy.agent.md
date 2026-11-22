@@ -11,9 +11,6 @@ handoffs:
   - label: "🧾 Close campaign & retire worktree"
     agent: Close Campaign & Retire Worktree
     prompt: "本次 campaign 的 PR 已合併，請執行結案盤點。交接四項參數：worktree registered path = <registered-path>；campaign base SHA（合併前的 origin/main tip）= <base-sha>；merge commit SHA（`gh pr view <n> --json mergeCommit`；squash 合併時不是 branch tip）= <head-sha>（多次合併的 campaign：每次各給一組 base／merge，成對列出，並另附完整範圍 = 第一次的 base 到最後一次的 merge commit）；PR 編號 = <pr-number>；參與的 session id = <session-id>。缺任一項請標 not_checked，不要以「查無」代替「未查」。"
-  - label: "📝 Update history/skill/agent"
-    agent: Update History, Skill, Agent
-    prompt: "根據最近的修改和所學的教訓，幫助我更新 history.md、SKILL.md 和 agent 檔案。"
   - label: "🏗️ Plan next change"
     agent: Architect
   - label: "🕷️ Continue scraper work"
@@ -89,7 +86,7 @@ handoffs:
    # 確認這些 commits 是否同時改了 docs（history.md / SKILL.md / agent.md）
    git log origin/main..HEAD --name-only --pretty=format: | sort -u | grep -E '\.github/skills.*(history|SKILL)\.md|\.github/agents/.*\.agent\.md' || echo NO_DOCS
    ```
-   - 若有 `fix:` / `feat:` commit **且** 輸出 `NO_DOCS`：不詢問使用者（自主程度政策）。自己判斷：有可寫的教訓就補一個 `docs(skills)` commit 進同一分支再繼續；沒有就在 PR body 寫「無新教訓」並繼續 Step 2。
+   - 若有 `fix:` / `feat:` commit **且** 輸出 `NO_DOCS`：不詢問使用者（自主程度政策）。不補 `docs(skills)` commit：教訓一律寫在 PR body 的「教訓」段（格式見 `AGENTS.md` § 教訓），沒有就寫「無」，然後繼續 Step 2。只影響單一來源的事實（選擇器、日期格式）仍可隨該來源的修復更新 `.github/skills/sources/<source>/`。
    - 此檢查不適用於 docs-only commits（commit message 以 `docs(` 開頭）。
 2. **⚠️ Untracked scraper 前置檢查**：若 `git status --short` 顯示 `??` 在 `scraper/sources/` 下，立即執行 SCRAPERS audit：
    ```bash
@@ -168,7 +165,7 @@ handoffs:
 1. 使用原子化、描述清楚的提交消息（僅在有 staged 變更時）
 2. **V-M-D 自己推 feature branch**：在 worktree 內 `git push -u origin <分支>`。目的端是同名遠端分支，不是 `main`；不寫 `<分支>:main`、`HEAD`、無參數 `git push`。被拒絕（non-fast-forward）→ 回 Step 2 rebase 後再推，禁 `--force` 與 `--force-with-lease`。
    - commit 在本地 `main`（主工作目錄的治理／文件變更）時，一樣不推 `main`：`git push -u origin main:<docs/…分支名>` 推成一條新分支再開 PR。
-3. **開 PR**：`gh pr create --base main --head <分支> --title "<Conventional Commit 主旨>" --label "spec:<slug>" --body "<body>"`。body 必含：改了什麼、怎麼驗證（測試數字、dry-run 筆數、build 結果）、NOT TESTED 項目、風險等級、`Refs #n` 或 `Closes #n`。NOT TESTED 要寫具體原因，不寫籠統的「缺憑證」：CI 會補的（`Scraper Tests` 的 pytest、`pr-dryrun-evidence` 留言的 dry-run）寫成「由 CI 補」；CI 跑完後若仍沒有證據（沒觸發、一個 PR 超過 3 個來源、共用模組、程式分支需要 DB 憑證），在 PR 留言列為 NOT TESTED 並說明原因。 PR 已存在 → `gh pr view <分支> --json number,url` 取連結。
+3. **開 PR**：`gh pr create --base main --head <分支> --title "<Conventional Commit 主旨>" --label "spec:<slug>" --body "<body>"`。body 必含：改了什麼、怎麼驗證（測試數字、dry-run 筆數、build 結果）、NOT TESTED 項目、風險等級、「教訓」段（`AGENTS.md` § 教訓）、`Refs #n` 或 `Closes #n`。NOT TESTED 要寫具體原因，不寫籠統的「缺憑證」：CI 會補的（`Scraper Tests` 的 pytest、`pr-dryrun-evidence` 留言的 dry-run）寫成「由 CI 補」；CI 跑完後若仍沒有證據（沒觸發、一個 PR 超過 3 個來源、共用模組、程式分支需要 DB 憑證），在 PR 留言列為 NOT TESTED 並說明原因。 PR 已存在 → `gh pr view <分支> --json number,url` 取連結。
 4. **等 tier label**：PR Tier workflow 在 gitleaks 成功後貼 `tier:0`／`1`／`2`（`gh pr view <n> --json labels`）。
    - `tier:0`：workflow 自動 squash 合併；直接進 5。
    - `tier:1`、`tier:2`：依 `.github/instructions/handoff.instructions.md` § 0 交**一張**卡片給使用者：PR 連結、tier、要看什麼、合併後會發生什麼。標 `寫 production`。**不產生任何 push 指令**，不執行 `gh pr merge`。

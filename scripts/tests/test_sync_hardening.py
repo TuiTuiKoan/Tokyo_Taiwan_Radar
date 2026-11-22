@@ -123,9 +123,9 @@ def test_check_reports_every_missing_codex_agent_when_the_directory_is_absent(tm
     shutil.rmtree(tmp_repo / ".codex")
     result = run_sync(tmp_repo, "--check")
     assert result.returncode == 1
-    assert result.stdout.count("missing .codex/agents/") == 15
+    assert result.stdout.count("missing .codex/agents/") == 13
     assert run_sync(tmp_repo).returncode == 0
-    assert len(list((tmp_repo / ".codex" / "agents").glob("*.toml"))) == 15
+    assert len(list((tmp_repo / ".codex" / "agents").glob("*.toml"))) == 13
 
 
 # --- findings A and T5: check every conflict before deleting anything ---------------

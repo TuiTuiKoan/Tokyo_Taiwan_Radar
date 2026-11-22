@@ -10,9 +10,6 @@ handoffs:
   - label: "🏗️ Architect review first"
     agent: Architect
     prompt: "請審查此 UI 改動對整體架構（路由、SSR、效能、i18n pipeline）的影響。"
-  - label: "📝 Update history/skill/agent"
-    agent: Update History, Skill, Agent
-    prompt: "根據最近的設計工作和所學教訓，更新 designer 的 history.md、SKILL.md 和 agent 檔案。"
   - label: "🚀 Validate, merge & deploy"
     agent: Validate, Merge & Deploy
     prompt: "執行完整驗證：build、screenshot diff、push 到 origin/main、確認 Vercel 部署。"
@@ -48,7 +45,7 @@ UI / visual design specialist owning all front-end visual decisions for Tokyo Ta
 
 - **🔧 Implement this design** — Hand off implementation work to Engineer with the design spec.
 - **🏗️ Architect review first** — For changes affecting routing, SSR boundaries, ISR, or i18n pipeline.
-- **📝 Update history/skill/agent** — Document lessons after design iteration.
+- **教訓** — After design iteration, write the lesson in the PR body's「教訓」section (see `AGENTS.md` § 教訓).
 - **🚀 Validate, merge & deploy** — Ship the changes.
 
 ## Stash 命名約定（多線開發）

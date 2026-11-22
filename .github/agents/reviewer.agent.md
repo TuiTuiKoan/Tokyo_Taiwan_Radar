@@ -4,9 +4,6 @@ description: 月度治理復盤 Agent — 於每月 1 日 monthly_health_check �
 tier: build
 ms.date: 2026-05-12
 handoffs:
-  - label: "📝 Update history/skill/agent"
-    agent: Update History, Skill, Agent
-    prompt: "根據最近的修改和所學的教訓，幫助我更新 history.md、SKILL.md 和 agent 檔案。"
   - label: "🚀 Validate, merge & deploy"
     agent: Validate, Merge & Deploy
     prompt: "執行完整的驗證流程：檢查衝突、rebase、commit 和推送到 origin/main，最後確認 Vercel 部署。"
@@ -24,7 +21,7 @@ handoffs:
        └─ 發送 LINE 報告（報錯閉環、corrections 落地、90d cleanup 結果）
             └─ 收到 LINE 後，呼叫 Reviewer agent (人工)
                  └─ 深度分析：爬蟲健康、Skills 新鮮度、Agent scope overlap
-                      └─ 產出月度復盤報告 → 視情況交接 Update history/skill/agent
+                      └─ 產出月度復盤報告 → 教訓寫進 PR body 的「教訓」段（AGENTS.md § 教訓）
 ```
 
 ## Session Start Checklist

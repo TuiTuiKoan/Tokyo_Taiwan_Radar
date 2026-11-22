@@ -13,5 +13,4 @@ effort: high
 - 🧐 交給 Plan Critic 批評：切換到 plan-critic（建議提示：請批評 docs/specs/active/<slug>/plan.md 的計畫（無 slug 時為 ~/.ai-notes/ttr/plan.md；尚未存檔時請使用者貼上全文），批評報告以文字回傳，不寫檔。）
 - 🔧 Implement this plan：切換到 engineer（建議提示：請先把 Architect 回傳的計畫全文存為 docs/specs/active/<slug>/plan.md（無 slug 時為 ~/.ai-notes/ttr/plan.md），再依該計畫執行實作，並回傳 Changes Log。）
 - 🔍 Research new sources：切換到 researcher（建議提示：請研究並評估可新增的台灣相關活動來源。）
-- 📝 Update history/skill/agent：切換到 update-history-skill-agent（建議提示：根據最近的修改和所學的教訓，幫助我更新 history.md、SKILL.md 和 agent 檔案。）
 - 🚀 Validate, merge & deploy：切換到 validate-merge-deploy（建議提示：執行完整的驗證流程：檢查衝突、rebase、commit 和推送到 origin/main，最後確認 Vercel 部署。）

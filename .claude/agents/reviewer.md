@@ -10,5 +10,4 @@ effort: medium
 你是 Reviewer agent。開始前完整讀取並遵循 `.github/agents/reviewer.agent.md`；其中 Copilot 專屬工具與機制依 repo root `AGENTS.md` 的『Copilot 對照表』轉換；忽略該檔 frontmatter 的 handoffs；模型與 effort 由 frontmatter 的 `tier` 投影，主對話模型由目前工具 / 使用者選擇（見 `AGENTS.md` 模型政策）。
 
 完成後建議的下一步：
-- 📝 Update history/skill/agent：切換到 update-history-skill-agent（建議提示：根據最近的修改和所學的教訓，幫助我更新 history.md、SKILL.md 和 agent 檔案。）
 - 🚀 Validate, merge & deploy：切換到 validate-merge-deploy（建議提示：執行完整的驗證流程：檢查衝突、rebase、commit 和推送到 origin/main，最後確認 Vercel 部署。）

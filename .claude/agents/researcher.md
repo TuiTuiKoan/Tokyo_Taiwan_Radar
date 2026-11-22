@@ -12,5 +12,4 @@ effort: medium
 完成後建議的下一步：
 - 🏗️ Design the pipeline：切換到 architect
 - 🕷️ Build the scraper：切換到 scraper-expert
-- 📝 Update history/skill/agent：切換到 update-history-skill-agent（建議提示：根據最近的修改和所學的教訓，幫助我更新 history.md、SKILL.md 和 agent 檔案。）
 - 🚀 Validate, merge & deploy：切換到 validate-merge-deploy（建議提示：執行完整的驗證流程：檢查衝突、rebase、commit 和推送到 origin/main，最後確認 Vercel 部署。）

@@ -12,5 +12,4 @@ effort: medium
 完成後建議的下一步：
 - 🏗️ Plan this first：切換到 architect（建議提示：請先針對目前需求產出實作計畫，確認資料模型、受影響路徑、驗證步驟與風險。）
 - 🧪 Test the result：切換到 tester（建議提示：請根據最近完成的變更執行相關測試與驗證，回報 pass/fail、命令輸出摘要與剩餘風險。）
-- 📝 Update history/skill/agent：切換到 update-history-skill-agent（建議提示：根據最近的修改和所學的教訓，幫助我更新 history.md、SKILL.md 和 agent 檔案。）
 - 🚀 Validate, merge & deploy：切換到 validate-merge-deploy（建議提示：執行完整的驗證流程：檢查衝突、rebase、commit 和推送到 origin/main，最後確認 Vercel 部署。）
