@@ -104,19 +104,16 @@ tags: [scraper, supabase, evaluation]
 - 查明 `kokuchpro` 80 筆地址空白的原因並修正。scraper 已經在抓 hCard 地址（`sources/kokuchpro.py`），原因可能是頁面沒有 hCard、`_normalize_online()` 把地址換掉，或 annotator 清空。一個來源、不需要 migration。
 - 缺口清單前幾名的場地（「RTI台湾国際放送」是廣播、「台湾原住民族との交流会」是活動名）屬於「場地名不是場地」，列給使用者判斷。
 
-### 後段設計（未定案，Phase A 抽查通過後修訂）
+### 後段設計（2026-11-22 定案，見 `plan-2.md` v2.1）
 
-以下是方向與已知的限制，不是實作規格。Phase D 開工前要回到規劃，把這一節改成定案設計並再送一次評審。
+評審 `plan-critique-2.md` 之後的定案：
 
-**出處先於寫入。** 任何腳本寫 `venues.address` 之前，`venues` 要先有出處欄位（`address_source`、`address_evidence_url`、`address_checked_at`；migration，人類關卡），否則之後無法分辨哪些地址是機器回填，也無法回滾。現在已經有一個不受管控的寫入者：`geocode_events._opportunistic_venue_backfill()` 會把事件地址原樣寫進 `venues.address`，要先停掉。
-
-**機器驗證的場館不得進入解析路徑。** `venue_registry` 的快取與 `database.py` 的場館比對都只載入權威場館並在歧義時留空，這是 eval 鎖住的「錯配 0」。機器驗證場館永不進入這兩處，並以測試鎖住。機器驗證地址由獨立函式處理，只寫 `location_address` 一欄，不改名稱、都道府縣、官網、營業時間、`venue_id`；是否適用以 `location_name` 與 `canonical_name_ja` 正規化後完全相同為準，不以 `venue_id` 為準（非權威場館的 `venue_id` 來自模糊聚類，#371 記錄了錯掛的後果）。
-
-**事件之間的一致不是獨立證據。** 現有的事件地址有一部分是早期 LLM 查的，有一部分是 `enrich_addresses` 從同名事件複製並鎖定的，從欄位分不出來；基準裡「青山 月見ル君想フ」的同名事件就有一個京都地址。回填的最低條件要寫明：至少 2 筆事件且來自 2 個以上來源，或地址字串逐字出現在事件的原文；排除有腳本鎖定的事件；排除名稱能對到權威場館的殘樁（交給 #371）；排除一個欄位裡寫了兩個地點的值。比較地址要用正規化後的鍵，不比原字串。產出只是 manifest，寫入交使用者逐場館核准。
-
-**不鎖的地址如何撐過重新 annotate** 還沒有答案：現行同名複製路徑之所以鎖 `field_corrections`，就是因為不鎖會被清空；鎖了又收不到之後的修正。Phase D 的設計要回答這一點，並列出既有的腳本鎖定筆數。
-
-**web search（#366）** 只在前面各步之後的剩餘量仍值得時才評估。若採用：每個場地只查一次；查詢結果分 found、not_found、error 三種，error 不寫快取（沿用 `people-ground-truth` 的做法）。花錢，人類關卡。
+- **不在 `venues` 加出處欄位，不做機器驗證地址的傳播與 apply（原 Phase D 的 4b）。** 唯讀 planner 顯示，有證據可回填的 38 個殘樁場館，能修到的即將舉辦事件是 0 筆，對驗收指標沒有影響。條件改變時以 planner 的門檻重新判斷。
+- **自動鎖只鎖 scraper 原值**（#754）。原本會鎖住入庫當下的場館地址，讓之後的場館修正流不到事件。
+- **同名證據採正向認定**（#755）：事件自己的原文含有該地址；或是 scraper 原值（與事件同時寫入、不是 JSON 字串、比較鍵相同）且至少 2 筆、2 個來源。沒有鎖的地址多是模型輸出或複本，不算證據。
+- **不寫複製鎖。** annotator 以事件現值優先；force rescrape 清掉的地址，隔天 `enrich_addresses` 會補回即將舉辦的事件。
+- **場館欄位修正用既有引擎**（#758）：只有 `venue_update`，不碰事件與鎖，所以沒有 R1 的回滾問題。
+- **geocoder 不寫 `venues` 表**（#752）。
 
 ## 第一個 PR 的範圍
 
@@ -135,6 +132,7 @@ tags: [scraper, supabase, evaluation]
 
 ## 評審紀錄
 
+- `plan-critique-2.md`：對 `plan-2.md` 的評審（Claude plan-critic，同一模型家族）。結論是修訂後進行、範圍要縮；處置見 `notes.md`。
 - `plan-critique-1.md`：Claude plan-critic（Codex 在本環境無法啟動，與撰寫者同一模型家族）。結論是修訂後進行。處置見 `notes.md`「評審處置」。
 
 ## References
