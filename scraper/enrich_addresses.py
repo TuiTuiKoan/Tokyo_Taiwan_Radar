@@ -140,6 +140,12 @@ def _squash(text: str | None) -> str:
     return re.sub(r"\s+", "", normalize_address(text))
 
 
+def _verbatim(row: dict) -> bool:
+    """The event's own source text contains its address."""
+    address = _squash(row.get("location_address"))
+    return bool(address) and address in _squash(row.get("raw_description"))
+
+
 def sibling_vote(row: dict, lock: dict | None) -> bool:
     """True when this event's address is independent evidence for its venue.
 
@@ -153,7 +159,7 @@ def sibling_vote(row: dict, lock: dict | None) -> bool:
     key = address_key(address)
     if key is None or len(_PREF_NAMES_RE.findall(normalize_address(address))) > 1:
         return False
-    if _squash(address) and _squash(address) in _squash(row.get("raw_description")):
+    if _verbatim(row):
         return True
     if not lock or lock.get("corrected_by") or lock.get("report_id"):
         return False
@@ -172,9 +178,9 @@ def build_sibling_map(rows: list[dict], locks: dict[str, dict] | None = None) ->
     """Map location_name → address patch when independent evidence agrees.
 
     A name qualifies when every street-level address among its events has the
-    same address key, and that key is backed by votes from at least two events
-    from at least two sources. A chain or a multi-site label, whose events carry
-    two different addresses, is never guessed.
+    same address key, and that key is backed by either one event whose own text
+    contains the address, or votes from two events from two sources. A chain or a
+    multi-site label, whose events carry two different addresses, is never guessed.
     """
     locks = locks or {}
     by_name: dict[str, list[dict]] = {}
@@ -188,7 +194,8 @@ def build_sibling_map(rows: list[dict], locks: dict[str, dict] | None = None) ->
         if len(keys) != 1:
             continue
         voters = [e for e in events if sibling_vote(e, locks.get(e["id"]))]
-        if len(voters) < 2 or len({e.get("source_name") for e in voters}) < 2:
+        from_text = any(_verbatim(e) for e in voters)
+        if not from_text and (len(voters) < 2 or len({e.get("source_name") for e in voters}) < 2):
             continue
         # The most common spelling among the voters; ties go to the fuller text.
         spellings = Counter(normalize_address(e["location_address"]) for e in voters)

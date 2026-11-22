@@ -64,6 +64,12 @@ def test_sibling_map_needs_two_independent_events_from_two_sources():
     assert result["A館"]["location_address_en"] == "1-1-12 Toranomon"
 
 
+def test_one_event_whose_own_text_has_the_address_is_enough():
+    addr = "大阪府大阪市港区弁天1-2-3"
+    rows = [_sib(1, "D館", addr, "s1", raw=f"会場：D館（{addr}）"), _sib(2, "D館", "大阪府大阪市港区", "s1")]
+    assert ea.build_sibling_map(rows, {}) == {"D館": {"location_address": addr}}
+
+
 def test_sibling_map_drops_names_with_conflicting_addresses():
     rows = [
         _sib(1, "チェーン店", "東京都港区虎ノ門1-1-12", "s1"),
