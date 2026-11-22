@@ -126,6 +126,8 @@ def test_reports_both_denominators_for_qa_excluded_sources():
     assert report["in_scope"]["all"]["street_rate"] == 1.0
     assert report["qa_excluded"]["total"] == 2 and report["qa_excluded"]["needs_fix"] == 1
     assert report["in_scope_plus_qa_excluded"]["street_rate"] == 0.6667
+    assert report["in_scope_plus_qa_excluded_upcoming"]["total"] == 3
+    assert report["in_scope_plus_qa_excluded_created_last_60_days"]["needs_fix"] == 1
     # QA-excluded sources never enter the per-venue gap list.
     assert report["venue_gaps"] == []
 

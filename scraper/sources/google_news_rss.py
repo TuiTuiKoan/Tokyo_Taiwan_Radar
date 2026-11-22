@@ -42,6 +42,8 @@ except ImportError as _exc:  # keep one broken dependency from aborting main.py
     )
     new_decoderv1 = None
 
+from taiwan_keywords import TAIWAN_TITLE_RE
+
 from .base import BaseScraper, Event, dedup_events
 
 _DECODE_SLEEP = 1.0          # polite delay between Google News decode calls
@@ -71,7 +73,10 @@ QUERIES = [
 ]
 BASE_RSS = "https://news.google.com/rss/search?q={q}&hl=ja&gl=JP&ceid=JP:ja"
 
-TAIWAN_KEYWORDS = ["台湾", "台灣", "Taiwan", "taiwan"]
+# Shared with prtimes: 台湾／台灣／臺灣／Taiwan plus guarded compounds
+# 日中台／日台／台日 (taiwan_keywords.py, #701). No new RSS queries: news-context
+# 「日台交流」 is mostly diplomacy coverage (coverage-audit plan-critique-1 M3).
+TAIWAN_KEYWORDS_RE = TAIWAN_TITLE_RE
 
 # Google News redirect URLs typically expire within 2–3 weeks
 _STALE_DAYS = 21
@@ -158,7 +163,14 @@ def _fetch_article_text(url: str) -> Optional[str]:
 
 
 def _is_taiwan(text: str) -> bool:
-    return any(kw in text for kw in TAIWAN_KEYWORDS)
+    return bool(TAIWAN_KEYWORDS_RE.search(text or ""))
+
+
+def taiwan_verdict(title: str, description: str = "") -> tuple[bool, str]:
+    """Taiwan filter used by scrape() and the coverage audit: (ok, reason)."""
+    if _is_taiwan(f"{title} {description}"):
+        return True, "ok"
+    return False, "no_taiwan"
 
 
 def _is_yahoo_aggregation(title: str) -> bool:
@@ -269,7 +281,7 @@ class GoogleNewsRssScraper(BaseScraper):
                     description_plain = _strip_html(description_html)
 
                     # Taiwan filter
-                    if not _is_taiwan(item_title + " " + description_plain):
+                    if not taiwan_verdict(item_title, description_plain)[0]:
                         continue
 
                     # Skip Yahoo!ニュース aggregations — always duplicates,
