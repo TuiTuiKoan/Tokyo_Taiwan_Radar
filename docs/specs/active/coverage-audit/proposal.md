@@ -4,7 +4,7 @@ title: 關鍵字覆蓋稽核：url-intake 核准防線、複合詞關鍵字、�
 status: active
 branch: docs/coverage-audit-spec
 created: 2026-11-22
-revised: 2026-11-22 (v2, plan-critique-1)
+revised: 2026-11-22 (v3, plan-critique-1, plan-critique-2)
 tags: [scraper, prtimes, google_news_rss, evaluation, guard]
 issues: ["#701", "#702"]
 ---
@@ -103,50 +103,80 @@ issues: ["#701", "#702"]
 - 新檔 `scraper/tests/test_google_news_rss_filters.py`：`taiwan_verdict` 的正負例。
 - PR 的 dry-run 證據：prtimes 列出新增搜尋詞帶回的筆數、只靠複合詞通過的筆數，以及正文抓取次數。
 
-### B. 每週覆蓋稽核（試做四週）
+### B. 每週覆蓋稽核（v3，試做四週）
 
-**位置**：不新增 workflow，在 `scraper-quality.yml` 加兩個 job（M8），都加 `if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'`，權限在 job 層宣告。排程沿用該檔的週日 09:00 JST。
+**前提**：#724（Phase A）已合併，因為 B 要 import `title_verdict` 與 `compound_only`。
 
-**B1. `coverage-probe` job**（不帶 secrets、`contents: read`、`persist-credentials: false`）
+**範圍（最小可行版，plan-critique-2）**
 
-- 探測詞：
-  - prtimes：`日台`、`日中台`、`台日`，加上 `台湾` 對照組。
-  - google_news_rss：`日台`、`日中台`、`台日`。
-  - 城市名、金曲、故宮等詞，四週後再評估。
-- 每筆結果用 A1 的 `title_verdict` 或 `taiwan_verdict` 判斷，記錄 `(ok, reason)`。探測**沒有自己的過濾邏輯**；唯一例外是 google_news_rss 的候選也要求標題通過 prtimes 的活動詞判斷，這一點在報表上註明。
-- 排除發布不到 48 小時的項目，避免把每日 scraper 還沒跑到的稿子算成漏抓（B2-3）。也排除超過 prtimes `LOOKBACK_DAYS` 的項目。
-- prtimes 標題通過、DB 又沒有的項目（最多 20 筆）：抓正文，套用 `_should_skip_taiwan_venue`。抓不到正文的列為「未判定」。
-- google_news_rss 不解碼轉址，用 `gnews_`+md5 比對。只對報表列出的候選（最多 20 筆）解碼，解碼失敗的不附一鍵連結（M4）。
-- 輸出 JSON artifact。
+- 漏抓探測**只做 prtimes**。google_news_rss 只做 DB 端的亂抓計數（PM3）：A3 已決定 google 不加查詢詞，探測回答不了可執行的問題，又要解碼、二次查 DB，還得補 Yahoo／stale 判斷。
+- 延後到四週盤點（M6）：google 探測與解碼、城市名等探測詞、`secondary_source_urls` 比對、門檻警示。
 
-**B2. `coverage-report` job**（`environment: production`、`issues: write`、只執行 select）
+**位置**：在 `scraper-quality.yml` 加兩個 job。兩個都加 `if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'`，並在 job 層明列權限（宣告後會覆蓋頂層權限，m1）。排程沿用該檔的週日 09:00 JST。
 
-- 驗證 artifact 的 schema、筆數上限與字串長度（沿用 `ingest_url.validate_payload` 的作法，m1）。
-- 「已收錄」的判定：跨所有 `source_name`、不分 `is_active`，以 `normalize_url` 正規化後的 `source_url`／`official_url` 比對，source_id 只作輔助（B2-4）。
-- 漏抓的分類：
+**信任邊界：先查 DB，再碰外部內容**（PB1）
+
+持有 DB 金鑰的 job 永遠不處理外部內容。
+
+1. `coverage-db`：`environment: production`，權限 `contents: read`，只做 select。輸出 artifact `coverage-known`（`retention-days: 1`；repo 是 public，所以只放公開的 URL、ID 與計數）。用三次 `db_paging.fetch_all` 加 `.order("id")`（m3）：
+   - **prtimes 已知鍵**：`source_url` 或 `official_url` 含 prtimes.jp，或 `source_name = prtimes`，不分 `is_active`，不加時間條件。比對鍵是 `_RELEASE_PATH_IDS_RE` 從 URL path 抽出的 `(release_id, company_id)`，加上 `source_id` 集合（含 legacy `prtimes_{rid}`）。`normalize_url` 不用，因為 `/rd/amp/` 等變體會對不上（PM2）。
+   - **亂抓**：prtimes 與 google_news_rss 過去 28 天新增的事件，計數為「x / y」（分類見下）。
+   - **只靠複合詞的事件**：`created_at >= PHASE_A_MERGED_AT`（Phase B 的 PR 填入 #724 的合併時間），在 Python 端用 `taiwan_keywords.compound_only()` 篩選，累計下架數。
+2. `coverage-probe`：`needs: coverage-db`，不帶 secrets，權限 `contents: read` 與 `issues: write`。
+   - checkout 用 `sparse-checkout: scraper` 與 `persist-credentials: false`，只安裝 `requests` 與 `beautifulsoup4`（m2）。
+   - `GH_TOKEN` 只放在最後的留言 step。這個 token 就算被濫用，貼 label 的 sender 也是 Bot，碰不到 url-intake 的寫入路徑。
+   - 由 DB 產生的 artifact 屬於受信任資料，不需要另外驗證。
+
+**探測（prtimes）**
+
+- 探測詞：`日台`、`日中台`、`台日`，加上 `台湾` 對照組，各 2 頁。
+- **判斷一律走公開的 verdict 函式**（PM1）：
+  - 標題用 `title_verdict`。
+  - Phase B 的 PR 新增 `body_verdict(title, body_text) -> (ok, reason)`，內部做 venue 抽取與 `_should_skip_taiwan_venue`；`scrape()` 改成呼叫它。
+  - 探測可以 import I/O helper 與常數（`_fetch_detail`、`_parse_released_at`、`_API_URL`、`_HEADERS`、`LOOKBACK_DAYS`），但不自己寫判斷。
+- 排除發布不到 48 小時的項目，以及超過 `LOOKBACK_DAYS` 的項目。
+- 只對「標題通過、不在已知鍵、時間窗內」的項目抓正文，最多 20 筆。抓不到正文的列為「未判定」。
+- 每個探測詞都列出實際涵蓋的 `released_at` 範圍（m7），四週後的數字才能比較。
+
+**報表分類**
+
+- 漏抓：
   - 已收錄。
-  - 被標題過濾，依原因分組。`taiwan_based`（台灣當地舉辦）只報數字，不列清單（m6）。
-  - 通過但未收錄：正文判定為台灣當地舉辦的，歸到「被正文過濾」，不列清單。
+  - 被標題過濾，依原因分組。`taiwan_based` 只報數字，不列清單。
+  - 被正文過濾，只報數字。
+  - **漏抓候選**：標題與正文都通過、DB 沒有。列出清單，附一鍵連結。
   - 未判定。
-- 亂抓：prtimes、google_news_rss 過去 28 天新增的事件，用「x / y」計數，不用百分比（M6）。
-  - 計入：`out_of_scope:`、`admin confirmed irrelevant`、`auto-deactivated: annotator Taiwan relevance gate`。
+- 亂抓（x / y）：
+  - 計入：`out_of_scope:` 前綴、`admin confirmed irrelevant`、`auto-deactivated: annotator Taiwan relevance gate`。最後這一項寫成字面值，並用測試斷言它等於 `annotator.RELEVANCE_GATE_REASON`（m4）。
   - 待人工歸因：`manually deactivated by admin`。
-  - 不計入：合併類、`pre_migration_044_legacy`、空白標題、孤兒子活動、`admin reported wrong …`（暫時停用）。
-  - 其他值：歸到「未分類」並印出原字串。
-  - 只靠複合詞通過的事件（標題不含台湾等字，但符合複合詞），從 Phase A 合併日起累計下架數。
-- 輸出：
-  - run summary 放完整報表。
-  - 一張滾動 issue「覆蓋稽核週報」：由 agent 在合併前手動建好，貼 label `coverage-audit`。report job 以 label 搜尋，找到 0 張或超過 1 張就讓 job 失敗，不自動建立。每週留一則摘要。
-- 外部內容寫進 issue 時（M5）：
-  - 標題：摺疊換行、移除其中的 URL，再套用 `escape_md`。
-  - URL：用 `normalize_url` 驗證，並限定在探測來源的 host。
-  - 一鍵開 url-intake 的連結：`issues/new?title=…&body=…`，參數以 `urllib.parse.quote` 編碼，body 的第一行固定是目標 URL。不帶 `labels=`，所以不會觸發 url-intake。repo 也沒有 issue template。
+  - 不計入：合併類、`pre_migration_044_legacy`、空白標題、孤兒子活動、`admin reported wrong …`。
+  - 未分類：只印 distinct 值與計數，每個截到 80 字。
 
-**門檻**：前四週只出報告。四週後依數字決定警示門檻、是否擴大探測詞，以及是否改成月報。結論寫進 `notes.md`。
+**輸出**
 
-**成本**：無 LLM 呼叫。每週的 HTTP 請求包括：prtimes 4 個詞 × 最多 2 頁、google_news 3 個請求、最多 20 次正文抓取、最多 20 次轉址解碼（每次 sleep 1 秒）。
+- 先寫 run summary，再處理 issue（m5）。
+- 滾動 issue「覆蓋稽核週報」：
+  - 由 agent 在合併前手動建好。label `coverage-audit` 只貼在這一張上（不要和 `spec:coverage-audit` 混用）。
+  - 用 `gh issue list --label coverage-audit --state open --json number` 搜尋。找到 0 張或超過 1 張就讓 job 失敗。
+  - 每週留一則摘要。
+- 外部內容的處理：
+  - 標題：摺疊換行，用 `ingest_url._URL_IN_TEXT` 移除其中的 URL，套用 `escape_md`，顯示時截到 120 字。
+  - URL：限定 host 為 `prtimes.jp`，不經 `escape_md`。
+  - 一鍵連結：`issues/new?title=…&labels=url-intake&body=<URL>`，`title=` 截到 60 字，參數用 `urllib.parse.quote` 編碼。
+    - 帶 `labels=url-intake` 只會觸發 preview，不會寫 DB（m8，採用）。它的好處是使用者少貼一次 label，而且只有 triage 以上權限的人建立時這個 label 才會生效。
+    - 核准仍然要使用者自己貼 `url-intake:approved`。
+  - 整則留言超過 60000 字元時截斷，並附上 run 的連結（m6）。
+- 失敗通知：把 `Scraper Quality Report` 加進 `workflow-failure-notify.yml` 的監看清單，這只要改一行（PM4）。
 
-**修訂後再評審**：依 plan-critique-1 的結論，Phase B 實作前再評審一次（plan-critique-2）。
+**驗證**（PM4）
+
+- 核心邏輯放在 `scraper/coverage_audit.py`，寫成純函式，用 fixture（API 回應、已知鍵、正文文字）測試，由 `Scraper Tests` 執行。`scraper-quality.yml` 的 `unit-tests` 有 `-k` 過濾，不會跑到這些測試，PR 裡要寫明。
+- 提供 `--no-post`：只寫 run summary，不留言。
+- 不在 feature branch 上 dispatch，因為會連既有的 report 一起跑，還會讓 branch 的程式拿到 production secrets。合併後由 agent 對 main dispatch 一次，作為 M5。這只讀 production，不是人類關卡。
+
+**門檻**：前四週只出報告。四週後決定警示門檻、探測詞、google 探測，以及是否保留 `日台 イベント` 搜尋詞（#724 的 dry-run 顯示它帶回 0 筆）。結論寫進 `notes.md`。
+
+**成本**：無 LLM 呼叫，不解碼轉址。每週的請求是 prtimes 4 個詞 × 2 頁，加上最多 20 次正文抓取。
 
 ## 風險
 
@@ -154,8 +184,9 @@ issues: ["#701", "#702"]
 | --- | --- |
 | 複合詞誤收（舞台日本、本日台数等） | A2 帶前後文限制，A4 列入 8 個負例；Phase B 追蹤只靠複合詞收進來的事件下架數 |
 | 「日台」標題常是在台灣舉辦的日本企業活動 | 標題層只擋得住 `in 台北`。主要靠正文場地過濾與 annotator 兩層擋。已知缺口以 xfail 記錄 |
-| 探測與 scraper 的判斷分歧 | 共用 `title_verdict`；scraper 自己也呼叫它 |
-| 「通過但未收錄」假陽性 | 48 小時寬限、LOOKBACK、正文場地過濾、跨來源 URL 比對 |
+| 探測與 scraper 的判斷分歧 | 共用 `title_verdict` 與 `body_verdict`；scraper 自己也呼叫它們 |
+| 持有 DB 金鑰的 job 解析外部內容 | job 順序是 `coverage-db` → `coverage-probe`，外部內容只進不帶 secrets 的 job |
+| 「通過但未收錄」假陽性 | 48 小時寬限、LOOKBACK、`body_verdict` 正文判斷、release 鍵比對 |
 | hook 的比對形式繞過 | casefold、拆逗號、變數一律 ask、`--input` 一律 ask、MCP 遞迴掃描；C1 處理重跑 |
 | hook 誤擋 | 只比對 `url-intake:approved` 與 url-intake 的 dispatch，決策是 ask 不是 deny |
 | 週報沒人看 | 滾動 issue 會出現在看板；四週後檢討 |
@@ -184,10 +215,24 @@ plan-critique-1（Claude plan-critic，與撰寫者同一模型家族；Codex �
 | m6 排除 taiwan_based | 採納 |
 | m7 A 先做的理由 | 改寫為「B 要呼叫 A 的函式」 |
 
+plan-critique-2（同上，只評 Phase B）的處理方式：
+
+| 項目 | 處理 |
+| --- | --- |
+| PB1 probe 需要 DB 結果 | 採納：job 順序改為 `coverage-db` → `coverage-probe`，外部內容只進不帶 secrets 的 job；刪除 artifact 驗證 |
+| PM1 正文判斷仍在 scrape() 內 | 採納：新增 `body_verdict`；寫明「判斷走公開函式，I/O helper 可以 import」 |
+| PM2 normalize_url 比對不足 | 採納：prtimes 改用 `(release_id, company_id)` 與 `source_id` |
+| PM3 google 探測延後 | 採納：google 只做 DB 端計數 |
+| PM4 驗證與失敗通知 | 採納：純函式加 fixture 測試、`--no-post`、合併後對 main dispatch、加進 workflow-failure-notify |
+| m1～m7 | 採納 |
+| m8 一鍵連結帶 `labels=url-intake` | 採納，理由寫在 B 段 |
+
+依 plan-critique-2 的結論，修訂只有縮小與改順序，不需要第三輪評審。plan-critic 自述的教訓（建議切分信任邊界前，先畫出資料相依方向）已寫入 `.github/skills/agents/plan-critic/history.md`。
+
 ## 參考
 
 - #701、#702
-- `plan-critique-1.md`
+- `plan-critique-1.md`、`plan-critique-2.md`
 - `docs/specs/active/url-intake/`
 - `docs/specs/active/evaluation-framework/`
 - `.github/workflows/scraper-quality.yml`
