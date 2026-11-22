@@ -8,6 +8,12 @@ order the user should work through it:
   2. 一鍵合併區  tier 1 PRs: gitleaks, conflicts, dry-run evidence verdict
   3. 判斷區      tier 2 PRs, PRs without a tier, needs-human issues, ready-to-close parents
   4. 回收區      PRs open over 14 days, duplicate "Closes #n", PRs whose issue is closed
+  5. 學習區      open `learning` proposals, then this week's learning signals:
+                 lessons from merged PR bodies, PRs closed unmerged, fixes that
+                 followed a merge on the same file (spec auto-learning)
+
+The learning signals are computed here, from GitHub, every time. They are not
+stored in the repository, so no agent can edit them (docs/** is tier 0).
 
 Read-only: it never merges, closes or labels anything. Evidence comes only
 from comments written by github-actions[bot] (anyone can comment on this
@@ -37,6 +43,8 @@ EVIDENCE = "<!-- pr-dryrun-evidence -->"
 RECOVERY = "<!-- zero-output-recovery -->"
 STALE_DAYS = 14
 MAX_LIST = 15
+LESSON_HEAD_RE = re.compile(r"^#{2,3}\s*教訓\s*$")
+LESSON_MAX = 3
 CLOSES_RE = re.compile(r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)", re.IGNORECASE)
 VERDICT_RE = re.compile(r"^\| `[a-z0-9_]+` \|.*\| ([^|]+) \|$", re.MULTILINE)
 
@@ -78,6 +86,44 @@ def verdicts(comments: list[dict]) -> list[str]:
     if not bot:
         return []
     return [clean_code(v.strip(), 80) for v in VERDICT_RE.findall(bot[-1]["body"])]
+
+
+def lessons(body: object) -> list[str] | None:
+    """Lines of the PR body's 教訓 section; None when the section is missing.
+
+    An empty list means the author wrote 無 (or left it blank). At most
+    LESSON_MAX lines are kept; the text is untrusted and cleaned like titles.
+    """
+    if not isinstance(body, str):
+        return None
+    lines = body.replace("\r\n", "\n").split("\n")
+    start = next((i for i, ln in enumerate(lines) if LESSON_HEAD_RE.match(ln.strip())), None)
+    if start is None:
+        return None
+    found: list[str] = []
+    for ln in lines[start + 1:]:
+        text = ln.strip()
+        if text.startswith("#"):
+            break
+        text = re.sub(r"^[-*+]\s*", "", text)
+        if not text or text in {"無", "無。", "无", "None", "none", "N/A"}:
+            continue
+        found.append(re.sub(r"[|*\[\]~]", "", clean_code(text, 160)))
+    return found[:LESSON_MAX]
+
+
+def followup_fixes(merged: list[dict]) -> list[tuple[int, int, str]]:
+    """(earlier PR, later fix PR, shared path) for fix PRs merged after another PR on the same file."""
+    ordered = sorted((p for p in merged if p.get("merged_at")), key=lambda p: p["merged_at"])
+    pairs = []
+    for i, later in enumerate(ordered):
+        if not str(later.get("title") or "").lower().startswith("fix"):
+            continue
+        for earlier in ordered[:i]:
+            shared = sorted(set(earlier.get("files") or []) & set(later.get("files") or []))
+            if shared:
+                pairs.append((earlier["number"], later["number"], shared[0]))
+    return pairs
 
 
 def iso_week(now: datetime) -> str:
@@ -127,6 +173,8 @@ def build(data: dict, now: datetime) -> tuple[str, str]:
     ready = data.get("ready_to_close", [])
     merged = data.get("merged", [])
     recovered = data.get("auto_closed", [])
+    closed_unmerged = data.get("closed_unmerged", [])
+    learning = data.get("learning", [])
 
     out = [
         f"# {title}",
@@ -180,6 +228,32 @@ def build(data: dict, now: datetime) -> tuple[str, str]:
         if p not in stale:
             recycle.append(f"- #{p['number']} {_title(p.get('title'))}｜與 main 衝突，請 agent rebase 後重開")
     out += recycle or ["（沒有）"]
+
+    out += ["", "## 5. 學習區（提案與本週訊號）", ""]
+    if learning:
+        out.append(f"**learner 的提案**（{len(learning)} 張；對每張卡片回 👍 或 👎）：")
+        out += _cap([f"- #{i['number']} {_title(i.get('title'))}" for i in learning], "張")
+    else:
+        out.append("本週沒有 open 的 learning 提案。")
+    human = [p for p in merged if not p.get("author_bot")]
+    with_section = [(p, lessons(p.get("body"))) for p in human]
+    missing = [p for p, found in with_section if found is None]
+    told = [(p, found) for p, found in with_section if found]
+    out += ["", f"**教訓段**：本週合併 {len(human)} 張（不含 bot 的 PR），{len(missing)} 張沒有「教訓」段，"
+                f"{len(told)} 張寫了教訓。"]
+    if missing:
+        out.append("沒有教訓段：" + "、".join(f"#{p['number']}" for p in missing[:MAX_LIST])
+                   + ("…" if len(missing) > MAX_LIST else ""))
+    for p, found in told[:MAX_LIST]:
+        out += [f"- #{p['number']}：" + "；".join(found)]
+    if len(told) > MAX_LIST:
+        out.append(f"- …其餘 {len(told) - MAX_LIST} 張")
+    out += ["", f"**關閉未合併的 PR**：{len(closed_unmerged)} 張"
+                + ("（" + "、".join(f"#{p['number']}" for p in closed_unmerged[:MAX_LIST]) + "）" if closed_unmerged else "")]
+    pairs = followup_fixes(merged)
+    out += ["", f"**合併後又修同一檔**：{len(pairs)} 組"]
+    out += _cap([f"- #{a} 之後 #{b} 修了 `{clean_code(path, 80)}`" for a, b, path in pairs], "組")
+    out += ["", "教訓文字是 PR 作者自己寫的，只當線索；這一區的數字每次由 workflow 從 GitHub 重新計算，不存在 repo 裡。"]
     out += ["", "---", f"_{now.astimezone(JST):%Y-%m-%d %H:%M} JST 由 weekly-digest workflow 產生；下一份產生時，這張會自動關閉。_"]
     return title, "\n".join(out) + "\n"
 
@@ -221,8 +295,14 @@ def collect(repo: str, now: datetime) -> dict:  # pragma: no cover - network
     issue_state = {str(n): _gh(f"{r}/issues/{n}").get("state") for n in sorted(targets)}
     closed_prs = _pages(f"{r}/pulls?state=closed&sort=updated&direction=desc",
                         stop=lambda last: (last.get("updated_at") or "") < since)
-    merged = [{"number": p["number"], "title": p["title"], "labels": p["labels"]}
+    merged = [{"number": p["number"], "title": p["title"], "labels": p["labels"], "body": p.get("body"),
+               "merged_at": p["merged_at"], "author_bot": (p.get("user") or {}).get("type") == "Bot",
+               "files": [f["filename"] for f in _pages(f"{r}/pulls/{p['number']}/files")]}
               for p in closed_prs if (p.get("merged_at") or "") >= since]
+    closed_unmerged = [{"number": p["number"], "title": p["title"]}
+                       for p in closed_prs if not p.get("merged_at") and (p.get("closed_at") or "") >= since]
+    learning = [{"number": i["number"], "title": i["title"]}
+                for i in _pages(f"{r}/issues?state=open&labels=learning")]
     closed_issues = [i for i in _pages(f"{r}/issues?state=closed&since={since}&labels=scraper")
                      if not i.get("pull_request") and (i.get("closed_at") or "") >= since]
     auto_closed = []
@@ -235,7 +315,8 @@ def collect(repo: str, now: datetime) -> dict:  # pragma: no cover - network
     ready = [{"number": i["number"], "title": i["title"]}
              for i in _pages(f"{r}/issues?state=open&labels=ready-to-close") if not i.get("pull_request")]
     return {"open_prs": open_prs, "issue_state": issue_state, "merged": merged,
-            "auto_closed": auto_closed, "needs_human": needs_human, "ready_to_close": ready}
+            "auto_closed": auto_closed, "needs_human": needs_human, "ready_to_close": ready,
+            "closed_unmerged": closed_unmerged, "learning": learning}
 
 
 def main(argv: list[str] | None = None) -> int:
