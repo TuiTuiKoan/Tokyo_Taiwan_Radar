@@ -209,12 +209,14 @@ Codex 不會因為 `.codex/agents/*.toml` 存在就自動派用 subagent（2026-
 | `supabase db push`（只放行精確的 `supabase db push --dry-run`）、`db reset`、`db query`、`db pull`、`migration up／down／repair／squash`、`seed`；`psql` 必須帶 `-X` 且只能是單一 `SELECT`／`SHOW`／`EXPLAIN`（不含 `ANALYZE`）；`python -c` 或 heredoc 餵入的 python 同時含 `create_client` 與 `.insert(`／`.update(`／`.upsert(`／`.delete(` | 阻擋（啟發式） |
 | `eval`、stdin 餵入的 shell（`… \| sh`、`bash <<EOF`、`sh -s`）、無法檢查的 `bash -c`、動詞位置的命令替換、`git`／`psql`／`supabase` 參數中的命令替換（`git rev-parse`、`git branch --show-current`、`pwd` 與 heredoc commit 訊息除外）、guard 不支援的語法 | 阻擋 |
 | 合併 PR 與直接寫 main（#568）：`gh pr merge`；`gh alias set／import`；`gh api` 以 PUT／POST／PATCH／DELETE（含帶 `-f`／`-F`／`--input` 的隱含 POST）打 `pulls/*/merge`、`pulls/*/ccr/auto_merge`、`merges`、`contents/`、`git/refs`／`commits`／`tags`／`trees`、`rulesets`、`branches/*/protection`、`environments`、`actions/secrets`；端點尾段來自變數的寫入請求；GraphQL 的合併、建 commit、改 ref、ruleset／branch protection mutation，或 query 來自檔案、變數；GitHub MCP 的合併、自動合併、寫檔、推檔、刪檔、改 ref／commit 工具 | 阻擋（`github-merge-or-main-write`）。讀取、開 issue、留言、貼 label、開 PR 照常放行 |
+| url-intake 核准（#702）：`gh issue`／`gh pr` 的 `edit`／`create` 以 `--add-label`、`--label`、`-l` 加上 `url-intake:approved`（不分大小寫、逗號分隔、值含變數）；`gh api` 以寫入方法打 `issues`、`issues/*`、`issues/*/labels` 且欄位含該 label、欄位值含變數或用 `--input`；GraphQL 的 `addLabelsToLabelable`／`createIssue`／`updateIssue`；`gh workflow run` 指定 url-intake（檔名、名稱「URL Intake」、數字 ID、變數或未指定）；`gh api` 打 url-intake 或數字 ID 的 `dispatches`、`actions/runs/*/pending_deployments`；GitHub MCP 工具的輸入任何字串值是 `url-intake:approved` | 要求核准（`url-intake-approval`）。`--remove-label`、加其他 label、留言、其他 workflow 照常放行。`url-intake.yml` 另以 `github.run_attempt == 1` 擋下重跑舊 run 寫入，對 Codex、Copilot 也有效 |
 
 **未涵蓋（殘餘風險）**
 
 - prod-db 規則是啟發式，**不代表 production 寫入全面受保護**。經專案腳本的寫入（`scraper/update_source.py`、`qa_auto_fix.py`、`annotator.py` 等）、Supabase CLI 的 Management APIs、claude.ai 帳號層的 Supabase MCP 連接器（`execute_sql`、`apply_migration` 等）、`SELECT` 呼叫有副作用的函式、`.rpc(`、經 pipe 餵入的 python，都不在範圍內。
 - `.env` 規則是字面路徑檢查。只給父目錄的遞迴讀取（`grep -r`、`rg -uu`、以父目錄為 `path` 的 Grep 工具、`cp -r`、`tar`）、symlink／hard link 等別名路徑、直譯器程式碼字串內的路徑（如 `python3 -c "open('.env')"`）都不涵蓋。
 - 字元層混淆（`$'\x67it'`、變數拼接）、`$VAR` 當動詞或 guarded 參數、`xargs`、`find -exec`、git alias、未解包的包裝動詞（`uv run`、`npx` 等）、經變數間接引用的 `source "$F"`、在直譯器內讀取環境變數，都不涵蓋。
+- url-intake 核准規則同樣只看 `gh` 與 `mcp__github__*`；claude.ai 帳號層的 GitHub 連接器（前綴不同，hook matcher 抓不到）與 `curl` 帶 token 不涵蓋。
 - GitHub 防線只看 `gh` 與 `mcp__github__*`：`curl` 等 HTTP 客戶端帶 token 打 API、端點用 `..` 或變數接在字面尾段之後的寫法不涵蓋。main 的「require a pull request」ruleset 才是不依賴 Claude Code 的防線（#568 (c)，由使用者決定）。
 - hook 失敗與逾時以 `onFailure: "block"` 阻擋，需 Claude Code `2.1.295` 以上；舊版會忽略這個欄位，逾時時放行（launcher 缺失仍由命令本身的 `|| exit 2` 阻擋）。Claude Code 改版若不再辨識 decision JSON，`ask` 會退化為不提示。
 - `.claude/settings.local.json`、`disableAllHooks`、`--settings` 等覆蓋不在邊界內。
