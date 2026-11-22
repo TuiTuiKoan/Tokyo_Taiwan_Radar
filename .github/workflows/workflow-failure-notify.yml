@@ -20,6 +20,7 @@ on:
       - "Daily Research"
       - "Daily Scraper"
       - "QA Triage"
+      - "Scraper Quality Report"
       - "Secret Rotation Reminder"
       - "Weekly LINE Broadcast"
       - "Weekly Health Report"

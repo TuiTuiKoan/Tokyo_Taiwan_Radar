@@ -171,7 +171,7 @@ issues: ["#701", "#702"]
 **驗證**（PM4）
 
 - 核心邏輯放在 `scraper/coverage_audit.py`，寫成純函式，用 fixture（API 回應、已知鍵、正文文字）測試，由 `Scraper Tests` 執行。`scraper-quality.yml` 的 `unit-tests` 有 `-k` 過濾，不會跑到這些測試，PR 裡要寫明。
-- 提供 `--no-post`：只寫 run summary，不留言。
+- 「只寫 run summary、不留言」：以 workflow_dispatch 的 `no_post` 輸入實作（留言 step 在 workflow 裡，`GH_TOKEN` 只放在那一步，所以開關放在 workflow 而不是 `coverage_audit.py`）。
 - 不在 feature branch 上 dispatch，因為會連既有的 report 一起跑，還會讓 branch 的程式拿到 production secrets。合併後由 agent 對 main dispatch 一次，作為 M5。這只讀 production，不是人類關卡。
 
 **門檻**：前四週只出報告。四週後決定警示門檻、探測詞、google 探測，以及是否保留 `日台 イベント` 搜尋詞（#724 的 dry-run 顯示它帶回 0 筆）。結論寫進 `notes.md`。

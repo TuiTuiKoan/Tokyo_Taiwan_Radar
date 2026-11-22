@@ -337,6 +337,18 @@ def title_verdict(title: str) -> tuple[bool, str]:
     return True, "ok"
 
 
+def body_verdict(title: str, body_text: str) -> tuple[bool, str]:
+    """Body-level filter used by scrape() and the coverage audit.
+
+    Returns (True, "ok") or (False, "taiwan_venue") when the body places the
+    event in Taiwan for a Taiwanese audience (_should_skip_taiwan_venue).
+    """
+    venue = _extract_venue_from_body(body_text)
+    if _should_skip_taiwan_venue(title, body_text, venue):
+        return False, "taiwan_venue"
+    return True, "ok"
+
+
 def _is_blank_or_placeholder_title(title: str) -> bool:
     cleaned = (title or "").strip()
     if not cleaned:
@@ -467,7 +479,7 @@ class PrtimesScraper(BaseScraper):
 
                     start_date = _extract_date_from_body(body_text, released_dt)
                     venue = _extract_venue_from_body(body_text)
-                    if _should_skip_taiwan_venue(title, body_text, venue):
+                    if not body_verdict(title, body_text)[0]:
                         logger.debug("Skip Taiwan venue '%s': %s", (venue or "")[:30], title[:50])
                         seen_ids.discard(source_id)
                         new_count -= 1
