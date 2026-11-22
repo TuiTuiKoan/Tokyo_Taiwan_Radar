@@ -4,6 +4,8 @@ name: Scraper Quality Report
 # Read-only against production: output health with expected-zero handling
 # (scraper/source_expectations.json), field completeness, human vs script
 # correction rates, DOM drift, and annotator fill. No OpenAI calls.
+# coverage-db / coverage-probe: weekly keyword coverage audit (spec
+# coverage-audit Phase B) — PR TIMES miss probe and mis-capture counts.
 # scraper/reports/ is gitignored, so the report lives in the run summary and
 # the uploaded artifact.
 
@@ -11,6 +13,11 @@ on:
   schedule:
     - cron: '0 0 * * 0'  # Sunday 09:00 JST
   workflow_dispatch:
+    inputs:
+      no_post:
+        description: "Coverage audit: write the run summary only, do not comment on the weekly issue"
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths:
@@ -86,3 +93,96 @@ jobs:
           name: scraper-quality
           path: scraper/reports/scraper_quality_*
           if-no-files-found: ignore
+
+  # --- Weekly keyword coverage audit (spec coverage-audit Phase B) -----------
+  # Trust boundary (plan-critique-2 PB1): the job holding the database key
+  # never touches external content; the job that reads PR TIMES holds no
+  # secret and gets GH_TOKEN only in its final comment step.
+  coverage-db:
+    if: github.event_name != 'pull_request' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: 'scraper/requirements.txt'
+
+      - name: Install Python dependencies
+        run: pip install -r scraper/requirements.txt
+
+      - name: Read known PR TIMES keys and mis-capture counts (select only)
+        working-directory: scraper
+        env:
+          SUPABASE_URL: "${{ secrets.SUPABASE_URL }}"
+          SUPABASE_SERVICE_ROLE_KEY: "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
+        run: python coverage_audit.py db --out "$RUNNER_TEMP/coverage-known.json"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-known
+          path: ${{ runner.temp }}/coverage-known.json
+          retention-days: 1
+
+  coverage-probe:
+    needs: coverage-db
+    if: github.event_name != 'pull_request' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          sparse-checkout: scraper
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install probe dependencies
+        run: |
+          grep -iE '^(requests|beautifulsoup4)\b' scraper/requirements.txt > "$RUNNER_TEMP/req.txt"
+          pip install -r "$RUNNER_TEMP/req.txt"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: coverage-known
+          path: ${{ runner.temp }}/known
+
+      - name: Probe PR TIMES and render the report
+        working-directory: scraper
+        env:
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python coverage_audit.py probe \
+            --known "$RUNNER_TEMP/known/coverage-known.json" \
+            --summary "$RUNNER_TEMP/coverage-summary.md" \
+            --comment "$RUNNER_TEMP/coverage-comment.md" \
+            --repo "$REPO" --run-url "$RUN_URL"
+          cat "$RUNNER_TEMP/coverage-summary.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment on the weekly coverage issue
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.no_post) }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          numbers=$(gh issue list --label coverage-audit --state open --json number --jq '.[].number')
+          count=$(printf '%s\n' "$numbers" | grep -c . || true)
+          if [ "$count" -ne 1 ]; then
+            echo "::error::expected exactly 1 open issue labeled coverage-audit, found $count"
+            exit 1
+          fi
+          gh issue comment "$numbers" --body-file "$RUNNER_TEMP/coverage-comment.md"
