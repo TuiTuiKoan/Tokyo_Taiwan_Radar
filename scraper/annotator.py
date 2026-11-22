@@ -50,6 +50,7 @@ from movie_title_lookup import lookup_movie_titles, lookup_movie_titles_with_met
 from location_region import OTHER_FOREIGN, TAIWAN, _normalize_address, classify_region
 from venue_registry import lookup_venue_for_location
 from organizer_registry import lookup_organizer
+from sources._organizer_link import count_schedule_slots
 from security.injection_guard import (
     scan_for_injection,
     finding_fingerprint,
@@ -785,7 +786,9 @@ def _extract_prefecture(address: str | None) -> str | None:
 
 # Regex for deterministic venue extraction from raw_description
 # before GPT annotation — matches 会場：/場所：label lines.
-_VENUE_LABEL_RE = re.compile(r'(?:会場|場所)[：:]\s*(.+)')
+# A label inside parentheses is a side note about a secondary room, not the
+# event venue — e.g. "18:30 交流会（会場：…地下1階カフェテリア）" (407a033b).
+_VENUE_LABEL_RE = re.compile(r'(?<![（(])(?:会場|場所)[：:]\s*(.+)')
 _PREF_ADDR_INLINE_RE = re.compile(
     r'((?:東京都|大阪府|京都府|神奈川県|愛知県|福岡県|兵庫県|埼玉県|千葉県|'
     r'北海道|宮城県|広島県|静岡県|茨城県|岡山県|新潟県|長野県|栃木県|'
@@ -1155,7 +1158,7 @@ OTHER RULES:
     IMPORTANT PROGRAM-LIST CASE: a block like "7月7日〜7月30日 [venue]" followed by a quoted exhibition title is a standalone exhibition sub-event, even if the next block on the same page is a one-day opening event, lecture, film, or performance. Extract that exhibition as its own sub_event with the full date range and venue.
     ALSO: if a one-day opening event block has an overall time slot and venue, then lists bundled contents such as 開幕式, 講演①, 講演②, and film screening without separate times for each content item, create ONE sub-event for the whole opening event. Do not reduce it to only the first lecture, and do not create separate lecture/film sub-events unless each item has its own date/time.
    ALSO: if event_form is "conference" and the description lists 3 or more distinct named presentations/reports (報告, 発表, セッション) with individually named presenters (発表者, 報告者, 登壇者), generate a sub-event for each presentation. Use the same start_date/end_date and venue as the parent, set business_hours to that session's time slot (e.g. "12:30～13:50"), and put the presenter's name in both the "performer" string and the "performers" array. The sub-event name_ja should be the presentation title.
-   EXCEPTION — DO NOT create sub_events for a single-film cinema screening (movie category) that simply has multiple show-time slots. For example, '4/25(土)～5/1(金)10:00、5/2(土)～8(金)14:40' is ONE film with two show-time windows — use start_date = first date, end_date = last date, put the slot details in business_hours. Sub_events in this context are for DIFFERENT FILMS in a series or DIFFERENT PHYSICAL VENUES, not different show times of the same film.
+   EXCEPTION — DO NOT create sub_events for a single-film cinema screening (movie category) that simply has multiple show-time slots. This EXCEPTION does NOT apply when the schedule lists two or more DIFFERENT works — that is a series, so create one sub-event per time slot. For example, '4/25(土)～5/1(金)10:00、5/2(土)～8(金)14:40' is ONE film with two show-time windows — use start_date = first date, end_date = last date, put the slot details in business_hours. Sub_events in this context are for DIFFERENT FILMS in a series or DIFFERENT PHYSICAL VENUES, not different show times of the same film.
    EXCEPTION — DO NOT create sub_events when the article is a report/recap. If the raw_title contains レポート, レポ, 報告, 活動記録, 開催記録, 鑑賞記録, 記録｜, 記録|, アーカイブ, or recap (case-insensitive), the article is a post-event report and describes a single completed event — return sub_events: [] always. Treat the report as one event and extract its single set of fields (date, performer, etc.) from the body.
    NOTE: For events with exactly two venues across different countries (e.g. Japan + Taiwan), do NOT create sub_events. Use the Japan venue as the single primary location (see MULTI-COUNTRY VENUE RULE above).
 <<CATEGORY_TAXONOMY>>
@@ -1981,6 +1984,7 @@ def _annotate_one(
     feedback_prompt: str = "",
     sr_feedback_prompt: str = "",
     record_type: str | None = None,
+    max_tokens: int = 4000,
 ) -> dict:
     """Send raw event data to GPT-4o-mini and return structured annotation."""
     system_content = SYSTEM_PROMPT + feedback_prompt + sr_feedback_prompt
@@ -1994,7 +1998,7 @@ def _annotate_one(
         ],
         response_format={"type": "json_object"},
         temperature=0.1,
-        max_tokens=4000,
+        max_tokens=max_tokens,
     )
 
     usage = response.usage  # may be None in rare cases
@@ -2011,10 +2015,58 @@ def _annotate_one(
             ],
             response_format={"type": "json_object"},
             temperature=0.1,
-            max_tokens=6000,
+            max_tokens=max(6000, max_tokens),
         )
         usage = response.usage
         return json.loads(response.choices[0].message.content), usage
+
+
+# ── Schedule coverage guard (spec organizer-source-subevents) ────────────────
+# First version is limited to relay sources whose articles carry a full
+# programme; cinema sources stay under the single-film EXCEPTION and the
+# cinema-series guard.
+_SUB_EVENT_RETRY_SOURCES = frozenset({"tiff_jp"})
+_SUB_EVENT_RETRY_MIN_SLOTS = 3
+_SUB_EVENT_RETRY_REPORT_RE = re.compile(r"レポート|レポ|報告|記録|アーカイブ|recap", re.IGNORECASE)
+
+
+def _should_retry_sub_events(
+    event: dict,
+    model_sub_events,
+    raw_desc: str | None,
+    *,
+    is_pure_publication: bool,
+    is_inactive: bool,
+) -> bool:
+    """True when the model returned no sub-events for a multi-slot programme.
+
+    Mirrors every existing sub-event filter so a retry never produces children
+    that would be dropped anyway (publication, sub-event itself, inactive,
+    report title).
+    """
+    if model_sub_events:
+        return False
+    if event.get("source_name") not in _SUB_EVENT_RETRY_SOURCES:
+        return False
+    if is_pure_publication or is_inactive or event.get("parent_event_id"):
+        return False
+    if _SUB_EVENT_RETRY_REPORT_RE.search(event.get("raw_title") or ""):
+        return False
+    slots, titles = count_schedule_slots(raw_desc)
+    return slots >= _SUB_EVENT_RETRY_MIN_SLOTS and titles >= _SUB_EVENT_RETRY_MIN_SLOTS
+
+
+def _sub_event_retry_hint(slots: int) -> str:
+    return (
+        "\n\nSUB-EVENT COVERAGE CHECK: the raw description is a programme schedule "
+        f"with {slots} time slots (a date heading followed by lines such as "
+        "'16:00『作品』'). Return one sub_event per time slot: start_date = end_date = "
+        "that day, business_hours = that slot's time. When several films share one "
+        "slot, join their titles with '＋' in one sub_event. A symposium / talk slot is "
+        "its own sub_event with the speakers in 'performers'; a 交流会 that follows it "
+        "on the same ticket belongs to that symposium sub_event. This is a series of "
+        "different works, NOT the single-film multiple-showtimes EXCEPTION."
+    )
 
 
 # The model occasionally puts an event_form value into "category". Map only the
@@ -3962,6 +4014,48 @@ def annotate_pending_events(
                     event.get("source_id"),
                 )
                 sub_events = []
+            # Schedule coverage guard (spec organizer-source-subevents): the model
+            # returned no sub-events although the text lists ≥3 programme slots
+            # with different titles. Ask once more with a hint; only the retry's
+            # sub_events are used — every other field keeps the first answer.
+            if _should_retry_sub_events(
+                event,
+                annotation.get("sub_events"),
+                raw_desc,
+                is_pure_publication=bool(_is_pure_publication),
+                is_inactive=update_data.get("is_active") is False,
+            ):
+                _slots, _ = count_schedule_slots(raw_desc)
+                try:
+                    _retry_ann, _retry_usage = _annotate_one(
+                        ai,
+                        raw_title,
+                        raw_desc,
+                        feedback_prompt + _sub_event_retry_hint(_slots),
+                        sr_feedback_prompt,
+                        record_type=_record_type,
+                        max_tokens=8000,
+                    )
+                    if _retry_usage:
+                        total_tokens_in += _retry_usage.prompt_tokens or 0
+                        total_tokens_out += _retry_usage.completion_tokens or 0
+                    _retry_subs = _retry_ann.get("sub_events") or []
+                    if isinstance(_retry_subs, list) and _retry_subs:
+                        sub_events = _retry_subs
+                    logger.info(
+                        "  ↻ sub-event coverage retry %s: slots=%d → sub_events=%d",
+                        event.get("source_id"), _slots, len(sub_events),
+                    )
+                    if not sub_events:
+                        logger.warning(
+                            "  ⚠ sub-event coverage retry still empty for %s (%d slots)",
+                            event.get("source_id"), _slots,
+                        )
+                except Exception as _retry_exc:  # the retry must never fail the parent
+                    logger.warning(
+                        "  ⚠ sub-event coverage retry failed for %s: %s",
+                        event.get("source_id"), _retry_exc,
+                    )
             # Pre-fetch existing sub-events to preserve name_ja on re-annotation
             # (same preservation policy as parent events — GPT may rewrite katakana to kanji).
             existing_subs_res = sb.table("events").select("*").eq("parent_event_id", eid).execute()
