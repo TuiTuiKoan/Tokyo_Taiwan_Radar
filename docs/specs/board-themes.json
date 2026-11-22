@@ -29,6 +29,7 @@
     "people-ground-truth": "Eval",
     "japan-scope-gate": "資料修復",
     "authoritative-venue-repair": "資料修復",
+    "venue-ground-truth": "資料修復",
     "publication-policy": "資料修復",
     "ndl-relevance-publication": "資料修復",
     "workstream-tracking": "追蹤清理",
