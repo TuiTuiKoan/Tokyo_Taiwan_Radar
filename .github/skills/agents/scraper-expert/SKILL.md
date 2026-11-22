@@ -2320,6 +2320,16 @@ Stranger cinema（東京墨田区）は Eigaland プラットフォームの JSO
 - **`openDate` は公開日（リリース日）であり上映日ではない**: 上映日は `listByDomainAndDate?date=YYYY-MM-DD` のクエリ日付から得る。
 - **`detail.officialPageUrl` is film-level, not event-level**: It points to the film's website rather than the Stranger screening event. Keep it as lookup/reference metadata only; do not assign it to `events.official_url`. The Stranger screening detail page remains `source_url`, and may also be `official_url` only when it is independently verified as a first-party page dedicated to that screening event.
 
+## tufs_aa-specific
+
+東京外国語大学 AA研（https://www.aa.tufs.ac.jp/events/）。詳細は `.github/skills/sources/tufs_aa/SKILL.md`。
+
+- **列表依活動日期「新→舊」排序**：page 1 是最遠的未來。從 page 1 往後讀，遇到「整頁都已結束」就停（上限 `MAX_PAGES=8`）。
+- **`非公開` 在列表階段就跳過**：判斷時先查 `非公開`，因為 `公開` 是它的子字串。
+- **台灣判定要讀詳細頁**：台灣常只出現在節目或「関連プロジェクト」（如アミ語、アタヤル語），列表標題不夠。
+- **parser 不依賴 CSS class**：以 `/events/detail/e<N>/` 連結與 `日時`／`場所` 等標籤取值；改版時先看 log 的 `no cards on … — selector drift?`。
+- **`source_id = tufs_aa_e<N>`**：網站自己的流水號，跨次執行穩定；英文版 `/en/events/detail/e<N>/` 是同一場，不另收。
+
 ---
 
 ## Annotator — Performer / Director Field Rules

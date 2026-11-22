@@ -10,6 +10,7 @@
     "taipei_fukuoka": {"pattern": "sporadic", "max_quiet_days": 120, "note": "每週一從家用 IP 執行（roc-taiwan.org 封 GitHub Actions IP，#378）；活動公告不定期"},
     "jposa_ja": {"pattern": "sporadic", "max_quiet_days": 60, "note": "每週一從家用 IP 執行（roc-taiwan.org 封 GitHub Actions IP，#378）；RSS 約每週有新文章"},
     "waseda_taiwan": {"pattern": "sporadic", "max_quiet_days": 120, "note": "只收未來的活動；學期中不定期公告"},
+    "tufs_aa": {"pattern": "sporadic", "max_quiet_days": 180, "note": "AA研公開活動；台灣相關以台灣原住民語研究為主，一年數場（#726）"},
     "ifi": {"pattern": "sporadic", "max_quiet_days": 180, "note": "活動列表正常，台灣相關活動少"},
     "tokyo_city_i": {"pattern": "sporadic", "max_quiet_days": 180, "note": "活動列表正常，台灣相關活動少"},
     "transit_store": {"pattern": "sporadic", "max_quiet_days": 90, "note": "商品列表正常，台灣商品不定期上架"},
