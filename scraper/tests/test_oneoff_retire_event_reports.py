@@ -6,6 +6,7 @@ from _oneoff_retire_event_reports import (
     plan_category_corrections,
     plan_events,
     plan_field_corrections,
+    read_id_file,
 )
 from event_report import EVENT_REPORT_REASON
 
@@ -81,3 +82,18 @@ def test_field_and_category_corrections():
     ccs = [{"id": 9, "ai_category": ["movie", "report"], "corrected_category": ["movie"]},
            {"id": 8, "ai_category": ["art"], "corrected_category": ["movie"]}]
     assert plan_category_corrections(ccs) == [{"id": 9, "patch": {"ai_category": ["movie"]}}]
+
+
+def test_read_id_file_ignores_comments_and_blanks():
+    assert read_id_file("# note\n\n a \nb\n  # x\n") == {"a", "b"}
+
+
+def test_confirmed_review_file_has_36_uuids():
+    from pathlib import Path
+    import uuid
+
+    f = Path(__file__).resolve().parents[2] / "docs/specs/active/no-event-reports/review-confirmed-2026-11-22.txt"
+    ids = read_id_file(f.read_text(encoding="utf-8"))
+    assert len(ids) == 36
+    for i in ids:
+        uuid.UUID(i)

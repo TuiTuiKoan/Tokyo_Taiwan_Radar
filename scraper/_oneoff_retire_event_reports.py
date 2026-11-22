@@ -20,11 +20,15 @@ Modes
                        planning time; a row that changed since is skipped.
   --deactivate-ids a,b add these event ids (full UUIDs) to the deactivation set
                        when planning, e.g. after reviewing the "review" list.
+  --deactivate-ids-file F
+                       same, one UUID per line; lines starting with # are ignored.
 
 Usage
   cd scraper
   python _oneoff_retire_event_reports.py
   python _oneoff_retire_event_reports.py --deactivate-ids <uuid>,<uuid>
+  python _oneoff_retire_event_reports.py \
+      --deactivate-ids-file ../docs/specs/active/no-event-reports/review-confirmed-2026-11-22.txt
   python _oneoff_retire_event_reports.py --apply reports/retire_event_reports_<ts>.json
 """
 
@@ -160,6 +164,11 @@ def plan_category_corrections(rows: list[dict]) -> list[dict]:
     return out
 
 
+def read_id_file(text: str) -> set[str]:
+    """One UUID per line; blank lines and # comments are ignored."""
+    return {line.strip() for line in text.splitlines() if line.strip() and not line.lstrip().startswith("#")}
+
+
 def render_markdown(plan: dict, generated_at: str) -> str:
     b = plan["events"]["buckets"]
     lines = [
@@ -254,6 +263,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--apply", metavar="PLAN_JSON", help="apply this plan file (production write)")
     ap.add_argument("--deactivate-ids", default="", help="comma-separated event UUIDs to deactivate as well")
+    ap.add_argument("--deactivate-ids-file", help="file with one event UUID per line to deactivate as well")
     args = ap.parse_args(argv)
     sb = _client()
 
@@ -267,6 +277,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if stats["events_skipped_changed"] else 0
 
     extra = {x.strip() for x in args.deactivate_ids.split(",") if x.strip()}
+    if args.deactivate_ids_file:
+        extra |= read_id_file(Path(args.deactivate_ids_file).read_text(encoding="utf-8"))
     plan = build_plan(sb, extra)
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     REPORTS_DIR.mkdir(exist_ok=True)
