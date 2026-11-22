@@ -28,6 +28,8 @@ from typing import Optional
 import requests
 from bs4 import BeautifulSoup
 
+from taiwan_keywords import TAIWAN_TITLE_RE
+
 from .base import BaseScraper, Event
 
 logger = logging.getLogger(__name__)
@@ -74,10 +76,12 @@ _SEARCH_KEYWORDS = [
     "台湾 夜市",
     "台湾 祭",
     "台湾映画",  # 上映・配信・映画祭 全覆蓋；Amazon/U-NEXT 等有使用 prtimes 發稿
+    "日台 イベント",  # 日台交流等複合詞標題（#701, coverage-audit Phase A）
 ]
 
-# Title must contain at least one Taiwan keyword
-_TAIWAN_KW = re.compile(r"台湾|Taiwan|台灣|臺灣")
+# Title must contain at least one Taiwan keyword. Shared with google_news_rss;
+# also accepts guarded compounds 日中台／日台／台日 (see taiwan_keywords.py).
+_TAIWAN_KW = TAIWAN_TITLE_RE
 
 # Title must contain at least one event-type keyword
 _EVENT_KW = re.compile(
@@ -315,6 +319,24 @@ def _build_source_id(release_id: int | str, company_id: int | str | None, releas
     return f"prtimes_{rid}"
 
 
+def title_verdict(title: str) -> tuple[bool, str]:
+    """Title-level filter chain used by scrape() and the coverage audit.
+
+    Returns (True, "ok") or (False, reason) with reason one of
+    "placeholder", "no_taiwan", "no_event", "taiwan_based". Body-level checks
+    (lookback window, _should_skip_taiwan_venue) run later in scrape().
+    """
+    if _is_blank_or_placeholder_title(title):
+        return False, "placeholder"
+    if not _TAIWAN_KW.search(title):
+        return False, "no_taiwan"
+    if not _EVENT_KW.search(title):
+        return False, "no_event"
+    if _TAIWAN_BASED_TITLE_RE.search(title):
+        return False, "taiwan_based"
+    return True, "ok"
+
+
 def _is_blank_or_placeholder_title(title: str) -> bool:
     cleaned = (title or "").strip()
     if not cleaned:
@@ -418,18 +440,10 @@ class PrtimesScraper(BaseScraper):
                         continue
 
                     title = rel.get("title", "")
-                    if _is_blank_or_placeholder_title(title):
-                        logger.debug("Skip placeholder title: %s", title[:60])
-                        continue
-                    # Must contain Taiwan keyword in title
-                    if not _TAIWAN_KW.search(title):
-                        continue
-                    # Must contain an event-type keyword
-                    if not _EVENT_KW.search(title):
-                        continue
-                    # Skip PRs about events held IN Taiwan (not Japan)
-                    if _TAIWAN_BASED_TITLE_RE.search(title):
-                        logger.debug("Skip Taiwan-based: %s", title[:60])
+                    ok, reason = title_verdict(title)
+                    if not ok:
+                        if reason in ("placeholder", "taiwan_based"):
+                            logger.debug("Skip %s title: %s", reason, title[:60])
                         continue
 
                     # Check PR release date within lookback window

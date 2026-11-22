@@ -1,3 +1,5 @@
+import pytest
+
 from sources.prtimes import (
     _TAIWAN_BASED_TITLE_RE,
     _extract_venue_from_body,
@@ -135,3 +137,47 @@ def test_body_taiwan_night_market_in_tokyo_is_kept():
     body = '会場：台湾夜市（東京・お台場）\n台湾グルメを紹介します。'
     venue = _extract_venue_from_body(body)
     assert _should_skip_taiwan_venue(title, body, venue) is False
+
+# --- title_verdict: whole title chain (coverage-audit Phase A, #701) --------
+
+from sources.prtimes import title_verdict  # noqa: E402
+
+
+@pytest.mark.parametrize("title", [
+    "報道写真展「日中台：交錯するまなざし―写真でたどる100年の歩み―」 開催のお知らせ",
+    "日台交流イベント開催",
+    "台日友好フェア",
+    "台湾音市 NEXT 2026 タワーレコード渋谷店で開催決定！",
+])
+def test_title_verdict_accepts(title):
+    assert title_verdict(title) == (True, "ok")
+
+
+@pytest.mark.parametrize("title,reason", [
+    ("", "placeholder"),
+    ("（無題）", "placeholder"),
+    ("ミュージカル舞台日本公演 開催決定", "no_taiwan"),
+    ("本日台数限定セール開催", "no_taiwan"),
+    ("今日台風接近によりイベント開催中止", "no_taiwan"),
+    ("屋台日本一決定戦 開催", "no_taiwan"),
+    ("中台禅寺 特別拝観 開催", "no_taiwan"),
+    ("日台の半導体協力に関する声明", "no_event"),
+    ("台湾の新製品を発売", "no_event"),
+    ("日台ビジネス交流会 in 台北", "taiwan_based"),
+    ("台湾国内で展示会を開催", "taiwan_based"),
+])
+def test_title_verdict_rejects(title, reason):
+    assert title_verdict(title) == (False, reason)
+
+
+@pytest.mark.xfail(
+    reason="_TAIWAN_BASED_TITLE_RE branches start with literal 台湾; held-in-Taipei "
+    "日台 titles are caught only by the body venue filter and the annotator (#722)",
+    strict=True,
+)
+@pytest.mark.parametrize("title", [
+    "日台ビジネス交流会を台北で開催",
+    "日台企業マッチング商談会、台北にて開催",
+])
+def test_title_verdict_known_gap_held_in_taipei(title):
+    assert title_verdict(title) == (False, "taiwan_based")

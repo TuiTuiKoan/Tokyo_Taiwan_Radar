@@ -2,6 +2,12 @@
 
 ---
 
+## 2026-11-22 — 台灣判斷改用共用 regex（coverage-audit Phase A）
+
+`_is_taiwan()` 由子字串 list 改為 `scraper/taiwan_keywords.TAIWAN_TITLE_RE`，與 prtimes 共用，加入帶前後文限制的「日中台／日台／台日」（#701）。新增 `taiwan_verdict()` 供每週覆蓋稽核呼叫。刻意不加查詢詞：新聞語境的「日台交流」多為外交報導，且每筆都會進付費的 annotator。
+
+---
+
 ## 2026-10-06 — 依賴未鎖版本，import 階段崩潰讓整個 Daily Scraper 停擺 15 天
 
 **問題：** 2026-09-21 ～ 10-05 的 Daily Scraper 連續 15 次失敗（最後成功 09-20）。`requirements.txt` 寫的是 `googlenewsdecoder>=0.1.6`，2026-09-20 21:27 UTC 上游發佈 0.2.1，會一併裝進 `selectolax` 1.0；selectolax 1.0 移除了 Modest 後端（`selectolax.parser`），0.2.x 本身也拿掉了我們呼叫的 `new_decoderv1`。`main.py` 啟動時會 import 所有來源，於是 `google_news_rss.py` 第一行 import 就丟 `ImportError`，所有來源（117 個模組）一起停擺。起初懷疑是 GitHub 認證過期，但同一次執行的 Supabase 與 LINE 呼叫都是 200，排除認證。
