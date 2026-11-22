@@ -98,3 +98,20 @@ def test_field_corrections_protected_organizer_is_not_overwritten():
 
     assert "organizer" not in update_data
     assert update_data["organizer_type"] == ["unknown"]
+
+
+def test_archive_streaming_ticket_is_not_a_report_or_history():
+    # #711: 台湾音市 NEXT 2026 (prtimes) got report + history from this line.
+    text = "ライブイベント開催決定！＜オンライン配信チケット＞【オンライン視聴券】後日アーカイブ配信：4,000円（税込）"
+    cats = _inject_keyword_categories(["performing_arts"], text)
+    assert "report" not in cats
+    assert "history" not in cats
+
+
+def test_real_archive_keywords_still_inject_history():
+    assert "history" in _inject_keyword_categories(["exhibition"], "戦前の台湾写真アーカイブを公開する展示")
+
+
+def test_report_category_is_never_injected():
+    # spec no-event-reports: the report category was retired on 2026-11-22.
+    assert "report" not in _inject_keyword_categories(["art"], "台湾映画祭 開催レポート")

@@ -2398,6 +2398,11 @@ def _apply_organizer_registry(
 
 _TV_PROGRAM_KEYWORDS = frozenset(["放送:", "放送：", "ジャンル:", "ジャンル："])
 
+# Streaming/ticket uses of アーカイブ (「後日アーカイブ配信」「アーカイブ視聴券」).
+# They describe how to watch an upcoming event, so they must not trigger the
+# history keyword rule (#711).
+_ARCHIVE_STREAM_RE = re.compile(r"アーカイブ\s*(?:配信|視聴|チケット|動画|期間|付き|あり)")
+
 # field_corrections.corrected_value is stored as TEXT.
 # For non-text DB columns, prefer DB-native value to avoid type pollution.
 _NON_TEXT_FC_FIELDS = {
@@ -2583,6 +2588,10 @@ def _inject_keyword_categories(
     """
     cats = list(categories)
     is_publication = record_type == "publication"
+    # 「アーカイブ配信」 etc. is a ticket/streaming term, not an archive of
+    # history (#711: a live announcement got report + history from it). Remove
+    # it before the history keyword check only.
+    subject_text = _ARCHIVE_STREAM_RE.sub(" ", text)
     # lecture: any talk/panel/seminar keyword triggers this
     if not is_publication and "lecture" not in cats and any(kw in text for kw in _LECTURE_KEYWORDS):
         cats.append("lecture")
@@ -2595,7 +2604,7 @@ def _inject_keyword_categories(
     if "geopolitics" not in cats and any(kw in text for kw in _GEOPOLITICS_KEYWORDS):
         cats.append("geopolitics")
     # history: colonial/war-era Taiwan or explicit Taiwan birthplace/origin
-    if "history" not in cats and (any(kw in text for kw in _HISTORY_KEYWORDS) or _has_taiwan_roots_signal(text)):
+    if "history" not in cats and (any(kw in subject_text for kw in _HISTORY_KEYWORDS) or _has_taiwan_roots_signal(text)):
         cats.append("history")
     # tv_program: TV broadcast markers (gguide_tv raw_description pattern)
     if not is_publication and "tv_program" not in cats and any(kw in text for kw in _TV_PROGRAM_KEYWORDS):

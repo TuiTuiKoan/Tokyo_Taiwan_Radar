@@ -60,6 +60,7 @@ issue 內文含 URL ＋ label `url-intake`              → 預覽
 - **`original_language`**：含假名 → `ja`；否則含漢字 → `zh`；否則 `en`。
 - **artifact 驗證**：只接受固定欄位與型別，長度重新截斷，URL 重新正規化。
 - **查重**（preview 與 apply 都做；任一查詢失敗即中止，不寫入）：`source_url` 或 `official_url` 等於原始或正規化 URL、`secondary_source_urls` 含其中之一、或 `(url_intake, source_id)` 已存在 → 回報既有活動頁。標題相似的重複交給 merger。
+- **可能重複**（#712，只在預覽顯示，不擋）：取標題中的引號名稱（「台湾音市 NEXT 2026」），沒有引號就取去掉「| 網站名」後最長的片段，比對 active 活動的 `raw_title`／`name_ja`，最多列 5 筆給人判斷。起因：#710 的 towershibuya.jp 頁面，活動早已由 PR TIMES 收錄，網址查重抓不到。
 - **寫入後確認**：以 `(source_name, source_id)` 再查一次；查不到時回報「被 source_exclusions 規則擋下或寫入失敗」，workflow 以失敗結束。
 - **留言跳脫**：標題、正文摘錄移除 HTML 註解、跳脫 markdown 符號、把 `@` 換成全形，避免偽造標記或 mention。
 - **injection_guard**：預覽列出 `security.injection_guard` 的命中類別，供使用者核准前判斷。

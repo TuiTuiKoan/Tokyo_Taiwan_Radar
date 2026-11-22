@@ -299,6 +299,65 @@ def find_existing(client, url: str, original: str | None = None) -> list[dict[st
     return list(found.values())
 
 
+_QUOTED = re.compile(r"[「『“\"]([^」』”\"]{4,60})[」』”\"]")
+_RUN = re.compile(r"[\w\u3040-\u30ff\u4e00-\u9fff][\w\u3040-\u30ff\u4e00-\u9fff ・\-]{5,40}")
+_SITE_SUFFIX = re.compile(r"\s*[|｜]\s*[^|｜]*$")
+_GENERIC = re.compile(r"^(開催のお知らせ|お知らせ|ニュース|NEWS|イベント情報)$", re.IGNORECASE)
+
+
+def key_phrases(title: str, limit: int = 2) -> list[str]:
+    """Distinctive phrases of a page title for a fuzzy duplicate lookup.
+
+    Quoted names (「台湾音市 NEXT 2026」) first; otherwise the longest runs of
+    the title with any trailing "| site name" removed.
+    """
+    title = _SITE_SUFFIX.sub("", title or "").strip()
+    phrases = [m.strip() for m in _QUOTED.findall(title)]
+    if not phrases:
+        bare = re.sub(r"【[^】]*】", " ", title)
+        phrases = sorted((m.strip() for m in _RUN.findall(bare)), key=len, reverse=True)
+    # A long quoted title rarely matches verbatim elsewhere (dash and colon
+    # variants); its longest segment does.
+    phrases = [
+        max(re.split(r"[：:―—～〜／/]+", ph), key=len).strip() if len(ph) > 20 else ph
+        for ph in phrases
+    ]
+    out: list[str] = []
+    for ph in phrases:
+        if len(ph) >= 4 and not _GENERIC.match(ph) and ph not in out:
+            out.append(ph)
+    return out[:limit]
+
+
+def _ilike_literal(text: str) -> str:
+    return "%" + re.sub(r"([%_\\])", r"\\\1", text) + "%"
+
+
+def find_similar(client, title: str, exclude_ids: set[str] | None = None) -> list[dict[str, Any]]:
+    """Active events whose title contains a key phrase of this page's title.
+
+    Advisory only (shown in the preview for a human to judge); a failing
+    query returns what was found so far instead of aborting.
+    """
+    exclude_ids = exclude_ids or set()
+    cols = "id,name_ja,raw_title,source_name,start_date"
+    found: dict[str, dict[str, Any]] = {}
+    for phrase in key_phrases(title):
+        for col in ("raw_title", "name_ja"):
+            try:
+                rows = (
+                    client.table("events").select(cols).eq("is_active", True)
+                    .ilike(col, _ilike_literal(phrase)).limit(5).execute().data or []
+                )
+            except Exception as exc:
+                logger.warning("similar-title lookup failed: %s", exc)
+                continue
+            for row in rows:
+                if row["id"] not in exclude_ids:
+                    found[row["id"]] = row
+    return list(found.values())[:5]
+
+
 def same_host_count(client, url: str) -> int | None:
     host = host_of(url)
     try:
@@ -331,7 +390,8 @@ def _scan(text: str) -> list[str]:
     return sorted({h.category for h in scan_for_injection(text)})
 
 
-def render_preview(page: dict[str, Any], existing: list[dict[str, Any]], same_host: int | None) -> str:
+def render_preview(page: dict[str, Any], existing: list[dict[str, Any]], same_host: int | None,
+                   similar: list[dict[str, Any]] | None = None) -> str:
     lines = [
         MARKER,
         "### URL intake 預覽（尚未寫入）",
@@ -344,6 +404,13 @@ def render_preview(page: dict[str, Any], existing: list[dict[str, Any]], same_ho
     hits = _scan(page["title"] + " " + page["body"])
     if hits:
         lines.append("- **注意**：正文含疑似 prompt injection 片段（" + "、".join(hits) + "），核准前請打開原頁確認")
+    if similar and not existing:
+        lines.append("- **可能重複**（標題相近，請人工判斷）：")
+        for r in similar:
+            day = str(r.get("start_date") or "")[:10] or "日期未定"
+            name = escape_md((r.get("name_ja") or r.get("raw_title") or "")[:60])
+            lines.append(f"  - {event_link(r['id'])}　{day}　{name}（{escape_md(r.get('source_name') or '')}）")
+        lines.append("  同一場活動的話，不要核准，關閉這張 issue 即可。")
     if existing:
         lines.append("- **已收錄**：" + "、".join(event_link(r["id"]) for r in existing))
         lines += ["", "這個 URL 已經在資料庫裡，不需要核准。"]
@@ -368,8 +435,8 @@ def render_result(result: dict[str, Any]) -> str:
     lines = [MARKER, "### URL intake 結果", "", f"- **URL**：{result['url']}"]
     if status == "inserted":
         lines += [
-            f"- **已寫入**：{result['event_url']}（`pending`，網站上暫時看不到內容）",
-            "- 隔天 09:00 的每日管線會標註並上線；要提早可手動執行 Annotate Now workflow。",
+            f"- **已寫入**：{result['event_url']}（`pending`）",
+            "- 標註完成前，這個活動頁會顯示 404；隔天 09:00 的每日管線標註後上線，要提早可手動執行 Annotate Now workflow。",
         ]
     elif status == "duplicate":
         lines.append("- **已收錄過**：" + "、".join(event_link(i) for i in result["existing_ids"]))
@@ -414,7 +481,8 @@ def cmd_preview(args: argparse.Namespace) -> int:
     page = _load(args.inp)
     client = _client()
     existing = find_existing(client, page["url"], page.get("requested_url"))
-    print(render_preview(page, existing, same_host_count(client, page["url"])))
+    similar = [] if existing else find_similar(client, page["title"])
+    print(render_preview(page, existing, same_host_count(client, page["url"]), similar))
     return 0
 
 
