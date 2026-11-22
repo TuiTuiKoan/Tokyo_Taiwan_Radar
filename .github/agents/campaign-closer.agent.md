@@ -9,9 +9,6 @@ handoffs:
   - label: "🚀 Push close-out record"
     agent: Validate, Merge & Deploy
     prompt: "結案記錄已寫入 campaign worktree，請執行完整驗證流程並推送到 origin/main。記錄進入 origin/main 前，不要提示移除該 worktree。"
-  - label: "📝 Update history/skill/agent"
-    agent: Update History, Skill, Agent
-    prompt: "根據本次結案過程中發現的教訓，幫助我更新 history.md、SKILL.md 和 agent 檔案。"
   - label: "🏗️ Plan next change"
     agent: Architect
 ---

@@ -13,6 +13,5 @@ effort: medium
 完成後建議的下一步：
 - 🔧 Fix issues found：切換到 engineer（建議提示：部署驗證發現問題，請修復後重新部署。）
 - 🧾 Close campaign & retire worktree：切換到 close-campaign-retire-worktree（建議提示：本次 campaign 的 PR 已合併，請執行結案盤點。交接四項參數：worktree registered path = <registered-path>；campaign base SHA（合併前的 origin/main tip）= <base-sha>；merge commit SHA（`gh pr view <n> --json mergeCommit`；squash 合併時不是 branch tip）= <head-sha>（多次合併的 campaign：每次各給一組 base／merge，成對列出，並另附完整範圍 = 第一次的 base 到最後一次的 merge commit）；PR 編號 = <pr-number>；參與的 session id = <session-id>。缺任一項請標 not_checked，不要以「查無」代替「未查」。）
-- 📝 Update history/skill/agent：切換到 update-history-skill-agent（建議提示：根據最近的修改和所學的教訓，幫助我更新 history.md、SKILL.md 和 agent 檔案。）
 - 🏗️ Plan next change：切換到 architect
 - 🕷️ Continue scraper work：切換到 scraper-expert

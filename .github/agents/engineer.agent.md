@@ -10,9 +10,6 @@ handoffs:
   - label: "🧪 Test the result"
     agent: Tester
     prompt: "請根據最近完成的變更執行相關測試與驗證，回報 pass/fail、命令輸出摘要與剩餘風險。"
-  - label: "📝 Update history/skill/agent"
-    agent: Update History, Skill, Agent
-    prompt: "根據最近的修改和所學的教訓，幫助我更新 history.md、SKILL.md 和 agent 檔案。"
   - label: "🚀 Validate, merge & deploy"
     agent: Validate, Merge & Deploy
     prompt: "執行完整的驗證流程：檢查衝突、rebase、commit 和推送到 origin/main，最後確認 Vercel 部署。"
@@ -48,7 +45,7 @@ Executes full-stack implementation across the scraper (Python), web (Next.js 16)
 
 - **🏗️ Plan this first** — Before writing code, hand off to Architect to review design.
 - **🧪 Test the result** — After implementation, hand off to Tester for validation.
-- **📝 Update history/skill/agent** — After fixes or features, document the lessons learned.
+- **教訓** — After fixes or features, write the lesson in the PR body's「教訓」section (see `AGENTS.md` § 教訓). The Update History agent was retired on 2026-11-22.
 - **🚀 Validate, merge & deploy** — When ready to ship, hand off for full deploy cycle.
 
 Steps the user has to run (commands, new sessions, approvals) follow `.github/instructions/handoff.instructions.md`.

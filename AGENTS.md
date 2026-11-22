@@ -44,7 +44,22 @@ codex exec -p plan -s read-only -o docs/specs/active/<slug>/plan-critique-N.md "
 
 規劃（architect）、實作（engineer、scraper-expert、designer）、驗證（tester）、推送（validate-merge-deploy）都由 Claude 的 agent 執行，模型等級依 tier 與成本決定，不用 Codex 實作。
 
-推送規則：在 worktree 內 `git push -u origin <branch>`（hook 放行非 `main` 目的端），再 `gh pr create`（body 含改了什麼、怎麼驗證、NOT TESTED、`Refs`／`Closes #n`，label `spec:<slug>`）。NOT TESTED 要寫具體原因，不寫籠統的「缺憑證」：CI 會補的（`Scraper Tests` 的 pytest、`pr-dryrun-evidence` 留言的 dry-run）寫成「由 CI 補」；CI 跑完後若仍沒有證據（沒觸發、一個 PR 超過 3 個來源、共用模組、程式分支需要 DB 憑證），在 PR 留言列為 NOT TESTED 並說明原因。 PR Tier workflow 貼 `tier:N`：Tier 0 自動合併；Tier 1、2 交一張卡片給使用者，卡片只含 PR 連結、tier、要看什麼。使用者仍可自己直接 push `main`，agent 不提議。
+推送規則：在 worktree 內 `git push -u origin <branch>`（hook 放行非 `main` 目的端），再 `gh pr create`（body 含改了什麼、怎麼驗證、NOT TESTED、「教訓」段、`Refs`／`Closes #n`，label `spec:<slug>`）。NOT TESTED 要寫具體原因，不寫籠統的「缺憑證」：CI 會補的（`Scraper Tests` 的 pytest、`pr-dryrun-evidence` 留言的 dry-run）寫成「由 CI 補」；CI 跑完後若仍沒有證據（沒觸發、一個 PR 超過 3 個來源、共用模組、程式分支需要 DB 憑證），在 PR 留言列為 NOT TESTED 並說明原因。 PR Tier workflow 貼 `tier:N`：Tier 0 自動合併；Tier 1、2 交一張卡片給使用者，卡片只含 PR 連結、tier、要看什麼。使用者仍可自己直接 push `main`，agent 不提議。
+
+## 教訓（PR body 的「教訓」段）
+
+2026-11-22 起，教訓不再由獨立的 agent 或 session 寫進 `history.md`／`SKILL.md`（`update-history-skill-agent`、`history-teller`、`/daily-skills-review` 已退役，設計見 `docs/specs/active/auto-learning/`）。改為：
+
+- 每張 PR 的 body 必有「教訓」段，三行以內，沒有就寫「無」。寫的是「下次遇到同樣情況該怎麼做」，不重述這次改了什麼。每條結尾標 `（實測）` 或 `（推論）`：親眼看到輸出、log 或資料的才算實測。
+
+  ```markdown
+  ## 教訓
+  - <一句話>（實測｜推論）
+  ```
+
+- 各 agent 檔內文「修正錯誤後在 history.md 頂部加條目、更新 SKILL.md」的步驟以本節為準，不再執行。既有的 `history.md` 保留為歷史紀錄，不必讀、不再追加。
+- 例外：只影響單一來源的事實（選擇器、日期格式、站台結構）可以隨該來源的修復 PR 更新 `.github/skills/sources/<source>/`。
+- agent SKILL、agent 檔、instructions 的規則變更不由實作 agent 順手加，改由 auto-learning 的每週提案提出，使用者合併。
 
 ## 路徑規則表
 
@@ -88,14 +103,12 @@ Claude Code 可直接叫用 `.claude/agents` 下的 subagent wrapper。Codex 沒
 | Close Campaign & Retire Worktree | `close-campaign-retire-worktree` | `.github/agents/campaign-closer.agent.md` | 關閉完成的 campaign、檢查 worktree 爭用與未處理工作。 |
 | Designer | `designer` | `.github/agents/designer.agent.md` | UI / visual design、theme、motion、i18n consistency 與 Recraft pipeline。 |
 | Engineer | `engineer` | `.github/agents/engineer.agent.md` | 全端實作、CI/CD 與部署流程。 |
-| History Teller | `history-teller` | `.github/agents/history-teller.agent.md` | 管理 `history.md`、`SKILL.md` 與 agent 文件更新。 |
 | Lianbu Spokesperson | `lianbu-spokesperson` | `.github/agents/lianbu-spokesperson.agent.md` | 以小霧 / レンブちゃん人格撰寫社群貼文與回覆草案。 |
 | Plan Critic | `plan-critic` | `.github/agents/plan-critic.agent.md` | 評審 Architect 計畫、指出複雜度與風險。 |
 | Researcher | `researcher` | `.github/agents/researcher.agent.md` | 發掘並評估新的台灣相關活動來源。 |
 | Reviewer | `reviewer` | `.github/agents/reviewer.agent.md` | 月度治理復盤，分析爬蟲健康、Skills 新鮮度與 Agent scope overlap。 |
 | Scraper Expert | `scraper-expert` | `.github/agents/scraper-expert.agent.md` | 建置、除錯與驗證 scraper，並分派來源 subagent。 |
 | Tester | `tester` | `.github/agents/tester.agent.md` | 執行 scraper / web 驗證並回報 pass/fail 與風險。 |
-| Update History, Skill, Agent | `update-history-skill-agent` | `.github/agents/update-history-agent.agent.md` | 依最近修改更新 history、skill 與 agent 文件。 |
 | Validate, Merge & Deploy | `validate-merge-deploy` | `.github/agents/validate-merge-deploy.agent.md` | 檢查衝突、rebase、commit，推 feature branch 並開 PR；PR 合併後以 merge commit 驗證部署。不推 `main`、不合併 PR。 |
 | Peatix Scraper | `peatix-scraper` | `.github/agents/subagents/scraper-peatix.agent.md` | Peatix 來源 scraper subagent。 |
 | TCC Scraper | `tcc-scraper` | `.github/agents/subagents/scraper-tcc.agent.md` | Taiwan Cultural Center 來源 scraper subagent。 |
@@ -129,7 +142,7 @@ Codex 不會因為 `.codex/agents/*.toml` 存在就自動派用 subagent（2026-
 | --- | --- | --- | --- | --- |
 | `plan` | 規劃與批評 | `model: opus`、`effort: high` | `model_reasoning_effort = "high"` | architect、plan-critic |
 | `build` | 實作、驗證閘門、治理 | `model: sonnet`、`effort: medium` | `"medium"` | engineer、designer、scraper-expert、validate-merge-deploy、close-campaign-retire-worktree、researcher、reviewer |
-| `grunt` | 機械性、低風險任務 | `model: haiku`、`effort: low` | `"low"` | tester、history-teller、update-history-skill-agent、lianbu-spokesperson、peatix-scraper、tcc-scraper |
+| `grunt` | 機械性、低風險任務 | `model: haiku`、`effort: low` | `"low"` | tester、lianbu-spokesperson、peatix-scraper、tcc-scraper |
 
   - Claude Code：投影寫入 `.claude/agents/<kebab>.md`。subagent 的模型優先序是呼叫參數、frontmatter、`CLAUDE_CODE_SUBAGENT_MODEL`、主對話模型（Claude Code 2.1.251 起）。
   - **`effort` 只在該 agent 被當作 subagent 委派時生效**。以 `claude --agent <name>` 當主執行緒啟動時，模型別名會套用，但 effort 沿用 session 設定（2026-10-23 實測，Claude Code 2.1.308：`--agent tester` 的 API 請求是 `medium`，委派的 tester subagent 是 `low`）。主執行緒的 effort 用 `/effort` 或 `modelSettings` 調整。
@@ -152,7 +165,7 @@ Codex 不會因為 `.codex/agents/*.toml` 存在就自動派用 subagent（2026-
 
 | `claude-role` | Agent | Claude Code 工具層 |
 | --- | --- | --- |
-| `full` | engineer、designer、history-teller、update-history-skill-agent、peatix-scraper、tcc-scraper | 不限制（繼承全部工具） |
+| `full` | engineer、designer、peatix-scraper、tcc-scraper | 不限制（繼承全部工具） |
 | `planner` | plan-critic | 禁用 Edit／Write／NotebookEdit；保留 Bash 做唯讀診斷 |
 | `tester` | tester | 禁用 Edit／Write／NotebookEdit；保留 Bash 執行測試 |
 | `vmd` | validate-merge-deploy | 禁用 Edit／Write／NotebookEdit；保留 Bash 執行 git 與驗證 |
@@ -163,7 +176,7 @@ Codex 不會因為 `.codex/agents/*.toml` 存在就自動派用 subagent（2026-
 - 保留 Bash 的角色仍能經 Bash 重導寫入檔案。這是已接受的殘餘風險；上表只表示工具層禁用 Edit／Write／NotebookEdit，不代表沒有寫入能力。
 - 白名單在 `claude --agent <name>` 主執行緒與 subagent 兩種情境都已實測生效（Claude Code `2.1.292`、`2.1.295`，證據見 `docs/specs/archive/2026-10-ai-portability/notes.md`）。升級 Claude Code 後應重跑該實測。
 - macOS 上 Claude Code 預設不提供 Grep／Glob，保留 Bash 的角色改用 Bash 搜尋；白名單中的 Grep、Glob 只對沒有 Bash 的角色生效。
-- tester、plan-critic、lianbu-spokesperson 本文中「修正錯誤後更新 history.md／SKILL.md」的步驟無法以工具層寫檔完成：教訓以文字回報，交 Update History, Skill, Agent 或使用者寫入。
+- tester、plan-critic、lianbu-spokesperson 本文中「修正錯誤後更新 history.md／SKILL.md」的步驟無法以工具層寫檔完成：教訓以文字回報，由開 PR 的 agent 寫進 PR body 的「教訓」段（見「教訓」）。
 - plan-critic 不在 Claude Code 的 plan mode 使用：plan mode 送出計畫需要 Write 與 ExitPlanMode，planner 白名單刻意不含這兩者。以一般模式啟動（`claude --agent plan-critic`），讀計畫檔後以文字回傳批評。
 - Codex 沒有依角色的工具限制，只靠各 agent 檔內文的角色規則；需要唯讀時（例如請 Codex 評審計畫），由使用者以 `codex -s read-only` 啟動。VS Code Copilot 依 agent 檔自己的 `tools:` 運作，不讀 `claude-role`。
 - **Plan Critic 的批評全文必須存檔**（2026-10-23 起強制）：`-s read-only` 不能寫檔，所以用 `codex exec -s read-only -o <檔案> "<提示>"` 把完整回覆寫到 `docs/specs/active/<slug>/plan-critique-N.md`（無 slug 時 `~/.ai-notes/ttr/critique-<slug>-N.md`）；互動執行時，請使用者先把完整回覆存到該路徑。沒有存檔全文的批評，不得據以修訂計畫。

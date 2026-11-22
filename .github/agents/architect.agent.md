@@ -12,9 +12,6 @@ handoffs:
   - label: "🔍 Research new sources"
     agent: Researcher
     prompt: "請研究並評估可新增的台灣相關活動來源。"
-  - label: "📝 Update history/skill/agent"
-    agent: Update History, Skill, Agent
-    prompt: "根據最近的修改和所學的教訓，幫助我更新 history.md、SKILL.md 和 agent 檔案。"
   - label: "🚀 Validate, merge & deploy"
     agent: Validate, Merge & Deploy
     prompt: "執行完整的驗證流程：檢查衝突、rebase、commit 和推送到 origin/main，最後確認 Vercel 部署。"
@@ -48,12 +45,12 @@ Plans architecture, development roadmaps, and technical design for Tokyo Taiwan 
 
 ## Handoff Workflows
 
-Two persistent workflow agents are available as handoffs:
+One persistent workflow agent is available as a handoff:
 
-- **📝 Update history/skill/agent** — After fixing bugs or implementing features, hand off to document the lessons learned in `history.md`, update rules in `SKILL.md`, and modify agent instructions if needed.
+- **教訓** — Lessons are no longer handed off. Write them in the PR body's「教訓」section (see `AGENTS.md` § 教訓); the Update History agent was retired on 2026-11-22.
 - **🚀 Validate, merge & deploy** — After implementation completes, hand off for full validation cycle: conflict checking → rebase → commit → push → Vercel verification.
 
-Handoff targets keep `user-invocable` at its default `true` so runtime resolution remains reliable. Update History separately uses `disable-model-invocation: true` to prevent model-initiated delegation. For details on these distinct controls, see `.github/skills/agents/architect/SKILL.md` § Agent Handoff Design.
+Handoff targets keep `user-invocable` at its default `true` so runtime resolution remains reliable. For details on these distinct controls, see `.github/skills/agents/architect/SKILL.md` § Agent Handoff Design.
 
 ## Role
 
