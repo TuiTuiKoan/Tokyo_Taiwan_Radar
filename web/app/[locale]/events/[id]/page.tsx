@@ -35,6 +35,7 @@ import {
   getReportExcludedDetailFields,
 } from "@/lib/publicationPresentation";
 import { buildEventStructuredData } from "@/lib/publicationStructuredData";
+import { extractPostalCode, stripPostalCode } from "@/lib/addressDisplay";
 
 export const revalidate = 3600;
 
@@ -425,7 +426,11 @@ export default async function EventDetailPage({ params }: PageProps) {
   const name = getEventName(event as Event, locale);
   const description = getEventDescription(event as Event, locale);
   const locationName = getEventLocationName(event as Event, locale);
-  const locationAddress = getEventLocationAddress(event as Event, locale);
+  // Postal codes stay in the database but are not shown to visitors; the structured
+  // data carries them as postalCode instead.
+  const storedLocationAddress = getEventLocationAddress(event as Event, locale);
+  const locationAddress = stripPostalCode(storedLocationAddress);
+  const locationPostalCode = extractPostalCode(storedLocationAddress);
   const businessHours = getEventBusinessHours(event as Event, locale);
   const displayBusinessHours = getExpandedBusinessHoursForDisplay({
     businessHours,
@@ -436,9 +441,7 @@ export default async function EventDetailPage({ params }: PageProps) {
   // Split multi-venue strings on Japanese fullwidth comma; trim and drop blanks.
   const splitVenues = (s: string | null | undefined): string[] =>
     (s ?? "").split("、").map((v) => v.trim()).filter(Boolean);
-  // Strip Japanese postal code prefix "〒NNN-NNNN " from each segment.
-  const stripPostal = (s: string): string =>
-    s.replace(/^〒\d{3}-\d{4}\s*/, "").trim();
+  const stripPostal = (s: string): string => stripPostalCode(s) ?? "";
   const venueSegments = splitVenues(locationName);
   const addressSegments = splitVenues(locationAddress).map(stripPostal).filter(Boolean);
   const isTvProgramEvent =
@@ -492,6 +495,7 @@ export default async function EventDetailPage({ params }: PageProps) {
     displayDescription: description,
     displayLocationName: locationName,
     displayLocationAddress: locationAddress,
+    displayPostalCode: locationPostalCode,
   });
   const breadcrumbLd = {
     "@context": "https://schema.org",
