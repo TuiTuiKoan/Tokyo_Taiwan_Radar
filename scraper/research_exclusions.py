@@ -22,6 +22,29 @@ RESEARCH_EXCLUDED_DOMAINS: dict[str, str] = {
 }
 
 
+# research_sources rows with these agent_category values are account lists read
+# by a dedicated scraper (spec social-sources D1), not websites to assess or to
+# generate a scraper for. auto_research.py and auto_scraper/generate.py must
+# leave them alone: assessment would open a login-walled page and demote the row
+# to not-viable, and generation would spend LLM budget on a scraper that cannot work.
+MANAGED_AGENT_CATEGORIES: tuple[str, ...] = ("facebook_page", "x_account")
+
+# PostgREST ``or`` filter that keeps every row not in MANAGED_AGENT_CATEGORIES.
+# The ``is.null`` arm is required: ``not.in`` alone drops rows whose
+# agent_category is NULL, which is most of the table.
+UNMANAGED_ROWS_FILTER = (
+    "agent_category.is.null,agent_category.not.in.(" + ",".join(MANAGED_AGENT_CATEGORIES) + ")"
+)
+
+
+def managed_reason(row: dict) -> str | None:
+    """Why a research_sources row is outside auto-research / auto-generate, or None."""
+    category = row.get("agent_category") if isinstance(row, dict) else None
+    if category in MANAGED_AGENT_CATEGORIES:
+        return f"agent_category={category} is an account list handled by its own scraper"
+    return None
+
+
 def excluded_reason(url: str) -> str | None:
     """Return the exclusion reason if url is on (or under) an excluded domain."""
     try:

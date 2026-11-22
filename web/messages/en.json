@@ -1218,7 +1218,9 @@
     "personal": "Personal Page",
     "creator": "Creator Channel",
     "other": "Other",
-    "cultural_center": "Cultural Center / Language School"
+    "cultural_center": "Cultural Center / Language School",
+    "facebook_page": "Facebook Page",
+    "x_account": "X Account"
   },
   "account": {
     "title": "My Account",

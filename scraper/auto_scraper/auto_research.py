@@ -39,7 +39,7 @@ from dotenv import load_dotenv
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-from research_exclusions import excluded_reason
+from research_exclusions import UNMANAGED_ROWS_FILTER, excluded_reason, managed_reason
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -164,6 +164,9 @@ def _fetch_sample_html(url: str) -> str:
 
 
 def _check_eligibility(row: dict) -> None:
+    managed = managed_reason(row)
+    if managed:
+        raise AssessError("ineligible", managed)
     if (row.get("status") or "") != "candidate":
         raise AssessError(
             "ineligible",
@@ -660,11 +663,17 @@ def run_batch(opts: BatchOptions, *, sb: Any | None = None) -> tuple[int, int, i
         .eq("status", "candidate")
         .eq("url_verified", True)
         .or_("auto_research_status.is.null,auto_research_status.eq.pending,auto_research_status.eq.error")
+        # A second ``or`` is ANDed with the first by PostgREST. Excluding in the
+        # query (not only below) keeps account rows from using up max_sources.
+        .or_(UNMANAGED_ROWS_FILTER)
         .order("id")
         .limit(opts.max_sources)
         .execute()
         .data or []
     )
+    # Defence in depth: run() writes an error status for an ineligible row, and
+    # an errored row is picked up again by the query above on every batch.
+    rows = [r for r in rows if not managed_reason(r)]
 
     logger.info("run_batch: %d rows to process", len(rows))
 
