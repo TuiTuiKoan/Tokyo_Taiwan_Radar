@@ -34,9 +34,13 @@ Base URL: `https://news.google.com/rss/search?q={q}&hl=ja&gl=JP&ceid=JP:ja`
 ## Taiwan Filter
 
 ```python
-TAIWAN_KEYWORDS = ["台湾", "台灣", "Taiwan", "taiwan"]
-# Applied to: title + " " + description_plain_text
+TAIWAN_KEYWORDS_RE = taiwan_keywords.TAIWAN_TITLE_RE  # shared with prtimes
+# Applied to: title + " " + description_plain_text, via taiwan_verdict(title, description)
 ```
+
+Accepts 台湾／台灣／臺灣／Taiwan and the guarded compounds 日中台／日台／台日 (#701).
+Do not add RSS queries such as 「日台 交流」: in news context they return
+diplomacy coverage, and every item goes to the paid annotator (coverage-audit plan-critique-1 M3).
 
 ## Date Extraction Order
 

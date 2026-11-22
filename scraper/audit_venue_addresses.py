@@ -219,6 +219,13 @@ def audit(events: list[dict], venues: list[dict], now: datetime) -> dict:
         # both denominators are reported so the target can be set either way.
         "qa_excluded": _grade_counts(qa_excluded),
         "in_scope_plus_qa_excluded": _grade_counts(in_scope + qa_excluded),
+        # The owner chose this combined population as the target (2026-11-22, issue #708).
+        "in_scope_plus_qa_excluded_upcoming": _grade_counts(
+            [r for r in in_scope + qa_excluded if r["_upcoming"]]
+        ),
+        f"in_scope_plus_qa_excluded_created_last_{RECENT_DAYS}_days": _grade_counts(
+            [r for r in in_scope + qa_excluded if r["_recent"]]
+        ),
         # Events enrich_addresses.is_vague() calls specific but the grader does not:
         # the candidates added if enrich_addresses switches to the grader (Phase B).
         "not_vague_but_needs_fix": sum(
@@ -275,6 +282,8 @@ def render_markdown(report: dict, top: int = 40) -> str:
         (f"近 {RECENT_DAYS} 天新進", report["in_scope"][f"created_last_{RECENT_DAYS}_days"]),
         ("auto_qa 排除場地 QA 的來源", report["qa_excluded"]),
         ("全部＋上列排除來源", report["in_scope_plus_qa_excluded"]),
+        ("即將舉辦＋排除來源", report["in_scope_plus_qa_excluded_upcoming"]),
+        (f"近 {RECENT_DAYS} 天新進＋排除來源", report[f"in_scope_plus_qa_excluded_created_last_{RECENT_DAYS}_days"]),
     ]
     for label, block in blocks:
         g = block["grades"]
