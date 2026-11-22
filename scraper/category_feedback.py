@@ -38,6 +38,11 @@ def load_corrections(sb: Client) -> list[dict]:
         return []
 
 
+# Categories removed from the taxonomy. Old corrections that mention them must
+# not teach the model to emit them again ("report": spec no-event-reports).
+RETIRED_CATEGORIES = frozenset({"report"})
+
+
 def build_feedback_prompt(corrections: list[dict]) -> str:
     """Build a few-shot section from admin corrections.
 
@@ -53,10 +58,14 @@ def build_feedback_prompt(corrections: list[dict]) -> str:
         "Use these examples to improve your category predictions:\n",
     ]
 
-    for i, c in enumerate(corrections, 1):
+    i = 0
+    for c in corrections:
         title = (c.get("raw_title") or "").strip()[:100]
-        ai_cats = c.get("ai_category", [])
-        correct_cats = c.get("corrected_category", [])
+        ai_cats = [x for x in (c.get("ai_category") or []) if x not in RETIRED_CATEGORIES]
+        correct_cats = [x for x in (c.get("corrected_category") or []) if x not in RETIRED_CATEGORIES]
+        if ai_cats == correct_cats:
+            continue  # the correction was only about a retired category
+        i += 1
         desc_snippet = (c.get("raw_description") or "").strip()[:150]
         context_line = f'     Context: "{desc_snippet}..."\n' if desc_snippet else ""
         lines.append(
@@ -66,6 +75,8 @@ def build_feedback_prompt(corrections: list[dict]) -> str:
             f"     Correct answer: {json.dumps(correct_cats)}"
         )
 
+    if i == 0:
+        return ""
     return "\n".join(lines)
 
 

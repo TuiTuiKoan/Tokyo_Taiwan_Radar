@@ -15,7 +15,6 @@ import {
   getEventPerformer,
   getEventDirector,
   getEventOrganizer,
-  isPureReportEvent,
 } from "@/lib/types";
 import SaveButton from "@/components/SaveButton";
 import { CategoryThumbnail } from "@/lib/design/CategoryThumbnail";
@@ -175,8 +174,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     ja: "Tokyo Taiwan Radar 東京台湾レーダー",
   };
   const siteName = SITE_NAMES[locale] ?? "Tokyo Taiwan Radar";
-  const noindex = isPureReportEvent(event.category, event.event_form);
-
   return {
     title: name ? `${name} | ${siteName}` : siteName,
     description: description?.slice(0, 160) ?? undefined,
@@ -203,7 +200,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       description: description?.slice(0, 160) ?? undefined,
       images: [image],
     },
-    robots: noindex ? { index: false, follow: true } : undefined,
   };
 }
 

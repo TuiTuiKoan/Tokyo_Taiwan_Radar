@@ -24,7 +24,7 @@ Feeds fetched:
 | `raw_title` | `<title>` text |
 | `raw_description` | `"NHKニュース:\n\n{description_plain}"` |
 | `start_date` | Extracted from description; fallback to pubDate |
-| `category` | `["report", "books_media"]` |
+| `category` | `["books_media"]` (no `report` category since 2026-11-22) |
 | `original_language` | `"ja"` |
 
 ## Taiwan Filter

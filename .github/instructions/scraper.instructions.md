@@ -30,17 +30,17 @@ Register every new scraper in `scraper/main.py` → `SCRAPERS = [...]`.
 - TCC uses a 4-tier extraction order: body labels (`日時:` / `会期:`) → prose date (`MM月DD日(曜)`) → title slash (`M/DD(曜)`) → publish date fallback.
 - `_parse_date()` must strip parenthetical day-of-week markers `（月）` / `(土・祝)` before `strptime`.
 - For end dates with only a day number (e.g. `〜5日`), inject the year and month from `start_date`.
-- Prose date year inference: accept dates up to 180 days before publish date (covers レポート/recap articles).
+- Prose date year inference: accept dates up to 180 days before publish date.
 
-## Report / recap detection
+## Event reports (活動報導) are not listed
 
-When `raw_title` contains `レポート|レポ|報告|記録|アーカイブ|recap` (case-insensitive), auto-add `"report"` to `category`.
+Event reports (活動報導) are not listed since 2026-11-22 (spec `no-event-reports`). `scraper/event_report.py::is_event_report()` judges recap titles; scrapers skip them, the annotator deactivates them (`deactivated_reason = "auto-deactivated: event report (post-event recap)"`). There is no `report` category. In a scraper, call `is_event_report(title)` and return no `Event` for a hit. Upcoming `報告会` and pure publications are not reports.
 
 ## Category values (canonical)
 
 `movie` · `performing_arts` · `senses` · `retail` · `nature` · `tech`
 · `tourism` · `lifestyle_food` · `books_media` · `gender` · `geopolitics`
-· `art` · `lecture` · `taiwan_japan` · `business` · `academic` · `competition` · `report`
+· `art` · `lecture` · `taiwan_japan` · `business` · `academic` · `competition`
 
 Do **not** invent new category strings. All values must exist in this list.
 

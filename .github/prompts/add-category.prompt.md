@@ -24,23 +24,23 @@ Parse the following from the user's message (if not provided, ask once before pr
 
 ## Step 1 — Update `web/lib/types.ts`
 
-1. Add `| "KEY"` to the `Category` union type (before `"report"`).
-2. Add `"KEY",` to the `CATEGORIES` array (before `"report"`).
+1. Add `| "KEY"` to the `Category` union type (at the end of the list).
+2. Add `"KEY",` to the `CATEGORIES` array (at the end of the list).
 
 ---
 
 ## Step 2 — Update i18n messages (all three files simultaneously)
 
-- `web/messages/zh.json` → `"KEY": "ZH"` (before `"report"`)
-- `web/messages/en.json` → `"KEY": "EN"` (before `"report"`)
-- `web/messages/ja.json` → `"KEY": "JA"` (before `"report"`)
+- `web/messages/zh.json` → `"KEY": "ZH"` (at the end of the list)
+- `web/messages/en.json` → `"KEY": "EN"` (at the end of the list)
+- `web/messages/ja.json` → `"KEY": "JA"` (at the end of the list)
 
 ---
 
 ## Step 3 — Update `scraper/annotator.py` and `scraper/taxonomy.md`
 
-1. Add `"KEY"` to `VALID_CATEGORIES` list in `scraper/annotator.py` (before `"report"`). The `2. Categories must be from this list:` line of the system prompt is generated from this list by `_build_category_prompt()` — do NOT edit it by hand, and do NOT write category definitions into `annotator.py`.
-2. Add one definition bullet to `scraper/taxonomy.md`, between `<!-- PROMPT:BEGIN -->` and `<!-- PROMPT:END -->` (after the existing category bullet points, before `"report"`). Exactly one line per slug:
+1. Add `"KEY"` to `VALID_CATEGORIES` list in `scraper/annotator.py` (at the end of the list). The `2. Categories must be from this list:` line of the system prompt is generated from this list by `_build_category_prompt()` — do NOT edit it by hand, and do NOT write category definitions into `annotator.py`.
+2. Add one definition bullet to `scraper/taxonomy.md`, between `<!-- PROMPT:BEGIN -->` and `<!-- PROMPT:END -->` (after the existing category bullet points). Exactly one line per slug:
    - `- "KEY" = [write a 1-sentence English definition based on the label and keywords]`
 3. Run `cd scraper && python -m pytest tests/test_taxonomy.py -q` — it fails if a `VALID_CATEGORIES` slug has no (or more than one) definition in `taxonomy.md`.
 

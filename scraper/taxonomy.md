@@ -68,7 +68,6 @@
    - "radio_program" = radio broadcasts, radio programs, podcast-style radio content. MANDATORY for any event from a radio broadcast source (e.g. RTI / 中央廣播電台, NHK Radio, FM radio shows). Use radio_program instead of tv_program for radio-specific sources.
    - "drama" = serialized dramatic works: TV dramas, stage drama series, web dramas. For TV drama broadcasts, always pair with tv_program.
    - "documentary" = documentary films or TV documentary programs. For TV documentaries, pair with tv_program.
-   - "report" = event reports/recaps (only if the text IS a report about a past event, not an upcoming event)
 
    DECISION ORDER for history / geopolitics / senses (apply in order; an event can still receive other content categories):
    1. Main topic is PRESENT-DAY politics, society, ethnic policy, elections or international relations → "geopolitics".

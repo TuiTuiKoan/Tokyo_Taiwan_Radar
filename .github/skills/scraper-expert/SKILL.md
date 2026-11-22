@@ -1038,6 +1038,8 @@ Reference incident: 2026-05-10 — `ftip.py` `location_address = "東京都"` �
 **三重問題（全件に発生）：**
 1. **`start_date` = 記事公開日（≠ 活動日）**：記事が公開された日が自動的に `start_date` に入り、実際の開催日（1〜数ヶ月前）と異なる。本文中の「〇月〇日開催」「〇月〇日に参加」等から正しい日付を特定すること。
 2. **`location` = 主催者の日本拠点**：主催者が日本に拠点を持つ場合、annotator がその住所を location として設定する。実際の活動場所（特に台灣で開催の場合）を確認し、`location_address` / `location_prefectures` を null に修正。
+> **Superseded 2026-11-22 (spec `no-event-reports`)**: the `report` category, `_REPORT_TRIGGER_RE`, `_inject_report_prefix` and `--backfill-report-prefix` were removed. Event reports are deactivated instead (`event_report.is_event_report()`). Kept below as history.
+
 3. **接頭辭 + `report` category 欠如**：`annotator.py` の `_REPORT_TRIGGER_RE` が自動注入する（commit `1e00933` + `d0eb93e` 以降）。検知キーワード：レポート・レポ・報告・記録・アーカイブ・recap・行ってきた・観てきた・見てきた・鑑賞レポ・**結果発表**。注入時 ja 名称がすでに `【...】` で始まる場合は `【レポート】` を重ねない（`_inject_report_prefix` の二重括弧ガード）。既存 annotated events には Supabase SQL で `report` を追加後 `python annotator.py --backfill-report-prefix` を実行。
 
 **FC 鎖定対象**（計 9 項）：`start_date`、`location_name`、`location_address`、`location_prefectures`、`name_ja`、`name_zh`、`name_en`、`categories`
@@ -1587,7 +1589,7 @@ cd scraper && python -m pytest tests/test_taxonomy.py -q
   - `放送: [channel]` + `ジャンル: [genre]` 是 gguide_tv 的固定 raw_description 格式標記（`_TV_PROGRAM_KEYWORDS = frozenset(["放送:", "放送：", "ジャンル:", "ジャンル："])`）
   - 映画 genre（`ジャンル: 映画`）的 TV 廣播 → 保留 `movie` + 加 `tv_program`；其他 genre（バラエティ/ドラマ/ドキュメンタリー 等）→ 只有 `tv_program`，絕不單獨用 `movie`
     - `_inject_keyword_categories` 邏輯：含 TV markers → 加 `tv_program`；同時若有 `movie` 且非「ジャンル: 映画」→ 移除錯誤的 `movie`
-- **`report` 誤判防護（劇情文本中的「報告」）**：`gguide_tv` 的劇情摘要常含「交際の報告」「上司に報告」等詞，這不是活動報導。`gguide_tv` 不可只因 generic `_REPORT_TRIGGER_RE` 命中 `報告` 就注入 `report` 或加 `【レポート】`。`report` 需以 TV genre/context（`報道`、`ドキュメンタリー`）判定為主。
+- **（2026-11-22 起已無 `report` 分類，gguide_tv 列入 event report gate 豁免來源）`report` 誤判防護（劇情文本中的「報告」）**：`gguide_tv` 的劇情摘要常含「交際の報告」「上司に報告」等詞，這不是活動報導。`gguide_tv` 不可只因 generic `_REPORT_TRIGGER_RE` 命中 `報告` 就注入 `report` 或加 `【レポート】`。`report` 需以 TV genre/context（`報道`、`ドキュメンタリー`）判定為主。
 
 ## DeepL（已移除）
 - `translator.py`、`deepl` 套件與 workflow 的 `DEEPL_API_KEY` 已於 2026-10 移除（#323）；翻譯一律由 `annotator.py` 產生，scraper 不呼叫任何翻譯 API。`scraper_runs.deepl_chars` 欄位保留歷史資料，`main.py` 仍寫 0。
@@ -1892,7 +1894,7 @@ Reference incident: `0d97e51c`（2025年3月例会）に `['陳志剛', '福田�
 - **sources registry**: migration 091 registers `hankyu_hakata`/`hankyu_kobe` as `department_store`/`weekly` and sets `hankyu_umeda` frequency=weekly; migration 092 registers `hanshin_umeda`, migration 093 registers the three Hanshin 兵庫県 branches (`hanshin_nishinomiya`/`hanshin_mikage`/`hanshin_amagasaki`) — all `department_store`/`weekly`.
 
 ## google_news_rss-specific
-- Fetches 4 Google News RSS queries; Taiwan-filtered; `category: ["report"]` (annotator refines)
+- Fetches 4 Google News RSS queries; Taiwan-filtered; `category: []` (annotator decides; recaps are deactivated)
 - **`start_date` must NOT fall back to pubDate**: RSS `<description>` is a short snippet (often just the article title) — it never contains event dates. `pubDate` is the article publish date, completely unrelated to when the event takes place. If no date pattern is found in the description, return `None`. (Fixed in commit `9510a05`; 40 events with wrong pub_date fallback were deactivated.) The annotator handles date extraction by fetching the full article body via Playwright — see engineer `SKILL.md § Annotator — google_news_rss 文章補抓`.
 - `source_id`: `gnews_{md5(url)[:12]}` — stable across runs; `url` is guid if real article URL, else `<link>` tag value
 - **`_STALE_DAYS = 21`**: Skip entries older than 21 days (based on pubDate). Google News redirect URLs (`news.google.com/rss/articles/...`) expire within ~2–3 weeks, so entries older than 21 days must be skipped unconditionally based on age alone. Do not attempt to fetch the URL first. The previous value of 60 was too long.
@@ -1909,7 +1911,7 @@ Reference incident: `0d97e51c`（2025年3月例会）に `['陳志剛', '福田�
 - **Within-source dedup**: handled by `merger.py` Pass 0 (name_ja similarity ≥ 0.85), which explicitly includes `start_date=NULL` events. Pass 1 skips same-source pairs, so Pass 0 is the only dedup layer for gnews-vs-gnews.
 
 ## nhk_rss-specific
-- Fetches NHK news category RSS feeds (cat4=international, cat7=culture/science); Taiwan-filtered; `category: ["report", "books_media"]`
+- Fetches NHK news category RSS feeds (cat4=international, cat7=culture/science); Taiwan-filtered; `category: ["books_media"]`
 - `start_date` extracted from description text; fallback to pubDate
 - `source_id`: `nhk_{md5(url)[:12]}`
 - Skip entries older than 90 days

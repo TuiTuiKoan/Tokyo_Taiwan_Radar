@@ -170,8 +170,7 @@
         "taiwan_japan",
         "academic",
         "geopolitics",
-        "history",
-        "report"
+        "history"
       ]
     },
     {
@@ -220,5 +219,5 @@
       }
     }
   ],
-  "sha256": "b93672a8ae5e663cbfb52a6d6fdcc6802c3dd1116303e3befc4009ca68b3ebe7"
+  "sha256": "9b08e0b42dacec8d916b26a1650901992fb647c6697f75e71d898497a3667a1a"
 }

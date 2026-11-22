@@ -239,12 +239,6 @@ export function getSemanticSymbol(cat: string, variant: number, c: string, a: st
       if (v===2) return <g><rect x="40" y="40" width="20" height="40" fill={c}/><rect x="25" y="55" width="15" height="25" fill={a}/><rect x="60" y="65" width="15" height="15" fill={a}/><circle cx="50" cy="30" r="5" fill="#3A261F"/></g>; // podium stairs
       if (v===3) return <g><path d="M8 68 Q26 58 50 68 Q74 58 92 68" stroke={c} strokeWidth="9" fill="none" strokeLinecap="round"/><path d="M8 78 Q26 68 50 78 Q74 68 92 78" stroke={a} strokeWidth="6" fill="none" strokeLinecap="round" opacity="0.6"/><circle cx="32" cy="50" r="10" fill={c}/><path d="M32 60 Q42 54 72 47" stroke={c} strokeWidth="9" strokeLinecap="round" fill="none"/><path d="M32 60 Q18 70 12 80" stroke={c} strokeWidth="9" strokeLinecap="round" fill="none"/></g>; // swimmer
       if (v===4) return <g><circle cx="50" cy="55" r="25" fill="none" stroke={c} strokeWidth="5"/><line x1="50" y1="55" x2="60" y2="45" stroke={a} strokeWidth="4"/><rect x="45" y="20" width="10" height="6" fill={a}/><line x1="40" y1="30" x2="60" y2="30" stroke="#3A261F" strokeWidth="3"/></g>; // stopwatch
-    case 'report':
-      if (v===0) return <g><path d="M25 30 L65 25 L75 75 L35 80 Z" fill={c}/><polygon points="65,25 75,75 85,65 75,20" fill={a}/><line x1="35" y1="40" x2="55" y2="38" stroke="#FFF" strokeWidth="2"/><line x1="38" y1="60" x2="58" y2="58" stroke="#FFF" strokeWidth="2"/></g>; // newspaper
-      if (v===1) return <g><circle cx="45" cy="45" r="18" fill="none" stroke={c} strokeWidth="6"/><line x1="58" y1="58" x2="75" y2="75" stroke={a} strokeWidth="8" strokeLinecap="round"/></g>; // magnifying glass
-      if (v===2) return <g><circle cx="20" cy="80" r="5" fill={c}/><path d="M20 60 A20 20 0 0 1 40 80 M20 40 A40 40 0 0 1 60 80 M20 20 A60 60 0 0 1 80 80" stroke={a} strokeWidth="5" fill="none"/></g>; // broadcast arcs
-      if (v===3) return <g><rect x="30" y="40" width="40" height="30" fill={c}/><circle cx="50" cy="55" r="8" fill={a}/><polygon points="50,10 55,30 45,30" fill={a}/><polygon points="85,35 65,40 65,30" fill={a}/><polygon points="15,35 35,40 35,30" fill={a}/></g>; // flash
-      if (v===4) return <g><path d="M40 20 L60 20 L50 60 Z" fill={c}/><path d="M50 40 L50 60" stroke="#FFF" strokeWidth="2"/><circle cx="50" cy="75" r="5" fill={a}/><circle cx="50" cy="88" r="3" fill={a}/></g>; // pen nib
     default:
       return <g><path d="M20 50 Q50 20 80 50 Q50 80 20 50Z" fill={c}/><circle cx="50" cy="50" r="10" fill={a}/></g>;
   }

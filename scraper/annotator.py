@@ -69,6 +69,7 @@ from publication_rules import (
     validated_registry_homepage,
 )
 from sources._cinema_constants import FIXED_CINEMA_SOURCES
+from event_report import EVENT_REPORT_REASON, REPORT_NAME_PREFIXES, is_event_report
 
 logger = logging.getLogger(__name__)
 
@@ -612,7 +613,7 @@ VALID_CATEGORIES = [
     "gender", "parenting", "geopolitics", "human_rights", "art", "lecture", "taiwan_japan",
     "scholarship", "study_abroad", "business", "academic", "competition", "indigenous", "folklore",
     "history", "urban", "workshop", "literature", "tv_program", "radio_program", "exhibition",
-    "design_craft", "herbal", "taiwan_mandarin", "healthcare", "market", "report",
+    "design_craft", "herbal", "taiwan_mandarin", "healthcare", "market",
 ]
 
 
@@ -1156,7 +1157,7 @@ OTHER RULES:
     ALSO: if a one-day opening event block has an overall time slot and venue, then lists bundled contents such as 開幕式, 講演①, 講演②, and film screening without separate times for each content item, create ONE sub-event for the whole opening event. Do not reduce it to only the first lecture, and do not create separate lecture/film sub-events unless each item has its own date/time.
    ALSO: if event_form is "conference" and the description lists 3 or more distinct named presentations/reports (報告, 発表, セッション) with individually named presenters (発表者, 報告者, 登壇者), generate a sub-event for each presentation. Use the same start_date/end_date and venue as the parent, set business_hours to that session's time slot (e.g. "12:30～13:50"), and put the presenter's name in both the "performer" string and the "performers" array. The sub-event name_ja should be the presentation title.
    EXCEPTION — DO NOT create sub_events for a single-film cinema screening (movie category) that simply has multiple show-time slots. For example, '4/25(土)～5/1(金)10:00、5/2(土)～8(金)14:40' is ONE film with two show-time windows — use start_date = first date, end_date = last date, put the slot details in business_hours. Sub_events in this context are for DIFFERENT FILMS in a series or DIFFERENT PHYSICAL VENUES, not different show times of the same film.
-   EXCEPTION — DO NOT create sub_events when the article is a report/recap. If the raw_title contains レポート, レポ, 報告, 活動記録, 開催記録, 鑑賞記録, 記録｜, 記録|, アーカイブ, or recap (case-insensitive), the article is a post-event report and describes a single completed event — return sub_events: [] always. Treat the report as one event and extract its single set of fields (date, performer, etc.) from the body.
+   EXCEPTION — DO NOT create sub_events when the article is a post-event report/recap (e.g. トークイベント レポート, 開催報告, 活動記録): the pipeline removes such articles, so return sub_events: [] for them. An upcoming 報告会 is an event and follows the normal sub_events rules.
    NOTE: For events with exactly two venues across different countries (e.g. Japan + Taiwan), do NOT create sub_events. Use the Japan venue as the single primary location (see MULTI-COUNTRY VENUE RULE above).
 <<CATEGORY_TAXONOMY>>
 3. Translate the event name and a concise summary description into all three languages (ja, zh, en).
@@ -2397,22 +2398,6 @@ def _apply_organizer_registry(
 
 _TV_PROGRAM_KEYWORDS = frozenset(["放送:", "放送：", "ジャンル:", "ジャンル："])
 
-# Report article detection: these keywords in raw_title or raw_description
-# signal a post-event recap/report rather than an upcoming event.
-# NOTE: bare 記録 is too broad (matches box-office 記録を更新中, 記録する,
-# 記録と記憶) — use composite report terms + 記録 followed by a delimiter.
-_REPORT_TRIGGER_RE = re.compile(
-    r"レポート|レポ|報告|活動記録|開催記録|鑑賞記録|記録[｜|]|アーカイブ|recap|行ってきた|観てきた|見てきた|鑑賞レポ|結果発表",
-    re.IGNORECASE,
-)
-
-# Prefix strings injected into name fields when category includes 'report'.
-_REPORT_PREFIXES: dict[str, str] = {
-    "ja": "【レポート】",
-    "zh": "【活動報導】",
-    "en": "[Report] ",
-}
-
 # field_corrections.corrected_value is stored as TEXT.
 # For non-text DB columns, prefer DB-native value to avoid type pollution.
 _NON_TEXT_FC_FIELDS = {
@@ -2536,6 +2521,51 @@ def _relevance_gate_update(
     return {"is_active": False, "deactivated_reason": RELEVANCE_GATE_REASON}
 
 
+# Sources whose items are never event reports: broadcasts and bibliographic
+# records. Their event_form is often still empty on first annotation, so the
+# event_form exclusion in is_event_report() cannot be relied on for them.
+_EVENT_REPORT_GATE_EXEMPT_SOURCES = {
+    "gguide_tv", "ndl_opensearch", "hanmoto", "kawade_rss",
+}
+
+
+def _event_report_gate_update(
+    event: dict,
+    human_protected: dict | None,
+    fix_reviewed: bool,
+    event_form: list[str] | None = None,
+) -> dict | None:
+    """Return {is_active: False, deactivated_reason} for an event report
+    (活動報導, spec no-event-reports), else None.
+
+    Deterministic: fires only on a recap title (event_report.is_event_report),
+    judged with the event_form the annotator just produced. Like the relevance
+    gate it never acts on human-reviewed events, human-curated sources or pure
+    publications; _oneoff_retire_event_reports.py handles reviewed rows.
+    """
+    if fix_reviewed or human_protected:
+        return None
+    if is_pure_publication_record(event):
+        return None
+    source = event.get("source_name") or ""
+    if source in _RELEVANCE_GATE_EXEMPT_SOURCES or source in _EVENT_REPORT_GATE_EXEMPT_SOURCES:
+        return None
+    forms = event_form if event_form else event.get("event_form")
+    if is_event_report(event.get("raw_title"), forms):
+        return {"is_active": False, "deactivated_reason": EVENT_REPORT_REASON}
+    return None
+    verdict = annotation.get("event_report")
+    if not isinstance(verdict, dict) or verdict.get("is_report") is not True:
+        return None
+    try:
+        confidence = float(verdict.get("confidence"))
+    except (TypeError, ValueError):
+        return None
+    if confidence < EVENT_REPORT_GATE_MIN_CONFIDENCE:
+        return None
+    return deactivate
+
+
 def _inject_keyword_categories(
     categories: list[str], text: str, record_type: str | None = None
 ) -> list[str]:
@@ -2570,9 +2600,6 @@ def _inject_keyword_categories(
     # tv_program: TV broadcast markers (gguide_tv raw_description pattern)
     if not is_publication and "tv_program" not in cats and any(kw in text for kw in _TV_PROGRAM_KEYWORDS):
         cats.append("tv_program")
-    # report: post-event recap/report articles
-    if not is_publication and "report" not in cats and _REPORT_TRIGGER_RE.search(text):
-        cats.append("report")
     return cats
 
 
@@ -2589,22 +2616,6 @@ def _drop_format_only_books_media(categories: list[str]) -> list[str]:
     if "books_media" in categories and len(categories) > 1:
         return [c for c in categories if c != "books_media"]
     return list(categories)
-
-
-def _inject_report_prefix(name: str | None, lang: str) -> str | None:
-    """Prepend locale-specific report prefix to an event name if not already present."""
-    if not name:
-        return name
-    p = _REPORT_PREFIXES.get(lang, "")
-    if not p:
-        return name
-    if name.startswith(p):
-        return name
-    # For Japanese, avoid double-bracketing: skip if name already starts with 【…】
-    # e.g. 【結果発表】xxx should not become 【レポート】【結果発表】xxx
-    if lang == "ja" and name.startswith("【"):
-        return name
-    return p + name
 
 
 def _load_default_organizer_map(sb: "Client") -> dict[str, dict[str, str]]:
@@ -3804,6 +3815,17 @@ def annotate_pending_events(
                     "  ⚑ Relevance gate: deactivating %s (%s) — no Taiwan connection",
                     event.get("id", "?"), (event.get("raw_title") or "")[:60],
                 )
+            else:
+                _report_gate = _event_report_gate_update(
+                    event, _human_protected, fix_reviewed,
+                    update_data.get("event_form"),
+                )
+                if _report_gate:
+                    update_data.update(_report_gate)
+                    logger.info(
+                        "  ⚑ Event report gate: deactivating %s (%s) — post-event recap",
+                        event.get("id", "?"), (event.get("raw_title") or "")[:60],
+                    )
 
             # Authoritative organizer registry: overlay verified entity types onto
             # organizer_type / co_organizer_types / sponsor_types AFTER LLM assembly
@@ -3839,28 +3861,11 @@ def annotate_pending_events(
                     else:
                         del update_data[_pf]
                         field_protect_hits += 1
+            # 'report' is no longer a category (spec no-event-reports); a DB-native
+            # restore of a legacy row must not write it back.
+            if isinstance(update_data.get("category"), list) and "report" in update_data["category"]:
+                update_data["category"] = [c for c in update_data["category"] if c != "report"]
 
-            # Report prefix injection: when category includes 'report',
-            # prepend locale-specific prefix to name fields.
-            # Skips FC-locked fields (_human_protected).
-            # Guard: for non-headline-rewrite sources, only inject when raw_title
-            # contains report keywords — prevents a GPT mis-classification of
-            # 'report' on a peatix/eplus market or fair from prepending
-            # 【レポート】 to a perfectly valid scraped event title.
-            _src_is_rewrite = event.get("source_name") in _HEADLINE_REWRITE_SOURCES
-            _title_is_report = bool(
-                _REPORT_TRIGGER_RE.search(event.get("raw_title") or "")
-            )
-            if "report" in update_data.get("category", []) and (
-                _src_is_rewrite or _title_is_report
-            ):
-                for _rp_field, _rp_lang in [
-                    ("name_ja", "ja"), ("name_zh", "zh"), ("name_en", "en")
-                ]:
-                    if _rp_field not in _human_protected:
-                        update_data[_rp_field] = _inject_report_prefix(
-                            update_data.get(_rp_field), _rp_lang
-                        )
 
             _is_pure_publication = _finalize_publication_update(
                 event,
@@ -3927,8 +3932,7 @@ def annotate_pending_events(
             # Report/recap articles must never generate sub-events.
             # The article describes a single completed event; sub-events would be
             # phantom duplicates of segments already described in the report body.
-            _REPORT_RE = re.compile(r"レポート|レポ|報告|記録|アーカイブ|recap", re.IGNORECASE)
-            if sub_events and _REPORT_RE.search(event.get("raw_title", "") or ""):
+            if sub_events and is_event_report(event.get("raw_title"), event.get("event_form")):
                 logger.debug(
                     "  ⚑ Skipping sub_events for report/recap article %s",
                     event.get("source_id"),
@@ -4311,7 +4315,7 @@ def _resolve_movie_titles_for_event(
         return None, None, None, None, None, None, "", "none"
 
     _lookup_title = title
-    for _pfx in _REPORT_PREFIXES.values():
+    for _pfx in REPORT_NAME_PREFIXES:
         if _lookup_title.startswith(_pfx):
             _lookup_title = _lookup_title[len(_pfx):]
             break
@@ -5838,80 +5842,6 @@ def backfill_performer_i18n() -> None:
     logger.info("backfill_performer_i18n: total done (kanji_zh=%d, gpt=%d)", patched, gpt_patched)
 
 
-def backfill_report_prefix(dry_run: bool = False) -> None:
-    """Add report prefix to name_ja/zh/en for existing events with category 'report'.
-
-    Skips events whose name fields are FC-locked.
-    FC-locks updated fields after writing to prevent re-annotation stripping.
-    """
-    sb = _get_supabase()
-
-    # Fetch all active events with report category
-    res = (
-        sb.table("events")
-        .select("id,name_ja,name_zh,name_en,category,source_id")
-        .contains("category", ["report"])
-        .eq("is_active", True)
-        .execute()
-    )
-    events = res.data or []
-    logger.info("backfill_report_prefix: %d report events found", len(events))
-
-    # Load all FC locks for these events in bulk
-    eids = [e["id"] for e in events]
-    locked_fields: dict[str, set[str]] = {}
-    if eids:
-        fc_res = (
-            sb.table("field_corrections")
-            .select("event_id,field_name")
-            .in_("event_id", eids)
-            .execute()
-        )
-        for row in (fc_res.data or []):
-            locked_fields.setdefault(row["event_id"], set()).add(row["field_name"])
-
-    updated = 0
-    for event in events:
-        eid = event["id"]
-        fc_locks = locked_fields.get(eid, set())
-        updates: dict[str, str] = {}
-
-        for field, lang in [("name_ja", "ja"), ("name_zh", "zh"), ("name_en", "en")]:
-            if field in fc_locks:
-                continue  # human-locked, skip
-            new_val = _inject_report_prefix(event.get(field), lang)
-            if new_val and new_val != event.get(field):
-                updates[field] = new_val
-
-        if not updates:
-            continue
-
-        logger.info(
-            "  %s %s \u2192 %s",
-            "DRY" if dry_run else "UPDATE",
-            event.get("source_id", eid[:8]),
-            {k: v[:40] for k, v in updates.items()},
-        )
-
-        if not dry_run:
-            sb.table("events").update(updates).eq("id", eid).execute()
-            # FC lock updated fields to prevent re-annotation from stripping prefix
-            fc_rows = [
-                {"event_id": eid, "field_name": k, "corrected_value": v}
-                for k, v in updates.items()
-            ]
-            sb.table("field_corrections").upsert(
-                fc_rows, on_conflict="event_id,field_name"
-            ).execute()
-            updated += 1
-
-    logger.info(
-        "backfill_report_prefix: %s %d events",
-        "would update" if dry_run else "updated",
-        len(events) if dry_run else updated,
-    )
-
-
 if __name__ == "__main__":
     from observability import init_sentry
 
@@ -5937,7 +5867,6 @@ if __name__ == "__main__":
             "  --backfill-tier1        Reset annotated events lacking Tier 1 fields back to pending and re-annotate\n"
             "  --propagate-source-organizer  Propagate organizer from plurality value per source_name to events with organizer=null (safe for reviewed events)\n"
             "  --backfill-performer-i18n  Backfill performer_zh/en and director_zh/en translations\n"
-            "  --backfill-report-prefix   Add \u300c\u30ec\u30dd\u30fc\u30c8\u300d/\u300c\u6d3b\u52d5\u5831\u5c0e\u300d/[Report] prefix to existing report-category events\n"
             "  --id <uuid>             Operate on a single event by id\n"
             "  --limit <N>             Limit number of events processed (default 50 for backfill-tier1)\n"
             "  --dry-run               Print actions without writing to DB\n"
@@ -5956,7 +5885,6 @@ if __name__ == "__main__":
     backfill_tier1 = "--backfill-tier1" in sys.argv
     propagate_org = "--propagate-source-organizer" in sys.argv
     backfill_perf_i18n = "--backfill-performer-i18n" in sys.argv
-    backfill_rp = "--backfill-report-prefix" in sys.argv
     dry_run_flag = "--dry-run" in sys.argv
     event_id_arg = next((sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--id"), None)
     # qa_heartbeat uses --event-id / --event-ids; --id is the legacy single-event flag.
@@ -5982,8 +5910,6 @@ if __name__ == "__main__":
         propagate_source_organizer(dry_run=dry_run_flag)
     elif backfill_perf_i18n:
         backfill_performer_i18n()
-    elif backfill_rp:
-        backfill_report_prefix(dry_run=dry_run_flag)
     elif enrich_movies:
         enrich_movie_titles(
             dry_run=dry_run_flag or enrich_dry_run_flag,

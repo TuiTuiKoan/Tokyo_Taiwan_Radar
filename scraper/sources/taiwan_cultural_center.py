@@ -18,6 +18,8 @@ from typing import Optional
 
 from playwright.sync_api import sync_playwright, Page, TimeoutError as PWTimeout
 
+from event_report import is_event_report
+
 from .base import BaseScraper, Event
 
 logger = logging.getLogger(__name__)
@@ -100,7 +102,6 @@ _PROSE_DATE_RANGE = re.compile(
     r'((?:\d{4}年)?\d{1,2}月\d{1,2}日)'
 )
 # Title keywords that mark an article as a report/recap
-_REPORT_KEYWORDS = re.compile(r"レポート|レポ|報告|記録|アーカイブ|recap", re.IGNORECASE)
 
 # Multi-city detection uses full prefecture names (no short substring tokens)
 # and requires venue-style context nearby to reduce false positives.
@@ -602,10 +603,13 @@ class TaiwanCulturalCenterScraper(BaseScraper):
         price_text = None
         is_paid = _is_paid(description_ja)
 
+        # --- Event reports are not listed (spec no-event-reports, 2026-11-22) ---
+        if is_event_report(name_ja):
+            logger.info("TCC: skipping event report: %s", (name_ja or "")[:60])
+            return None
+
         # --- Category ---
         categories = ["culture"]
-        if name_ja and _REPORT_KEYWORDS.search(name_ja):
-            categories.append("report")
 
         # --- Source ID: use URL path as stable identifier ---
         source_id = hashlib.md5(url.encode()).hexdigest()[:16]

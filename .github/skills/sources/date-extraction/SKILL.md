@@ -106,7 +106,7 @@ if update_data["start_date"] and not update_data["end_date"]:
 
 ## Report / Recap Detection
 
-When `raw_title` contains any of `レポート|レポ|報告|記録|アーカイブ|recap` (case-insensitive), auto-add `"report"` to `category`. The event date is the past event date, not the publish date.
+Event reports are no longer listed (spec `no-event-reports`, 2026-11-22): scrapers skip titles where `event_report.is_event_report()` is true, so recap date handling no longer applies.
 
 ## Peatix Date Extraction
 

@@ -59,7 +59,7 @@ CATEGORY_LABELS: dict[str, dict[str, str]] = {
         "tech": "科技", "nature": "自然", "tourism": "旅遊",
         "workshop": "工作坊", "exhibition": "展覽", "competition": "競賽",
         "indigenous": "原住民", "history": "歷史", "urban": "建築",
-        "business": "商務", "report": "活動紀錄", "literature": "文學",
+        "business": "商務", "literature": "文學",
         "tv_program": "電視節目",
     },
     "ja": {
@@ -70,7 +70,7 @@ CATEGORY_LABELS: dict[str, dict[str, str]] = {
         "gender": "ジェンダー", "tech": "テクノロジー", "nature": "自然",
         "tourism": "観光", "workshop": "ワークショップ", "exhibition": "展示",
         "competition": "競技", "indigenous": "先住民族", "history": "歴史",
-        "urban": "建築・都市", "business": "ビジネス", "report": "レポート",
+        "urban": "建築・都市", "business": "ビジネス",
         "literature": "文学", "tv_program": "テレビ番組",
     },
     "en": {
@@ -81,7 +81,7 @@ CATEGORY_LABELS: dict[str, dict[str, str]] = {
         "gender": "Gender", "tech": "Tech", "nature": "Nature", "tourism": "Tourism",
         "workshop": "Workshop", "exhibition": "Exhibition", "competition": "Competition",
         "indigenous": "Indigenous", "history": "History", "urban": "Architecture & Urban",
-        "business": "Business", "report": "Event Report", "literature": "Literature",
+        "business": "Business", "literature": "Literature",
         "tv_program": "TV Program",
     },
 }

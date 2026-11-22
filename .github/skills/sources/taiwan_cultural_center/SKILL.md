@@ -1,6 +1,6 @@
 ---
 name: taiwan_cultural_center
-description: Platform rules, 4-tier date extraction, report detection, and troubleshooting for the Taiwan Cultural Center scraper
+description: Platform rules, 4-tier date extraction, event-report skip, and troubleshooting for the Taiwan Cultural Center scraper
 applyTo: scraper/sources/taiwan_cultural_center.py
 ---
 
@@ -61,13 +61,9 @@ Apply in strict order. Fall through to the next tier only when the current tier 
 
 Prepend `開催日時: YYYY年MM月DD日\n\n` when event date ≠ `post_date`.
 
-## Report Detection
+## Event Reports
 
-Auto-add `"report"` to category when title contains:
-
-```
-レポート|レポ|報告|記録|アーカイブ|recap
-```
+Since 2026-11-22 the scraper returns no `Event` when `is_event_report(name_ja)` is true (トークイベント レポート etc.; spec `no-event-reports`). There is no `report` category.
 
 ## Dedup
 

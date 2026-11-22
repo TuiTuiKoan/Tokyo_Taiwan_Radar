@@ -122,7 +122,7 @@ RSS_TEMPLATE = "https://note.com/{creator}/rss"
 _EVENT_CATEGORIES = frozenset([
     "movie", "performing_arts", "senses", "retail", "nature", "tech",
     "tourism", "lifestyle_food", "books_media", "gender", "geopolitics",
-    "art", "lecture", "taiwan_japan", "business", "academic", "competition", "report",
+    "art", "lecture", "taiwan_japan", "business", "academic", "competition",
 ])
 
 # Minimum character count for a non-truncated note.com preview.

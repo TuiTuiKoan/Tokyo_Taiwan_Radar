@@ -23,7 +23,7 @@ applyTo: scraper/sources/taioan_dokyokai.py
 | URL Path | Category hint |
 |----------|---------------|
 | `/category/event/` | `[]` — annotator decides |
-| `/category/%e6%b4%bb%e5%8b%95%e8%a8%98%e9%8c%b2/` (活動記録) | `["report"]` |
+| ~~`/category/活動記録/`~~ | not scraped since 2026-11-22 (no event reports) |
 
 Pagination: WordPress `/page/N/` scheme, up to `MAX_PAGES = 5` per category.
 90-day lookback cutoff applied on **publish date** (not event date).
@@ -59,8 +59,7 @@ Cascade:
 
 ## Report Detection
 
-Articles under `/category/活動記録/` are seeded with `category=["report"]`.
-The annotator will add further sub-categories based on content.
+Event reports are not listed (spec `no-event-reports`): the 活動記録 listing is not scraped, and any post whose title is a recap (`is_event_report()`) is skipped.
 
 ## Dependency on TCC Module
 
