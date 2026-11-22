@@ -198,7 +198,7 @@ def build_digest(
         if h and not is_platform(h):
             gaps[org_domain(h)].append(r)
 
-    live, other, seen = [], [], set()
+    items: dict[str, dict] = {}  # candidate url → {url, score, report, live}
     deadline = clock() + budget_seconds
     budget_hit = False
     for r in reports:
@@ -219,16 +219,25 @@ def build_digest(
                 cu = normalize(cand["url"])
             except Exception:  # noqa: BLE001
                 continue
-            if cu in seen:
+            attendable = may_still_be_attendable(r, today)
+            prev = items.get(cu)
+            if prev is not None:
+                # Same candidate from several reports: any attendable report
+                # promotes it, so input order never hides an intake link.
+                if attendable and not prev["live"]:
+                    prev.update(report=r, live=True)
                 continue
-            seen.add(cu)
             try:
                 if exists(cu):
+                    items[cu] = {"skip": True, "live": True}
                     continue
             except Exception:  # noqa: BLE001 — lookup failed: show it, user decides
                 pass
-            item = {"url": cu, "score": cand["score"], "report": r}
-            (live if may_still_be_attendable(r, today) else other).append(item)
+            items[cu] = {"url": cu, "score": cand["score"], "report": r, "live": attendable}
+
+    kept = [it for it in items.values() if not it.get("skip")]
+    live = [it for it in kept if it["live"]]
+    other = [it for it in kept if not it["live"]]
 
     def title(r: dict) -> str:
         t = r.get("name_ja") or r.get("raw_title") or ""

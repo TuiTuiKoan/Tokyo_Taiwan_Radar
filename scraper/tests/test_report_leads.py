@@ -147,3 +147,13 @@ def test_links_point_at_full_external_urls_not_inactive_ttr_pages():
 def test_safe_href_blocks_breakout_and_non_http():
     assert safe_href("javascript:alert(1)") == ""
     assert ")" not in safe_href("https://x.jp/a)b(c d")
+
+
+def test_dedup_promotes_candidate_when_any_report_is_attendable():
+    html = '<main><a href="https://fes.example.jp/event/2026">公式サイト</a></main>'
+    past = {"id": "77777777", "source_url": "https://a.example.jp/n/1", "raw_title": "p", "end_date": "2026-01-01"}
+    future = {"id": "88888888", "source_url": "https://b.example.jp/n/2", "raw_title": "f", "end_date": "2026-12-31"}
+    for order in ([past, future], [future, past]):
+        out = _digest(order, fetch=lambda u: (u, html, 200))
+        assert out.count("開 url-intake issue") == 1, order
+        assert "已結束，只供參考（0）" in out
