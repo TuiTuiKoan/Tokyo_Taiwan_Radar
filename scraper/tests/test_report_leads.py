@@ -157,3 +157,10 @@ def test_dedup_promotes_candidate_when_any_report_is_attendable():
         out = _digest(order, fetch=lambda u: (u, html, 200))
         assert out.count("開 url-intake issue") == 1, order
         assert "已結束，只供參考（0）" in out
+
+
+def test_malformed_href_is_skipped_not_fatal():
+    html = ('<main><a href="https://[broken">x</a>'
+            '<a href="https://ok.example.jp/event/1">詳細</a></main>')
+    urls = [c["url"] for c in extract_candidates(html, "https://news.example.jp/a")]
+    assert urls == ["https://ok.example.jp/event/1"]

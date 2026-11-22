@@ -107,10 +107,13 @@ def extract_candidates(html: str, article_url: str, limit: int = MAX_CANDIDATES)
     art_host = host_of(article_url)
     best: dict[str, dict] = {}
     for a in root.find_all("a", href=True):
-        href = urljoin(article_url, a["href"].strip()).split("#", 1)[0]
+        try:
+            href = urljoin(article_url, a["href"].strip()).split("#", 1)[0]
+            host = host_of(href)
+        except ValueError:  # malformed href (https://[broken …) — skip this link only
+            continue
         if not href.lower().startswith(("http://", "https://")):
             continue
-        host = host_of(href)
         if not host or is_platform(host) or _SKIP_EXT.search(href):
             continue
         if host == art_host and not _PATH_HINT_RE.search(urlsplit(href).path or ""):
@@ -212,9 +215,10 @@ def build_digest(
             break
         try:
             final_url, html, _ = fetch(url)
+            candidates = extract_candidates(html, final_url)
         except Exception:  # noqa: BLE001 — one bad article never stops the digest
             continue
-        for cand in extract_candidates(html, final_url):
+        for cand in candidates:
             try:
                 cu = normalize(cand["url"])
             except Exception:  # noqa: BLE001
