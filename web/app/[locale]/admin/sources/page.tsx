@@ -37,11 +37,24 @@ export default async function AdminSourcesPage({ params }: PageProps) {
     redirect(`/${locale}`);
   }
 
-  const { data: sources } = await supabase
-    .from("research_sources")
-    .select("*, scraper_source_name, scrape_times_per_day, scrape_hours_jst")
-    .order("last_seen_at", { ascending: false })
-    .limit(200);
+  // Load every row in batches: a fixed .limit(200) hid older sources, and the
+  // status/type/keyword filters in AdminSourcesTable only see what is loaded.
+  // The table paginates the filtered result on the client.
+  const BATCH_SIZE = 1000;
+  const MAX_BATCHES = 20;
+  const sources: ResearchSource[] = [];
+  for (let batch = 0; batch < MAX_BATCHES; batch++) {
+    const from = batch * BATCH_SIZE;
+    const { data, error } = await supabase
+      .from("research_sources")
+      .select("*, scraper_source_name, scrape_times_per_day, scrape_hours_jst")
+      .order("last_seen_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, from + BATCH_SIZE - 1);
+    if (error || !data) break;
+    sources.push(...(data as ResearchSource[]));
+    if (data.length < BATCH_SIZE) break;
+  }
 
   // Count active events per source_name for the filter dropdown
   const { data: eventRows } = await supabase
@@ -67,7 +80,7 @@ export default async function AdminSourcesPage({ params }: PageProps) {
       <AdminTabNav locale={locale} activeTab="sources" />
 
       <AdminSourcesTable
-        sources={(sources ?? []) as ResearchSource[]}
+        sources={sources}
         eventCountBySourceName={eventCountBySourceName}
       />
     </div>
