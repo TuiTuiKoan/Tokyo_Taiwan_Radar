@@ -104,6 +104,9 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+/** Rows rendered per page; filtering still runs over the full loaded list. */
+const PAGE_SIZE = 50;
+
 export default function AdminSourcesTable({ sources, eventCountBySourceName = {} }: Props) {
   const t = useTranslations("admin");
   const locale = useLocale();
@@ -111,6 +114,8 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
   const [filter, setFilter] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
   const [keyword, setKeyword] = useState<string>("");
+  const [page, setPage] = useState<number>(1);
+  const listTopRef = useRef<HTMLDivElement>(null);
   const [sourceList, setSourceList] = useState<ResearchSource[]>(sources);
   const [promotingId, setPromotingId] = useState<number | null>(null);
 
@@ -321,6 +326,52 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
   }
 
   const filtered = getFilteredSources(sourceList);
+
+  // Client-side pagination over the filtered list. The page is clamped here
+  // rather than reset in an effect, so a filter change that shrinks the list
+  // never renders an empty page.
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const pageItems = filtered.slice(pageStart, pageStart + PAGE_SIZE);
+
+  function goToPage(next: number) {
+    setPage(Math.min(Math.max(1, next), pageCount));
+    listTopRef.current?.scrollIntoView({ block: "start" });
+  }
+
+  const pager = filtered.length > PAGE_SIZE && (
+    <nav
+      aria-label={t("sourcesPagerLabel")}
+      className="flex items-center justify-between gap-3 text-xs text-fg-muted"
+    >
+      <button
+        type="button"
+        onClick={() => goToPage(currentPage - 1)}
+        disabled={currentPage <= 1}
+        className="px-3 py-1.5 bg-elevated border border-line rounded-lg hover:bg-muted disabled:opacity-40 transition"
+      >
+        ← {t("sourcesPagerPrev")}
+      </button>
+      <span>
+        {t("sourcesPagerInfo", {
+          from: pageStart + 1,
+          to: pageStart + pageItems.length,
+          total: filtered.length,
+          page: currentPage,
+          pages: pageCount,
+        })}
+      </span>
+      <button
+        type="button"
+        onClick={() => goToPage(currentPage + 1)}
+        disabled={currentPage >= pageCount}
+        className="px-3 py-1.5 bg-elevated border border-line rounded-lg hover:bg-muted disabled:opacity-40 transition"
+      >
+        {t("sourcesPagerNext")} →
+      </button>
+    </nav>
+  );
 
   /** 各分類的條目數（套用狀態篩選，不套用分類篩選） */
   const typeCountMap = (() => {
@@ -540,8 +591,12 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
         <p className="text-sm text-fg-subtle">{t("sourcesNone")}</p>
       )}
 
+      <div ref={listTopRef} className="scroll-mt-4">
+        {pager && <div className="mb-3">{pager}</div>}
+      </div>
+
       <div className="space-y-2">
-        {filtered.map((src) => {
+        {pageItems.map((src) => {
         const catKey = src.agent_category ?? src.category ?? "";
         const isResearched = src.status === "researched";
         const isRecommendedOrDone =
@@ -750,6 +805,8 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
         );
       })}
       </div>
+
+      {pager && <div className="mt-3">{pager}</div>}
     </div>
   );
 }

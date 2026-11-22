@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-11-22 — 建議切分信任邊界時，沒檢查 job 之間的資料相依方向
+
+- **錯誤**：coverage-audit 的 plan-critique-1（M8）建議把稽核拆成「probe 不帶 secrets → report 用 production」。但 probe 要篩選「DB 沒有的項目」才知道該抓哪些正文，資料流向和 job 順序相反，計畫照字面做不出來。
+- **修正**：plan-critique-2（PB1）把順序改為「coverage-db（只做 select，不碰外部內容）→ coverage-probe（不帶 secrets，處理外部內容）」。
+- **教訓**：建議拆分 job 或信任邊界之前，先列出每個 job 的輸入和輸出，確認下游需要的資料由上游產生。外部內容只進不帶金鑰的 job，DB 結果以受信任的 artifact 往下傳。
+
+---
+
 ## 2026-08-02 — 建議「歸檔補年月前綴」，卻沒查 slug 由誰決定，害計畫採用會靜默改名的做法
 
 **錯誤：** 批評 workstream-status-automation 計畫時，正確抓到「`docs/specs/archived/` 目錄不存在，實際是 `archive/`」，

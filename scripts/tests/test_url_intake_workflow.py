@@ -75,6 +75,13 @@ def test_apply_mode_requires_the_owner(wf):
     assert mode.endswith("&& 'apply' || 'preview' }}")
 
 
+def test_apply_mode_is_never_set_on_a_rerun(wf):
+    # A re-run keeps the original sender; only the first attempt may apply (#702).
+    mode = _norm(wf["jobs"]["db"]["env"]["MODE"])
+    assert mode.startswith("${{ (github.run_attempt == 1 && ((")
+    assert mode.count("(") == mode.count(")")
+
+
 def test_secrets_only_in_the_db_step(wf):
     steps = wf["jobs"]["db"]["steps"]
     with_secrets = [s["name"] for s in steps if "secrets." in json.dumps(s)]

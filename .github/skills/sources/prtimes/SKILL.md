@@ -78,11 +78,13 @@ Results are sorted **newest-first**. Maximum 250 pages × 40 = 10,000 results pe
 
 Two-stage title filter applied **before** fetching detail pages:
 
-1. **Taiwan keyword**: `台湾|Taiwan|台灣|臺灣` must appear in title.
+1. **Taiwan keyword**: `scraper/taiwan_keywords.TAIWAN_TITLE_RE` must match the title — `台湾|台灣|臺灣|Taiwan` (case-insensitive) plus guarded compounds `日中台`／`日台`／`台日` (#701). The compounds carry context guards against 舞台日本／本日台数／今日台風／屋台日本 etc.; never add bare `中台` (中台禅寺) or city names without coverage-audit evidence.
+   The whole title chain lives in `title_verdict(title) -> (ok, reason)`; `scrape()` and the weekly coverage audit both call it.
 2. **Event-type keyword**: `イベント|フェス|開催|展示|祭|セミナー|講演|体験|交流会|…` must appear in title.
 
 **Taiwan-based event exclusion** (applied after detail fetch):
 - Title pattern `_TAIWAN_BASED_TITLE_RE`: matches `in 台湾`, `in Taiwan`, `台湾進出`, `台湾販路`, `台湾.*に集結` etc.
+  Known gap: branches other than `in 台北` start with literal 台湾, so 「日台…を台北で開催」 passes the title layer (xfail test, #722).
 - Venue pattern `_TAIWAN_VENUE_RE`: venue contains 台北, 台中, 高雄, 新竹, 花蓮, Taipei, Kaohsiung etc.
 
 Noise estimate: ~2.8% of results are Japan-held Taiwan events. The annotator

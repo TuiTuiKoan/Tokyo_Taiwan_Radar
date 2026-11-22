@@ -18,7 +18,7 @@ import time
 import random
 import logging
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 from urllib.request import urlopen
 from urllib.error import URLError
 
@@ -26,6 +26,12 @@ import requests
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 from .base import BaseScraper, Event
+from ._organizer_link import (
+    extract_schedule_dates,
+    fetch_page_text,
+    pick_organizer_link,
+    slice_article,
+)
 from movie_title_lookup import lookup_movie_titles
 from venue_registry import lookup_venue
 
@@ -121,6 +127,102 @@ def _is_taiwan_related(title: Optional[str], description: Optional[str]) -> bool
     return bool(_TAIWAN_KW.search(haystack))
 
 
+# ---------------------------------------------------------------------------
+# News article → event fields (spec organizer-source-subevents)
+# ---------------------------------------------------------------------------
+
+# Article header line on tiff-jp.net news pages: "2026.11.15 [更新／お知らせ]".
+_ARTICLE_HEADER_RE = re.compile(r"^\d{4}\.\d{2}\.\d{2} \[", re.MULTILINE)
+# Lines where the article ends and the related-news sidebar begins.
+_ARTICLE_FOOTERS = ("前の記事", "次の記事", "ニュース一覧へもどる", "新着ニュース")
+_ARTICLE_KIND_RE = re.compile(r"\d{4}\.\d{2}\.\d{2} \[([^\]]+)\]")
+_NO_SCHEDULE_KINDS = frozenset({"イベントレポート", "インタビュー"})
+_OWN_DOMAINS = ("tiff-jp.net",)
+_ARTICLE_MAX = 6000
+_ORGANIZER_MAX = 6000
+
+
+def _collect_links(page) -> list[tuple[str, str]]:
+    """Return ``(absolute href, text)`` for every <a> on the page, in DOM order."""
+    try:
+        return [
+            (str(h or ""), str(t or ""))
+            for h, t in page.locator("a[href]").evaluate_all(
+                "els => els.map(e => [e.href, (e.innerText || '').trim()])"
+            )
+        ]
+    except Exception as exc:
+        logger.debug("tiff_jp: link collection failed: %s", exc)
+        return []
+
+
+def build_news_fields(
+    body_text: Optional[str],
+    links: list[tuple[str, str]],
+    published: datetime,
+    fetch_organizer: Callable[[str], Optional[str]],
+) -> dict[str, Any]:
+    """Turn a TIFF news page into event fields.
+
+    - raw_description: organiser page first (when an HTML organiser link exists
+      and its text mentions Taiwan), then the TIFF article without navigation
+      and sidebar, with a leading ``開催日時:`` line when dates were found.
+    - start_date / end_date: from the schedule written in the article (None when
+      absent; the caller falls back to the publish date).
+    - official_url: the organiser page when one was fetched successfully,
+      else the organiser's flyer PDF linked from the article, else None.
+    Only links whose anchor text appears in the article are considered.
+    """
+    article = slice_article((body_text or "").strip(), _ARTICLE_HEADER_RE, _ARTICLE_FOOTERS)
+    article = article[:_ARTICLE_MAX]
+
+    # Only links whose anchor text is part of the article body: drops the
+    # navigation, AD block and related-news sidebar links.
+    article_links = [(h, t) for h, t in links if t and t in article]
+    external = [h for h, _ in article_links if h.startswith("http") and "tiff-jp.net" not in h]
+    if external:
+        logger.info("tiff_jp: external links in article: %s", external)
+    html_url, pdf_url = pick_organizer_link(article_links, _OWN_DOMAINS)
+    organizer_text: Optional[str] = None
+    if html_url:
+        organizer_text = fetch_organizer(html_url)
+        if organizer_text and not _TAIWAN_KW.search(organizer_text):
+            logger.info("tiff_jp: organiser page has no Taiwan keyword, ignored: %s", html_url)
+            organizer_text = None
+        if organizer_text:
+            organizer_text = organizer_text[:_ORGANIZER_MAX]
+
+    # Recaps and interviews mention shooting / past screening dates, not an
+    # upcoming programme: keep the publish date for them (existing behaviour).
+    kind = _ARTICLE_KIND_RE.match(article)
+    if kind and kind.group(1) in _NO_SCHEDULE_KINDS:
+        start, end = None, None
+    else:
+        start, end = extract_schedule_dates([organizer_text, article], published)
+
+    parts: list[str] = []
+    if start:
+        span = start.strftime("%Y年%m月%d日")
+        if end and end != start:
+            span += end.strftime("〜%Y年%m月%d日")
+        parts.append(f"開催日時: {span}")
+    if organizer_text:
+        parts.append(f"【主催者ページ】{html_url}\n{organizer_text}")
+    if pdf_url:
+        parts.append(f"チラシ: {pdf_url}")
+    if article:
+        parts.append(f"【東京国際映画祭ニュース】\n{article}" if organizer_text else article)
+
+    return {
+        "raw_description": "\n\n".join(parts) or None,
+        "start_date": start,
+        "end_date": end,
+        # A fetched organiser page wins; otherwise the organiser's own flyer PDF
+        # is still the most authoritative link we can show.
+        "official_url": html_url if organizer_text else pdf_url,
+    }
+
+
 class TiffJpScraper(BaseScraper):
     """Scrapes Taiwan-related news from Tokyo International Film Festival."""
 
@@ -203,21 +305,37 @@ class TiffJpScraper(BaseScraper):
                 if not start_date:
                     continue
 
-                # Fetch detail page body for Taiwan keyword check
-                full_description: Optional[str] = None
+                # Fetch detail page: article text (navigation and sidebar removed)
+                # plus every link, so the organiser page can be followed.
+                body_text: Optional[str] = None
+                links: list[tuple[str, str]] = []
                 if detail_url:
                     try:
                         detail_page = context.new_page()
                         detail_page.goto(detail_url, timeout=30_000)
                         detail_page.wait_for_load_state("networkidle", timeout=15_000)
                         body_text = detail_page.locator("body").inner_text(timeout=5_000)
-                        if body_text:
-                            full_description = body_text.strip()[:2000]
+                        links = _collect_links(detail_page)
                         detail_page.close()
                     except PWTimeout:
                         logger.warning("tiff_jp: detail page timeout: %s", detail_url)
                     except Exception as exc:
                         logger.debug("tiff_jp: detail page failed %s: %s", detail_url, exc)
+
+                fields = build_news_fields(
+                    body_text,
+                    links,
+                    start_date,
+                    fetch_organizer=lambda url: fetch_page_text(context, url),
+                )
+                full_description = fields["raw_description"]
+                if fields["start_date"]:
+                    start_date = fields["start_date"]
+                else:
+                    logger.warning(
+                        "tiff_jp: no event date in article %s; falling back to publish date",
+                        source_id,
+                    )
 
                 # Client-side Taiwan relevance filter
                 if not _is_taiwan_related(title, full_description):
@@ -234,8 +352,10 @@ class TiffJpScraper(BaseScraper):
                         name_ja=title,
                         description_ja=full_description,
                         start_date=start_date,
+                        end_date=fields["end_date"],
                         raw_title=title,
                         raw_description=full_description,
+                        official_url=fields["official_url"],
                         category=["movie"],
                     )
                 )

@@ -9,6 +9,8 @@ tags: [scraper, venue, data-repair, cas, production]
 
 # authoritative-venue-repair 後續項目
 
+> **2026-11-22 使用者決定拆開，本檔不再重啟。** 6 筆既有場館修正搬到 issue #733；59 個活動修正與 2 筆重複場館刪除併入 spec `venue-ground-truth` 的 Phase D，重新擷取現況後另行設計，不沿用下面的 70 個動作計畫；R1 隨原工具退場。代表卡 issue #339 已關閉。以下內容保留作紀錄。
+
 ## 來源與搬移理由
 
 `docs/specs/archive/2026-10-authoritative-venue-repair/tasks.md`（原 `docs/specs/active/authoritative-venue-repair/`，2026-10-22 歸檔）到 Gate 1 為止的程式修正已完成：Gate 1 correction cycle 2

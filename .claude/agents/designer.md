@@ -12,5 +12,4 @@ effort: medium
 完成後建議的下一步：
 - 🔧 Implement this design：切換到 engineer（建議提示：請依據 docs/specs/active/<slug>/design.md（無 slug 時為 ~/.ai-notes/ttr/design.md）的設計方案實作，並回傳 Changes Log。）
 - 🏗️ Architect review first：切換到 architect（建議提示：請審查此 UI 改動對整體架構（路由、SSR、效能、i18n pipeline）的影響。）
-- 📝 Update history/skill/agent：切換到 update-history-skill-agent（建議提示：根據最近的設計工作和所學教訓，更新 designer 的 history.md、SKILL.md 和 agent 檔案。）
 - 🚀 Validate, merge & deploy：切換到 validate-merge-deploy（建議提示：執行完整驗證：build、screenshot diff、push 到 origin/main、確認 Vercel 部署。）

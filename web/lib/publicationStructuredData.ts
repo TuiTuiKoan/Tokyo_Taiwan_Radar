@@ -20,6 +20,8 @@ interface BuildStructuredDataParams {
   displayDescription: string | null;
   displayLocationName: string | null;
   displayLocationAddress: string | null;
+  /** Postal code removed from the displayed address, if any. */
+  displayPostalCode?: string | null;
 }
 
 const PLACEHOLDER_AUTHOR_RE = /^(?:n\/a|none|unknown|不明|未定|未公開|待定|未知|作者不詳)$/i;
@@ -88,6 +90,7 @@ export function buildEventStructuredData({
   displayDescription,
   displayLocationName,
   displayLocationAddress,
+  displayPostalCode = null,
 }: BuildStructuredDataParams): Record<string, unknown> {
   const flags = getPublicationPresentationFlags(event);
 
@@ -180,6 +183,7 @@ export function buildEventStructuredData({
         ? {
             "@type": "PostalAddress",
             streetAddress: displayLocationAddress,
+            ...(displayPostalCode ? { postalCode: displayPostalCode } : {}),
             addressCountry: "JP",
           }
         : { "@type": "PostalAddress", addressCountry: "JP" },

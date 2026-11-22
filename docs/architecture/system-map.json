@@ -66,14 +66,6 @@
         ".github/workflows/**"
       ],
       "description": "合併與部署"
-    },
-    {
-      "id": "update-history-agent",
-      "label": "Update History Agent",
-      "owns": [
-        "**/history.md"
-      ],
-      "description": "更新 lessons learned"
     }
   ],
   "skills": [

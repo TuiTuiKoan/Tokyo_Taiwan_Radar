@@ -10,8 +10,6 @@ EXPECTED_ROLES = {
     "lianbu-spokesperson": "readonly",
     "engineer": "full",
     "designer": "full",
-    "history-teller": "full",
-    "update-history-skill-agent": "full",
     "peatix-scraper": "full",
     "tcc-scraper": "full",
 }
@@ -27,14 +25,12 @@ EXPECTED_TIERS = {
     "researcher": "build",
     "reviewer": "build",
     "tester": "grunt",
-    "history-teller": "grunt",
-    "update-history-skill-agent": "grunt",
     "lianbu-spokesperson": "grunt",
     "peatix-scraper": "grunt",
     "tcc-scraper": "grunt",
 }
 EDIT_TOOLS = {"Edit", "Write", "NotebookEdit"}
-AGENT_COUNT = 15
+AGENT_COUNT = 13
 
 
 def agent_name(sync, path: Path) -> str:
