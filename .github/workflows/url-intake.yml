@@ -99,13 +99,17 @@ jobs:
       contents: read
       issues: write
     env:
+      # run_attempt == 1: a re-run keeps the original event.sender, so a
+      # failed apply could otherwise be re-run into a write (#702). To retry,
+      # the owner removes and re-adds the label.
       MODE: >-
-        ${{ ((github.event_name == 'issues' &&
+        ${{ (github.run_attempt == 1 &&
+            ((github.event_name == 'issues' &&
               github.event.label.name == 'url-intake:approved' &&
               github.event.sender.login == github.repository_owner &&
               github.event.sender.type == 'User') ||
              (github.event_name == 'workflow_dispatch' && inputs.apply &&
-              github.actor == github.repository_owner)) && 'apply' || 'preview' }}
+              github.actor == github.repository_owner))) && 'apply' || 'preview' }}
       ISSUE: ${{ github.event.issue.number || inputs.issue }}
       SENDER: ${{ github.event.sender.login || github.actor }}
       GH_TOKEN: ${{ github.token }}

@@ -39,7 +39,16 @@ ASK_CONFIG_REASON = (
     "ttr-hook: changing git configuration that redirects pushes or disables hooks "
     "requires explicit user approval [git-config-gate]"
 )
-ASK_REASONS = {"push-gate": ASK_REASON, "git-config-gate": ASK_CONFIG_REASON}
+ASK_URL_INTAKE_REASON = (
+    "ttr-hook: approving a url-intake production write (the url-intake:approved label, "
+    "a url-intake workflow dispatch, or a deployment approval) requires explicit user approval "
+    "[url-intake-approval]"
+)
+ASK_REASONS = {
+    "push-gate": ASK_REASON,
+    "git-config-gate": ASK_CONFIG_REASON,
+    "url-intake-approval": ASK_URL_INTAKE_REASON,
+}
 
 BASH_TOOLS = frozenset({"Bash", "Monitor"})
 FILE_FIELDS = {
@@ -151,6 +160,7 @@ class Decision:
 ALLOW = Decision("allow")
 ASK_PUSH = Decision("ask", "push-gate")
 ASK_CONFIG = Decision("ask", "git-config-gate")
+ASK_URL_INTAKE = Decision("ask", "url-intake-approval")
 
 
 def deny(rule: str) -> Decision:
@@ -258,7 +268,20 @@ def mcp_decision(payload: object) -> Decision:
         raise ValueError("tool")
     if MCP_GITHUB_DENY_RE.search(tool[len(MCP_GITHUB_PREFIX):]):
         return deny("github-merge-or-main-write")
+    if _mentions_approval_label(_data):
+        return ASK_URL_INTAKE  # tool names change between server versions, so scan the input (#702)
     return ALLOW
+
+
+def _mentions_approval_label(value: object) -> bool:
+    """True when any string in a (nested) MCP tool input is the approval label."""
+    if isinstance(value, str):
+        return any(_is_approval_label(part) for part in value.split(","))
+    if isinstance(value, dict):
+        return any(_mentions_approval_label(v) for v in value.values())
+    if isinstance(value, (list, tuple)):
+        return any(_mentions_approval_label(v) for v in value)
+    return False
 
 
 # --- git configuration files (pr-flow-tiering Phase C) ---------------------
@@ -1028,6 +1051,121 @@ def check_gh(args: list[Word]) -> Decision:
         return deny("github-merge-or-main-write")  # an alias could hide `pr merge`
     if sub == "api":
         return check_gh_api(args[pos[0][0] + 1:])
+    if sub in ("issue", "pr") and second is not None and second.text in ("edit", "create"):
+        return check_gh_labels(args)
+    if sub == "workflow" and second is not None and second.text == "run":
+        return check_gh_workflow_run([w for _, w in pos[2:]])
+    return ALLOW
+
+
+# --- url-intake approval (#702) ----------------------------------------------
+#
+# url-intake.yml writes to production when the repository owner adds the
+# url-intake:approved label or dispatches it with apply=true. Cloud agents act
+# as the owner's account, so the workflow cannot tell them apart; these rules
+# ask before an agent approves. GitHub label names are case-insensitive.
+
+URL_INTAKE_LABEL = "url-intake:approved"
+GH_LABEL_FLAGS = ("--add-label", "--label", "-l")
+URL_INTAKE_WORKFLOW_RE = re.compile(r"url[-_ ]?intake", re.IGNORECASE)
+GH_ISSUE_LABEL_PATH_RE = re.compile(r"(?:^|/)issues(?:/[^/]+)?(?:/labels)?$")
+GH_DISPATCH_PATH_RE = re.compile(r"(?:^|/)actions/workflows/([^/]*)/dispatches$")
+GH_DEPLOYMENT_APPROVAL_RE = re.compile(r"(?:^|/)actions/runs/[^/]*/pending_deployments$")
+GH_GRAPHQL_LABEL_RE = re.compile(r"\b(?:addLabelsToLabelable|createIssue|updateIssue)\b")
+
+
+def _is_approval_label(text: str) -> bool:
+    return text.strip().casefold() == URL_INTAKE_LABEL
+
+
+def _label_value_asks(word: Word | None, text: str | None = None) -> bool:
+    if word is None:
+        return False
+    if _dynamic(word):
+        return True  # `--add-label "$L"`: the label cannot be read
+    value = word.text if text is None else text
+    return any(_is_approval_label(part) for part in value.split(","))
+
+
+def check_gh_labels(args: list[Word]) -> Decision:
+    """`gh issue|pr edit|create`: ask when a label to add is the approval label."""
+    i = 0
+    while i < len(args):
+        word, text = args[i], args[i].text
+        nxt = args[i + 1] if i + 1 < len(args) else None
+        if text in GH_LABEL_FLAGS:
+            if _label_value_asks(nxt):
+                return ASK_URL_INTAKE
+            i += 2
+            continue
+        for flag in GH_LABEL_FLAGS:
+            if flag.startswith("--") and text.startswith(flag + "="):
+                if _label_value_asks(word, text[len(flag) + 1:]):
+                    return ASK_URL_INTAKE
+                break
+            if flag == "-l" and text.startswith("-l") and not text.startswith("--") and len(text) > 2:
+                if _label_value_asks(word, text[2:].removeprefix("=")):
+                    return ASK_URL_INTAKE
+                break
+        i += 1
+    return ALLOW
+
+
+def check_gh_workflow_run(workflows: list[Word]) -> Decision:
+    """`gh workflow run`: ask when the workflow may be url-intake."""
+    if not workflows:
+        return ASK_URL_INTAKE  # interactive selection
+    word = workflows[0]
+    if _dynamic(word) or word.text.isdigit() or URL_INTAKE_WORKFLOW_RE.search(word.text):
+        return ASK_URL_INTAKE
+    return ALLOW
+
+
+def check_gh_api_url_intake(args: list[Word]) -> Decision:
+    opts, endpoints, uncertain = _gh_api_options(args)
+    if not endpoints:
+        return ALLOW
+    method = None
+    fields: list[Word | None] = []
+    has_input = False
+    for name, value in opts:
+        if name == "--method":
+            method = "?" if value is None or _dynamic(value) else value.text.upper()
+        elif name in ("--field", "--raw-field"):
+            fields.append(value)
+        elif name == "--input":
+            has_input = True
+    effective = method or ("POST" if fields or has_input else "GET")
+    if effective not in GH_WRITE_METHODS and effective != "?":
+        return ALLOW
+    for endpoint in endpoints if uncertain else endpoints[:1]:
+        path = _gh_endpoint(endpoint.text)
+        if _dynamic(endpoint) and (not path or path.endswith("/")):
+            return ASK_URL_INTAKE  # the endpoint's tail comes from a variable
+        if GH_DEPLOYMENT_APPROVAL_RE.search(path):
+            return ASK_URL_INTAKE
+        dispatch = GH_DISPATCH_PATH_RE.search(path)
+        if dispatch:
+            target = dispatch.group(1)
+            if not target or target.isdigit() or URL_INTAKE_WORKFLOW_RE.search(target):
+                return ASK_URL_INTAKE
+        if path == "graphql":
+            for value in fields:
+                if value is not None and GH_GRAPHQL_LABEL_RE.search(value.text):
+                    return ASK_URL_INTAKE
+            if has_input:
+                return ASK_URL_INTAKE
+        if GH_ISSUE_LABEL_PATH_RE.search(path):
+            if has_input:
+                return ASK_URL_INTAKE  # the body cannot be read
+            for value in fields:
+                if value is None:
+                    continue
+                if _dynamic(value):
+                    return ASK_URL_INTAKE
+                _name, _eq, body = value.text.partition("=")
+                if any(_is_approval_label(part) for part in body.split(",")):
+                    return ASK_URL_INTAKE
     return ALLOW
 
 
@@ -1100,6 +1238,10 @@ def _gh_api_options(args: list[Word]) -> tuple[list[tuple[str, Word | None]], li
 
 
 def check_gh_api(args: list[Word]) -> Decision:
+    return combine([_check_gh_api_main_write(args), check_gh_api_url_intake(args)])
+
+
+def _check_gh_api_main_write(args: list[Word]) -> Decision:
     opts, endpoints, uncertain = _gh_api_options(args)
     method: str | None = "?" if uncertain else None
     has_fields = False
