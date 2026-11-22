@@ -241,3 +241,48 @@ def test_is_vague_and_the_grader_disagree_on_town_level_addresses():
     for address in ("東京都", "福岡県福岡市", None):
         assert is_vague(address)
         assert grade_address(address) in (REGION, EMPTY)
+
+
+def test_address_key_merges_spellings_of_one_address():
+    from address_quality import address_key
+
+    same = [
+        "東京都中央区日本橋室町3-2-1 COREDO室町テラス2F",
+        "東京都中央区日本橋室町３丁目２−１ COREDO室町テラス 2F",
+        "〒103-0022 東京都中央区日本橋室町3-2-1",
+        "中央区日本橋室町３丁目２−１ COREDO室町テラス 2F",
+        "東京都中央区日本橋室町3丁目2番1号",
+        "東京都中央区日本橋室町3-2-1 COREDO室町テラス1F 大屋根広場",
+    ]
+    assert {address_key(a) for a in same} == {"中央区日本橋室町3-2-1"}
+    assert address_key("東京都新宿区新宿3丁目35-13 3F") == address_key("東京都新宿区新宿3-35-13")
+    assert address_key("北海道札幌市中央区北1条西3丁目3-8") == "札幌市中央区北1条西3-3-8"
+    assert address_key("長野県長野市権堂町2255") == address_key("〒380-0833 長野県長野市権堂町2255")
+    assert address_key("東京都渋谷区神宮前1の14の30") == "渋谷区神宮前1-14-30"
+
+
+def test_address_key_keeps_different_addresses_apart():
+    from address_quality import address_key
+
+    assert address_key("東京都新宿区西早稲田1-6-1") != address_key("東京都新宿区戸山1-24-1")
+    assert address_key("東京都港区三田2-15-45") != address_key("東京都港区三田3-16-1")
+    assert address_key("東京都港区虎ノ門1-1-12") != address_key("東京都港区虎ノ門1-1-1")
+
+
+def test_address_key_is_none_for_addresses_that_are_not_street_level():
+    from address_quality import address_key
+
+    for value in (None, "", "東京都港区", "東京都港区六本木", "台北市信義區信義路五段7號", "オンライン"):
+        assert address_key(value) is None, value
+
+
+def test_address_key_leaves_town_names_with_numerals_alone():
+    """plan-critique-2 M8: 丸の内, 三番町, 一番町 and 麻布十番 are town names."""
+    from address_quality import address_key
+
+    assert address_key("東京都千代田区丸の内三丁目5番1号") == "千代田区丸の内3-5-1"
+    assert address_key("東京都千代田区丸の内3-5-1 東京国際フォーラム") == "千代田区丸の内3-5-1"
+    assert address_key("宮城県仙台市青葉区一番町3-11-15") == "仙台市青葉区一番町3-11-15"
+    assert address_key("東京都千代田区三番町6-14") == "千代田区三番町6-14"
+    assert address_key("東京都港区麻布十番２丁目１４−９ 2f") == "港区麻布十番2-14-9"
+    assert address_key("東京都港区三田3-1-1") == address_key("東京都港区三田3丁目1-1")

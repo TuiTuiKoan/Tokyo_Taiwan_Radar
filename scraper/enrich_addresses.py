@@ -2,14 +2,23 @@
 enrich_addresses.py — Fill a missing or vague location_address for upcoming
 events from data we already hold, without calling an LLM.
 
+Candidates: upcoming events whose address address_quality.grade_address() grades
+town, region, empty or not_address. Addresses outside Japan are left alone.
+
 Lookup order:
-  1. venue_registry — the authoritative venues table.
-  2. Other events with the same location_name, when they agree on exactly one
-     street-level address.
+  1. venue_registry — the authoritative venues table. Its address is accepted at
+     street or town level: an authoritative address was checked by a person, and
+     a park or a campus may have no lot number.
+  2. Other events with the same location_name, when independent evidence agrees
+     on exactly one street address (see sibling_vote). Copies are not evidence.
 
 Events neither step resolves are listed and left alone. The former web-search
 path used gpt-4o-search-preview, which OpenAI retired around 2026-08-20; it was
 removed in 2026-10 (#318).
+
+Nothing is locked in field_corrections any more. annotator keeps an event's
+current address, and an address cleared later (a force re-scrape) is filled again
+by the next daily run. A lock would also stop a later venue fix from arriving.
 
 Usage:
     python enrich_addresses.py [--dry-run] [--source SOURCE_NAME] [--limit N]
@@ -20,14 +29,15 @@ field_corrections.
 """
 
 import argparse
-import json
 import os
 import re
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
 from supabase import create_client
 
+from address_quality import NEEDS_FIX, STREET, TOWN, address_key, grade_address, normalize_address
 from annotator import _to_trad
 from db_paging import fetch_all
 from publication_rules import is_pure_publication_in_db, partition_pure_publications
@@ -52,9 +62,17 @@ _VAGUE_GEO_RE = re.compile(r'^[^\s]{2,10}[都道府県市区]$')
 
 
 def is_vague(address: str | None) -> bool:
-    """True when the address is missing or lacks a street-level part."""
+    """The rule used before the address grader (kept for the audit's comparison).
+
+    True when the address is missing or is only a prefecture, city or ward.
+    """
     addr = (address or "").strip()
     return not addr or addr in VAGUE_ADDRESS_VALUES or bool(_VAGUE_GEO_RE.match(addr))
+
+
+def needs_address(address: str | None) -> bool:
+    """True when the address is not street-level (and not outside Japan)."""
+    return grade_address(address) in NEEDS_FIX
 
 
 def _normalize_venue(name: str) -> str:
@@ -81,7 +99,7 @@ def fetch_candidates(sb, today: str, source: str | None = None) -> list[dict]:
 
     return [
         e for e in fetch_all(query)
-        if is_vague(e.get("location_address"))
+        if needs_address(e.get("location_address"))
         and e["source_name"] not in SKIP_SOURCES
         and not any(kw in (e["location_name"] or "") for kw in SKIP_VENUE_KEYWORDS)
     ]
@@ -94,28 +112,96 @@ def registry_address(venue_name: str) -> dict | None:
         if not venue or venue.get("is_multi_venue"):
             continue
         addr = (venue.get("address") or "").strip()
-        if not is_vague(addr):
+        if grade_address(addr) in (STREET, TOWN):
             return {"location_address": addr}
     return None
 
 
-def build_sibling_map(rows: list[dict]) -> dict[str, dict]:
-    """Map location_name → address patch when its events agree on one address.
+# An auto-lock is written in the same request as the event row; allow some slack.
+AUTO_LOCK_WINDOW_SECONDS = 60
+_PREF_NAMES_RE = re.compile(r"北海道|東京都|(?:京都|大阪)府|[^\s\d]{2,3}県")
+SIBLING_COLUMNS = (
+    "id, location_name, location_address, location_address_zh, location_address_en, "
+    "source_name, created_at, raw_description"
+)
 
-    Names whose events carry two or more different specific addresses are
-    left out: a chain or a multi-site label must not be guessed.
+
+def _ts(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def _squash(text: str | None) -> str:
+    return re.sub(r"\s+", "", normalize_address(text))
+
+
+def sibling_vote(row: dict, lock: dict | None) -> bool:
+    """True when this event's address is independent evidence for its venue.
+
+    Either the address appears verbatim in the event's own source text, or it is
+    the value the scraper delivered: an auto-lock written with the event (within
+    AUTO_LOCK_WINDOW_SECONDS), not JSON-quoted, with the same address key. Values
+    without such evidence are mostly model output or copies from other events,
+    and do not vote. (venue-ground-truth plan-critique-2 B2.)
     """
-    by_name: dict[str, dict[str, dict]] = {}
+    address = row.get("location_address")
+    key = address_key(address)
+    if key is None or len(_PREF_NAMES_RE.findall(normalize_address(address))) > 1:
+        return False
+    if _squash(address) and _squash(address) in _squash(row.get("raw_description")):
+        return True
+    if not lock or lock.get("corrected_by") or lock.get("report_id"):
+        return False
+    value = lock.get("corrected_value") or ""
+    if value.startswith('"'):
+        return False  # json.dumps copy lock written by enrich_addresses or its old web search
+    locked_at, created_at = _ts(lock.get("created_at")), _ts(row.get("created_at"))
+    if not locked_at or not created_at:
+        return False
+    if abs((locked_at - created_at).total_seconds()) > AUTO_LOCK_WINDOW_SECONDS:
+        return False
+    return address_key(value) == key
+
+
+def build_sibling_map(rows: list[dict], locks: dict[str, dict] | None = None) -> dict[str, dict]:
+    """Map location_name → address patch when independent evidence agrees.
+
+    A name qualifies when every street-level address among its events has the
+    same address key, and that key is backed by votes from at least two events
+    from at least two sources. A chain or a multi-site label, whose events carry
+    two different addresses, is never guessed.
+    """
+    locks = locks or {}
+    by_name: dict[str, list[dict]] = {}
     for r in rows:
-        addr = (r.get("location_address") or "").strip()
-        if is_vague(addr):
+        if r.get("location_name"):
+            by_name.setdefault(r["location_name"], []).append(r)
+
+    result: dict[str, dict] = {}
+    for name, events in by_name.items():
+        keys = {address_key(e.get("location_address")) for e in events} - {None}
+        if len(keys) != 1:
             continue
-        entry = by_name.setdefault(r["location_name"], {}).setdefault(addr, {"location_address": addr})
+        voters = [e for e in events if sibling_vote(e, locks.get(e["id"]))]
+        if len(voters) < 2 or len({e.get("source_name") for e in voters}) < 2:
+            continue
+        # The most common spelling among the voters; ties go to the fuller text.
+        spellings = Counter(normalize_address(e["location_address"]) for e in voters)
+        best = max(spellings, key=lambda a: (spellings[a], len(a)))
+        source = next(e for e in voters if normalize_address(e["location_address"]) == best)
+        patch = {"location_address": source["location_address"].strip()}
         for lang in ("zh", "en"):
-            key = f"location_address_{lang}"
-            if r.get(key) and key not in entry:
-                entry[key] = r[key]
-    return {name: next(iter(addrs.values())) for name, addrs in by_name.items() if len(addrs) == 1}
+            field = f"location_address_{lang}"
+            value = next((e.get(field) for e in [source, *voters] if e.get(field)), None)
+            if value:
+                patch[field] = value
+        result[name] = patch
+    return result
 
 
 def fetch_sibling_map(sb, names: list[str]) -> dict[str, dict]:
@@ -124,12 +210,23 @@ def fetch_sibling_map(sb, names: list[str]) -> dict[str, dict]:
         batch = names[i:i + IN_BATCH]
         rows.extend(fetch_all(lambda: (
             sb.table("events")
-            .select("id, location_name, location_address, location_address_zh, location_address_en")
+            .select(SIBLING_COLUMNS)
             .in_("location_name", batch)
             .not_.is_("location_address", None)
             .order("id")
         )))
-    return build_sibling_map(rows)
+    locks: dict[str, dict] = {}
+    ids = [r["id"] for r in rows]
+    for i in range(0, len(ids), IN_BATCH):
+        for lock in fetch_all(lambda: (
+            sb.table("field_corrections")
+            .select("event_id, corrected_value, corrected_by, report_id, created_at")
+            .in_("event_id", ids[i:i + IN_BATCH])
+            .eq("field_name", "location_address")
+            .order("event_id")
+        )):
+            locks[lock["event_id"]] = lock
+    return build_sibling_map(rows, locks)
 
 
 def resolve(event: dict, sibling_map: dict[str, dict]) -> tuple[dict, str] | None:
@@ -205,19 +302,10 @@ def main():
         if patch.get("location_address_zh"):
             patch["location_address_zh"] = _to_trad(patch["location_address_zh"])
         sb.table("events").update(patch).eq("id", e["id"]).execute()
-        # Registry addresses stay unlocked so a later registry fix still flows
-        # through; an address copied from another event is locked like a manual
-        # fill so re-annotation does not blank it again.
-        if method == "sibling":
-            sb.table('field_corrections').upsert({
-                'event_id': e['id'],
-                'field_name': 'location_address',
-                'corrected_value': json.dumps(patch["location_address"], ensure_ascii=False),
-            }, on_conflict='event_id,field_name').execute()
         updated += 1
 
     if unresolved:
-        print(f"\nUnresolved ({len(unresolved)}) — no registry venue and no agreeing sibling event:")
+        print(f"\nUnresolved ({len(unresolved)}) — no registry venue and no independent sibling evidence:")
         for e in unresolved:
             print(f"  https://tokyotaiwanradar.com/ja/events/{e['id']} | {e['location_name']!r}")
 

@@ -200,6 +200,31 @@ jobs:
           echo "alert=$ALERT" >> $GITHUB_OUTPUT
         continue-on-error: true
 
+      - name: Venue address audit (read-only report)
+        # spec venue-ground-truth: street-level address rate and venue gaps.
+        # Writes nothing; the JSON artifact is the daily trend record.
+        if: always()
+        working-directory: scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          python audit_venue_addresses.py --top 25 \
+            --output venue_address_audit.md --json-output venue_address_audit.json
+          cat venue_address_audit.md >> $GITHUB_STEP_SUMMARY
+        continue-on-error: true
+
+      - name: Upload venue address audit
+        if: always() && hashFiles('scraper/venue_address_audit.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: venue-address-audit
+          path: |
+            scraper/venue_address_audit.md
+            scraper/venue_address_audit.json
+          retention-days: 90
+        continue-on-error: true
+
       - name: Summarize run
         id: summarize
         working-directory: scraper
