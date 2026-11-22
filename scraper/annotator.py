@@ -2436,7 +2436,9 @@ _NON_TEXT_FC_FIELDS = {
 RELEVANCE_GATE_MIN_CONFIDENCE = 0.8
 RELEVANCE_GATE_REASON = "auto-deactivated: annotator Taiwan relevance gate"
 # Sources whose events are curated by a human before reaching the annotator.
-_RELEVANCE_GATE_EXEMPT_SOURCES = {"user_submission"}
+# url_intake: the repo owner approved this single URL (spec url-intake), which
+# is the scope judgement itself; the model must not overrule it.
+_RELEVANCE_GATE_EXEMPT_SOURCES = {"user_submission", "url_intake"}
 
 
 # P5 (D9): the relevance gate may only deactivate a first-pass pure publication

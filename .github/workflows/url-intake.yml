@@ -1,0 +1,174 @@
+name: URL Intake
+
+# Spec: docs/specs/active/url-intake/proposal.md (v2, after plan-critique-1.md)
+#
+# Put one event page into the pipeline without writing a scraper.
+#   label `url-intake` on an issue whose body has the URL  -> preview comment, no DB write
+#   label `url-intake:approved` by the repo owner           -> insert one pending event
+#   workflow_dispatch (url, apply, issue)                   -> same, for the owner from the Actions page
+# Annotation, enrichment and IndexNow happen in the next daily scraper.yml run.
+#
+# Two jobs, the same trust split as source-diagnose.yml:
+# - `fetch` reads the external page with no secrets and no token. Its artifact is untrusted.
+# - `db` never runs code on the page: it checks out the default branch, re-validates the
+#   artifact as data (ingest_url.validate_payload) and holds the production secrets.
+# The issue body reaches Python only through env, never through ${{ }} in a shell line.
+#
+# Human gate (AGENTS.md: production data write): only the repo owner may trigger apply.
+# This is a rule, not a technical guarantee: a token that belongs to the owner passes the
+# check whoever uses it (proposal.md「殘餘風險」). Agents never add `url-intake:approved`
+# and never dispatch with apply=true.
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Event page URL"
+        required: true
+      apply:
+        description: "Write to production (false = preview only)"
+        type: boolean
+        default: false
+      issue:
+        description: "Issue number to comment on (optional)"
+        required: false
+        default: ""
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions: {}
+
+concurrency:
+  group: url-intake-${{ github.event.issue.number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issues' && (
+        github.event.label.name == 'url-intake' ||
+        (github.event.label.name == 'url-intake:approved' &&
+         github.event.sender.login == github.repository_owner &&
+         github.event.sender.type == 'User')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      INTAKE_TEXT: ${{ github.event_name == 'issues' && github.event.issue.body || inputs.url }}
+    steps:
+      - name: Checkout the default branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+          sparse-checkout: scraper
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install fetch dependencies
+        run: |
+          grep -iE '^(requests|beautifulsoup4)\b' scraper/requirements.txt > "$RUNNER_TEMP/req.txt"
+          pip install -r "$RUNNER_TEMP/req.txt"
+
+      - name: Fetch the page (no secrets, no token)
+        working-directory: scraper
+        run: |
+          mkdir -p ../out
+          python ingest_url.py fetch --url-env INTAKE_TEXT --out ../out/payload.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: url-intake-payload
+          path: out/payload.json
+          retention-days: 7
+
+  db:
+    needs: fetch
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    permissions:
+      contents: read
+      issues: write
+    env:
+      MODE: >-
+        ${{ ((github.event_name == 'issues' &&
+              github.event.label.name == 'url-intake:approved' &&
+              github.event.sender.login == github.repository_owner &&
+              github.event.sender.type == 'User') ||
+             (github.event_name == 'workflow_dispatch' && inputs.apply &&
+              github.actor == github.repository_owner)) && 'apply' || 'preview' }}
+      ISSUE: ${{ github.event.issue.number || inputs.issue }}
+      SENDER: ${{ github.event.sender.login || github.actor }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Checkout the default branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: scraper/requirements.txt
+
+      - name: Install Python dependencies
+        run: pip install -r scraper/requirements.txt
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: url-intake-payload
+          path: out
+
+      - name: Preview or apply
+        id: run
+        working-directory: scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -u
+          if [ -n "$ISSUE" ] && ! [[ "$ISSUE" =~ ^[0-9]+$ ]]; then echo "invalid issue"; exit 1; fi
+          if ! [[ "$MODE" =~ ^(preview|apply)$ ]]; then echo "invalid mode"; exit 1; fi
+          set +e
+          python ingest_url.py "$MODE" --in ../out/payload.json > "$RUNNER_TEMP/comment.md"
+          RC=$?
+          set -e
+          printf '\n\n<sub>mode=%s · 觸發者 %s · run %s</sub>\n' "$MODE" "${SENDER//@/＠}" \
+            "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" >> "$RUNNER_TEMP/comment.md"
+          cat "$RUNNER_TEMP/comment.md" >> "$GITHUB_STEP_SUMMARY"
+          echo "rc=$RC" >> "$GITHUB_OUTPUT"
+
+      - name: Comment on the issue
+        if: always() && env.ISSUE != ''
+        run: |
+          if ! [[ "$ISSUE" =~ ^[0-9]+$ ]]; then echo "invalid issue"; exit 1; fi
+          if [ ! -s "$RUNNER_TEMP/comment.md" ]; then
+            printf '<!-- url-intake -->\nURL intake 執行失敗，請看 %s\n' \
+              "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" > "$RUNNER_TEMP/comment.md"
+          fi
+          gh issue comment "$ISSUE" --body-file "$RUNNER_TEMP/comment.md"
+
+      - name: Close the issue after a successful apply
+        if: env.MODE == 'apply' && env.ISSUE != '' && steps.run.outputs.rc == '0'
+        run: gh issue close "$ISSUE" --reason completed
+
+      - name: Fail the job when nothing was written
+        if: steps.run.outputs.rc != '0'
+        env:
+          RC: ${{ steps.run.outputs.rc }}
+        run: |
+          echo "ingest_url.py exited with $RC"
+          exit 1

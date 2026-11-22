@@ -50,3 +50,9 @@ def test_human_reviewed_events_are_never_gated():
 def test_user_submissions_are_never_gated():
     event = {"id": "e2", "source_name": "user_submission"}
     assert _relevance_gate_update(event, NOT_TAIWAN, {}, False) is None
+
+
+def test_approved_url_intake_is_never_gated():
+    # spec url-intake: the repo owner's approval is the scope judgement.
+    event = {"id": "e3", "source_name": "url_intake", "raw_title": "日中台：交錯するまなざし"}
+    assert _relevance_gate_update(event, NOT_TAIWAN, {}, False) is None
