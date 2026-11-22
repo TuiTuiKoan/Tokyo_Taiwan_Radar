@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+import re
 import sys
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +19,8 @@ logger = logging.getLogger(__name__)
 _CANONICAL: dict[str, dict[str, Any]] | None = None
 _ALIASES: dict[str, dict[str, Any]] = {}
 _AMBIGUOUS: set[str] = set()
+_LOOSE: dict[str, dict[str, Any]] | None = None
+_LOOSE_SEPARATORS_RE = re.compile(r"[\s・･·]+")
 _PARENT_SUFFIX_BOUNDARIES = frozenset(" \u3000(（[【「『・/:：内")
 
 
@@ -94,9 +98,11 @@ def _build_cache() -> None:
             exc,
         )
         _CANONICAL, _ALIASES, _AMBIGUOUS = {}, {}, set()
+        _reset_loose_index()
         return
 
     _CANONICAL, _ALIASES, _AMBIGUOUS = canonical, aliases, ambiguous
+    _reset_loose_index()
 
     logger.info(
         "venue_registry loaded: %d authoritative venues, %d canonical keys, "
@@ -106,6 +112,37 @@ def _build_cache() -> None:
         len(aliases),
         len(ambiguous),
     )
+
+
+def _loose_key(name: str) -> str:
+    """NFKC with spaces and middle dots removed: シネマ・クレール 丸の内１・２ → シネマクレール丸の内12."""
+    return _LOOSE_SEPARATORS_RE.sub("", unicodedata.normalize("NFKC", name)).strip()
+
+
+def _loose_index() -> dict[str, dict[str, Any]]:
+    """Canonical names and aliases under their loose key (#370).
+
+    A loose key shared by two venues is dropped, as is the loose key of a name
+    rejected as ambiguous, so this fallback can never resolve a label the exact
+    lookup refused.
+    """
+    global _LOOSE
+    if _LOOSE is not None:
+        return _LOOSE
+    index: dict[str, dict[str, Any]] = {}
+    clashes: set[str] = {_loose_key(k) for k in _AMBIGUOUS}
+    for tier in (_CANONICAL or {}, _ALIASES):
+        for name, row in tier.items():
+            key = _loose_key(name)
+            if not key:
+                continue
+            if key in index and index[key].get("id") != row.get("id"):
+                clashes.add(key)
+            index.setdefault(key, row)
+    for key in clashes:
+        index.pop(key, None)
+    _LOOSE = index
+    return _LOOSE
 
 
 def lookup_venue(name: str | None) -> dict[str, Any] | None:
@@ -160,7 +197,11 @@ def lookup_venue_for_location(
         and key[len(canonical)] in _PARENT_SUFFIX_BOUNDARIES
     ]
     if not matches:
-        return None, False
+        # Last resort, after the parent rule, which keeps the original boundary
+        # characters: the same name up to width, spaces and middle dots. Treated
+        # as an exact hit, so the label is normalized to the canonical name.
+        loose = _loose_index().get(_loose_key(key))
+        return (loose, False) if loose is not None else (None, False)
     longest = max(length for length, _ in matches)
     rows = {row["id"]: row for length, row in matches if length == longest}
     if len(rows) != 1:
@@ -172,8 +213,14 @@ def lookup_venue_for_location(
     return next(iter(rows.values())), True
 
 
+def _reset_loose_index() -> None:
+    global _LOOSE
+    _LOOSE = None
+
+
 def _reset_cache_for_tests() -> None:
     global _CANONICAL, _ALIASES, _AMBIGUOUS
     _CANONICAL = None
     _ALIASES = {}
     _AMBIGUOUS = set()
+    _reset_loose_index()
