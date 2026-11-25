@@ -137,12 +137,24 @@ subagent 最後一則訊息只放一個 JSON 物件，前後不加說明文字�
 ## 腳本
 
 ```bash
+python3 scripts/research/render_report.py merge    .research-runs/<slug>/state.json <subagent 回傳的 JSON 檔> [--issue I1]
 python3 scripts/research/render_report.py validate .research-runs/<slug>/state.json
 python3 scripts/research/render_report.py rank     .research-runs/<slug>/state.json
 python3 scripts/research/render_report.py render   .research-runs/<slug>/state.json -o .research-runs/<slug>/report.html
 ```
 
+`merge` 把一個 subagent 的回傳併進 state.json：指派正式 id、把暫時 id 換成正式 id、依網址或 DOI 合併重複來源、追加對戰與合併結果。Generation 與 Evolution 的回傳要帶 `--issue`。Supervisor 把回傳存成檔案後用它合併，不手改 id。
+
 `validate` 有錯誤時 exit 1 並列出每一條；`render` 在有錯誤時不寫檔。警告（未查核的主張、沒被引用的來源）不擋輸出。
+
+## 執行環境的限制
+
+查核要能開啟來源網站。2026-11-25 的試跑（紀錄在 `docs/specs/active/research-team/notes.md`）遇到兩層阻擋：
+
+- claude.ai 雲端環境的網路存取等級是「Limited」時，來源網域不在允許清單內就完全連不上。開始研究前先確認環境的網路設定；需要時依 `get_environment` 的說明提議變更，由使用者核准。
+- 即使網路開放，部分網站（政府網站、新聞網站、放在 CDN 後面的 PDF）會拒絕自動化存取（HTTP 403）。這是網站的決定，不得用偽裝瀏覽器等方式繞過。該主張標 `unchecked`，在 `note` 寫明原因，並在報告的限制中列出。
+
+來源開不了時，正確的結果是一份多數主張「未查核」的報告，不是用搜尋結果摘要或記憶補上結論。
 
 ## 檔案位置
 

@@ -189,3 +189,66 @@ def test_cli_render_and_rank(rr, state, tmp_path, capsys):
     capsys.readouterr()
     assert rr.main(["rank", str(path)]) == 0
     assert capsys.readouterr().out.splitlines()[0].startswith("1\tH3\t")
+
+
+def test_merge_reflection_updates_claims_and_dedupes_sources(rr, state):
+    result = {
+        "hypothesis": "H2",
+        "status": "refuted",
+        "verdict": "核心主張被來源否定",
+        "claims": [
+            {"id": "C2", "verification": "contradicted", "quote": "a clear dose response", "sources": ["S2", "p1"]},
+            {"tmp": "n1", "text": "反證：另一研究無法重現", "sources": ["p1"], "verification": "partial", "note": "只讀到摘要"},
+        ],
+        "sources": [
+            {"id": "S2", "fetched": False},  # must not undo the earlier successful fetch
+            {"tmp": "dup", "url": "http://www.example.org/post/", "fetched": True},  # same page as S2
+            {"tmp": "p1", "type": "paper", "title": "Replication", "doi": "10.1000/r1", "primary": True, "fetched": True},
+        ],
+    }
+    log = rr.merge(state, result)
+    assert [s["id"] for s in state["sources"]] == ["S1", "S2", "S3"]
+    assert state["sources"][1]["fetched"] is True
+    claims = {c["id"]: c for c in state["claims"]}
+    assert claims["C2"]["sources"] == ["S2", "S3"] and claims["C2"]["quote"] == "a clear dose response"
+    assert claims["C3"]["sources"] == ["S3"] and state["hypotheses"][1]["claims"] == ["C2", "C3"]
+    assert state["hypotheses"][1]["verdict"] == "核心主張被來源否定"
+    assert any("S3" in line for line in log)
+    assert rr.validate(state)[0] == []
+
+
+def test_merge_generation_ranking_and_proximity(rr, state):
+    result = {
+        "hypotheses": [
+            {"tmp": "h1", "statement": "新假說", "parents": ["H1", "H99"], "claims": [{"text": "新主張", "sources": ["s1", "ghost"]}, {"id": "C1"}]}
+        ],
+        "sources": [{"tmp": "s1", "title": "New", "url": "https://example.org/new"}],
+    }
+    log = rr.merge(state, result, issue="I2")
+    hyp = state["hypotheses"][-1]
+    assert hyp["id"] == "H4" and hyp["issue"] == "I2" and hyp["origin"] == "evolution" and hyp["parents"] == ["H1"]
+    assert hyp["claims"] == ["C3", "C1"] and state["claims"][-1]["sources"] == ["S3"]
+    assert state["sources"][-1]["fetched"] is False
+    assert any("ghost" in line for line in log)
+    rr.merge(state, {"matches": [{"a": "H4", "b": "H1", "winner": "H4", "reason": "r"}]})
+    assert state["matches"][-1]["round"] == 2
+    rr.merge(state, {"merge": [{"keep": "H1", "drop": ["H4"], "reason": "重複"}]})
+    assert hyp["status"] == "merged"
+    assert rr.validate(state)[0] == []
+    with pytest.raises(SystemExit):
+        rr.merge(state, {"hypotheses": []})
+
+
+def test_cli_merge_writes_state(rr, state, tmp_path, capsys):
+    path, res = tmp_path / "state.json", tmp_path / "res.json"
+    path.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+    res.write_text(json.dumps({"matches": [{"a": "H1", "b": "H3", "winner": "draw", "reason": "x"}]}), encoding="utf-8")
+    assert rr.main(["merge", str(path), str(res)]) == 0
+    assert len(json.loads(path.read_text(encoding="utf-8"))["matches"]) == 3
+
+
+def test_match_log_is_rendered(rr, state):
+    page = rr.render(state)
+    assert "對戰紀錄" in page and "H3 vs H1" in page and "證據較直接" in page
+    state["matches"] = []
+    assert "對戰紀錄" not in rr.render(state)

@@ -34,14 +34,15 @@ description: "研究助理團：以多 agent 假說迭代、原始來源查核�
 2. 訂 `slug`（kebab-case）與 `title`（二到四個詞的名稱）。
 3. 建議題樹：一個根議題，依 depth 拆子議題。子議題要互斥且合起來涵蓋問題，每個附一句 `summary`。
 4. 寫出 `.research-runs/<slug>/state.json` 的初版。
+5. 確認抓取工具開得了一般網站（試開一個與議題相關的來源）。開不了時依 SKILL「執行環境的限制」處理，並先告訴使用者查核會受限。
 
-`resume` 時改為：用 Artifact 工具讀取該 Artifact 的 `state.json`（`action: "read"`、`path: "state.json"`）存到 `.research-runs/<slug>/`，從第 4 步的下一輪繼續；使用者有新的想法或回饋時，加成新的假說（`origin: "generation"`）或寫進 `goal`。
+`resume` 時改為：用 Artifact 工具讀取該 Artifact 的 `state.json`（`action: "read"`、`path: "state.json"`）存到 `.research-runs/<slug>/`，接著從流程的第 2 步（有未查核的主張時）或第 5 步繼續；使用者有新的想法或回饋時，加成新的假說（`origin: "generation"`）或寫進 `goal`。
 
 ### 1. Generation
 
 每個子議題啟動一個 Generation subagent，**同一則訊息內平行啟動**。提示包含：研究問題、`goal`、該子議題、SKILL 的三條規則與 Generation 段、回傳格式。
 
-收回後由 Supervisor 指派正式 id、合併重複來源（同 DOI 或同網址）、寫入 state.json。新來源的 `fetched` 一律先設 false，等 Reflection 確認。
+收回後把每份回傳存成 `.research-runs/<slug>/gen_<議題 id>.json`，用 `render_report.py merge … --issue <議題 id>` 併入 state.json（腳本指派正式 id 並合併重複來源）。之後各步驟的回傳也用 `merge` 併入。新來源的 `fetched` 一律是 false，等 Reflection 確認。
 
 ### 2. Reflection（深度查核）
 

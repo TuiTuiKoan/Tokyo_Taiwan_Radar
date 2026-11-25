@@ -10,6 +10,7 @@ Usage:
     python3 scripts/research/render_report.py validate <state.json>
     python3 scripts/research/render_report.py rank <state.json>
     python3 scripts/research/render_report.py render <state.json> -o <report.html>
+    python3 scripts/research/render_report.py merge <state.json> <result.json> [--issue I1]
 
 Rules and schema: .github/skills/research-team/SKILL.md
 """
@@ -506,6 +507,23 @@ def source_link(source: dict, text: str = "") -> str:
     return f'<a href="{esc(url)}" target="_blank" rel="noopener noreferrer">{esc(label)}</a>'
 
 
+def match_table(state: dict) -> str:
+    rows = []
+    for match in state.get("matches") or []:
+        winner = match.get("winner")
+        result = "平手" if winner == "draw" else f"{winner} 勝"
+        rows.append(
+            f'<tr><td class="num">{esc(match.get("round", ""))}</td><td class="num">{esc(match.get("a"))} vs {esc(match.get("b"))}</td>'
+            f'<td class="num">{esc(result)}</td><td class="wide">{esc(match.get("reason", ""))}</td></tr>'
+        )
+    if not rows:
+        return ""
+    return (
+        '<h3>對戰紀錄</h3><div class="scroll"><table><thead><tr><th>輪</th><th>對戰</th><th>結果</th><th>評審理由</th></tr></thead>'
+        "<tbody>" + "".join(rows) + "</tbody></table></div>"
+    )
+
+
 def render(state: dict) -> str:
     sources = {s["id"]: s for s in state.get("sources") or []}
     claims = {c["id"]: c for c in state.get("claims") or []}
@@ -562,7 +580,9 @@ def render(state: dict) -> str:
             '<section id="ranking"><h2>假說排名</h2><div class="scroll"><table><thead><tr><th>#</th><th>編號</th><th>假說</th>'
             "<th>Elo</th><th>勝–負</th><th>已驗證主張</th><th>狀態</th></tr></thead><tbody>"
             + "".join(rows)
-            + "</tbody></table></div></section>"
+            + "</tbody></table></div>"
+            + match_table(state)
+            + "</section>"
         )
 
     def claim_rows(hyp: dict) -> str:
@@ -677,6 +697,115 @@ def render(state: dict) -> str:
     )
 
 
+# --------------------------------------------------------------------- merge
+
+
+def _next_id(items: list[dict], prefix: str) -> str:
+    used = [int(i["id"][len(prefix):]) for i in items if str(i.get("id", "")).startswith(prefix) and i["id"][len(prefix):].isdigit()]
+    return f"{prefix}{max(used, default=0) + 1}"
+
+
+def _source_key(source: dict) -> str:
+    doi = str(source.get("doi") or "").strip().lower()
+    if doi:
+        return "doi:" + doi
+    url = re.sub(r"^https?://(www\.)?", "", str(source.get("url") or "").strip())
+    return "url:" + url.rstrip("/").lower() if url else ""
+
+
+def merge(state: dict, result: dict, issue: str | None = None) -> list[str]:
+    """Fold one subagent result into the state. Ids are assigned here, never by the subagent."""
+    log: list[str] = []
+    sources = state.setdefault("sources", [])
+    claims = state.setdefault("claims", [])
+    hyps = state.setdefault("hypotheses", [])
+    by_id = {s["id"]: s for s in sources}
+    by_key = {_source_key(s): s for s in sources if _source_key(s)}
+    alias: dict[str, str] = {}
+
+    for incoming in result.get("sources") or []:
+        fields = {k: v for k, v in incoming.items() if k not in ("id", "tmp") and v not in (None, "", [])}
+        target = by_id.get(incoming.get("id")) or by_key.get(_source_key(incoming))
+        if target is None:
+            target = {"id": _next_id(sources, "S"), "fetched": False}
+            sources.append(target)
+            by_id[target["id"]] = target
+            log.append(f"新增來源 {target['id']}")
+        if target.get("fetched") and "fetched" in incoming and not incoming["fetched"]:
+            fields.pop("fetched", None)  # a later failed fetch does not undo an earlier successful one
+        target.update(fields)
+        if _source_key(target):
+            by_key[_source_key(target)] = target
+        for ref in (incoming.get("id"), incoming.get("tmp")):
+            if ref:
+                alias[ref] = target["id"]
+
+    def refs(values: object) -> list[str]:
+        out = []
+        for ref in values or []:
+            ref = alias.get(ref, ref)
+            if ref in by_id and ref not in out:
+                out.append(ref)
+            elif ref not in by_id:
+                log.append(f"略過無法對應的來源參照 {ref}")
+        return out
+
+    def add_claim(data: dict) -> str:
+        claim = {"id": _next_id(claims, "C"), "text": data.get("text", ""), "sources": refs(data.get("sources")),
+                 "verification": data.get("verification") or "unchecked"}
+        for key in ("quote", "note"):
+            if data.get(key):
+                claim[key] = data[key]
+        claims.append(claim)
+        return claim["id"]
+
+    if isinstance(result.get("hypotheses"), list):
+        if not issue:
+            raise SystemExit("合併 Generation／Evolution 結果需要 --issue")
+        for data in result["hypotheses"]:
+            parents = [p for p in data.get("parents") or [] if any(h["id"] == p for h in hyps)]
+            hyp = {"id": _next_id(hyps, "H"), "issue": data.get("issue") or issue, "statement": data.get("statement", ""),
+                   "rationale": data.get("rationale", ""), "origin": "evolution" if parents else "generation",
+                   "round": state.get("round", 1), "parents": parents, "status": "active", "claims": []}
+            hyps.append(hyp)
+            for item in data.get("claims") or []:
+                hyp["claims"].append(item["id"] if any(c["id"] == item.get("id") for c in claims) else add_claim(item))
+            log.append(f"新增假說 {hyp['id']}（{len(hyp['claims'])} 個主張）")
+
+    if result.get("hypothesis"):
+        hyp = next((h for h in hyps if h["id"] == result["hypothesis"]), None)
+        if hyp is None:
+            raise SystemExit(f"找不到假說 {result['hypothesis']}")
+        for key in ("status", "verdict"):
+            if result.get(key):
+                hyp[key] = result[key]
+        known = {c["id"]: c for c in claims}
+        for data in result.get("claims") or []:
+            claim = known.get(data.get("id"))
+            if claim is None:
+                hyp.setdefault("claims", []).append(add_claim(data))
+                continue
+            for key in ("text", "verification", "quote", "note"):
+                if data.get(key):
+                    claim[key] = data[key]
+            if "sources" in data:
+                claim["sources"] = refs(data["sources"])
+        log.append(f"更新假說 {hyp['id']} 的查核結果")
+
+    for match in result.get("matches") or []:
+        state.setdefault("matches", []).append({"round": state.get("round", 1), **match})
+        log.append(f"記錄對戰 {match.get('a')} vs {match.get('b')}")
+
+    for group in result.get("merge") or []:
+        for hid in group.get("drop") or []:
+            hyp = next((h for h in hyps if h["id"] == hid), None)
+            if hyp:
+                hyp["status"] = "merged"
+                hyp["verdict"] = f"併入 {group.get('keep')}：{group.get('reason', '')}"
+                log.append(f"{hid} 併入 {group.get('keep')}")
+    return log
+
+
 # ----------------------------------------------------------------------- cli
 
 
@@ -702,8 +831,19 @@ def main(argv: list[str] | None = None) -> int:
         cmd.add_argument("state", type=Path)
         if name == "render":
             cmd.add_argument("-o", "--output", type=Path, required=True)
+    cmd = sub.add_parser("merge")
+    cmd.add_argument("state", type=Path)
+    cmd.add_argument("result", type=Path)
+    cmd.add_argument("--issue")
     args = parser.parse_args(argv)
     state = load(args.state)
+    if args.command == "merge":
+        for line in merge(state, load(args.result), args.issue):
+            print(line)
+        args.state.write_text(json.dumps(state, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        errors, warnings = validate(state)
+        report_problems(errors, [])
+        return 1 if errors else 0
     errors, warnings = validate(state)
 
     if args.command == "rank":
