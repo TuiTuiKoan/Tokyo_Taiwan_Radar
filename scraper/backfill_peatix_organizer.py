@@ -115,7 +115,7 @@ def main(argv: list[str] | None = None) -> int:
 
     from dotenv import load_dotenv
     load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
-    from playwright.sync_api import sync_playwright
+    from playwright.sync_api import TimeoutError as PWTimeout, sync_playwright
     from supabase import create_client
 
     from observability import init_sentry
@@ -139,7 +139,12 @@ def main(argv: list[str] | None = None) -> int:
             link = EVENT_URL.format(id=row["id"])
             try:
                 page = ctx.new_page()
-                page.goto(row["source_url"], wait_until="networkidle", timeout=45000)
+                # Same fallback as PeatixScraper: background requests can keep
+                # the page from going network-idle after the content is there.
+                try:
+                    page.goto(row["source_url"], wait_until="networkidle", timeout=30_000)
+                except PWTimeout:
+                    page.goto(row["source_url"], wait_until="domcontentloaded", timeout=30_000)
                 organizer = extract_organizer_from_page(page)
                 page.close()
             except Exception:  # one bad page must not stop the batch
