@@ -41,6 +41,17 @@ Supervisor 是主對話；其餘角色是 Supervisor 以 subagent 啟動的獨�
 
 ### Reflection（深度查核）
 
+開啟來源的方法依序嘗試，並把實際用到的方法記在來源的 `access`：
+
+| 順序 | 方法 | `access` | 說明 |
+| --- | --- | --- | --- |
+| 1 | 內建抓取工具（WebFetch） | `webfetch` | 預設。 |
+| 2 | 使用者的瀏覽器 | `browser` | 抓取被網站拒絕、且這個 agent 有瀏覽器工具時使用：Claude in Chrome（`mcp__claude-in-chrome__*`），或連到使用者電腦的內建瀏覽器（`mcp__Claude_Browser__*`、`mcp__remote-devices__Claude_Browser__*`）。只做開頁與閱讀，不登入、不送表單、不點付款或同意條款；需要登入的頁面只在使用者已登入時讀取。 |
+| 3 | 學術登錄庫 | `abstract` | 論文類來源用 `scripts/research/scholar_lookup.py` 查 OpenAlex、Crossref、J-STAGE：書目欄位以登錄庫為準；有 `oa_url` 就回到方法 1、2 開全文；只讀得到摘要時 `fetched` 保持 false，主張最高 `partial`，引句取自摘要。 |
+| 4 | 都不行 | 不填 | 主張標 `unchecked`，`note` 寫原因。 |
+
+subagent 沒有瀏覽器工具而主對話有的時候，subagent 在回傳的 `needs_browser` 列出網址與要確認的內容，由 Supervisor 用瀏覽器開啟後補上結果，並在 `limitations` 註明這些主張由 Supervisor 查核。網站拒絕自動化存取時，不得偽裝用戶端或用其他方式繞過。
+
 對每個主張依序做：
 
 1. 開啟來源網址。來源若是二手報導，往上追到它引用的原始論文或資料，把原始來源加進 `sources`（`primary: true`），主張改指向原始來源。
@@ -105,7 +116,7 @@ Supervisor 維護的唯一狀態檔。所有 id 由 Supervisor 指派（`I0`…�
     {"id": "S1", "type": "paper | preprint | report | data | book | web",
      "title": "", "authors": ["姓, 名"], "year": 2024, "venue": "期刊或發布機構",
      "url": "https://…", "doi": "10.…", "accessed": "YYYY-MM-DD",
-     "primary": true, "fetched": true}
+     "primary": true, "fetched": true, "access": "webfetch | browser | shell | abstract"}
   ],
   "matches": [
     {"round": 1, "a": "H1", "b": "H2", "winner": "H1 | H2 | draw", "reason": "決定性差別"}
@@ -127,7 +138,7 @@ Supervisor 維護的唯一狀態檔。所有 id 由 Supervisor 指派（`I0`…�
 subagent 最後一則訊息只放一個 JSON 物件，前後不加說明文字：
 
 - Generation：`{"hypotheses": [{"tmp": "h1", "statement", "rationale", "claims": [{"text", "sources": ["s1"]}]}], "sources": [{"tmp": "s1", …來源欄位}]}`
-- Reflection：`{"hypothesis": "H1", "status", "verdict", "claims": [{"id": "C1" 或 "tmp", "text", "sources", "verification", "quote", "note"}], "sources": [新增或更新的來源]}`
+- Reflection：`{"hypothesis": "H1", "status", "verdict", "claims": [{"id": "C1" 或 "tmp", "text", "sources", "verification", "quote", "note"}], "sources": [新增或更新的來源]}, "needs_browser": [{"url", "claim", "question"}]}`（`needs_browser` 沒有就省略）
 - Ranking：`{"matches": [{"a", "b", "winner", "reason"}]}`
 - Proximity：`{"merge": [{"keep": "H1", "drop": ["H4"], "reason"}]}`
 - Evolution：與 Generation 相同，另加每個假說的 `parents`。
@@ -137,11 +148,15 @@ subagent 最後一則訊息只放一個 JSON 物件，前後不加說明文字�
 ## 腳本
 
 ```bash
+python3 scripts/research/scholar_lookup.py search "<關鍵字>" [--source openalex|crossref|jstage] [--rows 5]
+python3 scripts/research/scholar_lookup.py doi <DOI>
 python3 scripts/research/render_report.py merge    .research-runs/<slug>/state.json <subagent 回傳的 JSON 檔> [--issue I1]
 python3 scripts/research/render_report.py validate .research-runs/<slug>/state.json
 python3 scripts/research/render_report.py rank     .research-runs/<slug>/state.json
 python3 scripts/research/render_report.py render   .research-runs/<slug>/state.json -o .research-runs/<slug>/report.html
 ```
+
+`scholar_lookup.py` 輸出可直接放進 `sources` 的紀錄（不送 API key 與聯絡資訊）。它回傳的是書目與摘要，不等於讀過論文，所以 `fetched` 是 false；`primary` 由 Reflection 判斷。Generation 找論文時也優先用它，不憑記憶寫作者與年份。
 
 `merge` 把一個 subagent 的回傳併進 state.json：指派正式 id、把暫時 id 換成正式 id、依網址或 DOI 合併重複來源、追加對戰與合併結果。Generation 與 Evolution 的回傳要帶 `--issue`。Supervisor 把回傳存成檔案後用它合併，不手改 id。
 
@@ -152,7 +167,9 @@ python3 scripts/research/render_report.py render   .research-runs/<slug>/state.j
 查核要能開啟來源網站。2026-11-25 的試跑（紀錄在 `docs/specs/active/research-team/notes.md`）遇到兩層阻擋：
 
 - claude.ai 雲端環境的網路存取等級是「Limited」時，來源網域不在允許清單內就完全連不上。開始研究前先確認環境的網路設定；需要時依 `get_environment` 的說明提議變更，由使用者核准。
-- 即使網路開放，部分網站（政府網站、新聞網站、放在 CDN 後面的 PDF）會拒絕自動化存取（HTTP 403）。這是網站的決定，不得用偽裝瀏覽器等方式繞過。該主張標 `unchecked`，在 `note` 寫明原因，並在報告的限制中列出。
+- 內建抓取工具在同一台雲端機器上不會套用中途變更的網路設定；變更後要開新的 session 才生效。學術登錄庫的網域（`api.openalex.org`、`api.crossref.org`、`api.jstage.jst.go.jp`、`www.jstage.jst.go.jp`、`doi.org`）要在允許清單內，`scholar_lookup.py` 才能用。
+- 即使網路開放，部分網站（政府網站、新聞網站、放在 CDN 後面的 PDF）會拒絕自動化存取（HTTP 403）。這是網站的決定，不得用偽裝瀏覽器等方式繞過。改走 Reflection 段的方法 2（使用者的瀏覽器）或方法 3（學術登錄庫）；都不行時該主張標 `unchecked`，在 `note` 寫明原因，並在報告的限制中列出。
+- 使用者的瀏覽器只在兩種情況可用：在使用者電腦上執行的 Claude Code，或雲端 session 經 Remote Control 連上使用者的電腦（設定步驟見 `docs/specs/active/research-team/notes.md`）。
 
 來源開不了時，正確的結果是一份多數主張「未查核」的報告，不是用搜尋結果摘要或記憶補上結論。
 

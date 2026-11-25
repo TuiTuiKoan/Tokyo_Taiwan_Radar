@@ -28,3 +28,22 @@
 - 「已驗證」路徑在真實議題上由 Reflection subagent 完成（需要能開啟來源的環境）。
 - Evolution 與第二輪以上的迭代、`resume`。
 - standard、deep 深度的成本。
+
+## 2026-11-25 後續：瀏覽器優先、學術登錄庫、label
+
+使用者裁決：三條開啟來源的路都要（本機執行、Claude in Chrome、雲端 session 經 Remote Control 連回電腦），因為常常不在電腦前。
+
+- 查核規則改為依序嘗試 WebFetch、使用者的瀏覽器、學術登錄庫，並把方法記在來源的 `access`（SKILL「Reflection」）。
+- 新增 `scripts/research/scholar_lookup.py`。在 `research-team` 環境加入 5 個網域後實測：OpenAlex（DOI 查詢含摘要）、Crossref（DOI 與關鍵字查詢）、J-STAGE（日文關鍵字查詢）都回傳正確的書目。
+- `spec:research-team` label：GitHub MCP 沒有建 label 的工具，但用 `issue_write` 對 issue 或 PR 指定一個不存在的 label 時，GitHub 會自動建立（顏色是預設灰色、沒有說明）。#762 與 #763 已貼上。顏色與說明要改成慣例的 `1D76DB` 需要在 GitHub 網頁上改。
+
+### 雲端 session 連回使用者電腦（Remote Control）
+
+目的：人不在電腦前時，從手機或網頁啟動的雲端 session 能透過家裡或辦公室那台電腦的瀏覽器開啟來源。
+
+1. 電腦上的 Claude 桌面 App：Settings › Claude Code › Remote Control，開啟並選一個要分享的資料夾（建議是這個 repo 的資料夾）。資料夾不能是家目錄，也不能在 `~/Library` 或家目錄下以點開頭的資料夾內。
+2. 電腦保持開機、App 保持執行。App 關閉或電腦休眠時，雲端 session 連不上。
+3. 在雲端 session 輸入 `/deep-research …`。Supervisor 會列出可用的電腦資料夾並請求連線，電腦或 App 上會出現核准提示。
+4. 一個 session 只能連一台電腦，連上後不能換；要換電腦就開新的 session。
+
+尚未實測：2026-11-25 時使用者的清單是空的（沒有任何電腦分享資料夾），所以瀏覽器這條路只寫了規則，沒有跑過。連上之後瀏覽器工具是否能交給 subagent 使用也還不知道；不能時由 Supervisor 依 `needs_browser` 自己開啟。

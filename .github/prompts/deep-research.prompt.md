@@ -34,7 +34,8 @@ description: "研究助理團：以多 agent 假說迭代、原始來源查核�
 2. 訂 `slug`（kebab-case）與 `title`（二到四個詞的名稱）。
 3. 建議題樹：一個根議題，依 depth 拆子議題。子議題要互斥且合起來涵蓋問題，每個附一句 `summary`。
 4. 寫出 `.research-runs/<slug>/state.json` 的初版。
-5. 確認抓取工具開得了一般網站（試開一個與議題相關的來源）。開不了時依 SKILL「執行環境的限制」處理，並先告訴使用者查核會受限。
+5. 盤點可用的開啟方法：這個 session 有沒有瀏覽器工具（Claude in Chrome，或連到使用者電腦的瀏覽器；雲端 session 先用 `list_computer_folders` 看有沒有上線的電腦，有就用 `request_computer_folder` 請求連線）、`scholar_lookup.py` 能不能連線。把結果寫進給 Reflection 的提示。
+6. 確認抓取工具開得了一般網站（試開一個與議題相關的來源）。開不了時依 SKILL「執行環境的限制」處理，並先告訴使用者查核會受限。
 
 `resume` 時改為：用 Artifact 工具讀取該 Artifact 的 `state.json`（`action: "read"`、`path: "state.json"`）存到 `.research-runs/<slug>/`，接著從流程的第 2 步（有未查核的主張時）或第 5 步繼續；使用者有新的想法或回饋時，加成新的假說（`origin: "generation"`）或寫進 `goal`。
 
@@ -48,7 +49,7 @@ description: "研究助理團：以多 agent 假說迭代、原始來源查核�
 
 每個尚未查核的假說啟動一個 Reflection subagent，平行啟動。提示只含：研究問題、該假說的 statement、它的主張與來源清單、三條規則、Reflection 段、回傳格式。**不要**附上 Generation 的 rationale。
 
-收回後更新主張、來源與假說的 `status`、`verdict`。然後執行 `validate`；有錯誤就修正資料（必要時重派該假說的查核），不要為了通過檢查而改寫查核結果。
+收回後更新主張、來源與假說的 `status`、`verdict`。回傳含 `needs_browser` 而主對話有瀏覽器工具時，由 Supervisor 逐一開啟、補上查核結果（`access: "browser"`）。然後執行 `validate`；有錯誤就修正資料（必要時重派該假說的查核），不要為了通過檢查而改寫查核結果。
 
 ### 3. Proximity
 

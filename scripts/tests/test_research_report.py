@@ -252,3 +252,18 @@ def test_match_log_is_rendered(rr, state):
     assert "對戰紀錄" in page and "H3 vs H1" in page and "證據較直接" in page
     state["matches"] = []
     assert "對戰紀錄" not in rr.render(state)
+
+
+def test_access_field(rr, state):
+    state["sources"][1]["access"] = "browser"
+    assert rr.validate(state)[0] == []
+    assert "經瀏覽器開啟" in rr.render(state)
+    state["sources"][1]["access"] = "abstract"
+    assert any("只讀到摘要" in e for e in rr.validate(state)[0])
+    state["sources"][1]["access"] = "telepathy"
+    assert any("access `telepathy`" in e for e in rr.validate(state)[0])
+
+
+def test_merge_drops_abstracts(rr, state):
+    rr.merge(state, {"sources": [{"id": "S1", "abstract": "long text", "oa_url": "https://example.org/oa.pdf"}]})
+    assert "abstract" not in state["sources"][0] and state["sources"][0]["oa_url"] == "https://example.org/oa.pdf"

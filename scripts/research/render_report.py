@@ -46,6 +46,12 @@ SOURCE_TYPES = {
     "book": "專書",
     "web": "網頁",
 }
+ACCESS = {
+    "webfetch": "以抓取工具開啟",
+    "browser": "經使用者的瀏覽器開啟",
+    "shell": "以命令列開啟",
+    "abstract": "僅讀到摘要",
+}
 ELO_START = 1200.0
 ELO_K = 32.0
 CITE_RE = re.compile(r"\[\^([A-Za-z0-9_-]+)\]")
@@ -131,6 +137,10 @@ def validate(state: dict) -> tuple[list[str], list[str]]:
             errors.append(f"來源 {src['id']} 的 url 不是 http(s)：{url}")
         if src.get("type") and src["type"] not in SOURCE_TYPES:
             errors.append(f"來源 {src['id']} 的 type `{src['type']}` 不在允許值內")
+        if src.get("access") and src["access"] not in ACCESS:
+            errors.append(f"來源 {src['id']} 的 access `{src['access']}` 不在允許值內")
+        if src.get("fetched") and src.get("access") == "abstract":
+            errors.append(f"來源 {src['id']} 只讀到摘要（access 為 abstract），fetched 不能是 true")
 
     for claim in claims.values():
         status = claim.get("verification", "unchecked")
@@ -677,8 +687,12 @@ def render(state: dict) -> str:
             if src.get("type"):
                 tags.append(f'<span class="pill">{esc(SOURCE_TYPES.get(src["type"], src["type"]))}</span>')
             tags.append('<span class="pill verified">一手來源</span>' if src.get("primary") else '<span class="pill">二手來源</span>')
-            if not src.get("fetched"):
+            if src.get("access") == "abstract":
+                tags.append('<span class="pill partial">僅讀到摘要</span>')
+            elif not src.get("fetched"):
                 tags.append('<span class="pill partial">未能開啟全文</span>')
+            elif src.get("access") == "browser":
+                tags.append('<span class="pill">經瀏覽器開啟</span>')
             accessed = f"（查閱日 {esc(src['accessed'])}）" if src.get("accessed") else ""
             items.append(f'<li id="src-{esc(src["id"])}">{esc(cite_text(src))} {source_link(src)}{accessed} {" ".join(tags)}</li>')
         out.append('<section id="bibliography"><h2>參考書目</h2><ul class="biblio">' + "".join(items) + "</ul></section>")
@@ -724,7 +738,7 @@ def merge(state: dict, result: dict, issue: str | None = None) -> list[str]:
     alias: dict[str, str] = {}
 
     for incoming in result.get("sources") or []:
-        fields = {k: v for k, v in incoming.items() if k not in ("id", "tmp") and v not in (None, "", [])}
+        fields = {k: v for k, v in incoming.items() if k not in ("id", "tmp", "abstract") and v not in (None, "", [])}
         target = by_id.get(incoming.get("id")) or by_key.get(_source_key(incoming))
         if target is None:
             target = {"id": _next_id(sources, "S"), "fetched": False}
