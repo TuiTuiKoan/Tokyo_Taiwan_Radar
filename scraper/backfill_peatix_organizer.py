@@ -118,7 +118,10 @@ def main(argv: list[str] | None = None) -> int:
     from playwright.sync_api import sync_playwright
     from supabase import create_client
 
+    from observability import init_sentry
     from sources.peatix import BLOCKED_ORGANIZER_PATTERNS, extract_organizer_from_page
+
+    init_sentry("backfill_peatix_organizer")
 
     sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
     rows = _fetch_rows(sb, event_ids, args.include_inactive)
@@ -139,8 +142,8 @@ def main(argv: list[str] | None = None) -> int:
                 page.goto(row["source_url"], wait_until="networkidle", timeout=45000)
                 organizer = extract_organizer_from_page(page)
                 page.close()
-            except Exception as exc:  # one bad page must not stop the batch
-                logger.error("error %s — %s", link, exc)
+            except Exception:  # one bad page must not stop the batch
+                logger.exception("error %s", link)
                 continue
             if not organizer:
                 logger.warning("none  %s — no organizer on %s", link, row["source_url"])
