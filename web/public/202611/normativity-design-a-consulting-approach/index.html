@@ -1055,8 +1055,28 @@ slides.forEach((slide, idx) => {
   });
   let cur = 0;
   const clamp = n => Math.max(0, Math.min(tot - 1, n));
+  /* Restart the mascot's antenna animation (tip ring + flow line) whenever its slide
+     becomes active, so it always begins at 0s like the home page. Re-creating the
+     <use> clone restarts the CSS flow line; setCurrentTime(0) restarts the SMIL ring. */
+  let lastShown = -1;
+  function restartMascot(slide) {
+    let found = false;
+    slide.querySelectorAll('use[href="#lianbu"]').forEach(u => {
+      found = true;
+      u.replaceWith(u.cloneNode(false));
+    });
+    if (!found) return;
+    /* the ring's <animate> elements live in the sprite sheet's own <svg>, so that is the timeline to rewind */
+    const sym = document.getElementById("lianbu");
+    const sheet = sym && sym.ownerSVGElement;
+    [sheet, ...slide.querySelectorAll("svg")].forEach(svg => {
+      if (svg && svg.setCurrentTime) { try { svg.setCurrentTime(0); } catch (e) {} }
+    });
+  }
   function show(n) {
+    const prev = cur;
     cur = clamp(n);
+    if (cur !== lastShown) { lastShown = cur; restartMascot(all[cur]); }
     all.forEach((s, i) => s.classList.toggle("active", i === cur));
     if (hudCur) hudCur.textContent = cur + 1;
     if (prog) prog.style.width = (tot > 1 ? (cur / (tot - 1)) * 100 : 0) + "%";
