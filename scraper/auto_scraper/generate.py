@@ -47,6 +47,8 @@ try:
 except ImportError:
     pass  # python-dotenv not installed — rely on shell env (CI already has vars set)
 
+from research_exclusions import UNMANAGED_ROWS_FILTER, managed_reason
+
 # GPT-4o pricing as of 2026-05 (verify against current OpenAI pricing).
 GPT4O_INPUT_COST_PER_1M = 2.50
 GPT4O_OUTPUT_COST_PER_1M = 10.00
@@ -176,6 +178,9 @@ def _fetch_sample_html(url: str) -> str:
 
 
 def _check_eligibility(row: dict) -> None:
+    managed = managed_reason(row)
+    if managed:
+        raise GenerateError("spec-invalid", managed)
     if (row.get("status") or "") not in ("researched", "recommended"):
         raise GenerateError(
             "spec-invalid",
@@ -859,11 +864,14 @@ def run_batch(opts: BatchOptions, *, sb: Any | None = None) -> tuple[int, int]:
         .eq("url_verified", True)
         .in_("scraping_feasibility", ["easy", "medium"])
         .or_("auto_scraper_status.is.null,auto_scraper_status.eq.sandbox-failed,auto_scraper_status.eq.llm-error")
+        # ANDed with the ``or`` above; see research_exclusions.MANAGED_AGENT_CATEGORIES.
+        .or_(UNMANAGED_ROWS_FILTER)
         .order("id")
         .limit(opts.max_sources)
         .execute()
         .data or []
     )
+    rows = [r for r in rows if not managed_reason(r)]
     # Filter out cooldown
     now = datetime.now(timezone.utc)
     eligible = [r for r in rows if not _within_cooldown(r, now) or opts.ignore_cooldown]

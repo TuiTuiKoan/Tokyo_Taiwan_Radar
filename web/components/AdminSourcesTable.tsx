@@ -287,6 +287,11 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
     "other",
   ];
 
+  // agent_category values that override display_type: account lists read by a
+  // dedicated scraper (spec social-sources D1). Keep in sync with
+  // scraper/research_exclusions.py MANAGED_AGENT_CATEGORIES.
+  const SOCIAL_AGENT_CATEGORIES: string[] = ["facebook_page", "x_account"];
+
   // Build label map. Keys "all" / "archived" / "peatix_organizer" use admin namespace.
   const SOURCE_TYPE_LABELS: Record<string, string> = {
     all:               t("sourcesFilterAll"),
@@ -294,13 +299,17 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
       SOURCE_TYPE_KEYS.map((k) => [k, tType(k as Parameters<typeof tType>[0])]),
     ),
     peatix_organizer:  "Peatix 主辦者",
+    ...Object.fromEntries(
+      SOCIAL_AGENT_CATEGORIES.map((k) => [k, tType(k as Parameters<typeof tType>[0])]),
+    ),
     archived:          "📦 歸檔",
   };
 
   /** Resolve effective category for a source row.
-   *  Priority: agent_category=peatix_organizer override → display_type → 'other'. */
+   *  Priority: agent_category override (peatix_organizer, social accounts) → display_type → 'other'. */
   function effectiveTypeOf(s: ResearchSource): string {
     if (s.agent_category === "peatix_organizer") return "peatix_organizer";
+    if (s.agent_category && SOCIAL_AGENT_CATEGORIES.includes(s.agent_category)) return s.agent_category;
     return s.display_type ?? "other";
   }
 

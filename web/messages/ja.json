@@ -1218,7 +1218,9 @@
     "personal": "個人ページ",
     "creator": "クリエイターチャンネル",
     "other": "その他",
-    "cultural_center": "文化センター / 語学教室"
+    "cultural_center": "文化センター / 語学教室",
+    "facebook_page": "Facebookページ",
+    "x_account": "Xアカウント"
   },
   "account": {
     "title": "マイアカウント",
