@@ -119,17 +119,25 @@ def build_sibling_map(rows: list[dict]) -> dict[str, dict]:
 
 
 def fetch_sibling_map(sb, names: list[str]) -> dict[str, dict]:
-    rows: list[dict] = []
-    for i in range(0, len(names), IN_BATCH):
-        batch = names[i:i + IN_BATCH]
-        rows.extend(fetch_all(lambda: (
-            sb.table("events")
-            .select("id, location_name, location_address, location_address_zh, location_address_en")
-            .in_("location_name", batch)
-            .not_.is_("location_address", None)
-            .order("id")
-        )))
-    return build_sibling_map(rows)
+    """Sibling addresses for the given venue names.
+
+    Venue names never go into the request URL. A scraper once stored a whole
+    programme (3,123 chars) as a location_name; inside .in_() that one name
+    pushed a GET past the gateway's URL limit and every run failed with a
+    plain-text 400 (#761). No batch size can fix a single oversized value, so
+    read every event that has an address (paged) and match names here instead.
+    """
+    wanted = set(names)
+    if not wanted:
+        return {}
+    rows = fetch_all(lambda: (
+        sb.table("events")
+        .select("id, location_name, location_address, location_address_zh, location_address_en")
+        .not_.is_("location_address", None)
+        .not_.is_("location_name", None)
+        .order("id")
+    ))
+    return build_sibling_map([r for r in rows if r.get("location_name") in wanted])
 
 
 def resolve(event: dict, sibling_map: dict[str, dict]) -> tuple[dict, str] | None:

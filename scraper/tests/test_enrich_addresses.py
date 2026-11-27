@@ -69,3 +69,62 @@ def test_resolve_does_not_mutate_the_sibling_map(monkeypatch):
     patch, _ = ea.resolve({"location_name": "B館"}, siblings)
     patch["location_address_zh"] = "x"
     assert siblings == {"B館": {"location_address": "福岡県福岡市中央区7-7"}}
+
+
+class _FakeQuery:
+    """Records builder calls; .execute() returns rows for the requested range."""
+
+    def __init__(self, rows, calls):
+        self._rows, self._calls, self._range = rows, calls, None
+
+    def __getattr__(self, name):
+        def method(*args):
+            self._calls.append((name, args))
+            if name == "range":
+                self._range = args
+            return self
+        return method
+
+    @property
+    def not_(self):
+        self._calls.append(("not_", ()))
+        return self
+
+    def execute(self):
+        start, end = self._range
+        return type("Resp", (), {"data": self._rows[start:end + 1]})()
+
+
+class _FakeClient:
+    def __init__(self, rows):
+        self.rows, self.calls = rows, []
+
+    def table(self, name):
+        self.calls.append(("table", (name,)))
+        return _FakeQuery(self.rows, self.calls)
+
+
+def test_fetch_sibling_map_keeps_venue_names_out_of_the_url():
+    # #761: a 3,123-char location_name inside .in_() overflowed the URL limit.
+    huge = "台湾デザイン研究院 創意劇場 " * 300
+    rows = [
+        {"location_name": "A館", "location_address": "東京都港区1-1"},
+        {"location_name": huge, "location_address": "東京都千代田区2-2"},
+        {"location_name": "関係ない館", "location_address": "大阪府大阪市北区3-3"},
+    ]
+    sb = _FakeClient(rows)
+
+    result = ea.fetch_sibling_map(sb, ["A館", huge, "住所なし館"])
+
+    assert result == {
+        "A館": {"location_address": "東京都港区1-1"},
+        huge: {"location_address": "東京都千代田区2-2"},
+    }
+    assert not any(name in ("in_", "filter") for name, _ in sb.calls)
+    assert not any(huge in repr(args) for _, args in sb.calls)
+
+
+def test_fetch_sibling_map_with_no_names_makes_no_request():
+    sb = _FakeClient([])
+    assert ea.fetch_sibling_map(sb, []) == {}
+    assert sb.calls == []
