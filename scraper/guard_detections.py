@@ -55,14 +55,13 @@ DETECTIONS: list[dict] = [
     {"id": "online_with_physical_fields", "guard": "Pure-online / Hybrid planning guard", "table": "events",
      "filters": [("eq", "location_name", "オンライン"),
                  ("or", "venue_id.not.is.null,location_address.not.is.null,location_prefectures.not.is.null", None)]},
+    # spec no-event-reports (2026-11-22): event reports are no longer listed and
+    # the 【レポート】 prefix is no longer injected, so any active hit is a leak.
     {"id": "report_prefix_injected", "guard": "Report Prefix Injection Guard", "table": "events",
-     "filters": [("like", "name_ja", "【レポート】*"),
-                 ("not.in", "source_name", "(google_news_rss,nhk_rss,prtimes,walkerplus,note_creators)"),
-                 *[("not.ilike", "raw_title", f"*{k}*") for k in (
-                     "レポ", "報告", "活動記録", "開催記録", "鑑賞記録", "アーカイブ", "recap",
-                     "行ってきた", "観てきた", "結果発表")]]},
+     "filters": [("like", "name_ja", "【レポート】*"), ("eq", "is_active", True)]},
     {"id": "name_ja_report_suffix_lost", "guard": "Annotator name_ja Suffix Omission Guard", "table": "events",
-     "filters": [("ilike", "raw_title", "*レポート*"), ("not.ilike", "name_ja", "*レポート*")]},
+     "filters": [("ilike", "raw_title", "*レポート*"), ("not.ilike", "name_ja", "*レポート*"),
+                 ("eq", "is_active", True)]},
     {"id": "official_url_eiga", "guard": "Movie Lookup Official URL Guard", "table": "events",
      "filters": [("ilike", "official_url", "*eiga.com*")]},
     {"id": "official_url_ticket", "guard": "Cinema Official URL Extraction", "table": "events",

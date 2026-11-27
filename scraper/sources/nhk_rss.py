@@ -189,7 +189,7 @@ class NhkRssScraper(BaseScraper):
                         raw_title=item_title,
                         raw_description=raw_desc,
                         start_date=start_date,
-                        category=["report", "books_media"],
+                        category=["books_media"],
                     ))
 
             except Exception as e:

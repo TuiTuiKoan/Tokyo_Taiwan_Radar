@@ -222,8 +222,7 @@ export type Category =
   | "herbal"
   | "taiwan_mandarin"
   | "healthcare"
-  | "market"
-  | "report";
+  | "market";
 
 export const CATEGORIES: Category[] = [
   "movie",
@@ -265,7 +264,6 @@ export const CATEGORIES: Category[] = [
   "taiwan_mandarin",
   "healthcare",
   "market",
-  "report",
 ];
 
 export const EVENT_FORMS = [
@@ -375,10 +373,6 @@ export const CATEGORY_GROUPS: CategoryGroup[] = [
     labelKey: "group_society",
     categories: ["tech", "gender", "parenting", "geopolitics", "human_rights", "history", "taiwan_mandarin", "urban", "healthcare"],
   },
-  {
-    labelKey: "group_archive",
-    categories: ["report"],
-  },
 ];
 
 /** Return the best available name for an event given the current locale. */
@@ -481,12 +475,3 @@ export interface SourceExclusion {
   auto_disabled_reason: string | null;
 }
 
-/** True only for pure report/news-article events (noindex candidates). */
-export function isPureReportEvent(
-  category: string[] | null | undefined,
-  eventForm: string[] | null | undefined
-): boolean {
-  const cats = category ?? [];
-  const forms = eventForm ?? [];
-  return cats.includes("report") && forms.every((f) => f === "other");
-}

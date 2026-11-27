@@ -1,7 +1,7 @@
 """Annotator side of spec organizer-source-subevents.
 
 - venue label inside parentheses is not the event venue (407a033b)
-- cleaned tiff_jp article no longer triggers the keyword 'report' category
+- the retired 'report' category is never injected (spec no-event-reports)
 - schedule coverage retry eligibility mirrors every existing sub-event filter
 - _annotate_one passes max_tokens through
 """
@@ -46,8 +46,10 @@ def test_halfwidth_paren_note_skipped_but_later_label_used():
 
 # ── report keyword injection ────────────────────────────────────────────────
 
-def test_raw_page_with_navigation_gets_report_cleaned_does_not():
-    assert "report" in _inject_keyword_categories(["movie"], TITLE + " " + FIXTURE)
+def test_report_category_is_never_injected_raw_or_cleaned():
+    # spec no-event-reports (2026-11-22): the report category was retired, so
+    # neither the raw page (navigation noise) nor the cleaned body injects it.
+    assert "report" not in _inject_keyword_categories(["movie"], TITLE + " " + FIXTURE)
     assert "report" not in _inject_keyword_categories(["movie"], TITLE + " " + CLEANED)
 
 

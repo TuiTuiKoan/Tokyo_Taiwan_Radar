@@ -79,6 +79,15 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // The "report" category was retired on 2026-11-22 (spec no-event-reports):
+  // event reports are no longer listed. Send old links to the locale home.
+  async redirects() {
+    return LOCALES.map((locale) => ({
+      source: `/${locale}/categories/report`,
+      destination: `/${locale}`,
+      permanent: true,
+    }));
+  },
 };
 
 export default withSentryConfig(

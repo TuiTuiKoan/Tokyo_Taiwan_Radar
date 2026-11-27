@@ -219,8 +219,8 @@ def _genre_to_category(genre: str) -> list[str]:
         cats.append("movie")
     elif "音楽" in genre:
         cats.append("performing_arts")
-    elif "ドキュメンタリー" in genre or "教養" in genre or "報道" in genre:
-        cats.append("report")
+    elif "ドキュメンタリー" in genre:
+        cats.append("documentary")
     # バラエティ, スポーツ, and unknown genres → tv_program only
     return cats
 

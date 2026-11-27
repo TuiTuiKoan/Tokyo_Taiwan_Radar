@@ -355,7 +355,7 @@ class GoogleNewsRssScraper(BaseScraper):
                         raw_title=item_title,
                         raw_description=raw_desc,
                         start_date=start_date,
-                        category=["report"],
+                        category=[],
                     ))
 
             except Exception as e:

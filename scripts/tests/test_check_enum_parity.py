@@ -108,8 +108,8 @@ DRIFT_CASES = {
         "scraper/annotator.py VALID_CATEGORIES: missing ['herbal']",
     ),
     "types.ts gains a category": (
-        lambda r: replace_in(r / "web/lib/types.ts", '  "market",\n  "report",\n];',
-                             '  "market",\n  "report",\n  "dance",\n];'),
+        lambda r: replace_in(r / "web/lib/types.ts", '  "healthcare",\n  "market",\n];',
+                             '  "healthcare",\n  "market",\n  "dance",\n];'),
         "web/messages/ja.json categories.*: missing ['dance']",
     ),
     "taxonomy.md loses a definition": (

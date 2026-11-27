@@ -136,7 +136,7 @@ BLOCKED_ORGANIZER_PATTERNS: frozenset[str] = frozenset([
 _EVENT_CATEGORIES = frozenset([
     "movie", "performing_arts", "senses", "retail", "nature", "tech",
     "tourism", "lifestyle_food", "books_media", "gender", "geopolitics",
-    "art", "lecture", "taiwan_japan", "business", "academic", "competition", "report",
+    "art", "lecture", "taiwan_japan", "business", "academic", "competition",
 ])
 
 

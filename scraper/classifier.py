@@ -4,7 +4,7 @@ Keyword-based semantic categoriser for Taiwan events.
 Each event can receive multiple category tags. Categories match the
 frontend CATEGORIES type in web/lib/types.ts:
   movie | performing_arts | senses | retail | nature | tech | tourism | lifestyle_food | books_media | gender | geopolitics
-  | taiwan_japan | business | academic | competition | indigenous | art | lecture | urban | workshop | report
+  | taiwan_japan | business | academic | competition | indigenous | art | lecture | urban | workshop
 """
 
 from typing import Optional
@@ -16,7 +16,6 @@ from typing import Optional
 # ---------------------------------------------------------------------------
 
 _RULES: list[tuple[str, list[str]]] = [
-    # "report" is handled specially in classify() — name-only matching
     ("movie", [
         "映画", "film", "cinema", "上映", "スクリーニング", "screening",
         "ドキュメンタリー", "documentary", "電影", "影展", "影片",
@@ -155,16 +154,6 @@ def classify(
     ).lower()
 
     found: list[str] = []
-
-    # "report" uses NAME-ONLY matching to avoid false positives from
-    # common words like 報告/紀錄 that appear in many descriptions.
-    _REPORT_KEYWORDS = [
-        "レポート", "イベントレポート", "開催レポート", "開催報告",
-        "実施報告", "活動紀錄", "活動報告",
-    ]
-    name_corpus = " ".join(filter(None, [name_ja, name_zh, name_en])).lower()
-    if any(kw.lower() in name_corpus for kw in _REPORT_KEYWORDS):
-        found.append("report")
 
     for category, keywords in _RULES:
         if any(kw.lower() in corpus for kw in keywords):

@@ -108,6 +108,10 @@ def test_archive_streaming_ticket_is_not_a_report_or_history():
     assert "history" not in cats
 
 
-def test_real_archive_and_report_keywords_still_inject():
+def test_real_archive_keywords_still_inject_history():
     assert "history" in _inject_keyword_categories(["exhibition"], "戦前の台湾写真アーカイブを公開する展示")
-    assert "report" in _inject_keyword_categories(["art"], "台湾映画祭 開催レポート")
+
+
+def test_report_category_is_never_injected():
+    # spec no-event-reports: the report category was retired on 2026-11-22.
+    assert "report" not in _inject_keyword_categories(["art"], "台湾映画祭 開催レポート")

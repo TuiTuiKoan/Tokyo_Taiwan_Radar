@@ -28,7 +28,7 @@ Base URL: `https://news.google.com/rss/search?q={q}&hl=ja&gl=JP&ceid=JP:ja`
 | `raw_title` | `<title>` text |
 | `raw_description` | `"開催情報（Google News）:\n\n{description_plain}"` |
 | `start_date` | Extracted from description; fallback to pubDate |
-| `category` | `["report"]` — annotator refines |
+| `category` | `[]` — annotator decides; recap articles are deactivated by the event report gate (spec `no-event-reports`) |
 | `original_language` | `"ja"` |
 
 ## Taiwan Filter

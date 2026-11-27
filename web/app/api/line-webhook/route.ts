@@ -60,7 +60,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   "建築": "urban",       "都市": "urban",         "urban": "urban",
   "tech": "tech",
   "旅行": "tourism",     "tourism": "tourism",
-  "活動紀錄": "report",  "レポート": "report",    "report": "report",
 };
 
 // 語言命令對照

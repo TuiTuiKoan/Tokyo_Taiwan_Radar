@@ -119,7 +119,9 @@ Canonical list defined in `web/lib/types.ts` as `Category` type and `CATEGORIES`
 
 `movie` · `performing_arts` · `senses` · `retail` · `nature` · `tech`
 · `tourism` · `lifestyle_food` · `books_media` · `gender` · `geopolitics`
-· `art` · `lecture` · `taiwan_japan` · `business` · `academic` · `competition` · `report`
+· `art` · `lecture` · `taiwan_japan` · `business` · `academic` · `competition`
+
+> **No event reports**: Event reports (活動報導) are not listed since 2026-11-22 (spec `no-event-reports`). `scraper/event_report.py::is_event_report()` judges recap titles; scrapers skip them, the annotator deactivates them (`deactivated_reason = "auto-deactivated: event report (post-event recap)"`). There is no `report` category.
 
 ## Scraper conventions
 

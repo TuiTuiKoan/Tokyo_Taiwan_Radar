@@ -43,7 +43,6 @@ CATEGORY_JA = {
     "business": "ビジネス",
     "gender": "ジェンダー",
     "competition": "スポーツ・コンテスト",
-    "report": "レポート",
     "tourism": "観光",
     "nature": "風土・果物・SDG",
     "indigenous": "先住民文化",

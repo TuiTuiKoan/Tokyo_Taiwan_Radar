@@ -56,8 +56,7 @@ def test_window_and_negation_params():
     assert params["success"] == "eq.false" and params["notes"] == "is.null"
     assert params["ran_at"].startswith("gte.2026-09-22")
     report = _params(_by_id("report_prefix_injected"))
-    assert ("source_name", "not.in.(google_news_rss,nhk_rss,prtimes,walkerplus,note_creators)") in report
-    assert ("raw_title", "not.ilike.*レポ*") in report
+    assert report == [("name_ja", "like.【レポート】*"), ("is_active", "eq.true")]
 
 
 def test_or_expression_passes_through():

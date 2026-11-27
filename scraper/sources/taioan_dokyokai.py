@@ -1,9 +1,10 @@
 """
 Scraper for 在日台湾同郷会 (Taiwanese Association in Japan) — taioan.fc2.page
 
-WordPress site on FC2. Scrapes two categories:
+WordPress site on FC2. Scrapes one category:
   - /category/event/         → upcoming events (category left for annotator)
-  - /category/活動記録/      → past activity reports (category=["report"])
+The /category/活動記録/ (past activity reports) listing is not scraped since
+2026-11-22: TTR no longer lists event reports (spec no-event-reports).
 
 Pagination: WordPress /page/N/ URL scheme, up to MAX_PAGES per category.
 90-day lookback cutoff applied on publish date.
@@ -17,6 +18,8 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from playwright.sync_api import Page, TimeoutError as PWTimeout, sync_playwright
+
+from event_report import is_event_report
 
 from .base import BaseScraper, Event
 from .taiwan_cultural_center import (
@@ -33,9 +36,10 @@ CUTOFF_DAYS = 90
 
 # (url_path, hint_category)
 # hint_category seeds the category field; event posts get [] so the annotator decides.
+# The 活動記録 (activity report) listing is not scraped: TTR no longer lists
+# event reports (spec no-event-reports, 2026-11-22).
 LISTING_CATEGORIES: list[tuple[str, list[str]]] = [
     ("/category/event/", []),
-    ("/category/%e6%b4%bb%e5%8b%95%e8%a8%98%e9%8c%b2/", ["report"]),
 ]
 
 # This site uses ■ 日時 labels WITHOUT a colon — the date follows on the next line.
@@ -267,6 +271,10 @@ class TaioanDokyokaiScraper(BaseScraper):
         )
         if not name_ja:
             logger.warning("No title found at %s, skipping.", url)
+            return None
+        # A post can sit in both /event/ and 活動記録; skip recaps by title.
+        if is_event_report(name_ja):
+            logger.info("taioan_dokyokai: skipping event report: %s", name_ja[:60])
             return None
 
         # --- Publish date (Tier-3 fallback) ---
