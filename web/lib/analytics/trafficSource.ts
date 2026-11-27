@@ -69,3 +69,25 @@ export function referrerHost(referrer: string | null | undefined): string | null
     return null;
   }
 }
+
+/**
+ * Traffic source for an event_views row.
+ *
+ * The Referer header of a server-action request is the page that called the
+ * action (our own event page), so it always classified as "direct" and
+ * Google / LINE / SNS visits were never recorded. The client now sends
+ * `document.referrer`; the header is only a fallback for clients that predate
+ * this change (`clientReferrer === undefined`). An empty string from the
+ * client means "no referrer" and counts as direct.
+ */
+export function resolveViewTrafficSource(
+  utmSource: string | null | undefined,
+  clientReferrer: string | undefined,
+  headerReferer: string | null | undefined,
+): string {
+  const fromUtm = normalizeUtmSource(utmSource);
+  if (fromUtm) return fromUtm;
+  const referrer =
+    clientReferrer === undefined ? headerReferer : clientReferrer.slice(0, 2048);
+  return classifyReferrer(referrer);
+}

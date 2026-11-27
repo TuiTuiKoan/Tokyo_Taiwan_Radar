@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { headers } from "next/headers";
-import { classifyReferrer, normalizeUtmSource } from "@/lib/analytics/trafficSource";
+import { resolveViewTrafficSource } from "@/lib/analytics/trafficSource";
 import { classifyVisitor } from "@/lib/analytics/botDetect";
 
 function normalizeCountry(raw: string | null): string | null {
@@ -20,7 +20,8 @@ function normalizeRegion(raw: string | null): string | null {
 export async function recordEventView(
   eventId: string,
   locale: string,
-  utmSource?: string | null
+  utmSource?: string | null,
+  referrer?: string | null
 ): Promise<void> {
   try {
     // Dev environment has no x-vercel-ip-country header → pollutes prod with null country
@@ -29,7 +30,11 @@ export async function recordEventView(
     const headerList = await headers();
     const country = normalizeCountry(headerList.get("x-vercel-ip-country"));
     const region = normalizeRegion(headerList.get("x-vercel-ip-country-region"));
-    const trafficSource = normalizeUtmSource(utmSource) ?? classifyReferrer(headerList.get("referer"));
+    const trafficSource = resolveViewTrafficSource(
+      utmSource,
+      referrer === null ? "" : referrer,
+      headerList.get("referer")
+    );
     // Crawlers that run JS (Googlebot, Applebot, Bingbot…) fire this action too.
     // Keep their rows, labelled, so dashboards can exclude them (spec view-bot-filter).
     const { visitorClass, botName } = classifyVisitor({
