@@ -385,3 +385,49 @@ def test_pure_sentinel_write_overwrites_legacy_nonempty_fc_values():
         ("uuid-1", field, "")
         for field in PUBLICATION_NULL_FIELDS
     }
+
+def test_auto_lock_skips_fields_that_venue_propagation_changed():
+    """A value copied from the venue registry is not locked (venue-ground-truth B1)."""
+    client = FakeClient()
+    row = {
+        "location_name": "正規館",
+        "location_address": "東京都千代田区1-1-1 正規ビル2F",   # from the venue
+        "location_prefectures": ["東京都"],                     # same as the scraper
+        "event_form": ["lecture"],
+    }
+    scraped = {"uuid-1": {
+        "location_name": "正規館",
+        "location_address": "東京都千代田区",
+        "location_prefectures": ["東京都"],
+    }}
+
+    _auto_lock_location(client, {"uuid-1": row}, scraped)
+
+    assert {c["field_name"] for c in client.corrections} == {"location_name", "location_prefectures"}
+
+
+def test_auto_lock_without_scraped_values_keeps_old_behaviour():
+    client = FakeClient()
+    row = {"location_name": "正規館", "location_address": "東京都千代田区1-1-1", "event_form": ["lecture"]}
+
+    _auto_lock_location(client, {"uuid-1": row})
+
+    assert {c["field_name"] for c in client.corrections} == {"location_name", "location_address"}
+
+
+def test_upsert_locks_the_scraper_address_not_the_propagated_one(monkeypatch):
+    client = FakeClient()
+    _patch_writer(monkeypatch, client)
+
+    def propagate(_client, rows):
+        for row in rows:
+            row["location_address"] = "東京都千代田区1-1-1 正規ビル2F"
+            row["venue_id"] = "venue-1"
+
+    monkeypatch.setattr(database, "_populate_entity_fks", propagate)
+
+    upsert_events([_event(event_form=["lecture"], location_address="東京都千代田区")])
+
+    locked = {c["field_name"] for c in client.corrections}
+    assert "location_address" not in locked
+    assert {"location_name", "location_prefectures"} <= locked
