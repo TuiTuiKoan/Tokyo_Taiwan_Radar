@@ -2,13 +2,18 @@
 Geocode events.location_address → latitude / longitude.
 
 Strategy:
-  1. Cache hit: if event has venue_id and venues table already has lat/lng → copy, zero API calls.
-  2. Yahoo! JAPAN Geocoder API (requires YAHOO_GEOCODER_APPID in .env).
-  3. Fallback: Nominatim (OSM) — 1 req/s rate-limit, no key required.
+  1. Yahoo! JAPAN Geocoder API (requires YAHOO_GEOCODER_APPID in .env).
+  2. Fallback: Nominatim (OSM) — 1 req/s rate-limit, no key required.
 
-Write-back:
-  - events.latitude / events.longitude (never overwrites existing non-NULL values)
-  - venues.latitude / venues.longitude / venues.address (opportunistic, skipped if field_corrections lock exists)
+Candidates: active events without coordinates whose address is street-level
+(address_quality.grade_address), upcoming events first.
+
+Write-back: events.latitude / events.longitude only, never overwriting a value.
+The venues table is not written (#706): the former venue back-fill copied event
+addresses into venues.address unchecked. Venue coordinates have no reader yet;
+when one appears they belong in #372, geocoded from the authoritative address.
+
+Failed addresses are retried on the next run; there is no negative cache.
 
 Usage:
     cd scraper
@@ -25,13 +30,15 @@ import argparse
 import logging
 import os
 import time
-import urllib.parse
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import requests
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
+from address_quality import STREET, grade_address
+from db_paging import fetch_all
 from publication_rules import is_pure_publication_in_db, partition_pure_publications
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
@@ -39,6 +46,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
+JST = timezone(timedelta(hours=9))
 NOMINATIM_UA = "TokyoTaiwanRadar/1.0 (geocode@tokyotaiwanradar.com)"
 YAHOO_BASE = "https://map.yahooapis.jp/geocode/V1/geoCoder"
 NOMINATIM_BASE = "https://nominatim.openstreetmap.org/search"
@@ -114,65 +122,85 @@ def geocode_address(address: str, yahoo_appid: Optional[str]) -> Optional[tuple[
 
 
 # ---------------------------------------------------------------------------
-# Venue cache helpers
+# Candidate selection
 # ---------------------------------------------------------------------------
 
-def _get_venue_coords(sb: Client, venue_id: str) -> Optional[tuple[float, float]]:
-    """Return (lat, lng) from venues table if already geocoded."""
-    row = sb.table("venues").select("latitude, longitude").eq("id", venue_id).maybe_single().execute()
-    if row.data and row.data.get("latitude") is not None and row.data.get("longitude") is not None:
-        return float(row.data["latitude"]), float(row.data["longitude"])
-    return None
+CANDIDATE_COLUMNS = (
+    "id, source_id, location_name, location_address, latitude, event_form, "
+    "start_date, end_date"
+)
 
 
-def _has_field_correction_lock(sb: Client, venue_id: str) -> bool:
-    """Check if field_corrections has a lat/lng lock for this venue."""
-    rows = (
-        sb.table("field_corrections")
-        .select("id", count="exact", head=True)
-        .eq("source_id", venue_id)
-        .in_("field_name", ["latitude", "longitude"])
-        .execute()
-    )
-    return (rows.count or 0) > 0
+def is_geocodable(event: dict) -> bool:
+    """Only street-level Japanese addresses are worth an API call.
+
+    A town- or ward-level address resolves to the area's centre, which is not a
+    location anyone can walk to.
+    """
+    name = event.get("location_name") or ""
+    if "オンライン" in name:
+        return False
+    return grade_address(event.get("location_address"), name) == STREET
 
 
-def _opportunistic_venue_backfill(
-    sb: Client,
-    venue_id: str,
-    lat: float,
-    lng: float,
-    address: str,
-    dry_run: bool,
-) -> None:
-    """Write lat/lng (and address if empty) back to venues, unless locked by field_corrections."""
-    if _has_field_correction_lock(sb, venue_id):
-        logger.warning("Skipping venue %s — field_corrections lock exists", venue_id)
-        return
+def order_candidates(events: list[dict], today: str) -> list[dict]:
+    """Upcoming events first (soonest first), then past events (newest first).
 
-    venue = sb.table("venues").select("latitude, longitude, address").eq("id", venue_id).maybe_single().execute()
-    if not venue.data:
-        return
+    Without an order the same failing addresses came back first every day.
+    """
+    def last_day(e: dict) -> str:
+        return str(e.get("end_date") or e.get("start_date") or "")
 
-    update: dict = {}
-    if venue.data.get("latitude") is None:
-        update["latitude"] = lat
-    if venue.data.get("longitude") is None:
-        update["longitude"] = lng
-    if not venue.data.get("address"):
-        update["address"] = address
+    upcoming = [e for e in events if last_day(e)[:10] >= today]
+    past = [e for e in events if last_day(e)[:10] < today]
+    upcoming.sort(key=lambda e: (str(e.get("start_date") or ""), e["id"]))
+    past.sort(key=lambda e: (str(e.get("start_date") or ""), e["id"]), reverse=True)
+    return upcoming + past
 
-    if update:
-        if dry_run:
-            logger.info("[DRY-RUN] Would update venue %s: %s", venue_id, update)
-        else:
-            sb.table("venues").update(update).eq("id", venue_id).execute()
-            logger.info("Back-filled venue %s: %s", venue_id, list(update.keys()))
+
+def fetch_candidates(sb: Client) -> list[dict]:
+    return fetch_all(lambda: (
+        sb.table("events")
+        .select(CANDIDATE_COLUMNS)
+        .eq("is_active", True)
+        .not_.is_("location_address", "null")
+        .is_("latitude", "null")
+        .order("id")
+    ))
 
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
+def geocode_one(sb: Client, event: dict, yahoo_appid: Optional[str], dry_run: bool) -> str:
+    """Geocode one event. Returns "api" or "failed"."""
+    event_id = event["id"]
+    label = event.get("source_id") or event_id
+    address = event["location_address"]
+
+    result = geocode_address(address, yahoo_appid)
+    if not result:
+        logger.warning("[FAIL] %s | %s — no result from any geocoder", label, address)
+        return "failed"
+    lat, lng = result
+
+    if dry_run:
+        logger.info("[DRY-RUN] %s | %s → lat=%.6f lng=%.6f", label, address, lat, lng)
+        return "api"
+    if is_pure_publication_in_db(sb, event_id):
+        logger.warning("SKIP pure publication (re-check): %s", event_id[:8])
+        return "failed"
+    (
+        sb.table("events")
+        .update({"latitude": lat, "longitude": lng})
+        .eq("id", event_id)
+        .is_("latitude", "null")
+        .execute()
+    )
+    logger.info("%s | %s → lat=%.6f lng=%.6f", label, address, lat, lng)
+    return "api"
+
 
 def run(dry_run: bool, limit: int) -> None:
     url = os.environ.get("SUPABASE_URL")
@@ -185,109 +213,27 @@ def run(dry_run: bool, limit: int) -> None:
         logger.info("YAHOO_GEOCODER_APPID not set — using Nominatim only (slower)")
 
     sb = create_client(url, key)
+    today = datetime.now(JST).date().isoformat()
 
-    # Fetch candidates: active, has address, no lat/lng yet, exclude online-only.
-    # Try to filter latitude IS NULL at DB level first (requires migration 077).
-    # If the column doesn't exist yet, fall back to fetching without that filter
-    # and post-filtering in Python (useful for --dry-run before migration is applied).
-    try:
-        rows = (
-            sb.table("events")
-            .select("id, source_id, location_address, venue_id, latitude, event_form")
-            .eq("is_active", True)
-            .not_.is_("location_address", "null")
-            .is_("latitude", "null")
-            .neq("location_name", "オンライン")
-            .limit(limit)
-            .execute()
-        )
-        candidates = rows.data or []
-    except Exception as exc:
-        if "does not exist" in str(exc):
-            logger.warning(
-                "Column events.latitude not found — migration 077 not yet applied. "
-                "Running in pre-migration mode (no NULL filter, first %d active events).",
-                limit,
-            )
-            rows = (
-                sb.table("events")
-                .select("id, source_id, location_address, venue_id, event_form")
-                .eq("is_active", True)
-                .not_.is_("location_address", "null")
-                .neq("location_name", "オンライン")
-                .limit(limit)
-                .execute()
-            )
-            # Treat all as needing geocoding (migration not applied yet)
-            candidates = [dict(e, latitude=None) for e in (rows.data or [])]
-        else:
-            raise
-    candidates, publications = partition_pure_publications(candidates)
+    candidates, publications = partition_pure_publications(fetch_candidates(sb))
     if publications:
         logger.info("Skipped %d pure publication events (no venue by policy)", len(publications))
-    logger.info("Found %d candidate events to geocode (limit=%d)", len(candidates), limit)
-
-    geocoded = 0
-    cache_hits = 0
-    failed = 0
-
-    for event in candidates:
-        event_id = event["id"]
-        source_id = event.get("source_id", event_id)
-        address = event["location_address"]
-        venue_id = event.get("venue_id")
-
-        # A2: Cache hit — copy from venues table
-        if venue_id:
-            cached = _get_venue_coords(sb, venue_id)
-            if cached:
-                lat, lng = cached
-                if dry_run:
-                    logger.info(
-                        "[DRY-RUN] [CACHE] %s | %s → lat=%.6f lng=%.6f",
-                        source_id, address, lat, lng,
-                    )
-                else:
-                    if is_pure_publication_in_db(sb, event_id):
-                        logger.warning("SKIP pure publication (re-check): %s", event_id[:8])
-                        continue
-                    sb.table("events").update({"latitude": lat, "longitude": lng}).eq("id", event_id).execute()
-                    logger.info("[CACHE] %s | %s → lat=%.6f lng=%.6f", source_id, address, lat, lng)
-                cache_hits += 1
-                geocoded += 1
-                continue
-
-        # A3: Geocode via Yahoo! / Nominatim
-        result = geocode_address(address, yahoo_appid)
-        if not result:
-            logger.warning("[FAIL] %s | %s — no result from any geocoder", source_id, address)
-            failed += 1
-            continue
-
-        lat, lng = result
-        if dry_run:
-            logger.info(
-                "[DRY-RUN] [API] %s | %s → lat=%.6f lng=%.6f",
-                source_id, address, lat, lng,
-            )
-        else:
-            # A4: Write events.latitude / longitude (never overwrite existing non-NULL)
-            if is_pure_publication_in_db(sb, event_id):
-                logger.warning("SKIP pure publication (re-check): %s", event_id[:8])
-                continue
-            sb.table("events").update({"latitude": lat, "longitude": lng}).eq("id", event_id).is_("latitude", "null").execute()
-            logger.info("[API] %s | %s → lat=%.6f lng=%.6f", source_id, address, lat, lng)
-
-            # A4: Opportunistic venue backfill
-            if venue_id:
-                _opportunistic_venue_backfill(sb, venue_id, lat, lng, address, dry_run=False)
-
-        geocoded += 1
-
+    geocodable = [e for e in candidates if is_geocodable(e)]
     logger.info(
-        "Done. geocoded=%d (cache_hits=%d api=%d) failed=%d",
-        geocoded, cache_hits, geocoded - cache_hits, failed,
+        "Found %d events without coordinates; %d have a street-level address (limit=%d)",
+        len(candidates), len(geocodable), limit,
     )
+    batch = order_candidates(geocodable, today)[:limit] if limit > 0 else order_candidates(geocodable, today)
+
+    counts = {"api": 0, "failed": 0, "error": 0}
+    for event in batch:
+        try:
+            counts[geocode_one(sb, event, yahoo_appid, dry_run)] += 1
+        except Exception as exc:  # one bad row must not stop the batch
+            logger.warning("[ERROR] %s — %s", event["id"][:8], exc)
+            counts["error"] += 1
+
+    logger.info("Done. geocoded=%d failed=%d errors=%d", counts["api"], counts["failed"], counts["error"])
 
 
 def main() -> None:
