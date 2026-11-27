@@ -44,3 +44,6 @@ scraper/auto_scraper/runs/*/
 
 # Generated monthly reports (local output, not committed)
 scraper/reports/
+
+# Research-team run files (state.json, report.html); published as Artifacts, not committed
+.research-runs/
