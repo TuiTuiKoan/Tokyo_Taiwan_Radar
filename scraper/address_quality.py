@@ -243,3 +243,48 @@ def grade_address(address: str | None, location_name: str | None = None) -> str:
 
 def is_street_level(address: str | None, location_name: str | None = None) -> bool:
     return grade_address(address, location_name) == STREET
+
+
+# ---------------------------------------------------------------------------
+# Comparison key
+# ---------------------------------------------------------------------------
+
+_POSTAL_ANY_RE = re.compile(
+    r"(?:〒|郵便番号[:：]?)\s*\d{3}\s*[-‐－−ー]\s*\d{4}|^\s*\d{3}\s*[-‐－−ー]\s*\d{4}(?!\d|[-‐－−ー])"
+)
+_PREF_PREFIX_RE = re.compile(rf"^(?:{_PREF_RE})")
+_LOT_UNITS = (
+    (re.compile(r"(\d+)丁目(?=\d)"), r"\1-"),
+    (re.compile(r"(\d+)番地?(?=\d)"), r"\1-"),
+    (re.compile(r"(\d+)の(?=\d)"), r"\1-"),
+    (re.compile(r"(\d+)(?:番地|番|号)"), r"\1"),
+    (re.compile(rf"(\d+)\s*{_DASH}\s*(?=\d)"), r"\1-"),
+)
+# A number before 条 (Sapporo 北1条西3丁目) is part of the town name, not the lot.
+_LOT_SEQUENCE_RE = re.compile(r"\d+(?:-\d+)+|\d+(?!\d|\s*条)")
+
+
+def address_key(address: str | None) -> str | None:
+    """A key under which spellings of the same street address compare equal.
+
+    東京都中央区日本橋室町3-2-1 COREDO室町テラス2F, 中央区日本橋室町３丁目２−１ and
+    〒103-0022 東京都中央区日本橋室町3丁目2番1号 all give 中央区日本橋室町3-2-1:
+    postal code, prefecture, whitespace and everything after the lot number
+    (building, floor) are dropped. Returns None unless the address is STREET.
+    """
+    if grade_address(address) != STREET:
+        return None
+    text = _POSTAL_ANY_RE.sub(" ", normalize_address(address))
+    text = re.sub(r"\s+", " ", text).strip()
+    text = _PREF_PREFIX_RE.sub("", text).lstrip()
+    for pattern, replacement in _LOT_UNITS:
+        text = pattern.sub(replacement, text)
+    match = None
+    for candidate in _LOT_SEQUENCE_RE.finditer(text):
+        # The first number sequence that follows a municipality is the lot.
+        # Whitespace is still in place here, so "35-13 3F" stops at 13.
+        if _MUNICIPALITY_RE.search(text[: candidate.start()]):
+            match = candidate
+            break
+    key = text[: match.end()] if match else text
+    return re.sub(r"\s+", "", key)

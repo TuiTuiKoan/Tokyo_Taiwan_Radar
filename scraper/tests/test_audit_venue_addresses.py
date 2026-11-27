@@ -171,3 +171,35 @@ def test_sample_is_stable_distinct_and_capped():
     assert set(first) == {"street"}
     assert len(first["street"]) == SAMPLE_PER_GRADE == len(set(first["street"]))
     assert "## street 街道級（合格）（30）" in render_sample(audit(events, [], NOW))
+
+
+def test_lock_report_counts_blocked_venue_fixes_and_quoted_values():
+    venues = [{"id": "v1", "canonical_name_ja": "A館", "address": "東京都港区虎ノ門1-1-12",
+               "is_authoritative": True, "is_multi_venue": False}]
+    events = [
+        _event(1, "A館", "東京都港区虎ノ門1-1-1", venue_id="v1"),       # locked to an old address
+        _event(2, "A館", "東京都港区虎ノ門1-1-12", venue_id="v1"),      # locked to the same address
+        _event(3, "B館", None),                                          # blank but locked
+        _event(4, "C館", '"東京都港区虎ノ門1-1-12"'),                     # quoted event address
+        _event(5, "D館", "東京都港区六本木"),                             # new enrich candidate, locked
+    ]
+    locks = [
+        {"event_id": "e1", "field_name": "location_address", "corrected_value": "東京都港区虎ノ門1-1-1"},
+        {"event_id": "e2", "field_name": "location_address", "corrected_value": '"東京都港区虎ノ門１－１－１２"'},
+        {"event_id": "e3", "field_name": "location_address", "corrected_value": "東京都新宿区新宿3-35-13"},
+        {"event_id": "e5", "field_name": "location_address", "corrected_value": "東京都港区六本木"},
+        {"event_id": "e1", "field_name": "location_name", "corrected_value": "A館"},
+    ]
+    report = audit(events, venues, NOW, locks)["locks"]
+
+    assert report["authoritative_lock_differs"] == 1
+    assert report["authoritative_lock_differs_upcoming"] == 1
+    assert report["event_blank_but_locked"] == 1
+    assert report["quoted_event_addresses"] == 1
+    assert report["quoted_address_locks"] == 1
+    assert report["enrich_new_candidates"] == 1 and report["enrich_new_candidates_locked"] == 1
+    assert "場館修正流不到這些事件" in render_markdown(audit(events, venues, NOW, locks))
+
+
+def test_lock_report_is_omitted_without_lock_rows():
+    assert audit([_event(1, "A館", None)], [], NOW)["locks"] is None
