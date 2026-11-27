@@ -183,3 +183,75 @@ def test_reset_reloads_registry(monkeypatch):
     assert venue_registry.lookup_venue("旧館") is None
     assert venue_registry.lookup_venue("新館")["id"] == "venue-2"
     assert client.calls == 2
+
+def _load(monkeypatch, rows):
+    monkeypatch.setattr(venue_registry, "_get_client", lambda: _Client(rows))
+
+
+def test_loose_match_ignores_width_spaces_and_middle_dots(monkeypatch):
+    """#370 r042 and r048."""
+    _load(monkeypatch, [
+        _venue("clair", "シネマ・クレール 丸の内1・2"),
+        _venue("united", "ユナイテッドシネマつくば", aliases=["ユナイテッド・シネマつくば"]),
+    ])
+
+    venue, preserve = venue_registry.lookup_venue_for_location("シネマ・クレール 丸の内１・２")
+    assert venue["id"] == "clair" and preserve is False
+    venue, preserve = venue_registry.lookup_venue_for_location("ユナイテッド・シネマ つくば")
+    assert venue["id"] == "united" and preserve is False
+
+
+def test_loose_match_never_resolves_a_clash_or_an_ambiguous_key(monkeypatch):
+    _load(monkeypatch, [
+        _venue("a", "シネマ・ノヴェチェント"),
+        _venue("b", "シネマノヴェチェント"),          # same loose key as "a"
+        _venue("c", "Ａ館", aliases=["共有名"]),
+        _venue("d", "Ｂ館", aliases=["共有名"]),        # exact alias clash
+    ])
+
+    assert venue_registry.lookup_venue_for_location("シネマ ノヴェチェント") == (None, False)
+    assert venue_registry.lookup_venue_for_location("共 有 名") == (None, False)
+    # Exact names still resolve.
+    assert venue_registry.lookup_venue_for_location("シネマノヴェチェント")[0]["id"] == "b"
+
+
+def test_loose_match_is_whole_name_only(monkeypatch):
+    """No prefix or suffix relaxation: r043, r044 and r047 stay unresolved."""
+    _load(monkeypatch, [_venue("t", "東京芸術劇場"), _venue("s", "シネマート新宿")])
+
+    assert venue_registry.lookup_venue_for_location("東京芸術劇場コンサートホール") == (None, False)
+    assert venue_registry.lookup_venue_for_location("シネマート新宿スクリーン１") == (None, False)
+    # The existing boundary rule is unchanged.
+    venue, preserve = venue_registry.lookup_venue_for_location("東京芸術劇場 シアターイースト")
+    assert venue["id"] == "t" and preserve is True
+
+
+def test_loose_keys_do_not_hide_any_snapshot_venue(monkeypatch):
+    """On the frozen registry snapshot, the loose index drops no exact key.
+
+    Every canonical name and alias that the exact lookup resolves must still
+    resolve to the same venue, and the loose fallback must add no new clash.
+    """
+    import json
+    from pathlib import Path
+
+    snapshot = json.loads((Path(__file__).parent / "golden" / "venue_registry_snapshot.json").read_text())
+    rows = [{**_venue(v["id"], v["canonical_name_ja"], v.get("aliases") or []),
+             "is_multi_venue": v.get("is_multi_venue", False)} for v in snapshot["venues"]]
+    _load(monkeypatch, rows)
+
+    names = {(v["canonical_name_ja"], v["id"]) for v in snapshot["venues"]}
+    names |= {(a, v["id"]) for v in snapshot["venues"] for a in v.get("aliases") or []}
+    venue_registry.lookup_venue("warm-up")
+    ambiguous = set(venue_registry._AMBIGUOUS)
+    for name, venue_id in names:
+        if name.strip() in ambiguous:
+            continue
+        venue, _ = venue_registry.lookup_venue_for_location(name)
+        assert venue is not None and venue["id"] == venue_id, name
+
+    loose = venue_registry._loose_index()
+    exact_keys = set(venue_registry._CANONICAL) | set(venue_registry._ALIASES)
+    lost = {venue_registry._loose_key(k) for k in exact_keys} - set(loose)
+    # Loose keys may only disappear because the exact lookup already rejected them.
+    assert lost <= {venue_registry._loose_key(k) for k in ambiguous}
