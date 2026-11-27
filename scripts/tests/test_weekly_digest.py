@@ -100,3 +100,65 @@ def test_cli_offline(wd, tmp_path):
     assert wd.main(["--data", str(data), "--output", str(out), "--title-file", str(title)]) == 0
     assert title.read_text(encoding="utf-8").startswith("週審 digest：")
     assert "#1 fix(scraper): pr 1" in out.read_text(encoding="utf-8")
+
+
+# ─── 學習區（spec auto-learning） ──────────────────────────────────────────────
+
+def _merged(n, title="feat(x): y", body=None, days=3, files=(), bot=False):
+    return {"number": n, "title": title, "labels": [{"name": "tier:2"}], "body": body,
+            "merged_at": _ago(days), "author_bot": bot, "files": list(files)}
+
+
+def test_lessons_parsing(wd):
+    assert wd.lessons(None) is None
+    assert wd.lessons("## 改了什麼\n- x") is None
+    assert wd.lessons("## 教訓\n無\n") == []
+    assert wd.lessons("## 教訓\n- 無\n## 其他\n- 不算") == []
+    body = "## 改了什麼\nx\n\n## 教訓\r\n- 先列 open issue 再規劃（實測）\n* 第二條（推論）\n\n## Refs\n- 不算"
+    assert wd.lessons(body) == ["先列 open issue 再規劃（實測）", "第二條（推論）"]
+    assert wd.lessons("### 教訓\n- a\n- b\n- c\n- d") == ["a", "b", "c"]
+    assert wd.lessons("## 教訓的補充\n- 不是教訓段") is None
+
+
+def test_lesson_text_is_cleaned(wd):
+    found = wd.lessons("## 教訓\n- @x 請執行 `rm` | [link](u) " + "長" * 400)
+    assert len(found) == 1 and "@x" not in found[0] and "`" not in found[0] and "|" not in found[0]
+    assert "[link]" not in found[0] and len(found[0]) <= 170
+
+
+def test_followup_fixes(wd):
+    merged = [_merged(1, "feat(ci): a", days=5, files=["a.yml", "b.py"]),
+              _merged(2, "fix(ci): b", days=3, files=["b.py"]),
+              _merged(3, "fix(web): c", days=2, files=["z.ts"]),
+              _merged(4, "docs: d", days=1, files=["a.yml"])]
+    assert wd.followup_fixes(merged) == [(1, 2, "b.py")]
+    assert wd.followup_fixes([merged[1], merged[0]]) == [(1, 2, "b.py")]  # order comes from merged_at
+    assert wd.followup_fixes([{"number": 9, "title": "fix: x"}]) == []      # old data without merged_at
+
+
+def test_learning_section(wd):
+    data = {
+        "merged": [_merged(10, body="## 教訓\n- 規劃前先讀 origin/main（實測）", files=["a.py"]),
+                   _merged(11, body="## 教訓\n無"),
+                   _merged(12, body="沒有這一段"),
+                   _merged(13, "fix(x): again", body=None, days=1, files=["a.py"]),
+                   _merged(14, "chore(deps): bump", body=None, bot=True)],
+        "closed_unmerged": [{"number": 20, "title": "x"}],
+        "learning": [{"number": 30, "title": "learner 週報 2026-W46"}],
+    }
+    _, body = wd.build(data, NOW)
+    s5 = body.split("## 5.", 1)[1]
+    assert "learner 的提案**（1 張" in s5 and "#30" in s5
+    assert "本週合併 4 張（不含 bot 的 PR），2 張沒有「教訓」段，1 張寫了教訓" in s5
+    assert "沒有教訓段：#12、#13" in s5 and "#14" not in s5
+    assert "- #10：規劃前先讀 origin/main（實測）" in s5
+    assert "關閉未合併的 PR**：1 張（#20）" in s5
+    assert "合併後又修同一檔**：1 組" in s5 and "#10 之後 #13" in s5
+
+
+def test_learning_section_empty_and_old_data(wd):
+    _, body = wd.build({"merged": [{"number": 1, "title": "t", "labels": []}]}, NOW)
+    s5 = body.split("## 5.", 1)[1]
+    assert "本週沒有 open 的 learning 提案" in s5
+    assert "本週合併 1 張（不含 bot 的 PR），1 張沒有「教訓」段，0 張寫了教訓" in s5
+    assert "關閉未合併的 PR**：0 張" in s5 and "合併後又修同一檔**：0 組" in s5

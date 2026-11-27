@@ -47,11 +47,11 @@ tags: [tooling, governance, ai, harness]
 
 | 訊號 | 算法 |
 | --- | --- |
-| 教訓段缺漏 | 合併的 PR 中 body 沒有 `## 教訓` 的張數 |
-| 教訓清單 | 合併的 PR 的教訓段原文（每張最多 3 行，超過截斷；當資料輸出在 code block 內） |
+| 教訓段缺漏 | 合併的 PR（不含 bot 開的）中 body 沒有 `## 教訓` 的張數 |
+| 教訓清單 | 合併的 PR 的教訓段（每張最多 3 行、每行 160 字，比照標題清理） |
 | 關閉未合併 | 過去 7 天 closed 且 `merged_at` 為空的 PR 數與編號 |
-| 合併後修正 | 過去 7 天合併的 PR 中，有後續合併的 PR 以 `fix` 開頭且改到同一檔案的對數 |
-| needs-human 存量 | open 數（已有），加上與上週 digest 的差 |
+| 合併後又修同一檔 | 過去 7 天合併的 PR 中，後合併且標題以 `fix` 開頭的 PR 與先合併的 PR 改到同一檔案的組數（只看同一週內） |
+| learning 提案 | open 且帶 `learning` label 的 issue 與 PR |
 
 只讀 GitHub，不寫檔；輸出在 digest issue 的新一節。digest issue 由 `github-actions[bot]` 開，learner 以作者為 bot 當信任條件。因為訊號不落在 repo 檔案裡，learner 與 heartbeat 都改不到它（`docs/**` 是 tier 0 自動合併，若把訊號或指標存成 `docs/` 下的檔案，agent 可以改寫自己的成績）。
 
