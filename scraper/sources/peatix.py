@@ -25,6 +25,31 @@ logger = logging.getLogger(__name__)
 _GROUP_HREF_RE = re.compile(r"(?:peatix\.com)?/group/\d+")
 
 
+def extract_organizer_from_page(page) -> str:
+    """Organizer (Peatix group) name from a rendered event page, or ''.
+
+    Shared by the scraper and backfill_peatix_organizer.py so both read the
+    page the same way.
+    """
+    for _el in page.query_selector_all("a[href*='/group/']"):
+        _href = _el.get_attribute("href") or ""
+        if _GROUP_HREF_RE.search(_href):
+            _txt = (_el.inner_text() or "").strip()
+            # Collapse whitespace/newlines so multi-line elements show correctly
+            _txt = re.sub(r"\s+", " ", _txt)
+            # Guard: a real organizer name is short; skip if the element
+            # returns a large page-level text blob (e.g. >100 chars).
+            if _txt and len(_txt) <= 100:
+                return _txt
+    _fallback = (
+        _safe_text(page, ".group-name")
+        or _safe_text(page, "[class*='organizer']")
+        or ""
+    )
+    # Apply same length guard to fallback path
+    return _fallback if len(_fallback) <= 100 else ""
+
+
 def format_organizer_line(organizer_name: str, description: str | None) -> str:
     """Return a '主催者: <name>' line for raw_description, or '' when the
     name is empty or already present in the description."""
@@ -708,26 +733,7 @@ class PeatixScraper(BaseScraper):
         # Use query_selector_all + numeric group ID check to avoid matching nav links
         # (e.g. /group/browse, /group/top) whose inner_text may include extra UI text
         # like "Translate this page" that pollutes the organizer name.
-        organizer_name = ""
-        for _el in page.query_selector_all("a[href*='/group/']"):
-            _href = _el.get_attribute("href") or ""
-            if _GROUP_HREF_RE.search(_href):
-                _txt = (_el.inner_text() or "").strip()
-                # Collapse whitespace/newlines so multi-line elements show correctly
-                _txt = re.sub(r"\s+", " ", _txt)
-                # Guard: a real organizer name is short; skip if the element
-                # returns a large page-level text blob (e.g. >100 chars).
-                if _txt and len(_txt) <= 100:
-                    organizer_name = _txt
-                    break
-        if not organizer_name:
-            _fallback = (
-                _safe_text(page, ".group-name")
-                or _safe_text(page, "[class*='organizer']")
-                or ""
-            )
-            # Apply same length guard to fallback path
-            organizer_name = _fallback if len(_fallback) <= 100 else ""
+        organizer_name = extract_organizer_from_page(page)
         if organizer_name and any(pat in organizer_name for pat in BLOCKED_ORGANIZER_PATTERNS):
             logger.info("Peatix: blocked organizer '%s', skipping: %s", organizer_name[:40], name_ja[:60])
             return None

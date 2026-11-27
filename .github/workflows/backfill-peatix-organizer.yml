@@ -1,0 +1,78 @@
+name: Backfill Peatix Organizer
+
+# Manual only. Fills organizer for existing Peatix events whose organizer is
+# empty by opening each event's own Peatix page (issue #603). Dry-run unless
+# "live" is ticked; see scraper/backfill_peatix_organizer.py.
+on:
+  workflow_dispatch:
+    inputs:
+      live:
+        description: "Write to the DB (unticked = dry-run, prints the list only)"
+        type: boolean
+        default: false
+      event_ids:
+        description: "Optional: event UUIDs, space or comma separated (empty = all active Peatix events with no organizer)"
+        required: false
+        default: ""
+      include_inactive:
+        description: "Also include inactive (past) events when event_ids is empty"
+        type: boolean
+        default: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: read
+
+jobs:
+  backfill:
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: scraper
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scraper/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright browsers
+        run: playwright install chromium --with-deps
+
+      - name: Backfill organizer
+        # shell: bash adds pipefail, so a script failure is not hidden by tee
+        shell: bash
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          # Inputs go through env, never interpolated into the script, and the
+          # Python side rejects anything that is not a UUID.
+          INPUT_LIVE: ${{ inputs.live }}
+          INPUT_EVENT_IDS: ${{ inputs.event_ids }}
+          INPUT_INCLUDE_INACTIVE: ${{ inputs.include_inactive }}
+        run: |
+          ARGS=()
+          if [ "$INPUT_LIVE" = "true" ]; then ARGS+=(--live); fi
+          if [ "$INPUT_INCLUDE_INACTIVE" = "true" ]; then ARGS+=(--include-inactive); fi
+          if [ -n "$INPUT_EVENT_IDS" ]; then ARGS+=(--event-ids "$INPUT_EVENT_IDS"); fi
+          python backfill_peatix_organizer.py "${ARGS[@]}" | tee "$RUNNER_TEMP/backfill.txt"
+          {
+            echo "## Peatix organizer backfill ($([ "$INPUT_LIVE" = "true" ] && echo LIVE || echo DRY-RUN))"
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/backfill.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
